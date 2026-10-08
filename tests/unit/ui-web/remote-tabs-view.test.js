@@ -169,7 +169,7 @@ test("the device rail narrows the list to one device and back", withDocument(asy
   await settle()
   const chips = () => [...root.querySelectorAll("[data-testid=remote-tabs-chip]")]
   const names = () => [...root.querySelectorAll("[data-testid=remote-device] .remote_device_name")].map((name) => name.textContent)
-  assert.deepEqual(chips().map((chip) => chip.textContent), ["All devices3", "Phone1", "Laptop2"])
+  assert.deepEqual(chips().map((chip) => chip.textContent), ["All3", "Phone1", "Laptop2"])
   assert.match(root.querySelector(".remote_tabs_summary").textContent, /2 devices · 3 tabs/)
   chips()[2].click()
   assert.deepEqual(names(), ["Laptop"])

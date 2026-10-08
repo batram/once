@@ -120,7 +120,7 @@ test("tab sync starts off until asked, keeps devices that already shared on, and
 })
 
 test("tab state: YouTube starts where it was left, and states are validated and described", () => {
-  const { withYouTubeStart, isYouTubeVideo, readMediaState, readReaderPosition, describeTabState } = require("../../../packages/core/dist")
+  const { withYouTubeStart, isYouTubeVideo, readMediaState, readReaderPosition, describeTabState, summarizeTabState } = require("../../../packages/core/dist")
   assert.equal(withYouTubeStart("https://www.youtube.com/watch?v=abc&t=5s", 754.9), "https://www.youtube.com/watch?v=abc&t=754s")
   assert.equal(withYouTubeStart("https://youtu.be/abc", 61), "https://youtu.be/abc?t=61s")
   assert.equal(withYouTubeStart("https://m.youtube.com/watch?v=abc&start=9", 0.4), "https://m.youtube.com/watch?v=abc")
@@ -133,6 +133,9 @@ test("tab state: YouTube starts where it was left, and states are validated and 
   assert.equal(describeTabState({ media: { data: { currentTime: 754, duration: 3910, paused: false, rate: 1 } } }), "▶\uFE0E 12:34 / 1:05:10")
   assert.equal(describeTabState({ "reader.scroll": { data: { fraction: 0.4, anchor: null } } }), "Read 40 %")
   assert.equal(describeTabState({ "addon:x": { data: 1 } }), "")
+  assert.deepEqual(summarizeTabState({ media: { data: { currentTime: 33, duration: 60, paused: true, rate: 1 } } }), { media: "paused", text: "0:33 / 1:00" })
+  assert.deepEqual(summarizeTabState({ "reader.scroll": { data: { fraction: 0.4, anchor: null } } }), { text: "Read 40 %" })
+  assert.equal(summarizeTabState({ "addon:x": { data: 1 } }), null)
 })
 
 test("the continue banner offers only a tab used moments before a recent publication, with a position", () => {

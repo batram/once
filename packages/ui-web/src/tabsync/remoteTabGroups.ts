@@ -202,18 +202,26 @@ function deviceHeader(device: RemoteDeviceView, open: boolean, toggle: () => voi
   glyph.append(icon)
   const text = document.createElement("span")
   text.className = "remote_device_text"
+  // Two lines that never wrap, so every device's header has one height: the
+  // name with when it was last heard from, then what it is and holds. The
+  // time is short and never cut off; a long name gives way first.
+  const title = document.createElement("span")
+  title.className = "remote_device_title"
   const name = document.createElement("span")
   name.className = "remote_device_name"
   name.textContent = device.name
+  const seen = document.createElement("span")
+  seen.className = "remote_tabs_meta remote_device_seen"
+  seen.textContent = device.stale ? `inactive, seen ${ago(device.updatedAt)}` : ago(device.updatedAt)
+  title.append(name, seen)
   const meta = document.createElement("span")
   meta.className = "remote_tabs_meta"
   const count = device.windows.reduce((total, entry) => total + entry.tabs.length, 0)
   meta.textContent = [
     platformName(device.platform),
-    device.sharing ? `${count} tab${count === 1 ? "" : "s"}${device.windows.length > 1 ? ` in ${device.windows.length} windows` : ""}` : "not sharing",
-    device.stale ? `inactive, seen ${ago(device.updatedAt)}` : ago(device.updatedAt)
+    device.sharing ? `${count} tab${count === 1 ? "" : "s"}${device.windows.length > 1 ? `, ${device.windows.length} windows` : ""}` : "not sharing"
   ].join(" · ")
-  text.append(name, meta)
+  text.append(title, meta)
   button.append(glyph, text)
   button.addEventListener("click", toggle)
   header.append(button)
@@ -278,7 +286,7 @@ function openAllButton(count: number, run: () => void): HTMLButtonElement {
   const button = document.createElement("button")
   button.type = "button"
   button.className = "button remote_open_all"
-  button.textContent = `Open all ${count}`
+  button.textContent = `Open ${count}`
   button.setAttribute("aria-label", `Open all ${count} tabs`)
   button.addEventListener("click", run)
   return button

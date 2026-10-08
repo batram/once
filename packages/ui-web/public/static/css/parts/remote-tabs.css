@@ -65,8 +65,10 @@
   display: none;
 }
 
+/* The summary takes the free room, so the head's buttons stand together at its end. */
 .remote_tabs_heading {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: var(--sp-0-5);
   min-width: 0;
@@ -362,10 +364,46 @@
   min-width: 0;
 }
 
+/* "RYZ chrome · just now" over "Chrome · 5 tabs, 2 windows": each one
+   line, so headers keep one height; the name gives way before the time. */
 .remote_device_text > .remote_tabs_meta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A playing or paused tab: our own small glyph, which no platform turns into
+   a colour emoji the way Android does with ⏸. */
+.tab_state_media {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  white-space: nowrap;
+}
+
+.tab_state_media_icon {
+  --icon-size: var(--icon-sm);
+  color: inherit;
+}
+
+.remote_device_title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1-5);
+  min-width: 0;
+}
+
+.remote_device_title > .remote_device_name {
+  min-width: 0;
+}
+
+.remote_device_seen {
+  flex: none;
+  white-space: nowrap;
+}
+
+.remote_device_seen::before {
+  content: "· ";
 }
 
 .remote_device_name {

@@ -219,7 +219,7 @@ test("a media position is read when its tab is left, and restored when another d
     const tabsPage = await app.electronApp.evaluate(({ webContents }) => webContents.getAllWebContents()
       .find((candidate) => candidate.getURL().startsWith("once-tabs://")).id)
     await expect.poll(() => app.electronApp.evaluate(({ webContents }, id) =>
-      webContents.fromId(id).executeJavaScript("document.body.innerText"), tabsPage), { timeout: 15000 }).toContain("⏸\uFE0E 0:33 / 1:00")
+      webContents.fromId(id).executeJavaScript("document.body.innerText"), tabsPage), { timeout: 15000 }).toContain("0:33 / 1:00")
     await app.electronApp.evaluate(({ webContents }, id) => webContents.fromId(id).executeJavaScript(
       "[...document.querySelectorAll('.remote_tab_link')].find((link) => link.textContent.includes('Listening on the phone')).click()"), tabsPage)
     await expect.poll(() => inTab(`${media.origin}/listen?remote`, "Math.round(document.querySelector('audio')?.currentTime ?? -1)"),
@@ -277,7 +277,7 @@ test("a tab sent here shows as a toast and opens; the tab just used on another d
     await page.getByTestId("sync-page-tabs").click()
     await page.locator("#tab_sync_continue").check()
     await expect(banner).toContainText("Continue “Epsilon watched on the phone”")
-    await expect(banner).toContainText("Test phone · ⏸\uFE0E 0:33 / 1:00")
+    await expect(banner).toContainText("Test phone · Paused 0:33 / 1:00")
     await banner.screenshot({ path: "artifacts/tab-sync/continue-banner-electron.png" })
     await banner.getByRole("button", { name: "Close" }).click()
     await expect(banner).toBeHidden()

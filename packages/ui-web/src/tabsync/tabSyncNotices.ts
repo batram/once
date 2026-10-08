@@ -1,5 +1,6 @@
 import type { OnceClient, SentTabView, TabSyncView } from "@once/app"
-import { continueCandidate, describeTabState } from "@once/core"
+import { continueCandidate, summarizeTabState } from "@once/core"
+import { fillLine, type LinePart } from "./stateLine"
 
 const DISMISSED_KEY = "once:continue-dismissed"
 const SEEN_KEY = "once:sent-tabs-seen"
@@ -19,7 +20,8 @@ interface Notice {
   key: string
   testid: string
   title: string
-  detail: string
+  /** Parts of the line under the title, joined by " · ". */
+  detail: LinePart[]
   action: [label: string, run: () => void]
   /** The notice went away by itself or by its ×. */
   closed?: () => void
@@ -104,7 +106,7 @@ function sentNotice(client: OnceClient, fresh: SentTabView[], showTabs: () => vo
     const [sent] = fresh
     return {
       key, testid: "sent-tab-toast", title: sent.title || sent.url,
-      detail: [`Sent from ${sent.fromName}`, ...(describeTabState(sent.state) ? [describeTabState(sent.state)] : [])].join(" · "),
+      detail: [`Sent from ${sent.fromName}`, summarizeTabState(sent.state)],
       action: ["Open", () => { seen(); void client.openSentTab(sent.id, false) }],
       closed: seen
     }
@@ -112,7 +114,7 @@ function sentNotice(client: OnceClient, fresh: SentTabView[], showTabs: () => vo
   const senders = [...new Set(fresh.map((sent) => sent.fromName))]
   return {
     key, testid: "sent-tab-toast", title: `${fresh.length} tabs sent to this device`,
-    detail: `From ${senders.join(" and ")}`,
+    detail: [`From ${senders.join(" and ")}`],
     action: ["Show", () => { seen(); showTabs() }],
     closed: seen
   }
@@ -129,7 +131,7 @@ function continueNotice(client: OnceClient, view: TabSyncView, dismissed: Set<st
   return {
     key: `continue:${candidate.key}`, testid: "continue-banner",
     title: `Continue “${candidate.tab.title || candidate.tab.url}”`,
-    detail: [candidate.deviceName, ...(describeTabState(candidate.tab.state) ? [describeTabState(candidate.tab.state)] : [])].join(" · "),
+    detail: [candidate.deviceName, summarizeTabState(candidate.tab.state)],
     action: ["Continue", () => { forget(); client.openRemoteTab(candidate.tab.url, candidate.tab.mode, false, candidate.tab.state) }],
     closed: forget
   }
@@ -146,7 +148,7 @@ function noticeElement(notice: Notice, dismiss: () => void): HTMLElement {
   heading.textContent = notice.title
   const line = document.createElement("span")
   line.className = "tab_sync_notice_detail"
-  line.textContent = notice.detail
+  fillLine(line, notice.detail)
   text.append(heading, line)
   const [label, run] = notice.action
   const action = document.createElement("button")

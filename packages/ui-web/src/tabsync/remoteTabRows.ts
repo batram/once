@@ -1,6 +1,7 @@
 import type { SentTabView } from "@once/app"
-import { describeTabState, humanTime, SyncedTab } from "@once/core"
+import { humanTime, summarizeTabState, SyncedTab } from "@once/core"
 import { hostOf } from "./devicePresentation"
+import { fillLine } from "./stateLine"
 
 /** How long a touch must rest on a row before its menu opens. */
 const LONG_PRESS_MS = 500
@@ -97,12 +98,12 @@ export function updateTabRow(row: HTMLLIElement, tab: SyncedTab, actions: RowAct
   const frame = row.querySelector<HTMLElement>(".remote_tab_preview")
   if (!link || !frame) return
   setText(row.querySelector(".remote_tab_title"), tab.title || tab.url)
-  setText(row.querySelector(".remote_tabs_meta"), [
+  fillLine(row.querySelector(".remote_tabs_meta"), [
     hostOf(tab.url),
-    ...(tab.mode === "reader" ? ["Reader"] : []),
-    ...(describeTabState(tab.state) ? [describeTabState(tab.state)] : []),
+    tab.mode === "reader" && "Reader",
+    summarizeTabState(tab.state),
     ago(tab.activityAt)
-  ].join(" · "))
+  ])
   if (link.getAttribute("href") !== tab.url) link.href = tab.url
   link.title = tab.url
   showPreview(frame, tab.url, tab.thumb?.id, thumbs)
@@ -119,8 +120,8 @@ export function updateSentRow(row: HTMLLIElement, sent: SentTabView, actions: Ro
   if (!link || !frame) return
   row.dataset.testid = "remote-sent-tab"
   setText(row.querySelector(".remote_tab_title"), sent.title || sent.url)
-  setText(row.querySelector(".remote_tabs_meta"), [`from ${sent.fromName}`, hostOf(sent.url),
-    ...(describeTabState(sent.state) ? [describeTabState(sent.state)] : []), ago(sent.createdAt)].join(" · "))
+  fillLine(row.querySelector(".remote_tabs_meta"), [`from ${sent.fromName}`, hostOf(sent.url),
+    summarizeTabState(sent.state), ago(sent.createdAt)])
   if (link.getAttribute("href") !== sent.url) link.href = sent.url
   link.title = sent.url
   showPreview(frame, sent.url, undefined, thumbs)

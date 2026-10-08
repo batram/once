@@ -65,6 +65,8 @@
 .icon--desktop { --icon: url("../../imgs/desktop.svg"); }
 .icon--gear { --icon: url("../../imgs/gear.svg"); }
 .icon--help { --icon: url("../../imgs/help.svg"); }
+.icon--media-pause { --icon: url("../../imgs/media-pause.svg"); }
+.icon--media-play { --icon: url("../../imgs/media-play.svg"); }
 .icon--more { --icon: url("../../imgs/more.svg"); }
 .icon--pause { --icon: url("../../imgs/pause.svg"); }
 .icon--phone { --icon: url("../../imgs/phone.svg"); }

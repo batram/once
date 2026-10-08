@@ -3229,7 +3229,7 @@
   .reading_tab_remote_panel {
     flex: 1;
     min-height: 0;
-    padding: var(--sp-1) var(--sp-3) var(--sp-3);
+    padding: var(--sp-2) var(--sp-3) var(--sp-3);
     overflow: auto;
     overscroll-behavior: contain;
   }
@@ -3378,6 +3378,29 @@
     border-radius: var(--m-radius);
   }
 
+  /* 🔍 and ⚙ are finger-sized boxes already: no gap between them. */
+  /* A 40px row with equal room above (the panel's top padding) and below
+     (the gap to the chips), so the summary sits midway between the tab
+     header's rule and the chips. */
+  #reading_tabs_dialog .remote_tabs_head {
+    gap: 0;
+  }
+
+  #reading_tabs_dialog .remote_tabs_head .button {
+    height: 40px;
+    min-height: 40px;
+  }
+
+  /* One right-hand column for the gear, each device's chevron and each
+     row's ⋯: their glyphs end the same distance from the screen edge. */
+  #reading_tabs_dialog .remote_device_header {
+    padding-inline-end: var(--sp-1-5);
+  }
+
+  #reading_tabs_dialog .remote_tab {
+    padding-inline-end: 0;
+  }
+
   /* The field's × fills its height rather than the 44px minimum, which
      would push past the frame. */
   .remote_tabs_search {
@@ -3417,6 +3440,7 @@
 
   #reading_tabs_dialog .remote_open_all {
     min-height: 36px;
+    padding-inline: var(--sp-2);
     border: var(--m-bw) solid var(--border-high-color);
     border-radius: var(--m-radius);
   }

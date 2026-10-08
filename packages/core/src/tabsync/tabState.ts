@@ -93,6 +93,25 @@ export function describeTabState(state: Record<string, { data: unknown }> | unde
   return reader ? `Read ${Math.round(reader.fraction * 100)} %` : ""
 }
 
+/**
+ * The same state in parts, for a page that draws play and pause with its
+ * own glyphs: Android has no text form of ⏸ and paints it as an emoji.
+ */
+export interface TabStateSummary {
+  media?: "playing" | "paused"
+  text: string
+}
+
+export function summarizeTabState(state: Record<string, { data: unknown }> | undefined): TabStateSummary | null {
+  const media = readMediaState(state?.[MEDIA_STATE.id]?.data)
+  if (media) {
+    const total = media.duration > 0 ? ` / ${formatPlaybackTime(media.duration)}` : ""
+    return { media: media.paused ? "paused" : "playing", text: `${formatPlaybackTime(media.currentTime)}${total}` }
+  }
+  const reader = readReaderPosition(state?.[READER_STATE.id]?.data)
+  return reader ? { text: `Read ${Math.round(reader.fraction * 100)} %` } : null
+}
+
 const MINUTE = 60_000
 
 export interface ContinueCandidate {

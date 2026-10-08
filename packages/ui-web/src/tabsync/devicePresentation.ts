@@ -1,7 +1,7 @@
 import type { TabSyncPlatform } from "@once/core"
 
 const PLATFORM_NAMES: Record<TabSyncPlatform, string> = {
-  electron: "Desktop app", ios: "iPhone or iPad", android: "Android", firefox: "Firefox", chrome: "Chrome"
+  electron: "Desktop app", ios: "iOS", android: "Android", firefox: "Firefox", chrome: "Chrome"
 }
 
 /** How a device's platform is named wherever devices are listed. */

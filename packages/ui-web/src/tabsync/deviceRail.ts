@@ -16,7 +16,7 @@ export function deviceRail(rail: HTMLElement, devices: readonly RemoteDeviceView
   if (rail.hidden) { rail.replaceChildren(); return }
   const total = devices.reduce((sum, device) => sum + tabCount(device), 0)
   rail.replaceChildren(
-    chip("All devices", total, only === null, () => choose(null), "rail:all"),
+    chip("All", total, only === null, () => choose(null), "rail:all"),
     ...devices.map((device) => chip(device.name, tabCount(device), only === device.deviceId,
       () => choose(device.deviceId), `rail:${device.deviceId}`))
   )
