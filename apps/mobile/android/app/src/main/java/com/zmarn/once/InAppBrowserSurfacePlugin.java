@@ -274,6 +274,8 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         long request = requestedSequence.incrementAndGet();
         readyNavigation(call, () -> {
             if (request != requestedSequence.get()) { call.resolve(); return; }
+            desktopSite.setEnabled(call.getBoolean("desktopSite", false));
+            desktopSite.apply(session);
             ensureSurface();
             applyBounds(call.getObject("bounds", new JSObject()));
             setSurfaceVisible(call.getBoolean("visible", true));
@@ -461,7 +463,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         NativeBrowserMenu.show(getActivity(), call, session, back, forward,
             () -> { if (history != null) requestHistory("back"); else moveHistory(false); },
             () -> { if (history != null) requestHistory("forward"); else moveHistory(true); },
-            this::reloadSession, backgroundMedia);
+            this::reloadSession, backgroundMedia, desktopSite);
     }
 
     private void requestHistory(String direction) {

@@ -31,6 +31,8 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
     private let navigation: Navigation
     private let keepsMedia: Bool
     private let keepMedia: (Bool) -> Void
+    private let desktopSite: Bool
+    private let setDesktopSite: (Bool) -> Void
     private let palette: Palette
     private var settled = false
     private var chosen: String?
@@ -39,11 +41,14 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
     private var fittedHeight: CGFloat = 0
     private let content = UIStackView()
 
-    init(call: CAPPluginCall, navigation: Navigation, keepsMedia: Bool, dark: Bool, keepMedia: @escaping (Bool) -> Void) {
+    init(call: CAPPluginCall, navigation: Navigation, keepsMedia: Bool, desktopSite: Bool, dark: Bool,
+         keepMedia: @escaping (Bool) -> Void, setDesktopSite: @escaping (Bool) -> Void) {
         self.call = call
         self.navigation = navigation
         self.keepsMedia = keepsMedia
         self.keepMedia = keepMedia
+        self.desktopSite = desktopSite
+        self.setDesktopSite = setDesktopSite
         palette = Palette(dark: dark)
         super.init(nibName: nil, bundle: nil)
         modalPresentationStyle = .pageSheet
@@ -132,6 +137,15 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
         controls.spacing = 8
         content.addArrangedSubview(controls)
         content.addArrangedSubview(toggle("Keep media playing in background", isOn: keepsMedia, changed: keepMedia))
+        // Reloads the page in the new mode; the sheet closes once the switch
+        // has moved, so the reloaded page shows.
+        content.addArrangedSubview(toggle("Desktop site", isOn: desktopSite) { [weak self] isOn in
+            self?.setDesktopSite(isOn)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                self?.settle(nil)
+                self?.dismiss(animated: true)
+            }
+        })
 
         for item in call.getArray("items", JSObject.self) ?? [] {
             guard let id = item["id"] as? String, let label = item["label"] as? String else { continue }

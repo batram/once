@@ -20,6 +20,8 @@ export interface BrowserSurfaceOpenOptions {
   url: string
   bounds: BrowserSurfaceBounds
   visible: boolean
+  /** Request desktop site: the tab's pages load as a desktop browser's would. */
+  desktopSite?: boolean
 }
 
 export type NativeOverlayAnchor = BrowserSurfaceBounds
@@ -167,6 +169,13 @@ export interface BrowserCloseRequestedEvent {
 }
 
 /** The page started or stopped playing media; drives the tab's audio indicator. */
+/** The browser sheet's Desktop site switch changed for a tab. */
+export interface BrowserDesktopSiteEvent {
+  tabId?: string
+  generation?: string
+  enabled: boolean
+}
+
 export interface BrowserMediaStateEvent {
   tabId?: string
   generation?: string
@@ -198,6 +207,7 @@ export interface InAppBrowserSurfaceEvents {
   contextMenuRequested: ContextMenuRequestedEvent
   contextMenuAction: ContextMenuActionEvent
   mediaStateChanged: BrowserMediaStateEvent
+  desktopSiteChanged: BrowserDesktopSiteEvent
   extensionPageChanged: ExtensionPageState
 }
 

@@ -173,6 +173,8 @@ export class ReadingTabRuntime {
           this.runtimes.set(tab.id, runtime)
           coordinator.onEdgeSwipe(direction => { if (tab.id === this.tabs.activeId) this.edgeSwipe(direction) })
           coordinator.onMediaStateChanged(playing => this.setAudible(tab.id, tab.generation, "page", playing))
+          coordinator.setDesktopSite(tab.desktopSite === true)
+          coordinator.onDesktopSiteChanged(enabled => this.tabs.setDesktopSite(tab.id, tab.generation, enabled))
           coordinator.onCloseRequested(() => {
             if (!this.tabs.tabs.includes(tab)) return
             this.tabs.close(tab.id)

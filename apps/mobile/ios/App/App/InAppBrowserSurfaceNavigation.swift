@@ -79,6 +79,25 @@ extension InAppBrowserSurfacePlugin {
     public func webView(
         _ webView: WKWebView,
         decidePolicyFor navigationAction: WKNavigationAction,
+        preferences: WKWebpagePreferences,
+        decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void
+    ) {
+        preferences.preferredContentMode = desktopSite ? .desktop : .mobile
+        decidePolicy(for: navigationAction) { decisionHandler($0, preferences) }
+    }
+
+    /// Safari's own desktop user agent. WebKit's desktop mode alone leaves out
+    /// Safari's Version token, and sites that look for Safari (Google Earth)
+    /// then turn the page away as an unsupported browser.
+    var desktopUserAgent: String? {
+        guard desktopSite else { return nil }
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) "
+            + "Version/\(os.majorVersion).\(os.minorVersion) Safari/605.1.15"
+    }
+
+    private func decidePolicy(
+        for navigationAction: WKNavigationAction,
         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
     ) {
         guard let url = navigationAction.request.url else {

@@ -18,6 +18,8 @@ interface SavedTab {
   /** Absent in tabs saved before tab sync; a restored tab then starts now. */
   times?: TabTimes
   readerPosition?: ReaderPosition
+  /** Saved only when on. */
+  desktopSite?: boolean
   /** Only in the in-memory undo snapshot; persisted previews are saved under their own key. */
   preview?: string
 }
@@ -40,6 +42,8 @@ export interface ReadingTab {
   readerPosition?: ReaderPosition
   /** A position from another device, applied when the reader opens and then forgotten. */
   pendingReaderPosition?: ReaderPosition
+  /** Request desktop site, from the browser sheet; the page loads with it on reopening. */
+  desktopSite?: boolean
 }
 interface Snapshot { version: 1; activeId: string | null; tabs: SavedTab[] }
 
@@ -181,6 +185,13 @@ export class ReadingTabs {
     this.listeners.forEach(listener => listener())
   }
 
+  setDesktopSite(id: string, generation: string, enabled: boolean): void {
+    const tab = this.entries.find(entry => entry.id === id && entry.generation === generation)
+    if (!tab || (tab.desktopSite ?? false) === enabled) return
+    tab.desktopSite = enabled || undefined
+    this.persistSoon()
+  }
+
   update(id: string, generation: string, value: { title?: string; readerScroll?: number; readerPosition?: ReaderPosition }): void {
     const tab = this.entries.find(entry => entry.id === id && entry.generation === generation)
     if (!tab) return
@@ -235,6 +246,7 @@ export class ReadingTabs {
     tab.readerScroll = value.readerScroll
     if (value.times) tab.times = { ...value.times }
     if (value.readerPosition) tab.readerPosition = value.readerPosition
+    if (value.desktopSite) tab.desktopSite = true
     const saved = value.preview ?? (this.savedPreviews[value.id]?.url === value.url ? this.savedPreviews[value.id].preview : undefined)
     if (saved) tab.preview = saved
     return tab
@@ -253,7 +265,7 @@ export class ReadingTabs {
       if (tab.story) { try { Story.from_obj(tab.story) } catch { continue } }
       ids.add(tab.id)
       validated.push({ ...tab, readerScroll: Number.isFinite(tab.readerScroll) ? Math.max(0, tab.readerScroll) : 0, times: readTimes(tab.times),
-        readerPosition: readReaderPosition(tab.readerPosition) ?? undefined })
+        readerPosition: readReaderPosition(tab.readerPosition) ?? undefined, desktopSite: tab.desktopSite === true || undefined })
     }
     this.entries = validated.map(tab => this.fromSaved(tab))
     this.active = value.activeId === null || ids.has(value.activeId ?? "") ? value.activeId : this.entries[0]?.id ?? null
@@ -265,6 +277,7 @@ export class ReadingTabs {
       const story = state.story
       return { id: tab.id, url: state.currentUrl, title: tab.title, mode: state.mode, readerScroll: tab.readerScroll, times: tab.times,
         readerPosition: tab.readerPosition, ...withPreviews && tab.preview ? { preview: tab.preview } : {},
+        ...tab.desktopSite ? { desktopSite: true } : {},
         story: story ? { type: story.type, href: story.href, title: story.title, comment_url: story.comment_url, timestamp: story.timestamp, tags: story.tags, stared: story.stared, read_state: story.read_state } : null }
     }) }
   }

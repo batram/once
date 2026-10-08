@@ -142,6 +142,9 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     /// Long-press menus waiting for the shell's items, by request; the root plugin holds them.
     var pendingMenus: [String: ([ShellMenuItem]) -> Void] = [:]
     var surface: WKWebView?
+    /// Request desktop site for this tab: every navigation asks WebKit for
+    /// desktop content (its Mac user agent and viewport).
+    var desktopSite = false
     /// Set once a tab instance is closed or superseded; it never gets a surface again.
     private var retired = false
     /// What open/setVisible last asked for; a surface created later starts that way.
@@ -207,6 +210,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         // inline wherever the page allows it (playsinline).
         configuration.allowsInlineMediaPlayback = true
         let view = WKWebView(frame: .zero, configuration: configuration)
+        view.customUserAgent = desktopUserAgent
         // A background tab's surface must not flash over the selected one.
         view.isHidden = !(wantsVisible && isSelected)
         extensions.attach(view, parent: parent)
@@ -311,6 +315,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             await self.extensions.prepare()
             guard generation == self.closeGeneration else { call.resolve(); return }
             self.wantsVisible = call.getBool("visible") ?? true
+            self.desktopSite = call.getBool("desktopSite") ?? false
+            self.surface?.customUserAgent = self.desktopUserAgent
             guard let view = self.ensureSurface() else {
                 call.reject("Unable to create the embedded browser surface")
                 return
@@ -485,9 +491,14 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             reload: { [weak self] in
                 if let surface { self?.navigationState.reload(surface) }
             }
-        ), keepsMedia: PlaybackAudioSession.shared.keepsPageMedia, dark: dark) {
+        ), keepsMedia: PlaybackAudioSession.shared.keepsPageMedia, desktopSite: desktopSite, dark: dark, keepMedia: {
             PlaybackAudioSession.shared.keepsPageMedia = $0
-        }
+        }, setDesktopSite: { [weak self] in
+            self?.desktopSite = $0
+            self?.pageEvent("desktopSiteChanged", data: ["enabled": $0])
+            surface?.customUserAgent = self?.desktopUserAgent
+            if let surface { self?.navigationState.reload(surface) }
+        })
         sheet.configureSheet()
         presenter.present(sheet, animated: true)
     }

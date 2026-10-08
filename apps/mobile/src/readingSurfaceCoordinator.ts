@@ -36,6 +36,9 @@ export class ReadingSurfaceCoordinator {
   private adoptedUrl: string | null = null
   // The app link the failed page redirected to, offered on the error page.
   private failedExternalUrl: string | null = null
+  // Request desktop site for this tab: sent with the page when it opens.
+  private desktopSite = false
+  private desktopSiteHandler: ((enabled: boolean) => void) | null = null
   private readingPanelVisible = false
   private menuOpen = false
   private overlayOpen = false
@@ -184,11 +187,15 @@ export class ReadingSurfaceCoordinator {
     const media = await this.surface.addListener("mediaStateChanged", (event) => {
       this.mediaStateHandler?.(event.playing)
     })
+    const desktop = await this.surface.addListener("desktopSiteChanged", (event) => {
+      this.desktopSite = event.enabled
+      this.desktopSiteHandler?.(event.enabled)
+    })
     // Listener lifetimes match the application lifetime. Retaining the
     // removers makes ownership explicit and prevents premature collection in
     // native bridge implementations.
-    if (this.disposed) [started, committed, finished, failed, history, edge, close, media].forEach(remove => remove())
-    else this.listenerRemovers.push(started, committed, finished, failed, history, edge, close, media)
+    if (this.disposed) [started, committed, finished, failed, history, edge, close, media, desktop].forEach(remove => remove())
+    else this.listenerRemovers.push(started, committed, finished, failed, history, edge, close, media, desktop)
   }
 
   onEdgeSwipe(handler: (direction: "back" | "forward") => void): void {
@@ -198,6 +205,16 @@ export class ReadingSurfaceCoordinator {
   /** The page's own media (not reader speech) started or stopped playing. */
   onMediaStateChanged(handler: (playing: boolean) => void): void {
     this.mediaStateHandler = handler
+  }
+
+  /** The tab's saved choice, for the page's first open. */
+  setDesktopSite(enabled: boolean): void {
+    this.desktopSite = enabled
+  }
+
+  /** The browser sheet's Desktop site switch changed. */
+  onDesktopSiteChanged(handler: (enabled: boolean) => void): void {
+    this.desktopSiteHandler = handler
   }
 
   onCloseRequested(handler: () => void): void {
@@ -399,7 +416,8 @@ export class ReadingSurfaceCoordinator {
       await this.surface.open({
         url: state.currentUrl,
         bounds,
-        visible: false
+        visible: false,
+        ...this.desktopSite ? { desktopSite: true } : {}
       })
       this.browserOpened = true
     } else {

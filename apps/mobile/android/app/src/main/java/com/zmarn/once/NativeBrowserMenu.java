@@ -59,7 +59,8 @@ final class NativeBrowserMenu {
     }
 
     static void show(Activity activity, PluginCall call, GeckoSession session,
-                     boolean canBack, boolean canForward, Runnable back, Runnable forward, Runnable reload, BackgroundMedia media) {
+                     boolean canBack, boolean canForward, Runnable back, Runnable forward, Runnable reload, BackgroundMedia media,
+                     DesktopSite desktop) {
         // The shell resolves its own theme setting (system, light, dark) and
         // says which it landed on; without that, follow the system.
         Boolean requested = call.getBoolean("dark", null);
@@ -124,27 +125,15 @@ final class NativeBrowserMenu {
             ((Button) navigation.getChildAt(index)).setTextSize(labelSize);
         }
         content.addView(navigation);
-        android.widget.Switch backgroundPlayback = new android.widget.Switch(activity);
-        backgroundPlayback.setText("Keep media playing in background");
-        backgroundPlayback.setTextSize(16);
-        backgroundPlayback.setTextColor(palette.text);
-        backgroundPlayback.setPadding(spacing, 0, spacing, 0);
-        backgroundPlayback.setGravity(Gravity.CENTER_VERTICAL);
-        // A card like the rows around it (and iOS's); the whole row toggles.
-        GradientDrawable switchCard = new GradientDrawable();
-        switchCard.setColor(palette.card);
-        switchCard.setCornerRadius(12 * density);
-        backgroundPlayback.setBackground(new RippleDrawable(ColorStateList.valueOf(palette.ripple), switchCard, null));
-        backgroundPlayback.setThumbTintList(new ColorStateList(
-            new int[][] { { android.R.attr.state_checked }, {} },
-            new int[] { palette.accent, dark ? Color.rgb(188, 194, 205) : Color.WHITE }));
-        backgroundPlayback.setTrackTintList(new ColorStateList(
-            new int[][] { { android.R.attr.state_checked }, {} },
-            new int[] { Color.argb(110, Color.red(palette.accent), Color.green(palette.accent), Color.blue(palette.accent)),
-                dark ? Color.rgb(90, 94, 120) : Color.rgb(180, 180, 180) }));
-        backgroundPlayback.setChecked(media.isEnabled());
-        backgroundPlayback.setOnCheckedChangeListener((button, checked) -> media.setEnabled(checked));
-        content.addView(backgroundPlayback, row(gap, entry));
+        content.addView(toggle(activity, palette, dark, "Keep media playing in background", media.isEnabled(),
+            media::setEnabled), row(gap, entry));
+        // Reloads the page in the new mode; the sheet closes once the switch
+        // has moved, so the reloaded page shows.
+        content.addView(toggle(activity, palette, dark, "Desktop site", desktop.isEnabled(), checked -> {
+            desktop.choose(checked);
+            desktop.apply(session);
+            content.postDelayed(() -> { dialog.dismiss(); if (session != null) reload.run(); }, 200);
+        }), row(gap, entry));
         // Actions on the page itself (send it to another device) sit below the
         // media switch, as on iOS, not inside the collapsed extensions.
         LinearLayout pageActions = new LinearLayout(activity);
@@ -232,6 +221,33 @@ final class NativeBrowserMenu {
     }
 
     /** A full-width row of a fixed height, separated from the one above it. */
+    /** A switch on a card like the rows around it (and iOS's); the whole row toggles. */
+    private static android.widget.Switch toggle(Activity activity, Palette palette, boolean dark, String label,
+                                                boolean checked, java.util.function.Consumer<Boolean> changed) {
+        float density = activity.getResources().getDisplayMetrics().density;
+        int spacing = Math.round(16 * density);
+        android.widget.Switch toggle = new android.widget.Switch(activity);
+        toggle.setText(label);
+        toggle.setTextSize(16);
+        toggle.setTextColor(palette.text);
+        toggle.setPadding(spacing, 0, spacing, 0);
+        toggle.setGravity(Gravity.CENTER_VERTICAL);
+        GradientDrawable card = new GradientDrawable();
+        card.setColor(palette.card);
+        card.setCornerRadius(12 * density);
+        toggle.setBackground(new RippleDrawable(ColorStateList.valueOf(palette.ripple), card, null));
+        toggle.setThumbTintList(new ColorStateList(
+            new int[][] { { android.R.attr.state_checked }, {} },
+            new int[] { palette.accent, dark ? Color.rgb(188, 194, 205) : Color.WHITE }));
+        toggle.setTrackTintList(new ColorStateList(
+            new int[][] { { android.R.attr.state_checked }, {} },
+            new int[] { Color.argb(110, Color.red(palette.accent), Color.green(palette.accent), Color.blue(palette.accent)),
+                dark ? Color.rgb(90, 94, 120) : Color.rgb(180, 180, 180) }));
+        toggle.setChecked(checked);
+        toggle.setOnCheckedChangeListener((button, value) -> changed.accept(value));
+        return toggle;
+    }
+
     private static LinearLayout.LayoutParams row(int gap, int height) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, height);
         params.topMargin = gap;

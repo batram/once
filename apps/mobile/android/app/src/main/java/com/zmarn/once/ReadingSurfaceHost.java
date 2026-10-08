@@ -32,6 +32,8 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected GeckoEngine engine;
     protected GeckoExtensionManager extensions;
     protected BackgroundMedia backgroundMedia;
+    protected final DesktopSite desktopSite = new DesktopSite(enabled ->
+        notifyListeners("desktopSiteChanged", new JSObject().put("enabled", enabled)));
     protected final Handler handler = new Handler(Looper.getMainLooper());
     protected boolean destroyed;
     protected boolean resumed = true;
@@ -255,6 +257,7 @@ abstract class ReadingSurfaceHost extends Plugin {
 
     protected void createReadingSession(boolean open) {
         GeckoSession created = new GeckoSession();
+        desktopSite.apply(created);
         session = created;
         sessionState = null;
         backgroundMedia.playingChanged = playing -> notifyListeners("mediaStateChanged", new JSObject().put("playing", playing));
