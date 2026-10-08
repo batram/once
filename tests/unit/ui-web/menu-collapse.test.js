@@ -7,11 +7,16 @@ function withDocument(html, run) {
   const previous = {
     document: globalThis.document,
     Element: globalThis.Element,
+    HTMLElement: globalThis.HTMLElement,
+    getComputedStyle: globalThis.getComputedStyle,
     localStorage: globalThis.localStorage
   }
   const stored = new Map()
   globalThis.document = window.document
   globalThis.Element = window.Element
+  globalThis.HTMLElement = window.HTMLElement
+  // linkedom lays nothing out, so a measured minimum falls back to the fixed one.
+  globalThis.getComputedStyle = () => ({ columnGap: "0", paddingLeft: "0", paddingRight: "0" })
   globalThis.localStorage = {
     getItem: (key) => stored.get(key) ?? null,
     setItem: (key, value) => stored.set(key, String(value)),
@@ -31,6 +36,8 @@ const SHELL = `
   <body>
     <div id="menu"><button class="button sidebar_panel">Settings</button></div>
     <div id="menu_resizer"></div>
+    <button class="collapsebutton" aria-label="Collapse sidebar"></button>
+    <button class="collapsebutton" aria-label="Collapse sidebar"></button>
   </body>
 `
 
@@ -57,19 +64,59 @@ function resizer(window) {
   return { menu, handle }
 }
 
-test("a click on a collapsed menu's entry expands it and notifies the host", () => {
+test("collapse controls toggle the menu and notify their host", () => {
   withDocument(SHELL, () => {
     const { bindMenuCollapseControls, expandMenu } = load()
     const changes = []
+    const controls = [...document.querySelectorAll(".collapsebutton")]
     bindMenuCollapseControls((collapsed) => changes.push(collapsed))
     const menu = document.querySelector("#menu")
-    menu.classList.add("collapse")
+    assert.ok(!document.body.classList.contains("menu-resizable"), "fixed width unless resizable")
+
+    controls[0].click()
+    assert.ok(menu.classList.contains("collapse"))
+    assert.ok(controls.every((control) => control.classList.contains("collapsebutton--collapsed")))
+    assert.deepEqual(
+      controls.map((control) => control.getAttribute("aria-label")),
+      ["Expand sidebar", "Expand sidebar"]
+    )
 
     document.querySelector(".sidebar_panel").click()
     assert.ok(!menu.classList.contains("collapse"))
+    assert.ok(controls.every((control) => !control.classList.contains("collapsebutton--collapsed")))
+    assert.deepEqual(
+      controls.map((control) => control.getAttribute("aria-label")),
+      ["Collapse sidebar", "Collapse sidebar"]
+    )
+
+    controls[1].click()
     expandMenu()
-    assert.deepEqual(changes, [false])
-    assert.ok(!document.body.classList.contains("menu-resizable"), "fixed width unless resizable")
+    assert.ok(!menu.classList.contains("collapse"))
+    assert.deepEqual(changes, [true, false, true, false])
+  })
+})
+
+test("a drag folds the menu alone, without telling the host", () => {
+  withDocument(SHELL, (window) => {
+    const { bindMenuCollapseControls, MENU_WIDTH } = load()
+    const changes = []
+    bindMenuCollapseControls((collapsed) => changes.push(collapsed), { resizable: true })
+    const { menu, handle } = resizer(window)
+    const controls = [...document.querySelectorAll(".collapsebutton")]
+
+    pointer(handle, "pointerdown", 89)
+    pointer(handle, "pointermove", MENU_WIDTH.min - 1)
+    pointer(handle, "pointerup", MENU_WIDTH.min - 1)
+    assert.ok(menu.classList.contains("collapse"))
+    assert.ok(controls.every((control) => control.classList.contains("collapsebutton--collapsed")))
+    document.querySelector(".sidebar_panel").click()
+    assert.ok(!menu.classList.contains("collapse"))
+    assert.deepEqual(changes, [])
+
+    // A button fold after a drag fold still reaches the host both ways.
+    controls[0].click()
+    document.querySelector(".sidebar_panel").click()
+    assert.deepEqual(changes, [true, false])
   })
 })
 
@@ -114,7 +161,7 @@ test("dragging under the minimum collapses the menu, and back out expands it", (
     pointer(handle, "pointerup", 120)
     assert.equal(stored.get("once:menu-collapsed"), undefined)
     assert.equal(stored.get("once:menu-width"), "120")
-    assert.deepEqual(changes, [true, false])
+    assert.deepEqual(changes, [], "a drag fold is the menu's alone")
   })
 })
 
@@ -128,7 +175,7 @@ test("a stored width and collapsed state are restored on mount", () => {
     const menu = document.querySelector("#menu")
     assert.equal(menu.style.getPropertyValue("--menu-width"), "200px")
     assert.ok(menu.classList.contains("collapse"))
-    assert.deepEqual(changes, [true])
+    assert.deepEqual(changes, [], "a restored fold is the menu's alone")
 
     document.querySelector(".sidebar_panel").click()
     assert.ok(!menu.classList.contains("collapse"))

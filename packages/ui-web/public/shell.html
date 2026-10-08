@@ -70,8 +70,8 @@
               </span>
             </button>
           </div>
-          <!-- The menu's right edge. On the desktop it is dragged to set the
-               menu's width; dragging it under the minimum folds the menu. -->
+          <!-- The menu's right edge: dragged to set the menu's width, and
+               dragged under the minimum to fold the menu. -->
           <div
             id="menu_resizer"
             role="separator"
@@ -106,6 +106,13 @@
                 >
                   <span class="icon icon--chrome icon--reload" aria-hidden="true"></span>
                 </button>
+                <button
+                  type="button"
+                  class="button bar_btn collapsebutton"
+                  aria-label="Collapse sidebar"
+                >
+                  <span class="icon icon--collapse collapsebutton_icon" aria-hidden="true"></span>
+                </button>
               </div>
               <div id="startup_status" role="status" aria-live="polite" hidden>
                 <span id="startup_status_text">Starting Once…</span>
@@ -125,6 +132,13 @@
                 <button type="button" class="sync_status_button" id="sync_status_button">
                   <span id="couch_status" class="couch-status" data-state="disabled" data-testid="sync-status"
                     role="status" aria-live="polite">Sync is not configured</span>
+                </button>
+                <button
+                  type="button"
+                  class="button bar_btn collapsebutton"
+                  aria-label="Collapse sidebar"
+                >
+                  <span class="icon icon--collapse collapsebutton_icon" aria-hidden="true"></span>
                 </button>
               </div>
               <div class="settings_container">

@@ -7,6 +7,19 @@
     padding-right: var(--sp-2);
   }
 
+  /* The menu folds by dragging its edge here; the desktop keeps the button
+     because there it also hides the whole sidebar. */
+  .collapsebutton {
+    display: none;
+  }
+
+  /* Without the button leading the bar, the title takes the same inset from
+     the menu's edge as the search scope above it, and the trailing control
+     keeps clear of the panel's edge as the reload button does. */
+  #settings_panel .bar {
+    padding-inline: var(--sp-2);
+  }
+
   /* With no overhang the field box starts where the scope select does, so the
      select is inset instead: the same 8px gap Electron gets from the overhang. */
   #search_scope {

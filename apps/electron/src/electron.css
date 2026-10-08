@@ -552,6 +552,22 @@ body[data-electron-story-position="browser"] #selected_container {
   padding-inline: var(--sp-2) 0;
 }
 
+#left_panel .panel_titlebar > .collapsebutton {
+  order: 4;
+  border-left: thin solid var(--border-high-color);
+  border-right: 0;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+#settings_panel .bar:not(:has(.structured_mode_toggle_topbar)) .collapsebutton {
+  margin-left: auto;
+}
+
+#settings_panel .bar:has(.structured_mode_toggle_topbar) .collapsebutton,
+#settings_panel:has(.settings_section[data-settings-section="sync"].active) .bar .collapsebutton {
+  margin-left: 0;
+}
+
 #settings_panel #settings_section_back {
   order: -1;
   margin: 0 var(--sp-2) 0 0;

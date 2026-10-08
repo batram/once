@@ -58,6 +58,7 @@
 .icon--article { --icon: url("../../imgs/article.svg"); }
 .icon--ai-question { --icon: url("../../imgs/ai-question.svg"); }
 .icon--chevron-left { --icon: url("../../imgs/chevron-left.svg"); }
+.icon--collapse { --icon: url("../../imgs/collapse.svg"); }
 .icon--comments { --icon: url("../../imgs/comments.svg"); }
 .icon--filter { --icon: url("../../imgs/filter.svg"); }
 .icon--chevron-down { --icon: url("../../imgs/chevron-down.svg"); }
@@ -228,6 +229,28 @@
   min-height: 0;
   padding-block: var(--panel-titlebar-block-padding);
   gap: var(--toolbar-control-gap);
+}
+
+.panel_titlebar > .collapsebutton {
+  order: -1;
+  flex: 0 0 auto;
+  height: var(--toolbar-control-size);
+  min-height: 0;
+  margin: 0;
+  padding: 0 calc(var(--sp-1) / 2);
+  border: thin solid var(--border-high-color);
+  border-left: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.collapsebutton_icon {
+  display: block;
+  --icon-size: var(--icon-sm);
+  color: var(--text-muted-color);
+}
+
+.collapsebutton--collapsed .collapsebutton_icon {
+  transform: rotate(180deg);
 }
 
 /**

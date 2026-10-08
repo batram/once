@@ -162,6 +162,89 @@ test("keeps the icon rail and restores either sidebar panel @interactive", async
   // Safe here because @interactive specs only run on CI.
   const { electronApp, userData, window } = await launchApp({ background: false })
   try {
+    const collapse = window.locator("#stories_panel .collapsebutton")
+    const dividerGap = await window.evaluate(() => {
+      const button = document
+        .querySelector("#stories_panel .collapsebutton")
+        .getBoundingClientRect()
+      const divider = document.querySelector("#sep_slider").getBoundingClientRect()
+      return Math.round(divider.left - button.right)
+    })
+    expect(dividerGap).toBe(0)
+
+    await collapse.click()
+    await expect(window.locator("#left_panel")).toBeVisible()
+    await expect(window.locator("#left_main")).toBeHidden()
+    await expect(window.locator("#menu")).toBeVisible()
+    await expect(window.locator("#menu")).toHaveClass(/\bcollapse\b/)
+    await expect(window.locator("#left_panel")).toHaveCSS("width", "30px")
+    await expect(window.locator("#browser_sidebar_toggle")).toHaveCount(0)
+
+    if (process.platform === "darwin") {
+      const firstTabLeft = await window.locator(".electron-tab").first()
+        .evaluate((element) => Math.round(element.getBoundingClientRect().left))
+      expect(firstTabLeft).toBeGreaterThanOrEqual(78)
+    }
+
+    await window.getByTestId("settings-menu").click()
+    await expect(window.locator("#left_main")).toBeVisible()
+    await expect(window.locator("#menu")).not.toHaveClass(/\bcollapse\b/)
+    await expect(window.locator("#left_panel")).toHaveAttribute(
+      "active_panel",
+      "settings"
+    )
+
+    const settingsHeader = await window.evaluate(() => {
+      const title = document.querySelector("#settings_panel .settings_title")
+        .getBoundingClientRect()
+      const collapse = document.querySelector(
+        "#settings_panel .collapsebutton"
+      ).getBoundingClientRect()
+      const divider = document.querySelector("#sep_slider").getBoundingClientRect()
+      return {
+        titleRight: Math.round(title.right),
+        collapseLeft: Math.round(collapse.left),
+        dividerGap: Math.round(divider.left - collapse.right)
+      }
+    })
+    expect(settingsHeader.titleRight).toBeLessThan(settingsHeader.collapseLeft)
+    expect(settingsHeader.dividerGap).toBe(0)
+
+    await window.locator('[data-settings-target="filters"]').click()
+    const detailHeader = await window.evaluate(() => {
+      const back = document.querySelector("#settings_section_back")
+        .getBoundingClientRect()
+      const title = document.querySelector("#settings_panel .settings_title")
+        .getBoundingClientRect()
+      const collapse = document.querySelector(
+        "#settings_panel .collapsebutton"
+      ).getBoundingClientRect()
+      return {
+        backRight: Math.round(back.right),
+        titleLeft: Math.round(title.left),
+        titleRight: Math.round(title.right),
+        collapseLeft: Math.round(collapse.left)
+      }
+    })
+    expect(detailHeader.backRight).toBeLessThanOrEqual(detailHeader.titleLeft)
+    expect(detailHeader.titleRight).toBeLessThan(detailHeader.collapseLeft)
+
+    await window.locator("#settings_panel .collapsebutton").click()
+    await expect(window.locator("#left_main")).toBeHidden()
+    await window.getByTestId("stories-menu").click()
+    await expect(window.locator("#left_main")).toBeVisible()
+    await expect(window.locator("#left_panel")).toHaveAttribute(
+      "active_panel",
+      "stories"
+    )
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("drags the menu's edge to size it, folds it under the minimum and remembers both @interactive", async () => {
+  const { electronApp, userData, window } = await launchApp({ background: false })
+  try {
     const menuRight = () => window.locator("#menu").evaluate((menu) =>
       menu.getBoundingClientRect().right
     )
@@ -183,75 +266,55 @@ test("keeps the icon rail and restores either sidebar panel @interactive", async
     await dragMenuEdge(600)
     expect(Math.round(await menuRight())).toBe(242)
 
-    // Under the minimum, the menu folds to its icon rail.
-    await dragMenuEdge(20)
-    await expect(window.locator("#left_panel")).toBeVisible()
-    await expect(window.locator("#left_main")).toBeHidden()
-    await expect(window.locator("#menu")).toBeVisible()
+    // A width that would cut "Settings" short folds the menu to its icon
+    // rail instead; the story list stays.
+    await dragMenuEdge(70)
     await expect(window.locator("#menu")).toHaveClass(/\bcollapse\b/)
-    await expect(window.locator("#left_panel")).toHaveCSS("width", "30px")
-    await expect(window.locator("#browser_sidebar_toggle")).toHaveCount(0)
-
-    if (process.platform === "darwin") {
-      const firstTabLeft = await window.locator(".electron-tab").first()
-        .evaluate((element) => Math.round(element.getBoundingClientRect().left))
-      expect(firstTabLeft).toBeGreaterThanOrEqual(78)
-    }
-
-    // A menu entry opens the folded menu at the width it had.
-    await window.getByTestId("settings-menu").click()
     await expect(window.locator("#left_main")).toBeVisible()
+    await expect(window.locator("#menu")).toHaveCSS("width", "28px")
+
+    // Open again, the menu is at least as wide as that name.
+    await dragMenuEdge(90)
+    await expect(window.locator("#menu")).not.toHaveClass(/\bcollapse\b/)
+    expect(Math.round(await menuRight())).toBeGreaterThanOrEqual(90)
+    const settingsName = await window.locator("#settings_menu_btn .heading p").evaluate((name) =>
+      name.scrollWidth <= name.clientWidth
+    )
+    expect(settingsName).toBe(true)
+    await dragMenuEdge(600)
+    await dragMenuEdge(20)
+    await expect(window.locator("#menu")).toHaveClass(/\bcollapse\b/)
+
+    // A menu entry opens the folded menu at the width it had before the fold.
+    await window.getByTestId("settings-menu").click()
     await expect(window.locator("#menu")).not.toHaveClass(/\bcollapse\b/)
     expect(Math.round(await menuRight())).toBe(242)
-    await expect(window.locator("#left_panel")).toHaveAttribute(
-      "active_panel",
-      "settings"
-    )
-
-    const settingsHeader = await window.evaluate(() => {
-      const title = document.querySelector("#settings_panel .settings_title")
-        .getBoundingClientRect()
-      const divider = document.querySelector("#sep_slider").getBoundingClientRect()
-      return {
-        titleRight: Math.round(title.right),
-        dividerLeft: Math.round(divider.left)
-      }
-    })
-    expect(settingsHeader.titleRight).toBeLessThan(settingsHeader.dividerLeft)
-
-    await window.locator('[data-settings-target="filters"]').click()
-    const detailHeader = await window.evaluate(() => {
-      const back = document.querySelector("#settings_section_back")
-        .getBoundingClientRect()
-      const title = document.querySelector("#settings_panel .settings_title")
-        .getBoundingClientRect()
-      return {
-        backRight: Math.round(back.right),
-        titleLeft: Math.round(title.left)
-      }
-    })
-    expect(detailHeader.backRight).toBeLessThanOrEqual(detailHeader.titleLeft)
+    await expect(window.locator("#left_panel")).toHaveAttribute("active_panel", "settings")
 
     // Dragging the edge back out of the rail opens the menu at that width.
     await dragMenuEdge(20)
-    await expect(window.locator("#left_main")).toBeHidden()
+    await expect(window.locator("#menu")).toHaveClass(/\bcollapse\b/)
     await dragMenuEdge(120)
-    await expect(window.locator("#left_main")).toBeVisible()
+    await expect(window.locator("#menu")).not.toHaveClass(/\bcollapse\b/)
     expect(Math.round(await menuRight())).toBe(120)
 
-    // The width and the fold survive a relaunch.
+    // The width and the fold are stored for the next launch (the stored
+    // width excludes the border).
     await dragMenuEdge(20)
-    await expect(window.locator("#menu")).toHaveClass(/\bcollapse\b/)
     await expect.poll(() => window.evaluate(() => [
       localStorage.getItem("once:menu-width"),
       localStorage.getItem("once:menu-collapsed")
     ])).toEqual(["118", "true"])
+
+    // The collapse button still hides the whole sidebar, and a menu entry
+    // brings it back with the menu open.
+    await window.getByTestId("stories-menu").click()
+    await window.locator("#stories_panel .collapsebutton").click()
+    await expect(window.locator("#left_main")).toBeHidden()
+    await expect(window.locator("#left_panel")).toHaveCSS("width", "30px")
     await window.getByTestId("stories-menu").click()
     await expect(window.locator("#left_main")).toBeVisible()
-    await expect(window.locator("#left_panel")).toHaveAttribute(
-      "active_panel",
-      "stories"
-    )
+    await expect(window.locator("#menu")).not.toHaveClass(/\bcollapse\b/)
   } finally {
     await closeApp(electronApp, userData)
   }

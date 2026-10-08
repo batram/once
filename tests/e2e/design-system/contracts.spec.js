@@ -251,6 +251,29 @@ test("tokenized shared and mobile geometry resolves to the public scale", async 
     after: "24px",
     iconShadow: "rgb(0, 0, 0) 0px 1px 0px"
   })
+  await expect(page.locator("#search_bar .collapsebutton_icon")).toHaveCSS(
+    "color",
+    "rgb(107, 99, 87)"
+  )
+  for (const selector of [
+    "#search_bar .collapsebutton",
+    "#settings_panel .collapsebutton"
+  ]) {
+    await expect(page.locator(selector)).toHaveCSS("height", "26px")
+    await expect(page.locator(selector)).toHaveCSS("padding", "0px 2px")
+    await expect(page.locator(selector)).toHaveCSS(
+      "font-size",
+      "16px"
+    )
+    await expect(page.locator(selector)).toHaveCSS(
+      "border-top-color",
+      "rgb(179, 179, 179)"
+    )
+    await expect(page.locator(selector)).toHaveCSS(
+      "border-bottom-color",
+      "rgb(179, 179, 179)"
+    )
+  }
   await page.locator("#settings_panel").evaluate((panel) => {
     for (const section of ["sources", "filters", "redirects"]) {
       const input = document.createElement("input")

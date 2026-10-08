@@ -141,7 +141,8 @@ export async function mountOnceUi(
     version.dataset.buildChannel = options.buildChannel
   }
 
-  bindMenuCollapseControls(options.onMenuCollapsedChanged, { resizable: options.shell === "electron" })
+  // Mobile lays the menu out as a bottom tab bar, which has no edge to drag.
+  bindMenuCollapseControls(options.onMenuCollapsedChanged, { resizable: options.shell !== "mobile" })
   bindAppUpdateControls(options.updater, (message, details) =>
     LoaderInsights.showErrorMessage(message, details)
   )
