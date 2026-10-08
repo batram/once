@@ -106,6 +106,16 @@ test("a drag folds the menu alone, without telling the host", () => {
     controls[0].click()
     document.querySelector(".sidebar_panel").click()
     assert.deepEqual(changes, [true, false])
+
+    // With the menu drag-folded, the button hides the sidebar rather than
+    // opening the menu: hiding is the only thing it does.
+    pointer(handle, "pointerdown", 89)
+    pointer(handle, "pointermove", MENU_WIDTH.min - FOLD_SLACK - 1)
+    pointer(handle, "pointerup", MENU_WIDTH.min - FOLD_SLACK - 1)
+    assert.ok(menu.classList.contains("collapse"))
+    controls[0].click()
+    assert.ok(menu.classList.contains("collapse"))
+    assert.deepEqual(changes, [true, false, true])
   })
 })
 

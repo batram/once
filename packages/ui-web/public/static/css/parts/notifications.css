@@ -105,8 +105,8 @@
   padding: var(--sp-0-5) var(--sp-1) var(--sp-0-5) var(--sp-1-5);
 }
 
-/* In the 28px rail the dock spans the menu's width, and each indicator
-   stacks its count beneath its glyph instead of beside it. */
+/* In the 28px rail the dock spans the menu's width and shows the glyphs
+   alone; the counts wait for the menu to open. */
 #menu.collapse #status_dock {
   align-self: stretch;
   flex-direction: column;
@@ -118,9 +118,7 @@
 }
 
 #menu.collapse .status_indicator {
-  flex-direction: column;
   gap: 0;
-  height: auto;
   min-width: 0;
   width: 100%;
   padding: var(--sp-0-5) 0;
@@ -128,8 +126,7 @@
 }
 
 #menu.collapse .status_indicator_count {
-  font-size: 9px;
-  line-height: 1;
+  display: none;
 }
 
 .status_indicator {

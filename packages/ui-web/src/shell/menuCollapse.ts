@@ -37,14 +37,13 @@ export function bindMenuCollapseControls(
   announceCollapsed = onMenuCollapsedChanged
   if (!menu) return
 
+  // The button only ever hides the sidebar: once that is done it is out of
+  // sight itself, and a menu folded by a drag leaves it still showing.
   document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((element) => {
     element.onclick = () => {
-      if (menu.classList.contains("collapse")) expand(menu)
-      else {
-        collapsedByButton = true
-        setMenuCollapsed(menu, true)
-        announceCollapsed?.(true)
-      }
+      collapsedByButton = true
+      setMenuCollapsed(menu, true)
+      announceCollapsed?.(true)
     }
   })
 
