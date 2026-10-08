@@ -117,7 +117,8 @@ test("a page menu conversation opens in the Once panel when the add-on is set to
     await panel.getByRole("button", { name: "Open article", exact: true }).click()
     await expect(window.locator("#selected_container story-item")).toHaveAttribute("data-href", urls.alpha)
     await panel.getByRole("button", { name: "Refresh source and restart", exact: true }).click()
-    await expect(panel).toContainText("Fetched article.", { timeout: 15000 })
+    // The article's page is open in a tab, so the restart reads it from there rather than fetching it.
+    await expect(panel).toContainText("Read from the open page.", { timeout: 15000 })
     await expect(panel.getByRole("textbox")).toHaveValue("")
     await window.screenshot({ path: test.info().outputPath("conversation-context.png") })
     await window.locator("#left_panel").screenshot({ path: test.info().outputPath("panel-aligned.png") })
