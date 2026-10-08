@@ -16,8 +16,10 @@
   justify-content: flex-start;
 }
 
+/* The panel's title bar reads like the Settings bar's. */
 .tabs_panel_title {
-  font-size: var(--fs-dense);
+  font-size: var(--panel-title-font-size);
+  font-weight: var(--panel-title-font-weight);
 }
 
 #remote_tabs {
