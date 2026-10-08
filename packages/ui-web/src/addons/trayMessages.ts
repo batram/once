@@ -1,8 +1,12 @@
 import { AddonTrayView } from "@once/core"
 import { trayMarkdown } from "./trayMarkdown"
 
-/** Where the reader left each titled message, by index; a redraw must not fold what they opened. */
-export type TrayDisclosures = Map<number, boolean>
+/**
+ * Where the reader left each fold; a redraw must not fold what they opened.
+ * Keyed by what the fold is, not where it sits: answers arrive in their own
+ * time and an earlier section landing late moves everything after it.
+ */
+export type TrayDisclosures = Map<string, boolean>
 
 /**
  * The messages of a tray view as elements, the same in a story row and on a
@@ -11,15 +15,21 @@ export type TrayDisclosures = Map<number, boolean>
  */
 export function renderTrayMessages(view: AddonTrayView, disclosed: TrayDisclosures): HTMLElement[] {
   const elements: HTMLElement[] = []
-  for (const [index, message] of view.messages.entries()) {
+  const seen = new Map<string, number>()
+  for (const message of view.messages) {
     const block = document.createElement("div")
     block.className = `addon_tray_message addon_tray_${message.role}`
     if (message.role === "assistant") block.append(trayMarkdown(message.text))
     else block.textContent = message.text
-    elements.push(message.title ? disclosure(disclosed, index, message.title, message.collapsed === true, block) : block)
+    // The same title can recur (every summary is "Summary"); the nth of a title is its own fold.
+    const name = message.title ?? `${message.role}:${message.text.slice(0, 80)}`
+    const nth = seen.get(name) ?? 0
+    seen.set(name, nth + 1)
+    const key = `${name}#${nth}`
+    elements.push(message.title ? disclosure(disclosed, key, message.title, message.collapsed === true, block) : block)
     // Sources follow the message under their own fold, in view even when the
     // message itself is folded. Its state is kept apart from the message's.
-    if (message.sources?.length) elements.push(sourceFold(disclosed, -(index + 1), message.sources))
+    if (message.sources?.length) elements.push(sourceFold(disclosed, `${key}:sources`, message.sources))
   }
   return elements
 }
@@ -30,7 +40,7 @@ export function renderTrayMessages(view: AddonTrayView, disclosed: TrayDisclosur
  * the body lists every source with its title and address. A source titled
  * without a leading `[S1]` is numbered by its position.
  */
-function sourceFold(disclosed: TrayDisclosures, key: number, sources: readonly { title: string; url: string }[]): HTMLElement {
+function sourceFold(disclosed: TrayDisclosures, key: string, sources: readonly { title: string; url: string }[]): HTMLElement {
   const chips = document.createElement("span")
   chips.className = "addon_tray_sources_chips"
   chips.append(...sources.map((source, index) => sourceLink(source, index, false)))
@@ -77,7 +87,7 @@ function sourceLink(source: { title: string; url: string }, index: number, detai
 
 /** A titled message folds behind a native disclosure. The attribute, not the
  *  property, carries the state so the same code reads under linkedom. */
-function disclosure(disclosed: TrayDisclosures, key: number, title: string, collapsed: boolean, block: HTMLElement): HTMLElement {
+function disclosure(disclosed: TrayDisclosures, key: string, title: string, collapsed: boolean, block: HTMLElement): HTMLElement {
   const details = document.createElement("details")
   details.className = "addon_tray_disclosure"
   details.toggleAttribute("open", disclosed.get(key) ?? !collapsed)

@@ -61,9 +61,12 @@ export default function activate(once) {
       // joins the conversation in task order, so the explanation stays first.
       const answers = new Array(runnable.length)
       const partial = new Array(runnable.length).fill("")
+      // The web section searches before it writes, so it lands last; its place
+      // is held from the start rather than appearing between the others late.
       const shown = throttled(() => context.update?.(view(state, runnable.flatMap((task, index) =>
         answers[index] ? messagesFor(task, question, answers[index].result)
-          : partial[index].trim() ? messagesFor(task, question, { text: partial[index], sources: [] }) : []))))
+          : partial[index].trim() ? messagesFor(task, question, { text: partial[index], sources: [] })
+            : task === "web" ? messagesFor(task, question, { text: "Searching the web…", sources: [] }) : []))))
       let settled
       try {
         settled = await Promise.allSettled(runnable.map(async (task, index) => {
