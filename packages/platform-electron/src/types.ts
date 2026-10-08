@@ -259,6 +259,8 @@ export interface ElectronBridge {
   tabs: {
     getAll(): Promise<ElectronTabState[]>
     openUrl(url: string, target: ElectronOpenTarget): Promise<void>
+    /** The serialized DOM of this window's tab showing `url` (fragment ignored), or null when none does. */
+    pageHtml(url: string): Promise<{ html: string; url: string } | null>
     /**
      * `tabId` names the tab that asked for the document. Without it the active
      * tab is used, which is only correct when nothing can have moved on since.
@@ -439,6 +441,7 @@ export const ELECTRON_IPC = {
   setSecret: "once:settings:set-secret",
   tabsGetAll: "once:tabs:get-all",
   tabsOpenUrl: "once:tabs:open-url",
+  tabsPageHtml: "once:tabs:page-html",
   tabsOpenReader: "once:tabs:open-reader",
   tabsShowReaderError: "once:tabs:show-reader-error",
   tabsCreate: "once:tabs:create",

@@ -38,7 +38,8 @@ export interface AddonStoryContent {
   text: string
   title: string
   sourceUrl: string
-  origin: "stored" | "page"
+  /** Saved content, a fetched and extracted page, or the page as an open tab or reading view shows it. */
+  origin: "stored" | "page" | "live"
   truncated: boolean
 }
 

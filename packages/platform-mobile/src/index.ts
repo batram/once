@@ -154,6 +154,8 @@ export interface MobilePlatformOptions {
    * explicit choice of the system browser and stay external.
    */
   openInApp?: (url: string) => void
+  /** The serialized DOM of the page the reading view shows, when it is the one asked for; otherwise null. */
+  livePageHtml?: (url: string) => Promise<{ html: string; url: string } | null>
   /** The app's version, which other devices show for this one. */
   appVersion?: string
   /** The reading tabs this device shares, and where another device's tab opens. */
@@ -205,6 +207,7 @@ export function createMobilePlatform(
         return () => undefined
       }
     },
+    ...(options.livePageHtml ? { livePage: { html: options.livePageHtml } } : {}),
     tabDocs: pouchTabDocs(onceDb as unknown as PouchTabDocsDatabase),
     tabSource: options.tabSource,
     tabOpener: options.tabOpener,

@@ -7,13 +7,13 @@ const modulePromise = import(`data:text/javascript;base64,${fs.readFileSync(path
 const schema = JSON.parse(fs.readFileSync(path.join(directory, "once-addon.json"))).settings
 const defaults = Object.fromEntries(Object.entries(schema.properties).filter(([, value]) => "default" in value).map(([key, value]) => [key, value.default]))
 
-async function fixture(extra = {}, respond, fetch = async url => { throw new Error("no fetch: grant covers " + url) }) {
+async function fixture(extra = {}, respond, fetch = async url => { throw new Error("no fetch: grant covers " + url) }, api = {}) {
   const addon = await modulePromise
   let handler, settingsChanged
   const requests = [], updates = []
   let extracts = 0
   const settings = { ...defaults, provider: "compatible", model: "fixture-model", compatibleEndpoint: "http://localhost/v1/chat/completions", ...extra }
-  addon.default({ settings, fetch, onTray: callback => { handler = callback }, onSettings: callback => { settingsChanged = callback } })
+  addon.default({ settings, fetch, onTray: callback => { handler = callback }, onSettings: callback => { settingsChanged = callback }, ...api })
   const context = {
     signal: new AbortController().signal,
     update(view) { updates.push(view) },
@@ -178,16 +178,37 @@ test("an unconfigured addon gives directions without a Retry button or an error 
   assert.equal(f.requests.length, 0)
 })
 
-test("missing article is labelled title-only, skips the automatic summary and refuses a requested one", async () => {
+test("missing article is labelled title-only with the reason, skips the automatic summary and refuses a requested one", async () => {
   const f = await fixture()
-  f.context.getStoryContent = async () => { throw new Error("No readable content") }
+  f.context.getStoryContent = async () => { throw new Error("No readable content. Open the page, then choose Read the page.") }
   const opened = await f.run({ type: "open" })
-  assert.match(opened.status, /Title only/)
+  assert.match(opened.status, /Title only: No readable content\. Open the page/)
   assert.equal(opened.statusTone, "info")
-  assert.equal(opened.messages.length, 1)
-  assert.deepEqual(opened.actions.map(action => action.id), ["summarize"])
+  assert.equal(opened.messages.length, 1, "the title is still explained")
+  assert.deepEqual(opened.actions.map(action => action.id), ["summarize", "open-page", "read-page"])
   assert.match((await f.run({ type: "action", action: "summarize" })).status, /Cannot summarize/)
   assert.equal(f.requests.length, 1)
+})
+
+test("Open page opens the story, and Read the page starts over with the article once it can be read", async () => {
+  const opened = []
+  const f = await fixture({}, undefined, undefined, { openUrl: (story, url, target) => opened.push([url, target]) })
+  let readable = false
+  f.context.getStoryContent = async () => {
+    if (!readable) throw new Error("No readable content.")
+    return { text: "Article evidence", title: "Article", sourceUrl: "https://story.test/", origin: "live", truncated: false }
+  }
+  await f.run({ type: "open" })
+  const asked = await f.run({ type: "action", action: "open-page" })
+  assert.deepEqual(opened, [["https://story.test/", "_self"]])
+  assert.match(asked.status, /Opening the page/)
+  assert.equal(f.requests.length, 1, "opening the page asks the AI nothing")
+  readable = true
+  const read = await f.run({ type: "action", action: "read-page" })
+  assert.match(read.status, /Read from the open page/)
+  assert.deepEqual(read.messages.map(message => message.title), [undefined, "Summary"])
+  assert.ok(!read.actions.some(action => action.id === "read-page"))
+  assert.equal(f.requests.length, 3, "the explanation and the summary are asked again with the article")
 })
 
 test("native provider payloads and source metadata normalize without arbitrary links", async () => {

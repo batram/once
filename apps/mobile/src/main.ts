@@ -213,6 +213,19 @@ function installMobileTestHooks(
   }
 }
 
+/**
+ * The selected tab's page as the reading view shows it, only while it is the
+ * page asked for and has loaded. Never opens or navigates anything: what is
+ * not already there is not there.
+ */
+async function livePageHtml(reading: MobileReadingController, url: string): Promise<{ html: string; url: string } | null> {
+  const state = reading.tabs.selected?.session.snapshot()
+  const samePage = state && state.currentUrl.replace(/#.*$/, "") === url.replace(/#.*$/, "")
+  if (!state || !samePage || state.mode !== "browser" || state.loadState !== "ready") return null
+  const html = await reading.runtime.pageSurface.evaluateJavaScript("document.documentElement.outerHTML")
+  return html ? { html, url: state.currentUrl } : null
+}
+
 async function startMobileApp(): Promise<void> {
   document.body.dataset.platform = "mobile"
   document.body.dataset.buildChannel = __ONCE_BUILD_CHANNEL__
@@ -224,6 +237,7 @@ async function startMobileApp(): Promise<void> {
   // The reading controller is built below; the closure only runs on a tap.
   const platform = createMobilePlatform(nativeBridge, undefined, {
     openInApp: (url) => reading.openBrowserUrl(url),
+    livePageHtml: (url) => livePageHtml(reading, url),
     appVersion: __ONCE_APP_VERSION__,
     // The reading controller exists before the app starts, which is when these first run.
     tabSource: readingTabSource(() => reading.tabs, () => reading.runtime.capturePreview(), (tabId, script) => reading.runtime.evaluate(tabId, script)),

@@ -73,6 +73,9 @@ export function createElectronPlatform(
         syncWindowBackground()
       }
     },
+    livePage: {
+      html: (url) => bridge.tabs.pageHtml(url)
+    },
     activeTab: {
       openUrl(url, target) {
         bridge.tabs.openUrl(url, target)

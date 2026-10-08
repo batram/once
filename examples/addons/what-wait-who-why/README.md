@@ -126,7 +126,12 @@ story material and a one-line task name such as "Explain this story.", so the
 explanation prompt, and an answer without it simply shows whole.
 The **Summarize** button appears only while the conversation has no summary, for
 example after the automatic one failed; the question box continues the conversation.
-Saved/feed content is used before fetching and extracting the original article.
+Saved/feed content is used first; otherwise, when the page is open in a tab or
+the reading view and has loaded, Once reads it as shown there, scripts and all;
+otherwise it fetches and extracts the original article. When none of that yields
+readable text, the tray explains the title alone, says why the article was
+unavailable, and offers **Open page** and **Read the page**: open it, let it load,
+then read it, and the explanation and summary are asked again with the article.
 Reading content for the addon does not mark a story read or save an offline copy.
 
 ### YouTube videos

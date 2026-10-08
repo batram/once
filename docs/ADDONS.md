@@ -432,11 +432,14 @@ settings changes, and teardown revoke pending work. Keep addon conversation stat
 in memory and clear it in `onSettings`; no persistence is needed for redraws.
 
 `once.getStoryContent(story)` (or `context.getStoryContent()`) returns
-`{ text, title, sourceUrl, origin: "stored" | "page", truncated }`. Once uses
-saved/feed content first, otherwise fetches and extracts the article. Text is
+`{ text, title, sourceUrl, origin: "stored" | "page" | "live", truncated }`. Once
+uses saved/feed content first; otherwise, when a tab or the reading view has the
+page open and loaded, it reads the page as shown there (`"live"`, with its
+scripts run); otherwise it fetches and extracts the article (`"page"`). Text is
 capped at 64,000 characters. This does not mark the story read or save an offline
-copy. Extraction errors reject the operation so the addon can label a title-only
-answer rather than imply it read the article.
+copy. Extraction errors reject the operation with the reason and a hint to open
+the page, so the addon can label a title-only answer rather than imply it read
+the article, and offer to read the page once it is open.
 
 ## The script
 

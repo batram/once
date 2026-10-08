@@ -19,6 +19,21 @@ export default function activate(once) {
       conversations.set(story.href, state)
     }
     if (event.type === "open" && state.messages.length) return view(state)
+    // When the article could not be read, the reader can open the page and
+    // ask again: the host then reads it as the open page shows it.
+    if (event.action === "open-page") {
+      once.openUrl(story, story.href, "_self")
+      state.status = "Opening the page. Once it has loaded, choose Read the page."
+      return view(state)
+    }
+    if (event.action === "read-page") {
+      state.article = null
+      state.contentError = ""
+      state.transcriptError = ""
+      state.messages = []
+      state.history = []
+      state.summarized = false
+    }
     const previous = state.last
     const retry = event.action === "retry" || event.action === "without-search"
     // Opening explains the title, adds what web search finds beside it rather
@@ -41,7 +56,7 @@ export default function activate(once) {
       context.signal.throwIfAborted()
       // The status line already says the answer is title-only; an automatic summary just steps aside.
       const runnable = tasks.filter(task => (task !== "summary" || state.article || !automatic) && (task !== "web" || !noSearch))
-      if (runnable.includes("summary") && !state.article) throw new Error("Cannot summarize: no readable article content is available. Open the original story or try Clear conversation to fetch again.")
+      if (runnable.includes("summary") && !state.article) throw new Error("Cannot summarize: no readable article content is available. Open the page, then choose Read the page.")
       // Every task asks at once. Each answer shows as it is written, but
       // joins the conversation in task order, so the explanation stays first.
       const answers = new Array(runnable.length)
@@ -72,7 +87,8 @@ export default function activate(once) {
         state.article?.origin === "youtube" ? `Using the video transcript (${state.article.track}).`
           : state.article?.origin === "stored" ? "Saved article."
             : state.article?.origin === "page" ? "Fetched article."
-              : state.article ? "Using story content." : "Title only: article content is unavailable.",
+              : state.article?.origin === "live" ? "Read from the open page."
+                : state.article ? "Using story content." : `Title only: ${state.contentError || "article content is unavailable."}`,
         state.transcriptError ? `No transcript: ${state.transcriptError}` : "",
         turn.sources ? "Web sources used." : "No web sources used.",
         state.article?.truncated ? "Article context shortened to 64,000 characters." : "",
@@ -159,6 +175,8 @@ function view(state, early = []) {
   // An unconfigured addon is directions, not a failure: no Retry, calm tone.
   if (state.error && !state.setupNeeded) actions.push({ id: "retry", label: "Retry" })
   if (state.searchFailed) actions.push({ id: "without-search", label: "Answer without search" })
+  // A title-only answer offers the way to a real one: open the page, then read it from there.
+  if (state.contentError && !state.article && !state.setupNeeded) actions.push({ id: "open-page", label: "Open page" }, { id: "read-page", label: "Read the page" })
   return { messages: [...state.messages, ...early], status: state.error || state.status || "Ask about this story.", statusTone: state.error && !state.setupNeeded ? "error" : "info", actions, composer: "Ask a follow-up question about this story" }
 }
 

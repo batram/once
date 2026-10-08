@@ -281,6 +281,8 @@ export interface OnceClient {
     url: string
     mediaType: string
   }>
+  /** The page as a tab or the reading view currently shows it, scripts run and all, or null when it is not open. */
+  livePageHtml(url: string): Promise<{ html: string; url: string } | null>
   /** A small http(s) text resource through the platform's fetch: add-on code. */
   fetchText(url: string): Promise<string>
   /**
@@ -508,6 +510,11 @@ export interface ActiveTabPort {
   onSelectedUrlChanged(handler: (url: string, context?: StoryPageContext) => void): () => void
 }
 
+export interface LivePagePort {
+  /** The serialized DOM of an open page showing `url` (fragment ignored), or null when none is open or ready. */
+  html(url: string): Promise<{ html: string; url: string } | null>
+}
+
 export interface DatabaseChange {
   id: string
   doc?: Record<string, unknown>
@@ -547,6 +554,8 @@ export interface OncePlatformPorts {
   secretStore?: SecretStorePort
   theme: ThemePort
   activeTab?: ActiveTabPort
+  /** The rendered document of a page this shell has open; without it, pages are only ever fetched. */
+  livePage?: LivePagePort
   fetch: typeof fetch
   /** Optional transport for addon connections with explicit redirect/cookie controls. */
   addonFetch?: typeof fetch

@@ -243,6 +243,7 @@ export class AppRuntime {
       getStoryContent: (href) => this.content.get(href),
       saveStoryContent: (href, html, meta) => this.content.save(href, html, meta),
       fetchDocument: (url) => fetchDocument(this.platform.fetch, url),
+      livePageHtml: async (url) => await this.platform.livePage?.html(url) ?? null,
       fetchText: (url) => fetchText(this.platform.fetch, url),
       openUrl: (url, target) => {
         if (url.startsWith("search:")) {
