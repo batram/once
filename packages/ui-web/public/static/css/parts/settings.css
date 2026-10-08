@@ -16,6 +16,16 @@
   font-size: var(--panel-title-font-size);
 }
 
+/* The row a link from another page meant, lit for a moment on arrival. */
+.settings_row_spotlight {
+  animation: settings_row_spotlight 2.4s ease-out;
+}
+
+@keyframes settings_row_spotlight {
+  0%, 40% { background: var(--highlight-bg-color); }
+  100% { background: transparent; }
+}
+
 /* A word in a sentence that opens another settings section: a link, not a button. */
 .settings_inline_link {
   display: inline;
