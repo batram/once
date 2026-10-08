@@ -26,11 +26,23 @@ export function installTabSyncCapture(api: typeof browser): (tabId: string) => P
       const wait = last + MIN_GAP_MS - Date.now()
       if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
       last = Date.now()
-      const current = await api.tabs.get(tab.id).catch(() => null)
       // Only the tab the window shows, once loaded, and still on the same page.
-      if (!current?.active || current.status !== "complete" || current.url !== tab.url) return null
-      const dataUrl = await api.tabs.captureVisibleTab(tab.windowId, { format: "jpeg", quality: 70 }).catch(() => null)
-      if (!dataUrl) return null
+      // The tab may have moved to another window while this capture waited,
+      // and a window captures whatever it shows, so the window is read again
+      // and the tab must still be its shown one once the picture is taken.
+      // A window behind others or minimized is not drawn, and Chrome then
+      // returns stale pixels, even of a page closed long ago: only the
+      // focused window is captured.
+      const shownIn = async (): Promise<number | null> => {
+        const current = await api.tabs.get(tab.id as number).catch(() => null)
+        if (!current?.active || current.status !== "complete" || current.url !== tab.url || current.windowId === undefined) return null
+        const window = await api.windows.get(current.windowId).catch(() => null)
+        return window?.focused && window.state !== "minimized" ? current.windowId : null
+      }
+      const windowId = await shownIn()
+      if (windowId === null || !await painted(api, tab.id)) return null
+      const dataUrl = await api.tabs.captureVisibleTab(windowId, { format: "jpeg", quality: 70 }).catch(() => null)
+      if (!dataUrl || await shownIn() !== windowId) return null
       const shot = { url: tab.url, ...await shrink(dataUrl) }
       const shots = await read()
       shots[tab.id] = shot
@@ -48,6 +60,13 @@ export function installTabSyncCapture(api: typeof browser): (tabId: string) => P
   api.tabs.onUpdated.addListener((tabId, change, tab) => {
     if (change.status === "complete" && tab.active) captureActive(tabId)
   })
+  // A page that loaded in a background window is captured once that window is in front.
+  api.windows.onFocusChanged.addListener((windowId) => {
+    if (windowId === api.windows.WINDOW_ID_NONE) return
+    setTimeout(() => {
+      void api.tabs.query({ active: true, windowId }).then(([tab]) => { if (tab?.id !== undefined) captureActive(tab.id) }).catch(() => undefined)
+    }, 400)
+  })
   api.tabs.onRemoved.addListener((tabId) => {
     chain = chain.then(async () => {
       const shots = await read()
@@ -62,6 +81,21 @@ export function installTabSyncCapture(api: typeof browser): (tabId: string) => P
     const shot = kept?.url === tab.url ? kept : await capture(tab)
     return shot && { jpeg: shot.jpeg, width: shot.width, height: shot.height }
   }
+}
+
+/**
+ * Whether the page has drawn since it was last shown: a window brought to the
+ * front still holds stale pixels until its first new frame, and a page that
+ * is not drawn gets no animation frames. Pages that cannot be asked are not
+ * captured.
+ */
+async function painted(api: typeof browser, tabId: number): Promise<boolean> {
+  const drawn = () => document.visibilityState === "visible"
+    && new Promise<boolean>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))
+  const asked = api.scripting.executeScript({ target: { tabId }, func: drawn as unknown as () => void })
+    .then(([result]) => result?.result === true, () => false)
+  const late = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1500))
+  return Promise.race([asked, late])
 }
 
 /** Scales a capture down to thumbnail width and keeps only its top, as other browsers do. */
