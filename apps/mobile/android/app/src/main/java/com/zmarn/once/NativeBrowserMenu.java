@@ -185,15 +185,28 @@ final class NativeBrowserMenu {
             }
         } catch (Exception error) { call.reject("Invalid browser menu items", error); return; }
         String label = "Extensions (" + count + ")";
-        Button expand = control(activity, palette, label + "   ⌄", true, () -> {});
+        Button expand = control(activity, palette, label, true, () -> {});
         expand.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
         expand.setPadding(spacing, 0, spacing, 0);
         setIcon(activity, palette, expand, "", false);
+        // One chevron at the row's end that turns about its centre, as the tab
+        // sync device headers' does, rather than a glyph swap that jumps
+        // between the line's top and bottom.
+        android.graphics.drawable.Drawable chevronGlyph = activity.getDrawable(R.drawable.browser_chevron_down).mutate();
+        chevronGlyph.setTint(palette.text);
+        android.graphics.drawable.RotateDrawable chevron = new android.graphics.drawable.RotateDrawable();
+        chevron.setDrawable(chevronGlyph);
+        chevron.setFromDegrees(0);
+        chevron.setToDegrees(180);
+        int chevronSize = Math.round(20 * density);
+        chevron.setBounds(0, 0, chevronSize, chevronSize);
+        expand.setCompoundDrawablesRelative(expand.getCompoundDrawablesRelative()[0], null, chevron, null);
         expand.setContentDescription(label + ", collapsed");
         expand.setOnClickListener(ignored -> {
             boolean expanded = entries.getVisibility() != View.VISIBLE;
             entries.setVisibility(expanded ? View.VISIBLE : View.GONE);
-            expand.setText(label + (expanded ? "   ⌃" : "   ⌄"));
+            android.animation.ObjectAnimator.ofInt(chevron, "level", chevron.getLevel(), expanded ? 10000 : 0)
+                .setDuration(120).start();
             expand.setContentDescription(label + (expanded ? ", expanded" : ", collapsed"));
         });
         content.addView(expand, row(gap, entry));

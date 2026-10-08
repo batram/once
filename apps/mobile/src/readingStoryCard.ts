@@ -74,7 +74,6 @@ export class StoryCardCollapse {
     const card = required("#reading_current_card")
     const button = required<HTMLButtonElement>("#reading_story_collapse")
     card.classList.toggle("reading_story_collapsed", this.collapsed)
-    button.textContent = this.collapsed ? "⌄" : "⌃"
     button.setAttribute("aria-expanded", String(!this.collapsed))
     button.setAttribute("aria-label", this.collapsed ? "Expand current story" : "Collapse current story")
   }

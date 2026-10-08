@@ -1566,6 +1566,17 @@
     line-height: 1;
   }
 
+  /* One chevron that turns about its centre, as the tab sync device
+     headers' does, rather than a glyph swap that jumps between the line's
+     top and bottom. */
+  #reading_current_card .reading_story_chevron {
+    transition: transform 120ms ease;
+  }
+
+  #reading_story_collapse[aria-expanded="true"] .reading_story_chevron {
+    transform: rotate(180deg);
+  }
+
   #reading_current_card #reading_story_meta,
   #reading_current_card .tags_container {
     padding-right: var(--reading-card-control-inset);
