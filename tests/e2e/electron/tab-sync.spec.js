@@ -153,6 +153,9 @@ test("the tab bar button opens other devices' tabs as a page; the side panel can
     await expect(page.getByTestId("tab-sync-button")).toHaveAttribute("aria-pressed", "false")
 
     await page.getByTestId("sync-page-tabs").click()
+    // The Tab sync page points at the placement, which sits with the layout settings under Appearance.
+    await page.getByTestId("remote-tabs-placement-link").click()
+    await expect(page.getByTestId("electron-story-position")).toBeVisible()
     await page.getByTestId("remote-tabs-placement").selectOption("panel")
     await expect(page.getByTestId("tab-sync-button")).toBeHidden()
     await page.getByTestId("tabs-menu").click()

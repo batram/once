@@ -46,6 +46,7 @@ export class SettingsPanel {
     )
     SettingsPanel.instance = this
     settingsControls.bindSettingsRows(requireElement<HTMLElement>("#settings_panel"))
+    this.bindSectionLinks(requireElement<HTMLElement>("#settings_panel"))
     bindSettingsSubscriptions(client, {
       filters: () => void this.set_filter_area(),
       redirects: () => void this.set_redirect_area(),
@@ -408,6 +409,12 @@ export class SettingsPanel {
 
   private openSettingsSection(key: string): void {
     this.navigation?.open(key)
+  }
+
+  /** A sentence on one page may name another section; the word, marked `data-open-settings-section`, opens it. */
+  private bindSectionLinks(panel: HTMLElement): void {
+    const target = (event: Event) => (event.target as Element | null)?.closest<HTMLElement>("[data-open-settings-section]")?.dataset.openSettingsSection
+    panel.addEventListener("click", (event) => { const key = target(event); if (key) this.openSettingsSection(key) })
   }
 
   private renderSettingsSection(key: string): void {

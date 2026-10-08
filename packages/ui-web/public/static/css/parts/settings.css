@@ -16,6 +16,19 @@
   font-size: var(--panel-title-font-size);
 }
 
+/* A word in a sentence that opens another settings section: a link, not a button. */
+.settings_inline_link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-high-color);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .settings_container {
   display: flex;
   height: 100%;

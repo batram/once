@@ -43,9 +43,10 @@ export function initializeRemoteTabsButton(): void {
  */
 export function bindRemoteTabsPlacement(bridge: ElectronBridge, client: OnceClient): void {
   const button = document.querySelector<HTMLButtonElement>("#tab_sync_btn")
-  const row = document.querySelector<HTMLElement>("#remote_tabs_placement_row")
   const select = document.querySelector<HTMLSelectElement>("#remote_tabs_placement")
-  if (!button || !row || !select) return
+  // The Tab sync page points at the choice, which sits with the other layout settings under Appearance.
+  const pointer = document.querySelector<HTMLElement>("#remote_tabs_placement_row")
+  if (!button || !select) return
   // Nothing shows while tab sync is off on this device, whatever the placement.
   let enabled = !button.hidden
   const apply = (placement: Placement) => {
@@ -55,7 +56,7 @@ export function bindRemoteTabsPlacement(bridge: ElectronBridge, client: OnceClie
     window.dispatchEvent(new Event("resize"))
   }
   // Shown with the rest of the Tab sync page once tab sync is on.
-  row.dataset.platformShown = "true"
+  if (pointer) pointer.dataset.platformShown = "true"
   button.addEventListener("click", () => {
     void bridge.remoteTabs.open().catch((error) => console.error("Could not open the tabs page", error))
   })

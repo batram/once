@@ -505,19 +505,12 @@
                     </section>
                     <section class="settings_rows" id="remote_tabs_placement_row" data-tab-sync-on hidden>
                       <h4 class="settings_subheading">Show other devices' tabs</h4>
-                      <div class="settings_row">
-                        <label class="settings_row_name" for="remote_tabs_placement">Show them in</label>
-                        <p class="settings_row_hint" id="remote_tabs_placement_hint" data-help>
-                          The tab bar button opens them as a page in a tab; the side panel lists them under
-                          Tabs. Remembered on this device.
-                        </p>
-                        <select id="remote_tabs_placement" data-testid="remote-tabs-placement"
-                          aria-describedby="remote_tabs_placement_hint">
-                          <option value="button">Tab bar button</option>
-                          <option value="panel">Side panel</option>
-                          <option value="both">Both</option>
-                        </select>
-                      </div>
+                      <p class="settings_description">
+                        Where this device shows them, the tab bar button or the side panel, is a layout
+                        choice under
+                        <button type="button" class="settings_inline_link" data-open-settings-section="theme"
+                          data-testid="remote-tabs-placement-link">Appearance</button>.
+                      </p>
                     </section>
                     <section class="settings_rows" data-tab-sync-on>
                       <h4 class="settings_subheading">Devices</h4>
@@ -679,6 +672,19 @@
                       >
                         <option value="sidebar">Above the story list</option>
                         <option value="browser">Below the address bar</option>
+                      </select>
+                    </div>
+                    <div class="settings_row">
+                      <label class="settings_row_name" for="remote_tabs_placement">Other devices' tabs</label>
+                      <p class="settings_row_hint" id="remote_tabs_placement_hint" data-help>
+                        The tab bar button opens them as a page in a tab; the side panel lists them under
+                        Tabs. Shown while tab sync is on. Remembered on this device.
+                      </p>
+                      <select id="remote_tabs_placement" data-testid="remote-tabs-placement"
+                        aria-describedby="remote_tabs_placement_hint">
+                        <option value="button">Tab bar button</option>
+                        <option value="panel">Side panel</option>
+                        <option value="both">Both</option>
                       </select>
                     </div>
                   </section>
