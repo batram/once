@@ -28,14 +28,16 @@ for (const colorScheme of ["light", "dark"]) {
       return {
         inside: box.left >= parent.left && box.right <= parent.right && box.top >= parent.top && box.bottom <= parent.bottom,
         overflow: element.scrollWidth > element.clientWidth,
-        buttons: [...element.querySelectorAll("button")].map(button => {
+        // "Open in app" stays hidden unless the page redirected to an app link.
+        buttons: [...element.querySelectorAll("button")].filter(button => button.checkVisibility()).map(button => {
           const rect = button.getBoundingClientRect()
-          return { height: rect.height, inside: rect.left >= box.left && rect.right <= box.right && rect.top >= box.top && rect.bottom <= box.bottom }
+          return { name: button.textContent.trim(), height: rect.height, inside: rect.left >= box.left && rect.right <= box.right && rect.top >= box.top && rect.bottom <= box.bottom }
         })
       }
     })
     expect(geometry.inside).toBe(true)
     expect(geometry.overflow).toBe(false)
+    expect(geometry.buttons.map(button => button.name)).toEqual(["Try again", "Edit address"])
     for (const button of geometry.buttons) {
       expect(button.height).toBeGreaterThanOrEqual(44)
       expect(button.inside).toBe(true)

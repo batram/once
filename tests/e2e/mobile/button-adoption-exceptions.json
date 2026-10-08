@@ -73,6 +73,42 @@
       "reason": "The sync state read-out in the Settings titlebar: a dot and a truncated message with no border or fill, which opens Settings › Sync when chosen",
       "phase": "3.1",
       "removeWhen": "The titlebar status is redesigned to present as a primitive button. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "address_editor_clear",
+      "reason": "The 40px clear glyph pinned inside the address editor's field; the editor's own button reset strips border and fill, and mobile.css positions it absolutely over the textarea's corner",
+      "phase": "3.1",
+      "removeWhen": "The address editor's field is redesigned so the clear action is a primitive icon button beside the field rather than a glyph inside it. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "address_editor_tool",
+      "reason": "A flat 36px quick-edit chip in the address editor's toolbar (Cancel, split, remove, Trackers); the editor resets every button to borderless and transparent and only the pressed state fills it",
+      "phase": "3.1",
+      "removeWhen": "The address editor's quick edits are redesigned to present as primitive buttons. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "address_editor_row",
+      "reason": "A full-width 52px suggestion row in the address editor list (Reader, Paste and go), with an icon, a title and a summary line; it presents as a list row, not a button",
+      "phase": "3.1",
+      "removeWhen": "The address editor's suggestions are redesigned to present as primitive buttons rather than list rows. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "address_editor_icon",
+      "reason": "A borderless --touch-sized glyph target (Copy, Share) at the end of the address editor's current-page row, sized by the row rather than by button padding",
+      "phase": "3.1",
+      "removeWhen": "The current-page row is redesigned so its actions present as primitive icon buttons. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "address_editor_scrim",
+      "reason": "The dimmed area under the address editor sheet; a tap on it cancels editing. It fills the remaining height and has no button visuals at all",
+      "phase": "3.1",
+      "removeWhen": "The address editor stops cancelling on a tap outside the sheet. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "reading_tab_group",
+      "reason": "A role=tab header tab in the tab view (This phone, Other devices) with a count badge; it draws a 3px underline when selected and has no border or fill",
+      "phase": "3.1",
+      "removeWhen": "The tab view's group tabs are redesigned to present as primitive buttons rather than underlined tabs. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
     }
   ],
   "unclassified": []
