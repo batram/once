@@ -18,6 +18,9 @@ const MENU_LIMIT = 20
  * its own, one that is always in the same place and never asks for attention:
  * it only dims when there is nothing to reverse.
  *
+ * Under the arrow it names what a tap would take back ("skip", "read"), so it
+ * cannot be mistaken for the reload button beside the search field.
+ *
  * A tap reverses the most recent change. A long-press lists the changes that
  * can be reversed on their own, so a mis-swipe several rows back can be taken
  * back without unwinding everything done since.
@@ -25,6 +28,7 @@ const MENU_LIMIT = 20
 export class UndoButton {
   private static instance?: UndoButton
   private readonly button: HTMLButtonElement
+  private readonly label: HTMLSpanElement
   private pressTimer?: ReturnType<typeof setTimeout>
   /** Set once a long-press opened the list, so the release does not also undo. */
   private swallowClick = false
@@ -40,7 +44,10 @@ export class UndoButton {
     const icon = document.createElement("span")
     icon.classList.add("icon", "icon--undo")
     icon.setAttribute("aria-hidden", "true")
-    this.button.append(icon)
+    this.label = document.createElement("span")
+    this.label.classList.add("undo_button_label")
+    this.label.setAttribute("aria-hidden", "true")
+    this.button.append(icon, this.label)
 
     this.button.addEventListener("click", (event) => {
       if (this.swallowClick) {
@@ -85,6 +92,9 @@ export class UndoButton {
     // aria-disabled rather than disabled: a disabled button swallows the
     // long-press too, and a dimmed control should still explain itself.
     const empty = !this.history.canUndo
+    const latest = this.history.latestChange
+    this.label.textContent = latest ? ACTIONS[latest.new_state] : "undo"
+    this.button.setAttribute("aria-label", latest ? `Undo ${ACTIONS[latest.new_state]}` : "Undo")
     this.button.classList.toggle("undo_button_empty", empty)
     this.button.setAttribute("aria-disabled", String(empty))
   }
@@ -147,6 +157,13 @@ export class UndoButton {
       items
     })
   }
+}
+
+/** What a tap takes back, short enough to sit under the arrow. */
+const ACTIONS: Record<ReadState, string> = {
+  skipped: "skip",
+  read: "read",
+  unread: "unread"
 }
 
 const VERBS: Record<ReadState, string> = {

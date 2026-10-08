@@ -37,13 +37,18 @@ test("the undo button is always there and dims until there is something to undo"
   const button = page.getByTestId("undo-button")
   await expect(button).toBeVisible()
   await expect(button).toHaveAttribute("aria-disabled", "true")
+  await expect(button).toHaveAccessibleName("Undo")
 
   await swipeToSkip(page, story)
   await expect(button).toHaveAttribute("aria-disabled", "false")
+  // It names what a tap would take back.
+  await expect(button).toHaveText("skip")
+  await expect(button).toHaveAccessibleName("Undo skip")
 
   await button.click()
   await expect(story).not.toHaveClass(/skipped/)
   await expect(button).toHaveAttribute("aria-disabled", "true")
+  await expect(button).toHaveText("undo")
   // Nothing expires: the button stays put after the undo, too.
   await expect(button).toBeVisible()
 })

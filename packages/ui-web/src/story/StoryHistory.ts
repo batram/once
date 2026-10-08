@@ -75,6 +75,11 @@ export class StoryHistory {
     return this.undo_history.length > 0
   }
 
+  /** The change a plain undo() would reverse. */
+  get latestChange(): StoryChange | undefined {
+    return this.undo_history.at(-1)
+  }
+
   get canRedo(): boolean {
     return this.redo_history.length > 0
   }
