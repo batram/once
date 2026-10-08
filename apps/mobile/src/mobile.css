@@ -3085,12 +3085,31 @@
     }
   }
 
+  /* The tab count reads as tabs: a strip a quarter down the button, the
+     current tab rising out of it at the left and a wider one behind it.
+     The drawing covers the area inside the border, in the text colour, so
+     it follows the theme and the lit state; the count sits centred below. */
   #reading_tabs {
+    position: relative;
     margin: 0;
     flex: 0 0 44px;
     min-width: 44px;
     min-height: 44px;
+    padding-top: var(--sp-3);
+    font-size: calc(var(--fs-body) + var(--bw));
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
+  }
+
+  #reading_tabs::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    /* The border's own ink, at its 1px: the strip is part of the outline. */
+    background: var(--m-ink);
+    -webkit-mask: url("imgs/tab-strip.svg") top left / 100% 100% no-repeat;
+    mask: url("imgs/tab-strip.svg") top left / 100% 100% no-repeat;
+    pointer-events: none;
   }
 
   /* Lit like the active reader toggle while the tab view is open. */
@@ -3098,6 +3117,10 @@
     color: var(--highlight-color);
     background: var(--highlight-bg-color);
     border-color: var(--highlight-color);
+  }
+
+  #reading_tabs[aria-expanded="true"]::before {
+    background: var(--highlight-color);
   }
 
   #reading_tabs_dialog {
