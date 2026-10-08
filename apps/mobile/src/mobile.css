@@ -3147,6 +3147,13 @@
     outline-offset: -2px;
   }
 
+  /* The dismiss button takes the dialog's autofocus, and WebKit draws the
+     ring for it on every open, so it stays unmarked. */
+  #reading_tabs_dialog .reading_tab_dismiss:focus,
+  #reading_tabs_dialog .reading_tab_dismiss:focus-visible {
+    outline: none;
+  }
+
   #reading_tabs_dialog header {
     display: flex;
     flex: 0 0 auto;
