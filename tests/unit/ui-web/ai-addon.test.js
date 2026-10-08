@@ -111,15 +111,22 @@ test("finished streams rebuild each provider's answer, citations and failures", 
   ]))
   assert.deepEqual(providerResult("openai", openai), { text: "Hi", sources: [{ title: "Source", url: "https://source.test/" }] })
   assert.throws(() => streamedResponse("openai", sse([{ type: "response.output_text.delta", delta: "Hi" }])), /ended before/)
+  // What the model says before searching is not the answer; the answer arrives as a piece per citation.
   const anthropic = streamedResponse("anthropic", sse([
-    { type: "content_block_start", index: 0, content_block: { type: "server_tool_use", id: "tool" } },
-    { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
-    { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Cited " } },
-    { type: "content_block_delta", index: 1, delta: { type: "citations_delta", citation: { type: "web_search_result_location", title: "Source", url: "https://source.test/" } } },
-    { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "answer" } },
+    { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+    { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Let me search." } },
+    { type: "content_block_start", index: 1, content_block: { type: "server_tool_use", id: "tool" } },
+    { type: "content_block_start", index: 2, content_block: { type: "web_search_tool_result", content: [] } },
+    { type: "content_block_start", index: 3, content_block: { type: "text", text: "" } },
+    { type: "content_block_delta", index: 3, delta: { type: "text_delta", text: "- **Cited**: " } },
+    { type: "content_block_start", index: 4, content_block: { type: "text", text: "" } },
+    { type: "content_block_delta", index: 4, delta: { type: "text_delta", text: "answer" } },
+    { type: "content_block_delta", index: 4, delta: { type: "citations_delta", citation: { type: "web_search_result_location", title: "Source", url: "https://source.test/" } } },
+    { type: "content_block_start", index: 5, content_block: { type: "text", text: "" } },
+    { type: "content_block_delta", index: 5, delta: { type: "text_delta", text: " in one line." } },
     { type: "message_delta", delta: { stop_reason: "end_turn" } }
   ]))
-  assert.deepEqual(providerResult("anthropic", anthropic), { text: "Cited answer", sources: [{ title: "Source", url: "https://source.test/" }] })
+  assert.deepEqual(providerResult("anthropic", anthropic), { text: "- **Cited**: answer in one line.", sources: [{ title: "Source", url: "https://source.test/" }] })
   assert.throws(() => providerResult("anthropic", streamedResponse("anthropic", sse([{ type: "message_delta", delta: { stop_reason: "max_tokens" } }]))), /did not complete/)
   assert.throws(() => streamedResponse("compatible", sse([[{ error: { message: "High\ndemand" } }]])), /Provider: High demand/)
   assert.throws(() => streamedResponse("anthropic", sse([{ type: "error", error: { type: "overloaded_error", message: "Overloaded" } }])), /Overloaded/)

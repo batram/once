@@ -340,7 +340,11 @@ export function providerRequest(settings, prompt, context, messages, nativeSearc
     // Effort steers how long the model thinks before its first word; the answer's length follows it loosely.
     const effort = ["low", "medium", "high"].includes(settings.effort) ? { output_config: { effort: settings.effort } } : {}
     payload = { model, system: prompt, messages: grounded, max_tokens: 2048, ...effort,
-      ...(nativeSearch ? { tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }] } : {}), ...(stream ? { stream } : {}) }
+      // The 2025-03-05 search tool cites its results in the answer; the newer
+      // 2026-02-09 one filters results in a code sandbox, cites nothing and
+      // leaves its working notes as text, so the tray would show no sources
+      // and stray remarks. The citing one still runs on the current models.
+      ...(nativeSearch ? { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }] } : {}), ...(stream ? { stream } : {}) }
   } else {
     payload = { model, messages: [{ role: "system", content: prompt }, ...grounded], max_tokens: 2048, stream }
   }
@@ -477,9 +481,14 @@ export function providerResult(provider, data) {
   } else if (provider === "anthropic") {
     if (!Array.isArray(data.content)) throw new Error("The Anthropic endpoint returned an unexpected response format.")
     if (data.stop_reason === "pause_turn" || data.stop_reason === "max_tokens") throw new Error("The provider did not complete this answer. Try a shorter question.")
-    for (const block of data.content || []) {
+    // The answer is the text after the last tool result; what the model said
+    // before searching is not part of it. That text comes split into a piece
+    // per citation, so the pieces join as they are, without any newline.
+    const content = data.content || []
+    const lastTool = content.findLastIndex(block => block?.type !== "text")
+    for (const block of content.slice(lastTool + 1)) {
       if (block.type !== "text") continue
-      text += block.text + "\n"
+      text += block.text
       for (const source of block.citations || []) if (source.type === "web_search_result_location") sources.push({ title: source.title, url: source.url })
     }
   } else {
