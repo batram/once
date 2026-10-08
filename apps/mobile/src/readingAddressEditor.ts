@@ -338,10 +338,13 @@ export class ReadingAddressEditor {
     this.actions.go(normalized.url)
   }
 
+  // Android's plugin copies, shares and reads the clipboard natively. iOS's
+  // has no such methods: Capacitor still answers the call, with a rejection,
+  // so each falls back to the web API when the native call fails.
+
   private async copy(): Promise<void> {
     try {
-      if (this.plugin?.copyText) await this.plugin.copyText({ text: this.current })
-      else await navigator.clipboard.writeText(this.current)
+      await nativeOr(() => this.plugin?.copyText?.({ text: this.current }), () => navigator.clipboard.writeText(this.current))
       this.toast("Link copied")
     } catch {
       this.toast("The link could not be copied")
@@ -350,18 +353,15 @@ export class ReadingAddressEditor {
 
   private async share(): Promise<void> {
     const title = this.part(".address_editor_current b").textContent ?? ""
+    if (!this.plugin?.share && !navigator.share) { this.toast("Sharing is not available here"); return }
     try {
-      if (this.plugin?.share) await this.plugin.share({ url: this.current, title })
-      else if (navigator.share) await navigator.share({ url: this.current, title })
-      else this.toast("Sharing is not available here")
+      await nativeOr(() => this.plugin?.share?.({ url: this.current, title }), () => navigator.share({ url: this.current, title }))
     } catch { /* the share sheet was dismissed */ }
   }
 
   private async pasteAndGo(): Promise<void> {
     try {
-      const text = this.plugin?.readClipboard
-        ? (await this.plugin.readClipboard()).text
-        : await navigator.clipboard.readText()
+      const text = await nativeOr(() => this.plugin?.readClipboard?.().then(clip => clip.text), () => navigator.clipboard.readText())
       if (text.trim()) this.submit(text)
       else this.toast("The clipboard is empty")
     } catch {
@@ -512,6 +512,18 @@ export function offsetAtPoint(input: HTMLInputElement, clientX: number): number 
     previous = width
   }
   return value.length
+}
+
+/**
+ * The native call's result, or the web API's when the plugin has no such
+ * method (`native` returns undefined) or the call fails.
+ */
+async function nativeOr<T>(native: () => Promise<T> | undefined, web: () => Promise<T>): Promise<T> {
+  const call = native()
+  if (call) {
+    try { return await call } catch { /* not implemented on this platform */ }
+  }
+  return web()
 }
 
 /** Resolves when the keyboard reports it is hidden, or after `timeout` ms. */

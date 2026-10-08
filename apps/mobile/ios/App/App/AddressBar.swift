@@ -3,9 +3,10 @@ import UIKit
 import WebKit
 
 /// The shell WebView, which adds "Paste and Go" and "Clear" to the text menu
-/// while the web address field has focus. WKContentView, the actual first
-/// responder, asks its WKWebView both whether an action applies and who
-/// performs it.
+/// while the web address field has focus, and "Explode" while the address
+/// editor's selection is on a part that splits further. WKContentView, the
+/// actual first responder, asks its WKWebView both whether an action applies
+/// and who performs it.
 final class ShellWebView: WKWebView {
     weak var addressBar: AddressBarPlugin?
 
@@ -17,10 +18,15 @@ final class ShellWebView: WKWebView {
         addressBar?.editing == true && addressBar?.hasText == true
     }
 
+    private var explodes: Bool {
+        addressBar?.editing == true && addressBar?.explodable == true
+    }
+
     private func offers(_ action: Selector) -> Bool? {
         switch action {
         case #selector(pasteAndGo(_:)): return pastesAndGoes
         case #selector(clearAddress(_:)): return clears
+        case #selector(explodeAddressPart(_:)): return explodes
         default: return nil
         }
     }
@@ -42,13 +48,16 @@ final class ShellWebView: WKWebView {
         var items: [UICommand] = []
         if pastesAndGoes { items.append(UICommand(title: "Paste and Go", action: #selector(pasteAndGo(_:)))) }
         if clears { items.append(UICommand(title: "Clear", action: #selector(clearAddress(_:)))) }
-        guard !items.isEmpty else { return }
+        // First, so it shows before the menu's overflow chevron.
+        let explode = explodes ? UICommand(title: "Explode", action: #selector(explodeAddressPart(_:))) : nil
+        guard !items.isEmpty || explode != nil else { return }
         builder.replaceChildren(ofMenu: .standardEdit) { children in
             let actions = children.compactMap { ($0 as? UICommand)?.action }
             let added = items.filter { !actions.contains($0.action) }
             var next = children
             let paste = children.firstIndex { ($0 as? UICommand)?.action == #selector(paste(_:)) }
             next.insert(contentsOf: added, at: paste.map { $0 + 1 } ?? next.endIndex)
+            if let explode, !actions.contains(explode.action) { next.insert(explode, at: 0) }
             return next
         }
     }
@@ -60,6 +69,10 @@ final class ShellWebView: WKWebView {
 
     @objc func clearAddress(_ sender: Any?) {
         addressBar?.clear()
+    }
+
+    @objc func explodeAddressPart(_ sender: Any?) {
+        addressBar?.explode()
     }
 }
 
@@ -74,13 +87,19 @@ public class AddressBarPlugin: CAPPlugin, CAPBridgedPlugin {
     /// Main queue only: the menu reads it while validating its items.
     private(set) var editing = false
     private(set) var hasText = false
+    private(set) var explodable = false
 
     @objc func setEditing(_ call: CAPPluginCall) {
         let editing = call.getBool("editing") ?? false
         let hasText = call.getBool("hasText") ?? false
+        let explodable = editing && (call.getBool("explodable") ?? false)
         DispatchQueue.main.async {
+            let changed = self.explodable != explodable
             self.editing = editing
             self.hasText = hasText
+            self.explodable = explodable
+            // The text menu follows the selection onto an explodable part.
+            if changed { UIMenuSystem.context.setNeedsRebuild() }
             call.resolve()
         }
     }
@@ -91,5 +110,9 @@ public class AddressBarPlugin: CAPPlugin, CAPBridgedPlugin {
 
     func clear() {
         notifyListeners("clear", data: [:])
+    }
+
+    func explode() {
+        notifyListeners("explode", data: [:])
     }
 }
