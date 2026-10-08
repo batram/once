@@ -76,6 +76,7 @@ test("the model list is read from the connection's own origin with its credentia
   assert.equal(received.init.method, "GET")
   assert.equal(received.init.headers.get("x-api-key"), "abc-secret")
   assert.equal(received.init.headers.get("anthropic-version"), "2023-06-01")
+  assert.equal(received.init.headers.get("anthropic-dangerous-direct-browser-access"), "true")
   assert.deepEqual(models, [{ id: "claude-haiku-5-5", name: "" }, { id: "claude-opus-5-5", name: "Claude Opus 5.5" }])
   await assert.rejects(connections.models(listing, options, "plain"), /does not list/)
   const refused = fixture(async () => new Response("{}", { status: 401 })).connections

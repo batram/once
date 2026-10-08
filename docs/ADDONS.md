@@ -318,7 +318,9 @@ reaches the sandbox.
 `{ status, headers, text }`, including HTTP error statuses. Only GET/POST are
 accepted; bodies are strings capped at 1 MiB UTF-8. Query values are strings
 appended to the configured endpoint. Script headers are limited to Content-Type,
-Accept, anthropic-version, and anthropic-workspace-id. Authentication and cookie
+Accept, anthropic-version, anthropic-workspace-id and
+anthropic-dangerous-direct-browser-access (which Anthropic requires from a
+browser context, so the extensions need it). Authentication and cookie
 headers are host-owned. Responses expose Content-Type and Retry-After, with a
 1 MiB body cap. Redirects are rejected. Transport errors do not expose credentials.
 

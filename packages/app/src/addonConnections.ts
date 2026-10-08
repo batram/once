@@ -37,8 +37,12 @@ export class AddonConnections {
     const token = connection.secret ? await this.secret(manifest.id, connection.secret, endpoint) : ""
     signal?.throwIfAborted()
     const headers = new Headers({ accept: "application/json" })
-    // Anthropic's API, the x-api-key user, wants its version header on every request.
-    if (connection.auth === "x-api-key") headers.set("anthropic-version", "2023-06-01")
+    // Anthropic's API, the x-api-key user, wants its version header on every
+    // request, and refuses a browser's request without the opt-in header.
+    if (connection.auth === "x-api-key") {
+      headers.set("anthropic-version", "2023-06-01")
+      headers.set("anthropic-dangerous-direct-browser-access", "true")
+    }
     if (token) headers.set(connection.auth === "x-api-key" ? "x-api-key" : "authorization", connection.auth === "x-api-key" ? token : `Bearer ${token}`)
     let response: Response
     let text: string

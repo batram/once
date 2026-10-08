@@ -218,6 +218,7 @@ test("native provider payloads and source metadata normalize without arbitrary l
   assert.equal(openai.tools[0].type, "web_search")
   const anthropic = providerRequest({ provider: "anthropic", model: "fixture" }, "prompt", "article", [], true)
   assert.equal(anthropic.headers["anthropic-version"], "2023-06-01")
+  assert.equal(anthropic.headers["anthropic-dangerous-direct-browser-access"], "true", "the extensions fetch from a browser context")
   assert.equal(JSON.parse(anthropic.body).tools[0].max_uses, 3)
   assert.equal("output_config" in JSON.parse(anthropic.body), false, "no effort setting leaves the model to its default")
   const brisk = JSON.parse(providerRequest({ provider: "anthropic", model: "fixture", effort: "low" }, "prompt", "article", [], false).body)

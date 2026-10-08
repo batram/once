@@ -99,7 +99,9 @@ export function readAddonRequest(value: unknown): AddonRequest {
   const headers = textMap(raw.headers)
   const query = textMap(raw.query)
   for (const name of Object.keys(headers)) {
-    if (!["content-type", "accept", "anthropic-version", "anthropic-workspace-id"].includes(name.toLowerCase())) {
+    // Anthropic refuses a browser's request without the last one; a shell that
+    // fetches from a browser context (the extensions) needs the add-on to send it.
+    if (!["content-type", "accept", "anthropic-version", "anthropic-workspace-id", "anthropic-dangerous-direct-browser-access"].includes(name.toLowerCase())) {
       throw new Error("Request header is not allowed")
     }
   }

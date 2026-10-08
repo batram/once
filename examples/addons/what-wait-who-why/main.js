@@ -331,6 +331,8 @@ export function providerRequest(settings, prompt, context, messages, nativeSearc
       ...(nativeSearch ? { tools: [{ type: "web_search" }], max_tool_calls: 3 } : {}), ...(stream ? { stream } : {}) }
   } else if (settings.provider === "anthropic") {
     headers["anthropic-version"] = "2023-06-01"
+    // The extensions call from a browser context, which Anthropic only serves with this opt-in.
+    headers["anthropic-dangerous-direct-browser-access"] = "true"
     if (settings.workspace) headers["anthropic-workspace-id"] = settings.workspace
     // Effort steers how long the model thinks before its first word; the answer's length follows it loosely.
     const effort = ["low", "medium", "high"].includes(settings.effort) ? { output_config: { effort: settings.effort } } : {}
