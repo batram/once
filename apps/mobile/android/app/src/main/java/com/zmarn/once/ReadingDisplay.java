@@ -2,10 +2,14 @@ package com.zmarn.once;
 
 import android.os.SystemClock;
 import android.util.Log;
+import android.view.SurfaceView;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.webkit.WebView;
 import com.getcapacitor.JSObject;
 import org.mozilla.geckoview.GeckoSession;
+import org.mozilla.geckoview.GeckoView;
 import org.json.JSONObject;
 
 /** Owns display attachment, bounded repair and readiness checks independently of navigation. */
@@ -64,6 +68,50 @@ final class ReadingDisplay {
             if (repaired == h.session && navigation == h.activeNavigation) trace("display-verification-failed");
         });
         requestHealthCheck();
+    }
+
+    /**
+     * Android can leave the view's SurfaceView layer on a window surface it has
+     * since replaced (seen on Samsung Android 13 after returning from the
+     * launcher): Gecko keeps painting into an offscreen layer and the page stays
+     * black, whatever is reloaded. Hiding the SurfaceView for a frame releases
+     * that layer; showing it again creates one on the current window.
+     */
+    void recreateSurface() {
+        SurfaceView view = surfaceView();
+        if (view == null || view.getVisibility() != View.VISIBLE) return;
+        trace("surface-recreate");
+        view.setVisibility(View.INVISIBLE);
+        view.post(() -> view.setVisibility(View.VISIBLE));
+    }
+
+    /** After a stop the window gets its new surface only once it draws again. */
+    void recreateSurfaceAfterDraw() {
+        GeckoView view = h.surface;
+        if (view == null) return;
+        ViewTreeObserver.OnDrawListener listener = new ViewTreeObserver.OnDrawListener() {
+            private boolean drawn;
+            @Override
+            public void onDraw() {
+                if (drawn) return;
+                drawn = true;
+                // Listeners cannot be removed from inside the draw pass.
+                view.post(() -> {
+                    view.getViewTreeObserver().removeOnDrawListener(this);
+                    if (view == h.surface && !h.destroyed) recreateSurface();
+                });
+            }
+        };
+        view.getViewTreeObserver().addOnDrawListener(listener);
+    }
+
+    private SurfaceView surfaceView() {
+        if (h.surface == null) return null;
+        for (int i = 0; i < h.surface.getChildCount(); i++) {
+            View child = h.surface.getChildAt(i);
+            if (child instanceof SurfaceView) return (SurfaceView) child;
+        }
+        return null;
     }
 
     void trace(String stage) {

@@ -116,6 +116,8 @@ abstract class ReadingSurfaceHost extends Plugin {
 
     @Override
     protected void handleOnResume() {
+        // A pause alone keeps the window surface; only a stop replaces it.
+        if (!resumed) display.recreateSurfaceAfterDraw();
         resumed = true;
         displayReattached = false;
         if (navigationDeadline != 0) navigationDeadline = SystemClock.elapsedRealtime() + NAVIGATION_TIMEOUT_MS;
@@ -162,6 +164,8 @@ abstract class ReadingSurfaceHost extends Plugin {
     }
 
     protected void reloadSession() {
+        // A black page may be a detached display rather than a broken page.
+        display.recreateSurface();
         // An explicit retry also applies while the old renderer is being
         // replaced; do not discard it and inherit the exhausted retry budget.
         requestedSequence.incrementAndGet();
