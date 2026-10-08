@@ -98,15 +98,15 @@ test("collapse controls toggle the menu and notify their host", () => {
 
 test("a drag folds the menu alone, without telling the host", () => {
   withDocument(SHELL, (window) => {
-    const { bindMenuCollapseControls, MENU_WIDTH } = load()
+    const { bindMenuCollapseControls, MENU_WIDTH, FOLD_SLACK } = load()
     const changes = []
     bindMenuCollapseControls((collapsed) => changes.push(collapsed), { resizable: true })
     const { menu, handle } = resizer(window)
     const controls = [...document.querySelectorAll(".collapsebutton")]
 
     pointer(handle, "pointerdown", 89)
-    pointer(handle, "pointermove", MENU_WIDTH.min - 1)
-    pointer(handle, "pointerup", MENU_WIDTH.min - 1)
+    pointer(handle, "pointermove", MENU_WIDTH.min - FOLD_SLACK - 1)
+    pointer(handle, "pointerup", MENU_WIDTH.min - FOLD_SLACK - 1)
     assert.ok(menu.classList.contains("collapse"))
     assert.ok(controls.every((control) => control.classList.contains("collapsebutton--collapsed")))
     document.querySelector(".sidebar_panel").click()
@@ -139,16 +139,20 @@ test("dragging the resizer sets a remembered width within the bounds", () => {
   })
 })
 
-test("dragging under the minimum collapses the menu, and back out expands it", () => {
+test("dragging past the minimum collapses the menu, and back out expands it", () => {
   withDocument(SHELL, (window, stored) => {
-    const { bindMenuCollapseControls, MENU_WIDTH } = load()
+    const { bindMenuCollapseControls, MENU_WIDTH, FOLD_SLACK } = load()
     const changes = []
     bindMenuCollapseControls((collapsed) => changes.push(collapsed), { resizable: true })
     const { menu, handle } = resizer(window)
 
     pointer(handle, "pointerdown", 89)
     pointer(handle, "pointermove", MENU_WIDTH.min + 5)
-    pointer(handle, "pointermove", MENU_WIDTH.min - 1)
+    // Just under the minimum the menu sticks at it rather than folding.
+    pointer(handle, "pointermove", MENU_WIDTH.min - FOLD_SLACK + 1)
+    assert.ok(!menu.classList.contains("collapse"))
+    assert.equal(menu.style.getPropertyValue("--menu-width"), `${MENU_WIDTH.min}px`)
+    pointer(handle, "pointermove", MENU_WIDTH.min - FOLD_SLACK - 1)
     assert.ok(menu.classList.contains("collapse"))
     pointer(handle, "pointermove", 20)
     pointer(handle, "pointerup", 20)

@@ -266,9 +266,12 @@ test("drags the menu's edge to size it, folds it under the minimum and remembers
     await dragMenuEdge(600)
     expect(Math.round(await menuRight())).toBe(242)
 
-    // A width that would cut "Settings" short folds the menu to its icon
-    // rail instead; the story list stays.
-    await dragMenuEdge(70)
+    // A width that would cut "Settings" short sticks at the minimum; a pull
+    // well past it folds the menu to its icon rail, and the story list stays.
+    await dragMenuEdge(80)
+    await expect(window.locator("#menu")).not.toHaveClass(/\bcollapse\b/)
+    expect(Math.round(await menuRight())).toBeGreaterThan(80)
+    await dragMenuEdge(40)
     await expect(window.locator("#menu")).toHaveClass(/\bcollapse\b/)
     await expect(window.locator("#left_main")).toBeVisible()
     await expect(window.locator("#menu")).toHaveCSS("width", "28px")

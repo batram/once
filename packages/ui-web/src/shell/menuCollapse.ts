@@ -8,6 +8,12 @@ const WIDTH_KEY = "once:menu-width"
 const COLLAPSED_KEY = "once:menu-collapsed"
 
 export const MENU_WIDTH = Object.freeze({ default: 89, min: 60, max: 240 })
+/**
+ * How far past the minimum the pointer must go before the menu folds. Under
+ * the minimum the menu sticks at it, so the fold is a deliberate pull rather
+ * than a snap the moment the edge crosses the line.
+ */
+export const FOLD_SLACK = 24
 
 let announceCollapsed: ((collapsed: boolean) => void) | undefined
 // Whether the last fold came from a collapse button, whose host (the desktop)
@@ -88,7 +94,7 @@ function bindMenuResize(menu: HTMLElement): void {
     // The width excludes the menu's border, which draws the edge being dragged.
     const border = menu.offsetWidth - menu.clientWidth
     const width = Math.round(event.clientX - menu.getBoundingClientRect().left - border)
-    const collapsed = width < minimum
+    const collapsed = width < minimum - FOLD_SLACK
     if (!collapsed) applyWidth(menu, Math.max(minimum, width))
     if (collapsed === menu.classList.contains("collapse")) return
     if (collapsed) setMenuCollapsed(menu, true)
