@@ -117,7 +117,7 @@ test("malformed snapshots and unavailable storage leave tab operations usable", 
 })
 
 
-test("previews stay in memory and discard navigated or closed generations", () => {
+test("previews survive a restart, undo, and discard navigated or closed generations", () => {
   const storage = memory()
   const tabs = new ReadingTabs(storage)
   const tab = tabs.create()
@@ -125,15 +125,40 @@ test("previews stay in memory and discard navigated or closed generations", () =
   const preview = "data:image/jpeg;base64,fixture"
   tabs.setPreview(tab.id, tab.generation, "https://one.test/", preview)
   assert.equal(tab.preview, preview)
-  assert.equal(new ReadingTabs(storage).selected.preview, undefined)
-  tab.session.navigate("https://two.test/")
-  assert.equal(tab.preview, undefined)
-  tabs.setPreview(tab.id, tab.generation, "https://one.test/", preview)
-  assert.equal(tab.preview, undefined)
+  tabs.select(tabs.create(false).id)
+  assert.equal(new ReadingTabs(storage).tabs[0].preview, preview)
   tabs.close(tab.id)
+  assert.equal(new ReadingTabs(storage).tabs[0].preview, undefined, "a closed tab's preview is dropped from storage")
   tabs.undo()
-  tabs.setPreview(tab.id, tab.generation, "https://two.test/", preview)
+  assert.equal(tabs.tabs[0].preview, preview)
+  assert.equal(new ReadingTabs(storage).tabs[0].preview, preview)
+  tabs.select(tabs.tabs[0].id)
+  tabs.close(tabs.tabs[1].id)
+  const restored = tabs.tabs[0]
+  restored.session.navigate("https://two.test/")
+  assert.equal(restored.preview, undefined)
+  assert.equal(new ReadingTabs(storage).tabs[0].preview, undefined, "a navigated tab does not restore the old page's preview")
+  tabs.setPreview(restored.id, restored.generation, "https://one.test/", preview)
+  assert.equal(restored.preview, undefined)
+  tabs.close(restored.id)
+  tabs.undo()
+  tabs.setPreview(restored.id, restored.generation, "https://two.test/", preview)
   assert.equal(tabs.selected.preview, undefined)
+})
+
+test("previews that do not fit in storage keep the most recently used ones", () => {
+  const values = new Map()
+  const storage = { getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => { if (value.length > 200) throw Error("quota"); values.set(key, value) } }
+  const tabs = new ReadingTabs({ getItem: storage.getItem, setItem: (key, value) => key.includes("previews") ? storage.setItem(key, value) : values.set(key, value) })
+  const [a, b, c] = [tabs.create(), tabs.create(), tabs.create()]
+  for (const [index, tab] of [a, b, c].entries()) {
+    tab.session.navigate(`https://${index}.test/`)
+    tab.times.activityAt = index
+    tabs.setPreview(tab.id, tab.generation, `https://${index}.test/`, "data:image/jpeg;base64," + "x".repeat(60))
+  }
+  tabs.update(c.id, c.generation, { title: "Saved now" })
+  assert.deepEqual(new ReadingTabs(storage).tabs.map(tab => Boolean(tab.preview)), [false, false, true])
 })
 
 test("reader scroll reports save lazily without republishing, and story refreshes publish once", () => {

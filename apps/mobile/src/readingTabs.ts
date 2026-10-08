@@ -5,6 +5,9 @@ import { ReadingHistory } from "./readingHistory"
 type ReadingMode = ReadingSessionState["mode"]
 
 const STORAGE_KEY = "once:mobile-reading-tabs:v1"
+// Previews are large and change rarely, so they live apart from the often-rewritten tab snapshot.
+const PREVIEWS_KEY = "once:mobile-reading-tab-previews:v1"
+type SavedPreviews = Record<string, { url: string; preview: string }>
 interface SavedTab {
   id: string
   url: string
@@ -15,6 +18,8 @@ interface SavedTab {
   /** Absent in tabs saved before tab sync; a restored tab then starts now. */
   times?: TabTimes
   readerPosition?: ReaderPosition
+  /** Only in the in-memory undo snapshot; persisted previews are saved under their own key. */
+  preview?: string
 }
 /** What tab sync publishes about a tab's life: its navigation, and when it was opened, navigated, selected, used. */
 export interface TabTimes { navSeq: number; openedAt: number; navigatedAt: number; selectedAt: number; activityAt: number }
@@ -53,13 +58,17 @@ export class ReadingTabs {
   // The selection a close left behind; any other selection was the user's own since.
   private selectionAfterClose: string | null = null
   private storage: Pick<Storage, "getItem" | "setItem"> | undefined
+  private savedPreviews: SavedPreviews = {}
+  private previewsChanged = false
 
   constructor(storage?: Pick<Storage, "getItem" | "setItem">) {
     try { this.storage = storage ?? globalThis.localStorage } catch { /* storage is optional */ }
+    try { this.savedPreviews = readPreviews(JSON.parse(this.storage?.getItem(PREVIEWS_KEY) ?? "null")) } catch { /* tabs restore without previews */ }
     try {
       const raw = this.storage?.getItem(STORAGE_KEY)
       if (raw) { this.restoring = true; this.restore(JSON.parse(raw)); this.restoring = false }
     } catch { this.restoring = false /* malformed or unavailable storage starts with no tabs */ }
+    this.savedPreviews = {}
     // Scroll positions are saved lazily; write them out before the app is suspended.
     globalThis.addEventListener?.("pagehide", () => this.persist())
     globalThis.document?.addEventListener("visibilitychange", () => { if (document.hidden) this.persist() })
@@ -109,7 +118,8 @@ export class ReadingTabs {
   close(id: string): void {
     const index = this.entries.findIndex(tab => tab.id === id)
     if (index < 0) return
-    this.closed = this.snapshot()
+    this.closed = this.snapshot(true)
+    this.previewsChanged ||= this.entries[index].preview !== undefined
     this.removers.get(id)?.()
     this.removers.delete(id)
     this.entries.splice(index, 1)
@@ -120,7 +130,8 @@ export class ReadingTabs {
 
   closeAll(): void {
     if (!this.entries.length) return
-    this.closed = this.snapshot()
+    this.closed = this.snapshot(true)
+    this.previewsChanged ||= this.entries.some(tab => tab.preview !== undefined)
     for (const remove of this.removers.values()) remove()
     this.removers.clear()
     this.entries = []
@@ -139,6 +150,7 @@ export class ReadingTabs {
     this.entries = saved.tabs.map(value => existing.get(value.id) ?? this.fromSaved(value))
     for (const tab of existing.values()) if (!this.entries.includes(tab)) this.entries.push(tab)
     if (this.active === this.selectionAfterClose) this.active = saved.activeId
+    this.previewsChanged = true
     this.restoring = false
     this.publish()
   }
@@ -154,6 +166,8 @@ export class ReadingTabs {
     const tab = this.entries.find(entry => entry.id === id && entry.generation === generation)
     if (!tab || tab.session.snapshot().currentUrl !== url || !/^data:image\/jpeg;base64,/.test(preview)) return
     tab.preview = preview
+    this.previewsChanged = true
+    this.persistSoon()
     this.listeners.forEach(listener => listener())
   }
 
@@ -197,7 +211,7 @@ export class ReadingTabs {
       const newDocument = !state.currentUrl || state.loadState === "loading" || state.navigationId !== previousNavigation
       if (state.currentUrl !== previousUrl && newDocument) {
         tab.title = ""
-        tab.preview = undefined
+        if (tab.preview !== undefined) { tab.preview = undefined; this.previewsChanged = true }
         tab.readerScroll = 0
         tab.readerPosition = undefined
         if (!this.restoring) {
@@ -221,6 +235,8 @@ export class ReadingTabs {
     tab.readerScroll = value.readerScroll
     if (value.times) tab.times = { ...value.times }
     if (value.readerPosition) tab.readerPosition = value.readerPosition
+    const saved = value.preview ?? (this.savedPreviews[value.id]?.url === value.url ? this.savedPreviews[value.id].preview : undefined)
+    if (saved) tab.preview = saved
     return tab
   }
 
@@ -243,12 +259,12 @@ export class ReadingTabs {
     this.active = value.activeId === null || ids.has(value.activeId ?? "") ? value.activeId : this.entries[0]?.id ?? null
   }
 
-  private snapshot(): Snapshot {
+  private snapshot(withPreviews = false): Snapshot {
     return { version: 1, activeId: this.active, tabs: this.entries.map(tab => {
       const state = tab.session.snapshot()
       const story = state.story
       return { id: tab.id, url: state.currentUrl, title: tab.title, mode: state.mode, readerScroll: tab.readerScroll, times: tab.times,
-        readerPosition: tab.readerPosition,
+        readerPosition: tab.readerPosition, ...withPreviews && tab.preview ? { preview: tab.preview } : {},
         story: story ? { type: story.type, href: story.href, title: story.title, comment_url: story.comment_url, timestamp: story.timestamp, tags: story.tags, stared: story.stared, read_state: story.read_state } : null }
     }) }
   }
@@ -262,6 +278,17 @@ export class ReadingTabs {
     clearTimeout(this.persistTimer)
     this.persistTimer = undefined
     try { this.storage?.setItem(STORAGE_KEY, JSON.stringify(this.snapshot())) } catch { /* session remains usable */ }
+    if (this.previewsChanged) { this.previewsChanged = false; this.persistPreviews() }
+  }
+
+  private persistPreviews(): void {
+    // Most recently used first, so a full quota drops the previews least likely to be looked at.
+    const tabs = this.entries.filter(tab => tab.preview).sort((a, b) => b.times.activityAt - a.times.activityAt)
+    for (let count = tabs.length; ; count = Math.floor(count / 2)) {
+      const previews: SavedPreviews = {}
+      for (const tab of tabs.slice(0, count)) previews[tab.id] = { url: tab.session.snapshot().currentUrl, preview: tab.preview as string }
+      try { this.storage?.setItem(PREVIEWS_KEY, JSON.stringify(previews)); return } catch { if (!count) return }
+    }
   }
 
   private publish(): void {
@@ -270,6 +297,16 @@ export class ReadingTabs {
     this.persist()
     this.listeners.forEach(listener => listener())
   }
+}
+
+function readPreviews(value: unknown): SavedPreviews {
+  const previews: SavedPreviews = {}
+  if (!value || typeof value !== "object") return previews
+  for (const [id, entry] of Object.entries(value as Record<string, unknown>)) {
+    const { url, preview } = (entry ?? {}) as { url?: unknown; preview?: unknown }
+    if (typeof url === "string" && typeof preview === "string" && /^data:image\/jpeg;base64,/.test(preview)) previews[id] = { url, preview }
+  }
+  return previews
 }
 
 function readTimes(value: unknown): TabTimes | undefined {
