@@ -12,21 +12,18 @@ export function addonPageAction(text: string, testid: string, run: () => void): 
 }
 
 /**
- * Add-on sync lives in Settings › Sync; two lines under the list give its
- * state and the way there. Not a row: it is not an add-on and must not read
- * like one. Its state comes from addonVaultControls. A shell without that
- * page keeps the vault controls on this page instead.
+ * Add-on sync lives in Settings › Sync. One line under the heading, before
+ * the list, keeps it in view however long the list grows: the way there at
+ * the left, the vault's state at the right, under the Import button. Not a
+ * row: it is not an add-on and must not read like one. Its state comes from
+ * addonVaultControls. A shell without that page keeps the vault controls on
+ * this page instead.
  */
 function addonSyncNote(): HTMLElement[] {
   if (!document.querySelector("#sync_page_addons")) return []
   const note = document.createElement("div")
   note.className = "addon_sync_note"
   note.dataset.addonSyncLink = ""
-  const status = document.createElement("p")
-  const state = document.createElement("span")
-  state.className = "addon_sync_link_state"
-  state.dataset.addonSyncSummary = ""
-  status.append("Sync status: ", state)
   const link = document.createElement("button")
   link.type = "button"
   link.className = "settings_inline_link"
@@ -37,9 +34,12 @@ function addonSyncNote(): HTMLElement[] {
     document.querySelector<HTMLButtonElement>("[data-settings-target=\"sync\"]")?.click()
     document.dispatchEvent(new CustomEvent<SyncPage>(SYNC_PAGE_EVENT, { detail: "addons" }))
   })
-  const way = document.createElement("p")
-  way.append(link)
-  note.append(status, way)
+  const status = document.createElement("span")
+  const state = document.createElement("span")
+  state.className = "addon_sync_link_state"
+  state.dataset.addonSyncSummary = ""
+  status.append("Sync status: ", state)
+  note.append(link, status)
   return [note]
 }
 
@@ -91,9 +91,13 @@ export function createAddonSettingsLayout(root: HTMLElement, navigate: (target: 
   const empty = document.createElement("p")
   empty.className = "settings_group_hint addon_list_empty"
   empty.textContent = "Add-ons add new features to Once. None are installed yet: import a ZIP, choose a folder, or use a manifest URL to get started."
-  const advancedButton = action("Advanced: edit add-on JSON…", "open-addon-advanced", () => navigate("advanced"))
-  advancedButton.classList.add("addon_advanced_action")
-  overview.append(header, updates, empty, list, ...addonSyncNote(), advancedButton)
+  // Rarely needed, so a quiet link after the list rather than a button beside it.
+  const advancedLink = action("Edit add-on JSON (advanced)", "open-addon-advanced", () => navigate("advanced"))
+  advancedLink.className = "settings_inline_link"
+  const advancedLine = document.createElement("p")
+  advancedLine.className = "addon_advanced_action"
+  advancedLine.append(advancedLink)
+  overview.append(header, ...addonSyncNote(), updates, empty, list, advancedLine)
 
   const imports = page("import", "Import an add-on")
   imports.classList.add("settings_editor")

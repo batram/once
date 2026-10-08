@@ -131,13 +131,14 @@
 #addon_install_settings .addon_list_description:empty { display: none; }
 #addon_install_settings .addon_list_meta { font-size: var(--fs-meta); line-height: 1.5; color: var(--text-muted-color); }
 #addon_install_settings .addon_list_arrow { position: absolute; right: var(--sp-3); top: var(--sp-4); font-size: var(--fs-title); }
-/* Add-on sync under the list, in two lines: its state, and the link to its
-   page. The state carries the panel header's sync dot colours; locked or in
-   conflict the lines take the warning colour. */
+/* Add-on sync on the line under the heading: the link to its page at the
+   left, its state at the right under the Import button. The state carries the
+   panel header's sync dot colours; locked or in conflict the line takes the
+   warning colour. */
 #addon_install_settings .addon_sync_note {
-  margin: var(--sp-4) 0 0; font-size: var(--fs-dense); line-height: 1.6; color: var(--text-muted-color);
+  display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-3);
+  margin: 0 0 var(--sp-3); font-size: var(--fs-dense); line-height: 1.6; color: var(--text-muted-color);
 }
-#addon_install_settings .addon_sync_note > p { margin: 0; }
 #addon_install_settings .addon_sync_note[hidden] { display: none; }
 #addon_install_settings .addon_sync_link_state::before { content: "●"; margin-right: var(--sp-1-5); color: #888; }
 #addon_install_settings .addon_sync_note[data-vault-state="ready"] .addon_sync_link_state::before { color: #2f9e44; }
@@ -150,8 +151,9 @@
 #settings_panel #addon_install_settings .addon_primary_action {
   background: var(--cursor-color); color: white; border-color: var(--cursor-color);
 }
+/* The rarely needed way to the raw JSON: a quiet line after the list. */
 #settings_panel #addon_install_settings .addon_advanced_action {
-  margin-top: var(--sp-5); color: var(--text-muted-color);
+  margin: var(--sp-5) 0 0; font-size: var(--fs-dense); line-height: 1.6; color: var(--text-muted-color);
 }
 #addon_detail .settings_group { border: 0; padding: 0; margin: 0 0 var(--sp-4); }
 #addon_detail .settings_group > legend { display: none; }

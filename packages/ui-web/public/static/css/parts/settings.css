@@ -38,6 +38,11 @@
   text-decoration: underline;
   cursor: pointer;
 }
+.settings_inline_link:disabled {
+  color: var(--text-muted-color);
+  text-decoration: none;
+  cursor: default;
+}
 
 .settings_container {
   display: flex;
