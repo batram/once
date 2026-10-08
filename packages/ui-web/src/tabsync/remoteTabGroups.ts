@@ -17,15 +17,33 @@ export class RemoteTabGroups {
   private readonly folded = new Set<string>()
   private readonly unfolded = new Set<string>()
   private readonly thumbs: ThumbnailCache
+  /** Device ids in the order last shown; held while the list is on screen. */
+  private order: string[] = []
 
   constructor(private readonly port: RemoteTabsPort, private readonly state: () => RemoteTabsState, private readonly rerender: () => void,
-    private readonly report: (message: string, retry?: () => void) => void = () => undefined) {
+    private readonly report: (message: string, retry?: () => void) => void = () => undefined,
+    private readonly shown: () => boolean = () => false) {
     this.thumbs = new ThumbnailCache(port.thumbnail)
   }
 
-  /** The devices in list order, quiet ones last. */
+  /**
+   * The devices in list order: the most recently updated first, quiet ones
+   * last. While the list is on screen that order holds, so devices sending
+   * updates at the same time do not trade places under the reader's finger;
+   * a device that appears meanwhile goes at the end. Out of sight, the list
+   * takes up the fresh order again.
+   */
   ordered(): RemoteDeviceView[] {
-    return [...this.state().view?.devices ?? []].sort((a, b) => Number(isQuiet(a)) - Number(isQuiet(b)))
+    const fresh = [...this.state().view?.devices ?? []].sort((a, b) => Number(isQuiet(a)) - Number(isQuiet(b)))
+    if (!this.shown() || !this.order.length) {
+      this.order = fresh.map((device) => device.deviceId)
+      return fresh
+    }
+    const byId = new Map(fresh.map((device) => [device.deviceId, device]))
+    const kept = this.order.filter((id) => byId.has(id))
+    const held = new Set(kept)
+    this.order = [...kept, ...fresh.filter((device) => !held.has(device.deviceId)).map((device) => device.deviceId)]
+    return this.order.flatMap((id) => byId.get(id) ?? [])
   }
 
   /** Each device's section, or only `only`'s; devices the filter leaves empty are left out. */

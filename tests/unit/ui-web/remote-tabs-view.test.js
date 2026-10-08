@@ -123,6 +123,40 @@ test("a folded filter opens from its button and closing it clears the filter", w
   assert.deepEqual(names(), ["Phone", "Laptop"])
 }))
 
+test("devices keep their places while the list is on screen and re-sort once it is not", withDocument(async (document) => {
+  const phone = device("a", "Phone", [{ id: "w", focused: true, tabs: [tab("1", "https://news.example/a", "Alpha")] }])
+  const laptop = device("b", "Laptop", [{ id: "w1", focused: true, tabs: [tab("2", "https://docs.example/c", "Gamma")] }])
+  const tablet = device("c", "Tablet", [{ id: "w2", focused: true, tabs: [tab("3", "https://docs.example/d", "Delta")] }])
+  let state = { connected: true, view: view([phone, laptop]) }
+  const listeners = new Set()
+  const root = document.querySelector("#root")
+  let visible = true
+  root.getClientRects = () => (visible ? [{}] : [])
+  let leftScreen = () => undefined
+  global.IntersectionObserver = class { constructor(callback) { leftScreen = callback } observe() {} disconnect() {} }
+  mountRemoteTabs(root, { load: async () => state, subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener) }, open: () => undefined })
+  const update = async (devices) => {
+    state = { ...state, view: view(devices) }
+    listeners.forEach((listener) => listener())
+    await settle()
+  }
+  const names = () => [...root.querySelectorAll("[data-testid=remote-device] .remote_device_name")].map((name) => name.textContent)
+  await settle()
+  await settle()
+  assert.deepEqual(names(), ["Phone", "Laptop"])
+  // The service lists the newest update first: the laptop just sent one.
+  await update([laptop, phone])
+  assert.deepEqual(names(), ["Phone", "Laptop"], "an update does not move a device while it is read")
+  await update([tablet, laptop, phone])
+  assert.deepEqual(names(), ["Phone", "Laptop", "Tablet"], "a device that appears goes at the end")
+  // Leaving the screen draws the list again, in the service's order, before it is next seen.
+  visible = false
+  leftScreen([{ isIntersecting: false }])
+  visible = true
+  assert.deepEqual(names(), ["Tablet", "Laptop", "Phone"], "out of sight, the list takes up the fresh order")
+  delete global.IntersectionObserver
+}))
+
 test("the device rail narrows the list to one device and back", withDocument(async (document) => {
   let state = { connected: true, view: view([
     device("a", "Phone", [{ id: "w", focused: true, tabs: [tab("1", "https://news.example/a", "Alpha")] }]),

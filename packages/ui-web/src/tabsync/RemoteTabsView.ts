@@ -87,7 +87,7 @@ export function mountRemoteTabs(root: HTMLElement, port: RemoteTabsPort, options
       button.addEventListener("click", () => { feedback.textContent = "Sending…"; retry() })
       feedback.append(" ", button)
     }
-  })
+  }, () => onScreen(root))
   let revision = 0
   let signature = ""
 
@@ -141,13 +141,33 @@ export function mountRemoteTabs(root: HTMLElement, port: RemoteTabsPort, options
 
   filter.addEventListener("input", () => render(true))
   const release = port.subscribe(refresh)
+  const unwatch = whenHidden(root, () => render(true))
   refresh()
   return {
     refresh,
     dispose: () => {
       revision++
       release()
+      unwatch()
     }
+  }
+}
+
+/**
+ * Calls `hidden` as the list leaves the screen (its panel hidden, its page
+ * in the background), so it is drawn again in the fresh device order before
+ * it is next seen.
+ */
+function whenHidden(root: HTMLElement, hidden: () => void): () => void {
+  const observer = typeof IntersectionObserver === "function"
+    ? new IntersectionObserver((entries) => { if (entries.some((entry) => !entry.isIntersecting)) hidden() })
+    : null
+  observer?.observe(root)
+  const visibility = () => { if (document.visibilityState === "hidden") hidden() }
+  document.addEventListener("visibilitychange", visibility)
+  return () => {
+    observer?.disconnect()
+    document.removeEventListener("visibilitychange", visibility)
   }
 }
 
@@ -182,6 +202,12 @@ function viewHeader(port: RemoteTabsPort, titleText?: string) {
   const settings = port.openSettings ? settingsButton(() => port.openSettings?.("tabs")) : null
   if (settings) head.append(settings)
   return { head, summary, settings }
+}
+
+/** Rendered and in a visible page: a hidden panel or a background tab is not. */
+function onScreen(root: HTMLElement): boolean {
+  if (!root.isConnected || document.visibilityState === "hidden") return false
+  return typeof root.getClientRects !== "function" || root.getClientRects().length > 0
 }
 
 // Each list's filter gets its own id, for the button that unfolds it.
