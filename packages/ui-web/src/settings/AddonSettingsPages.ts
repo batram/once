@@ -1,7 +1,7 @@
 import { addonPageAction, createAddonSettingsLayout } from "./addonSettingsLayout"
 import { requireClosestElement, requireElement } from "../dom"
 import { refreshAddonCollectionSummary } from "./addonAvailability"
-import { invalidateSettingsPages, openSettingsPage, registerSettingsOverview } from "./SettingsNavigation"
+import { completeSettingsPage, invalidateSettingsPages, openSettingsPage, registerSettingsOverview } from "./SettingsNavigation"
 
 const groupsOf = (details: HTMLElement) => Array.from(details.querySelectorAll<HTMLElement>("[data-addon-id], .addon_options_group[data-addon]"))
 const idOf = (element: HTMLElement) => element.dataset.addonId ?? element.dataset.addon ?? ""
@@ -137,6 +137,10 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
     const target = (event as CustomEvent<HTMLElement>).detail
     const group = target.closest<HTMLElement>(".addon_options_group, [data-addon-id]")
     show(group ? `addon:${idOf(group)}` : advanced.contains(target) ? "advanced" : "import", false)
+  })
+  requireElement<HTMLButtonElement>('button[data-action="cancel"]', advanced).addEventListener("click", () => {
+    completeSettingsPage(root)
+    render("overview")
   })
   sync()
   registerSettingsOverview(root, () => render("overview", false))

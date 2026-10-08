@@ -10,6 +10,8 @@ export interface SettingsPanelOptions {
 /** Views describe locations; only SettingsNavigation owns visit history. */
 export interface SettingsPage {
   key: string
+  /** A nested page's containing page; absent when the section is its parent. */
+  parentKey?: string
   title: () => string
   show(): void
   /** Detach a draft without saving it. Mounted pages need no leave callback. */
@@ -115,11 +117,16 @@ export class SettingsNavigation {
     const parent = this.parentOf(this.current)
     if (!parent) { this.leave(); return }
     const previous = [...this.backHistory].reverse().find(visit => this.valid(visit))
-    if (previous && previous.section === parent.section && !previous.page) this.navigate("back")
+    if (previous && previous.section === parent.section && previous.root === parent.root && previous.page?.key === parent.page?.key) this.navigate("back")
     else this.visit(parent)
   }
 
   private parentOf(visit: Visit): Visit | null {
+    if (visit.page?.parentKey) {
+      const parent = [...this.backHistory].reverse().find(candidate => candidate.section === visit.section &&
+        candidate.page?.key === visit.page?.parentKey && candidate.root?.contains(visit.root ?? null) && this.valid(candidate))
+      if (parent) return parent
+    }
     if (visit.page) return { section: visit.section }
     return visit.section === null ? null : { section: null }
   }
@@ -225,6 +232,6 @@ export class SettingsNavigation {
 
   private updateBack(): void {
     const parent = this.parentOf(this.current)
-    this.host.back.textContent = parent ? this.host.label(parent.section) : "Back"
+    this.host.back.textContent = parent ? parent.page?.title() ?? this.host.label(parent.section) : "Back"
   }
 }

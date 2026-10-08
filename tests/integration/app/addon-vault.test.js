@@ -18,7 +18,13 @@ test("vault creation waits for sync; an enabled vault permits credential changes
   await app.start()
   await assert.rejects(app.client.createAddonVault("a long test passphrase", false, "Laptop"), /wait until it is up to date/)
   status({ state: "up-to-date", message: "Up to date" })
-  await app.client.createAddonVault("a long test passphrase", false, "Laptop")
+  // A background write can start replication after the UI observed readiness.
+  status({ state: "syncing", message: "Syncing" })
+  const creating = app.client.createAddonVault("a long test passphrase", false, "Laptop")
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(records.length, 0, "creation waits for the active batch")
+  status({ state: "up-to-date", message: "Up to date" })
+  await creating
   await app.client.setSyncUrl("https://user:new@sync.example.test/once/")
   assert.match(url, /user:new@/)
   await assert.rejects(app.client.setSyncUrl("https://sync.example.test/other"), /separate Once profile/)

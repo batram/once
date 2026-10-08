@@ -72,3 +72,18 @@ test("where up is also the previous visit, the button retraces it so Forward sti
     assert.equal(shown.at(-1), "page:tabs", "forward reopens the page the button left")
   })
 })
+
+test("Up retraces a containing page and Forward restores its nested editor", () => {
+  withNavigation(({ navigation, page, shown, label }) => {
+    const root = document.getElementById("addons_root")
+    const child = document.createElement("div")
+    root.append(child)
+    openSettingsPage(root, page("supplemental"))
+    openSettingsPage(child, { ...page("new"), parentKey: "supplemental" })
+    assert.equal(label(), "Tab sync")
+    navigation.up()
+    assert.equal(shown.at(-1), "page:supplemental")
+    navigation.navigate("forward")
+    assert.equal(shown.at(-1), "page:new")
+  })
+})

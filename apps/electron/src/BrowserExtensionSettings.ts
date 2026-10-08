@@ -96,6 +96,7 @@ export function bindBrowserExtensionSettings(client: OnceClient, bridge: Electro
     let pending = Promise.resolve()
     openSettingsPage(root, {
       key: selected && ["detail", "sync"].includes(target) ? `${target}:${selected.id}` : target,
+      parentKey: target === "sync" && selected ? `detail:${selected.id}` : undefined,
       title: () => target === "overview" ? "Browser Extensions" : target === "install" ? "Install extension" :
         target === "supplemental" ? "Filter lists & userscripts" : target === "sync" ? `${selected?.name} · Sync` : selected?.name ?? "Extension",
       valid: () => !selected || !["detail", "sync"].includes(target) || installed.has(selected.id),

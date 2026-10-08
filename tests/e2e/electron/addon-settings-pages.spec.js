@@ -55,5 +55,10 @@ test("addon overview, isolated settings, import and advanced pages work with key
     await window.getByTestId("save-addons").click()
     await expect(window.locator("#addon_advanced .settings_status")).toContainText("Could not save")
     await expect(window.getByTestId("addons")).toHaveValue("{invalid")
+    await window.locator('#addon_advanced button[data-action="cancel"]').click()
+    await expect(window.locator("#addon_overview")).toBeVisible()
+    await expect(window.getByTestId("open-addon-advanced")).toBeFocused()
+    await addonAdvanced(window)
+    await expect(window.getByTestId("addons")).not.toHaveValue("{invalid")
   } finally { await closeApp(electronApp, userData) }
 })

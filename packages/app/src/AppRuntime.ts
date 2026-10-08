@@ -19,6 +19,7 @@ import {
   SyncStatus
 } from "./types"
 import { LocalEventBus } from "./EventBus"
+import { waitForActiveSync } from "./waitForActiveSync"
 import { mergeStorySyncState } from "./storySyncPolicy"
 import { StoryWriteQueue } from "./StoryWriteQueue"
 import { StoryIngestionQueue } from "./StoryIngestionQueue"
@@ -224,6 +225,7 @@ export class AppRuntime {
       ...settingsClientMethods(this.settings, this.platform.secretStore),
       ...this.addonSync.methods(),
       createAddonVault: async (passphrase, remember, deviceName) => {
+        if (this.syncStatus.state === "syncing") await waitForActiveSync(() => this.syncStatus, this.events)
         if (this.syncStatus.state !== "up-to-date") throw new Error("Connect sync and wait until it is up to date before creating a vault")
         return this.addonSync.create(passphrase, remember, deviceName)
       },

@@ -1,6 +1,7 @@
 import { DiagnosticError, OnceClient, ProcessingSource, SourceError } from "@once/app"
 import { requireElement } from "../dom"
 import { expandMenu } from "./menuCollapse"
+import { copyErrorText } from "./copyErrorText"
 
 type IssueType = "warning" | "error"
 
@@ -386,7 +387,7 @@ export class LoaderInsights {
     copyError.setAttribute("aria-live", "polite")
     copyError.addEventListener("click", () => {
       const errorText = `${title}\n${body.textContent || ""}`
-      void this.copyText(errorText).then((copied) => {
+      void copyErrorText(errorText).then((copied) => {
         copyError.textContent = copied ? "Copied" : "Copy failed"
         window.setTimeout(() => {
           copyError.textContent = "Copy error text"
@@ -418,31 +419,6 @@ export class LoaderInsights {
     entry.append(actions)
     log.append(entry)
     return logId
-  }
-
-  private static async copyText(text: string): Promise<boolean> {
-    if (navigator.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(text)
-        return true
-      } catch {
-        // Older embedded WebViews can expose the API but reject writes.
-      }
-    }
-
-    const textarea = document.createElement("textarea")
-    try {
-      textarea.value = text
-      textarea.setAttribute("readonly", "")
-      textarea.className = "clipboard_textarea"
-      document.body.append(textarea)
-      textarea.select()
-      return document.execCommand?.("copy") ?? false
-    } catch {
-      return false
-    } finally {
-      textarea.remove()
-    }
   }
 
   private static renderEmptyErrorLog(): void {

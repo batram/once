@@ -467,6 +467,7 @@ class UserscriptSettingsView implements UserscriptSettings {
     let children: Node[] | null = null
     openSettingsPage(this.root, {
       key: next.kind === "script" ? `script:${next.id}` : next.kind,
+      parentKey: "supplemental",
       title: () => next.kind === "script" ? this.doc.scripts.find(script => script.id === next.id)?.name ?? "Userscript" :
         next.kind === "bulk" ? "All userscripts" : next.kind === "new" ? "New userscript" : "Userscripts",
       valid: () => next.kind !== "script" || this.doc.scripts.some(script => script.id === next.id) ||
