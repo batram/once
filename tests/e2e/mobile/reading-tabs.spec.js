@@ -4,9 +4,14 @@ const { seedFixtureStories, openStoryMenu } = require("./helpers/stories")
 
 const switcher = page => page.locator("#reading_tabs_dialog")
 const openTabs = page => page.locator("#reading_tabs").click()
+// New tab and Close all live in the header's one menu.
+const tabMenu = async (page, item) => {
+  await switcher(page).getByRole("button", { name: "More tab actions", exact: true }).click()
+  await page.getByTestId(`menu-${item}`).click()
+}
 const newTab = async page => {
   await openTabs(page)
-  await switcher(page).getByRole("button", { name: "New tab", exact: true }).click()
+  await tabMenu(page, "new-tab")
 }
 
 test("background story tabs preserve feed selection; foreground tabs append and ordinary taps reuse", async ({ page }) => {
@@ -43,11 +48,11 @@ test("empty tabs, close selection, close-all confirmation, undo and restart rest
   await openTabs(page)
   await switcher(page).getByRole("button", { name: "Undo close", exact: true }).click()
   await expect(switcher(page).locator(".reading_tab_row")).toHaveCount(2)
-  await switcher(page).getByRole("button", { name: "Close all tabs", exact: true }).click()
+  await tabMenu(page, "close-all")
   await page.getByRole("button", { name: "Cancel", exact: true }).click()
-  await expect(switcher(page).getByRole("button", { name: "Close all tabs", exact: true })).toBeFocused()
+  await expect(switcher(page).getByRole("button", { name: "More tab actions", exact: true })).toBeFocused()
   await expect(switcher(page).locator(".reading_tab_row")).toHaveCount(2)
-  await switcher(page).getByRole("button", { name: "Close all tabs", exact: true }).click()
+  await tabMenu(page, "close-all")
   await page.locator(".reading_tabs_confirm").getByRole("button", { name: "Close all tabs", exact: true }).click()
   await expect(switcher(page).getByText("No open tabs")).toBeVisible()
   await switcher(page).getByRole("button", { name: "Undo close", exact: true }).click()
@@ -128,16 +133,16 @@ test("tab dialog fits phone and tablet viewports in both themes", async ({ page 
       expect(geometry.rowsBottom).toBeLessThanOrEqual(geometry.bottom)
       expect(geometry.overflow).toBe(false)
       await expect(switcher(page).locator("footer")).toHaveCount(0)
-      const controls = await switcher(page).locator("header button").evaluateAll(buttons => buttons.map(button => {
+      const controls = await switcher(page).locator("header .reading_tab_controls button").evaluateAll(buttons => buttons.map(button => {
         const bounds = button.getBoundingClientRect()
         const icon = button.querySelector(".icon")?.getBoundingClientRect()
         return { name: button.getAttribute("aria-label"), ...bounds.toJSON(),
           iconOffset: icon ? [icon.x + icon.width / 2 - bounds.x - bounds.width / 2, icon.y + icon.height / 2 - bounds.y - bounds.height / 2] : null }
       }))
-      expect(controls.map(control => control.name)).toEqual(["Close all tabs", "New tab", "Close tab view"])
+      expect(controls.map(control => control.name)).toEqual(["More tab actions", "Close tab view"])
       for (const control of controls) {
-        expect(control.height).toBe(32)
-        expect(control.width).toBeGreaterThanOrEqual(32)
+        expect(control.height).toBe(44)
+        expect(control.width).toBeGreaterThanOrEqual(44)
         expect(control.top).toBe(controls[0].top)
         if (control.iconOffset) control.iconOffset.forEach(offset => expect(Math.abs(offset)).toBeLessThan(0.1))
         expect(control.right).toBeLessThanOrEqual(viewport.width)

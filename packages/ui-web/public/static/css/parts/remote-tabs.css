@@ -106,6 +106,20 @@
   cursor: text;
 }
 
+/* Folded filter (mobile): the field and the summary line take turns. */
+.remote_tabs_search[hidden],
+.remote_tabs_head.remote_tabs_head--searching {
+  display: none;
+}
+
+.remote_tabs_search_toggle,
+.remote_tabs_search_close {
+  flex: none;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted-color);
+}
+
 .remote_tabs_search:focus-within {
   outline: 2px solid var(--text-high-color);
   outline-offset: 1px;

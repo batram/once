@@ -50,7 +50,11 @@ test("remote updates retain keyboard focus and phone navigation jumps directly t
   await page.getByRole("button", { name: "Reading", exact: true }).click()
   await page.locator("#reading_tabs").click()
   await expect(page.locator("#reading_tabs_dialog .remote_device_toggle")).toContainText("Review laptop")
-  await page.getByRole("navigation", { name: "Tab groups" }).getByRole("button", { name: "Other devices", exact: true }).click()
+  await page.getByRole("tablist", { name: "Tab groups" }).getByRole("tab", { name: /^Other devices/ }).click()
+  await expect(page.getByRole("tab", { name: /^Other devices/ })).toHaveAttribute("aria-selected", "true")
+  // The filter waits behind its search button on a phone.
+  await expect(page.getByRole("searchbox", { name: "Filter tabs from other devices" })).toBeHidden()
+  await page.getByRole("button", { name: "Filter tabs", exact: true }).click()
   await expect(page.getByRole("searchbox", { name: "Filter tabs from other devices" })).toBeFocused()
   const header = page.locator("#reading_tabs_dialog .remote_device_toggle")
   await expect(header).toContainText("Review laptop")

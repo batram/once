@@ -2,6 +2,7 @@ import type { RemoteDeviceView, TabSyncView } from "@once/app"
 import type { SyncedTab } from "@once/core"
 import type { ShowMenu } from "./devicePicker"
 import { deviceRail, tabCount } from "./deviceRail"
+import { foldableFilter } from "./foldableFilter"
 import { notice, RemoteTabGroups } from "./remoteTabGroups"
 import { ago } from "./remoteTabRows"
 
@@ -41,6 +42,8 @@ export interface RemoteTabsOptions {
   inbox?: HTMLElement
   /** A heading over the summary, where the page has no title bar of its own: Electron's tabs page. */
   title?: string
+  /** The filter waits behind a search button beside the summary: mobile, where room is short. */
+  foldFilter?: boolean
 }
 
 /**
@@ -55,6 +58,7 @@ export function mountRemoteTabs(root: HTMLElement, port: RemoteTabsPort, options
   toolbar.className = "remote_tabs_toolbar"
   const { head, summary, settings } = viewHeader(port, options.title)
   const { search, filter } = filterField()
+  if (options.foldFilter) foldableFilter(head, search, filter, () => render(true))
   const rail = document.createElement("div")
   rail.className = "remote_tabs_rail"
   rail.setAttribute("role", "group")
@@ -180,6 +184,9 @@ function viewHeader(port: RemoteTabsPort, titleText?: string) {
   return { head, summary, settings }
 }
 
+// Each list's filter gets its own id, for the button that unfolds it.
+let filterIds = 0
+
 /** The filter, a search field with its lens inside the frame. */
 function filterField() {
   const search = document.createElement("label")
@@ -193,6 +200,7 @@ function filterField() {
   filter.placeholder = "Filter by title or address"
   filter.setAttribute("aria-label", "Filter tabs from other devices")
   filter.dataset.testid = "remote-tabs-filter"
+  filter.id = `remote_tabs_filter_${++filterIds}`
   search.append(lens, filter)
   return { search, filter }
 }

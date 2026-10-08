@@ -97,6 +97,32 @@ test("lists devices and windows, filters, opens in front or behind, and keeps ro
   handle.dispose()
 }))
 
+test("a folded filter opens from its button and closing it clears the filter", withDocument(async (document, window) => {
+  const state = { connected: true, view: view([
+    device("a", "Phone", [{ id: "w", focused: true, tabs: [tab("1", "https://news.example/a", "Alpha")] }]),
+    device("b", "Laptop", [{ id: "w1", focused: true, tabs: [tab("2", "https://docs.example/c", "Gamma")] }])
+  ]) }
+  const root = document.querySelector("#root")
+  mountRemoteTabs(root, { load: async () => state, subscribe: () => () => undefined, open: () => undefined }, { foldFilter: true })
+  await settle()
+  await settle()
+  const search = root.querySelector(".remote_tabs_search")
+  const head = root.querySelector(".remote_tabs_head")
+  const filter = root.querySelector("[data-testid=remote-tabs-filter]")
+  const names = () => [...root.querySelectorAll("[data-testid=remote-device] .remote_device_name")].map((name) => name.textContent)
+  assert.ok(search.hidden, "the field waits behind its button")
+  root.querySelector("[data-testid=remote-tabs-search]").click()
+  assert.ok(!search.hidden)
+  assert.ok(head.classList.contains("remote_tabs_head--searching"), "the field takes the summary line's place")
+  filter.value = "gamma"
+  filter.dispatchEvent(new window.Event("input"))
+  assert.deepEqual(names(), ["Laptop"])
+  root.querySelector("[data-testid=remote-tabs-search-close]").click()
+  assert.ok(search.hidden)
+  assert.equal(filter.value, "", "closing clears the filter")
+  assert.deepEqual(names(), ["Phone", "Laptop"])
+}))
+
 test("the device rail narrows the list to one device and back", withDocument(async (document) => {
   let state = { connected: true, view: view([
     device("a", "Phone", [{ id: "w", focused: true, tabs: [tab("1", "https://news.example/a", "Alpha")] }]),

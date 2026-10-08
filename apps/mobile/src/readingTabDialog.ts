@@ -1,6 +1,8 @@
-import { mountRemoteTabs, type RemoteTabsPort } from "@once/ui-web"
+import { domMenu, mountRemoteTabs, type RemoteTabsPort, type ShowMenu } from "@once/ui-web"
 import { ReadingTabs } from "./readingTabs"
 import { attachReadingTabSwipe, ReadingTabSwipe } from "./readingTabSwipe"
+
+type TabGroup = "local" | "remote"
 
 /** An in-content dialog keeps the browser chrome available while choosing tabs. */
 export class ReadingTabDialog {
@@ -8,11 +10,15 @@ export class ReadingTabDialog {
   private readonly rows = document.createElement("div")
   private readonly count = document.createElement("button")
   private readonly undo = document.createElement("button")
-  private readonly closeAll = document.createElement("button")
+  private readonly more = document.createElement("button")
+  private readonly title = document.createElement("h2")
   private readonly total = document.createElement("span")
   private readonly undoBar = document.createElement("div")
   private readonly undoMessage = document.createElement("span")
-  private readonly jumps = document.createElement("nav")
+  private readonly groups = document.createElement("div")
+  private readonly localTab = document.createElement("button")
+  private readonly remoteTab = document.createElement("button")
+  private readonly remotePanel = document.createElement("div")
   private readonly status = document.createElement("span")
   private readonly swipe: ReadingTabSwipe
   // Rows rebuild only while visible and between gestures; tab updates are frequent.
@@ -21,6 +27,11 @@ export class ReadingTabDialog {
   /** Tabs other devices sent here, listed first. */
   private inbox?: HTMLElement
   private remoteVisible = false
+  /** This phone's tabs first, every time the view opens; the other group is one tap away. */
+  private group: TabGroup = "local"
+  private remoteCount = 0
+  /** The tab sync port's menu (mobile's native sheet), once tab sync is set up. */
+  private showMenu: ShowMenu = domMenu
   private tabMenu?: (tab: { id: string; url: string; title: string }, anchor: HTMLElement) => void
 
   constructor(private readonly tabs: ReadingTabs, actions: { select(id: string): void; create(): void; preview(): Promise<void> }) {
@@ -40,6 +51,7 @@ export class ReadingTabDialog {
       opening = false
       if (document.querySelector("#left_panel")?.getAttribute("active_panel") !== "reading") return
       this.dialog.show()
+      this.showGroup("local")
       this.renderRows()
       this.count.setAttribute("aria-expanded", "true")
       this.rows.querySelector('[aria-current="true"]')?.scrollIntoView({ block: "nearest" })
@@ -48,14 +60,15 @@ export class ReadingTabDialog {
     this.dialog.id = "reading_tabs_dialog"
     this.dialog.setAttribute("aria-labelledby", "reading_tabs_title")
     const header = document.createElement("header")
-    const title = document.createElement("h2")
-    title.id = "reading_tabs_title"
-    title.textContent = "Tabs"
+    this.title.id = "reading_tabs_title"
+    this.title.textContent = "Tabs"
     this.total.className = "reading_tab_total"
     this.total.setAttribute("aria-hidden", "true")
-    title.append(this.total)
-    header.append(title)
+    this.title.append(this.total)
+    this.buildGroups()
+    header.append(this.title, this.groups)
     this.rows.className = "reading_tab_rows"
+    this.rows.id = "reading_tab_rows"
     this.swipe = attachReadingTabSwipe(this.rows, () => { if (this.rowsStale) this.renderRows() })
     this.rows.setAttribute("aria-label", "Open tabs")
     this.rows.setAttribute("role", "list")
@@ -71,27 +84,31 @@ export class ReadingTabDialog {
     this.undoBar.append(this.undoMessage, this.undo)
     const controls = document.createElement("div")
     controls.className = "reading_tab_controls"
-    this.closeAll = button("Close all", () => this.confirmCloseAll())
-    this.closeAll.setAttribute("aria-label", "Close all tabs")
-    const create = button("", () => { this.dialog.close(); actions.create() })
-    create.className = "button reading_tab_icon"
-    create.setAttribute("aria-label", "New tab")
-    create.title = "New tab"
-    create.append(icon("plus"))
+    // New tab and Close all share one menu, so the groups keep the header to a single line.
+    this.more = button("", () => void this.openMenu(actions.create))
+    this.more.className = "button reading_tab_icon"
+    this.more.setAttribute("aria-label", "More tab actions")
+    this.more.setAttribute("aria-haspopup", "menu")
+    this.more.title = "More tab actions"
+    this.more.append(icon("more"))
     const dismiss = button("", () => this.dialog.close())
-    dismiss.className = "button reading_tab_icon"
+    dismiss.className = "button reading_tab_icon reading_tab_dismiss"
     dismiss.setAttribute("aria-label", "Close tab view")
     dismiss.title = "Close tab view"
     dismiss.append(icon("x"))
     dismiss.autofocus = true
-    controls.append(this.closeAll, create, dismiss)
+    controls.append(this.more, dismiss)
     header.append(controls)
     this.status.setAttribute("role", "status")
     this.status.setAttribute("aria-live", "polite")
     this.status.className = "reading_tab_status"
     document.body.append(this.status)
-    this.bindGroupNavigation()
-    this.dialog.append(header, this.jumps, this.undoBar, this.rows)
+    this.remotePanel.className = "reading_tab_remote_panel"
+    this.remotePanel.id = "reading_tab_remote_panel"
+    this.remotePanel.setAttribute("role", "tabpanel")
+    this.remotePanel.setAttribute("aria-labelledby", this.remoteTab.id)
+    this.remotePanel.hidden = true
+    this.dialog.append(header, this.undoBar, this.rows, this.remotePanel)
     const content = document.querySelector("#reading_content")
     if (!content) throw new Error("Missing mobile reading content")
     content.append(this.dialog)
@@ -152,56 +169,117 @@ export class ReadingTabDialog {
     })
   }
 
-  private bindGroupNavigation(): void {
-    this.jumps.className = "reading_tab_jump"
-    this.jumps.setAttribute("aria-label", "Tab groups")
-    this.jumps.hidden = true
-    this.jumps.append(button("This device", () => {
-      this.rows.scrollTop = 0
-      this.rows.querySelector<HTMLButtonElement>('button[data-action="select"]')?.focus({ preventScroll: true })
-    }), button("Other devices", () => {
-      this.remote?.scrollIntoView({ block: "start" })
-      const target = [...this.remote?.querySelectorAll<HTMLElement>("input, button") ?? []].find((element) => element.getClientRects().length)
-      target?.focus({ preventScroll: true })
-    }))
+  /**
+   * "This phone" and "Other devices" as tabs in the header: one group shows
+   * at a time, so this phone's tabs are never pushed below the others'.
+   */
+  private buildGroups(): void {
+    this.groups.className = "reading_tab_groups"
+    this.groups.setAttribute("role", "tablist")
+    this.groups.setAttribute("aria-label", "Tab groups")
+    this.groups.hidden = true
+    const entries: Array<[HTMLButtonElement, TabGroup, string, string]> = [
+      [this.localTab, "local", "This phone", "reading_tab_rows"],
+      [this.remoteTab, "remote", "Other devices", "reading_tab_remote_panel"]
+    ]
+    for (const [tab, group, label, panel] of entries) {
+      tab.type = "button"
+      tab.id = `reading_tab_group_${group}`
+      tab.className = "reading_tab_group"
+      tab.setAttribute("role", "tab")
+      tab.setAttribute("aria-controls", panel)
+      const name = document.createElement("span")
+      name.textContent = label
+      const count = document.createElement("span")
+      count.className = "reading_tab_group_count"
+      tab.append(name, count)
+      tab.addEventListener("click", () => this.showGroup(group))
+    }
+    // Arrow keys move between the two tabs, as in any tab list.
+    this.groups.addEventListener("keydown", event => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+      event.preventDefault()
+      const next = this.group === "local" ? "remote" : "local"
+      this.showGroup(next)
+      ;(next === "local" ? this.localTab : this.remoteTab).focus()
+    })
+    this.groups.append(this.localTab, this.remoteTab)
+  }
+
+  private showGroup(group: TabGroup): void {
+    this.group = this.remoteVisible ? group : "local"
+    const remote = this.group === "remote"
+    for (const [tab, selected] of [[this.localTab, !remote], [this.remoteTab, remote]] as const) {
+      tab.setAttribute("aria-selected", String(selected))
+      tab.tabIndex = selected ? 0 : -1
+    }
+    this.rows.hidden = remote
+    this.undoBar.classList.toggle("reading_tab_undo_away", remote)
+    this.remotePanel.hidden = !remote
+    if (!remote) {
+      this.rowsStale = true
+      this.renderRows()
+    }
+  }
+
+  private updateGroups(): void {
+    for (const [tab, label, count] of [[this.localTab, "This phone", this.tabs.tabs.length], [this.remoteTab, "Other devices", this.remoteCount]] as const) {
+      const badge = tab.querySelector(".reading_tab_group_count")
+      if (badge) badge.textContent = String(count)
+      tab.setAttribute("aria-label", `${label}, ${count} tab${count === 1 ? "" : "s"}`)
+    }
+  }
+
+  private async openMenu(create: () => void): Promise<void> {
+    const items = [{ id: "new-tab", label: "New tab" }, ...(this.tabs.tabs.length ? [{ id: "close-all", label: "Close all tabs" }] : [])]
+    const choice = await this.showMenu(this.more, items, "Tabs").catch(() => null)
+    if (choice === "new-tab") { this.dialog.close(); create() }
+    else if (choice === "close-all") this.confirmCloseAll()
   }
 
   /** Off, tab sync has no part in the tab view: no other devices, no sent tabs. */
   setOtherDevicesVisible(visible: boolean): void {
     if (this.remoteVisible === visible) return
     this.remoteVisible = visible
-    this.jumps.hidden = !visible
+    // Without other devices there is nothing to switch to: the header keeps its plain title.
+    this.groups.hidden = !visible
+    this.title.classList.toggle("visually_hidden", visible)
+    this.showGroup(this.group)
     this.rowsStale = true
     this.renderRows()
   }
 
   /**
-   * Other devices' tabs under this device's, in the same scrolling list.
+   * Other devices' tabs in their own panel, one tap from this phone's.
    * Choosing one closes the tab view, like choosing a tab of this device.
    */
   showOtherDevices(port: RemoteTabsPort): void {
     if (this.remote) return
+    if (port.showMenu) this.showMenu = port.showMenu
     const inbox = document.createElement("div")
     inbox.className = "reading_tab_inbox"
     inbox.setAttribute("role", "listitem")
     this.inbox = inbox
     const section = document.createElement("section")
     section.className = "reading_tab_remote"
-    section.setAttribute("role", "listitem")
-    section.setAttribute("aria-labelledby", "reading_tab_remote_title")
+    section.setAttribute("aria-label", "Other devices")
     section.dataset.testid = "reading-tabs-other-devices"
-    const heading = document.createElement("h3")
-    heading.id = "reading_tab_remote_title"
-    heading.textContent = "Other devices"
-    const view = document.createElement("div")
-    section.append(heading, view)
-    mountRemoteTabs(view, {
+    mountRemoteTabs(section, {
       ...port,
       open: (tab, background) => { if (!background) this.dialog.close(); port.open(tab, background) },
       openSent: port.openSent && ((id, background) => { if (!background) this.dialog.close(); port.openSent?.(id, background) }),
       openSettings: port.openSettings && ((page) => { this.dialog.close(); port.openSettings?.(page) })
-    }, { inbox })
+    }, { inbox, foldFilter: true })
     this.remote = section
+    this.remotePanel.append(section)
+    // The tab's count follows what the panel lists.
+    const count = () => void port.load().then((state) => {
+      this.remoteCount = (state.view?.devices ?? []).reduce((total, device) =>
+        total + device.windows.reduce((sum, entry) => sum + entry.tabs.length, 0), 0)
+      this.updateGroups()
+    }, () => undefined)
+    port.subscribe(count)
+    count()
     this.rowsStale = true
     this.renderRows()
   }
@@ -224,7 +302,7 @@ export class ReadingTabDialog {
     confirmation.addEventListener("close", () => {
       confirmation.remove()
       if (confirmed) this.undo.focus()
-      else this.closeAll.focus()
+      else this.more.focus()
     }, { once: true })
     document.body.append(confirmation)
     confirmation.showModal()
@@ -234,9 +312,9 @@ export class ReadingTabDialog {
     this.count.textContent = String(this.tabs.tabs.length)
     this.count.setAttribute("aria-label", `Tabs: ${this.tabs.tabs.length} open`)
     this.total.textContent = String(this.tabs.tabs.length)
+    this.updateGroups()
     this.undoBar.hidden = !this.tabs.canUndo
     if (this.tabs.canUndo && !this.undoMessage.textContent) this.undoMessage.textContent = "Tabs closed"
-    this.closeAll.disabled = !this.tabs.tabs.length
     this.rowsStale = true
     this.renderRows()
   }
@@ -246,7 +324,7 @@ export class ReadingTabDialog {
     this.rowsStale = false
     // Retain focus across loading/title updates by identifying the row control.
     const focused = this.dialog.contains(document.activeElement) ? document.activeElement as HTMLElement : null
-    const remoteFocus = focused && (this.remote?.contains(focused) || this.inbox?.contains(focused))
+    const inboxFocus = focused && this.inbox?.contains(focused)
     const focusId = focused?.dataset.tabId
     const focusAction = focused?.dataset.action
     const scrollTop = this.rows.scrollTop
@@ -335,10 +413,8 @@ export class ReadingTabDialog {
       this.rows.append(row)
       if (focusId === tab.id) (focusAction === "close" ? close : select).focus({ preventScroll: true })
     }
-    // Moved, not rebuilt: its filter and folded devices stay as they were.
-    if (this.remote && this.remoteVisible) this.rows.append(this.remote)
     this.rows.scrollTop = scrollTop
-    if (remoteFocus && focused.isConnected) focused.focus({ preventScroll: true })
+    if (inboxFocus && focused.isConnected) focused.focus({ preventScroll: true })
   }
 }
 
@@ -351,7 +427,7 @@ function button(label: string, action: () => void): HTMLButtonElement {
   return element
 }
 
-function icon(name: "plus" | "x" | "volume"): HTMLElement {
+function icon(name: "more" | "x" | "volume"): HTMLElement {
   const element = document.createElement("span")
   element.className = `icon icon--chrome icon--${name}`
   element.setAttribute("aria-hidden", "true")
