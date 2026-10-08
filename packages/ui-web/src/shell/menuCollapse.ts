@@ -16,6 +16,8 @@ export const MENU_WIDTH = Object.freeze({ default: 89, min: 60, max: 240 })
 export const FOLD_SLACK = 24
 
 let announceCollapsed: ((collapsed: boolean) => void) | undefined
+// The measured minimum, once the menu has been laid out open; see minimumWidth.
+let measuredMinimum: number | undefined
 // Whether the last fold came from a collapse button, whose host (the desktop)
 // hides the whole sidebar for it; a drag folds the menu alone.
 let collapsedByButton = false
@@ -68,8 +70,10 @@ function bindMenuResize(menu: HTMLElement): void {
   if (!handle) return
   document.body.classList.add("menu-resizable")
 
-  applyWidth(menu, readWidth())
   if (readCollapsed()) setMenuCollapsed(menu, true)
+  applyWidth(menu, readWidth())
+  // Fonts settle after the first layout; the name's width may grow with them.
+  document.fonts?.ready.then(() => applyWidth(menu, menuWidth(menu))).catch(() => undefined)
   // Mounting twice (the shell binds early, the UI mount again) must not
   // attach a second set of drag handlers.
   if (handle.dataset.bound) return
@@ -83,8 +87,8 @@ function bindMenuResize(menu: HTMLElement): void {
   handle.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return
     dragging = true
-    startWidth = menuWidth(menu)
     minimum = minimumWidth(menu)
+    startWidth = menuWidth(menu)
     document.body.classList.add("menu-resizing")
     handle.setPointerCapture(event.pointerId)
     event.preventDefault()
@@ -116,9 +120,24 @@ function bindMenuResize(menu: HTMLElement): void {
 
 /**
  * The narrowest the menu may be before it folds: wide enough for every
- * built-in entry's name ("Settings", "Stories", …) to be read whole.
+ * built-in entry's name ("Settings", "Stories", …) to be read whole. The names
+ * are hidden while the menu is folded, so a folded menu is opened for the
+ * measurement within the same frame, and a measurement is kept once made.
  */
 function minimumWidth(menu: HTMLElement): number {
+  const folded = menu.classList.contains("collapse")
+  if (folded && measuredMinimum !== undefined) return measuredMinimum
+  if (folded) menu.classList.remove("collapse")
+  try {
+    const measured = measureHeadings(menu)
+    if (measured > MENU_WIDTH.min) measuredMinimum = measured
+    return measured
+  } finally {
+    if (folded) menu.classList.add("collapse")
+  }
+}
+
+function measureHeadings(menu: HTMLElement): number {
   let minimum: number = MENU_WIDTH.min
   const headings = menu.querySelectorAll<HTMLElement>(
     ":scope > .sidebar_panel:not(.temporary_panel_menu, [hidden]) .heading"
@@ -139,8 +158,10 @@ function menuWidth(menu: HTMLElement): number {
   return Number.isFinite(value) ? value : MENU_WIDTH.default
 }
 
+/** Sets the menu's open width, never narrower than its names need. */
 function applyWidth(menu: HTMLElement, width: number): void {
-  const clamped = Math.min(MENU_WIDTH.max, Math.max(MENU_WIDTH.min, width))
+  const minimum = Math.max(MENU_WIDTH.min, minimumWidth(menu))
+  const clamped = Math.min(MENU_WIDTH.max, Math.max(minimum, width))
   menu.style.setProperty("--menu-width", `${clamped}px`)
 }
 

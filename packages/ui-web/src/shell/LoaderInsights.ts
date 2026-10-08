@@ -1,5 +1,6 @@
 import { DiagnosticError, OnceClient, ProcessingSource, SourceError } from "@once/app"
 import { requireElement } from "../dom"
+import { expandMenu } from "./menuCollapse"
 
 type IssueType = "warning" | "error"
 
@@ -140,9 +141,21 @@ export class LoaderInsights {
 
     indicator.addEventListener("click", () => {
       if (document.body.dataset.platform === "mobile" && type !== "activity") {
-        document.querySelector<HTMLElement>("#settings_menu_btn")?.click()
-        document.querySelector<HTMLButtonElement>('[data-settings-target="errors"]')?.click()
+        this.openErrorLog()
         return
+      }
+
+      // From a folded menu the first click opens it. When the whole sidebar
+      // was hidden with it, the issues' bubbles were out of sight too, so
+      // the error log is opened rather than bubbles toggled.
+      if (document.querySelector("#menu")?.classList.contains("collapse")) {
+        const sidebarHidden = this.surfaces?.getClientRects?.().length === 0
+        expandMenu()
+        if (sidebarHidden) {
+          if (type !== "activity") this.openErrorLog()
+          this.render()
+          return
+        }
       }
 
       if (type === "activity") {
@@ -153,6 +166,11 @@ export class LoaderInsights {
       this.render()
     })
     return indicator
+  }
+
+  private static openErrorLog(): void {
+    document.querySelector<HTMLElement>("#settings_menu_btn")?.click()
+    document.querySelector<HTMLButtonElement>('[data-settings-target="errors"]')?.click()
   }
 
   private static updateProcessing(items: ProcessingSource[]): void {

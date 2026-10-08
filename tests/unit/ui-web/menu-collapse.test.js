@@ -176,3 +176,53 @@ test("a stored width and collapsed state are restored on mount", () => {
     assert.equal(menu.style.getPropertyValue("--menu-width"), "200px")
   })
 })
+
+// A menu whose Settings heading needs 102px: 16px icon, 4px gap, 70px name,
+// 6px padding each side.
+const MEASURED_SHELL = `
+  <body>
+    <div id="menu">
+      <button class="button sidebar_panel" id="settings_menu_btn">
+        <span class="heading"><span class="icon"></span><p>Settings</p></span>
+      </button>
+    </div>
+    <div id="menu_resizer"></div>
+  </body>
+`
+
+function layOutHeading(window) {
+  const heading = window.document.querySelector(".heading")
+  const [icon, name] = heading.children
+  Object.defineProperties(icon, { scrollWidth: { value: 16 }, offsetWidth: { value: 16 } })
+  Object.defineProperties(name, { scrollWidth: { value: 70 }, offsetWidth: { value: 0 } })
+  globalThis.getComputedStyle = (element) => element === heading
+    ? { columnGap: "4px", paddingLeft: "6px", paddingRight: "6px" }
+    : { columnGap: "0", paddingLeft: "0", paddingRight: "0" }
+}
+
+test("the menu is never narrower than its Settings name, open or restored", () => {
+  withDocument(MEASURED_SHELL, (window, stored) => {
+    stored.set("once:menu-width", "70")
+    layOutHeading(window)
+    const { bindMenuCollapseControls, FOLD_SLACK } = load()
+    bindMenuCollapseControls(undefined, { resizable: true })
+    const { menu, handle } = resizer(window)
+    assert.equal(menu.style.getPropertyValue("--menu-width"), "102px", "a stored width too narrow is widened")
+
+    pointer(handle, "pointerdown", 102)
+    pointer(handle, "pointermove", 80)
+    assert.equal(menu.style.getPropertyValue("--menu-width"), "102px", "sticks at the name's width")
+    assert.ok(!menu.classList.contains("collapse"))
+    pointer(handle, "pointermove", 102 - FOLD_SLACK - 1)
+    assert.ok(menu.classList.contains("collapse"))
+    pointer(handle, "pointerup", 102 - FOLD_SLACK - 1)
+
+    // Folded, the names are hidden; the fold still knows their width.
+    pointer(handle, "pointerdown", 28)
+    pointer(handle, "pointermove", 90)
+    assert.ok(!menu.classList.contains("collapse"))
+    assert.equal(menu.style.getPropertyValue("--menu-width"), "102px")
+    pointer(handle, "pointerup", 90)
+    assert.equal(stored.get("once:menu-width"), "102")
+  })
+})

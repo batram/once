@@ -230,3 +230,45 @@ test("status issues stack, dismiss, restore, and reset per reload", async (t) =>
     dom.restore()
   }
 })
+
+test("an issue glyph in the folded rail opens the menu, and the error log when the sidebar was hidden", () => {
+  const dom = installDom(`
+    <nav id="menu" class="collapse">
+      <button id="settings_menu_btn" class="sidebar_panel">Settings</button>
+    </nav>
+    <main id="left_main"></main>
+    <button data-settings-target="errors"></button>
+    <button id="clear_error_log"></button>
+    <section id="error_log"></section>
+  `)
+  try {
+    // A fresh module: the class keeps its surfaces across inits.
+    const modulePath = require.resolve("../../../packages/ui-web/dist/shell/LoaderInsights")
+    Reflect.deleteProperty(require.cache, modulePath)
+    const { LoaderInsights } = require(modulePath)
+    LoaderInsights.init({ subscribe() { return () => undefined } })
+    const clicks = []
+    document.querySelector("#settings_menu_btn").addEventListener("click", () => clicks.push("settings"))
+    document.querySelector('[data-settings-target="errors"]').addEventListener("click", () => clicks.push("errors"))
+    LoaderInsights.showErrorMessage("Boom")
+    const menu = document.querySelector("#menu")
+    const errors = document.querySelector("#status_bar_errors")
+    assert.ok(!errors.hidden)
+
+    // The sidebar as a whole is hidden: the bubbles have no box.
+    document.querySelector("#status_surfaces").getClientRects = () => []
+    errors.click()
+    assert.ok(!menu.classList.contains("collapse"))
+    assert.deepEqual(clicks, ["settings", "errors"])
+
+    // Only the menu folded: the click opens it and toggles the bubbles as usual.
+    menu.classList.add("collapse")
+    document.querySelector("#status_surfaces").getClientRects = () => [{}]
+    errors.click()
+    assert.ok(!menu.classList.contains("collapse"))
+    assert.deepEqual(clicks, ["settings", "errors"])
+    assert.equal(document.querySelectorAll(".status_issue_bubble").length, 0, "the shown bubble was dismissed")
+  } finally {
+    dom.restore()
+  }
+})

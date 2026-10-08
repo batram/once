@@ -309,12 +309,12 @@ test("tokenized shared and mobile geometry resolves to the public scale", async 
     return Math.round(scope.x - field.x)
   }).toBe(8)
   await page.goto(`${baseURL}/static/sidepanel.html?target=webext`)
+  // The extensions fold the menu by dragging its edge; no button leads the bar.
+  await expect(page.locator("#search_bar > .collapsebutton")).toBeHidden()
   await expect.poll(async () => {
-    const collapse = await page.locator(
-      "#search_bar > .collapsebutton"
-    ).boundingBox()
+    const bar = await page.locator("#search_bar").boundingBox()
     const field = await page.locator("#searchfield").boundingBox()
-    return Math.round(field.x - (collapse.x + collapse.width))
+    return Math.round(field.x - bar.x)
   }).toBeGreaterThanOrEqual(0)
   await expect.poll(async () => {
     const scope = await page.locator("#search_scope").boundingBox()
