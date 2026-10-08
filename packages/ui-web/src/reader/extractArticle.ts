@@ -42,6 +42,7 @@ export function extractArticle(
   mediaType = "text/html"
 ): ReaderArticle {
   const doc = parseDocument(html, mediaType)
+  revealStreamedContent(doc)
   const base = doc.createElement("base")
   base.href = sourceUrl
   head(doc).prepend(base)
@@ -84,6 +85,24 @@ function parseDocument(html: string, mediaType: string): Document {
     // Ill-formed XHTML still reads fine through the forgiving HTML parser.
   }
   return new DOMParser().parseFromString(html, "text/html")
+}
+
+/**
+ * React's streaming server rendering sends a Suspense boundary's real content
+ * later in the page as `<div hidden id="S:n">`, with `<template id="B:n">`
+ * holding its place where it belongs, and a script swaps the two once the
+ * page runs. Fetched HTML never runs that script, so Readability sees an
+ * empty placeholder and an invisible article. Doing the swap here reads the
+ * page as the browser would show it.
+ */
+export function revealStreamedContent(doc: Document): void {
+  for (const placeholder of Array.from(doc.querySelectorAll("template[id^='B:']"))) {
+    const content = doc.getElementById(`S:${placeholder.id.slice(2)}`)
+    if (!content || content === placeholder) continue
+    content.removeAttribute("hidden")
+    placeholder.replaceWith(...Array.from(content.childNodes))
+    content.remove()
+  }
 }
 
 function head(doc: Document): HTMLHeadElement {
