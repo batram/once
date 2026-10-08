@@ -3119,8 +3119,11 @@
     border-color: var(--highlight-color);
   }
 
+  /* Lit, the strip follows the button's own colour, as its border does.
+     Not --highlight-color: it is not defined here, and a background that
+     is invalid at computed time is transparent, which hid the strip. */
   #reading_tabs[aria-expanded="true"]::before {
-    background: var(--highlight-color);
+    background: currentcolor;
   }
 
   #reading_tabs_dialog {
