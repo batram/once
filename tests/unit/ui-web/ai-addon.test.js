@@ -198,6 +198,10 @@ test("native provider payloads and source metadata normalize without arbitrary l
   const anthropic = providerRequest({ provider: "anthropic", model: "fixture" }, "prompt", "article", [], true)
   assert.equal(anthropic.headers["anthropic-version"], "2023-06-01")
   assert.equal(JSON.parse(anthropic.body).tools[0].max_uses, 3)
+  assert.equal("output_config" in JSON.parse(anthropic.body), false, "no effort setting leaves the model to its default")
+  const brisk = JSON.parse(providerRequest({ provider: "anthropic", model: "fixture", effort: "low" }, "prompt", "article", [], false).body)
+  assert.deepEqual(brisk.output_config, { effort: "low" })
+  assert.equal("output_config" in JSON.parse(providerRequest({ provider: "anthropic", model: "fixture", effort: "default" }, "prompt", "article", [], false).body), false)
   const result = providerResult("openai", { output: [{ content: [{ type: "output_text", text: "Answer", annotations: [
     { type: "url_citation", title: "Source", url: "https://source.test/" }, { type: "url_citation", url: "javascript:bad" }
   ] }] }] })
