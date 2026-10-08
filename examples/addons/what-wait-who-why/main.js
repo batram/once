@@ -284,16 +284,29 @@ async function youtubeTranscript(once, context, videoId) {
     origin: "youtube", truncated: text.length > 64_000, track: name }
 }
 
-/** The video's own captions before auto-generated ones; among those, the track YouTube pairs with its default audio. */
+/**
+ * The track that follows the video's own language: the default audio track
+ * names it (`audioTrackId` such as `en-US.4`), and a dubbed video lists one
+ * auto-generated track per dub, alphabetically, so the first one is as likely
+ * Arabic as anything. In order: the uploader's captions in that language, the
+ * auto-generated ones in it, then what YouTube itself pairs with the audio,
+ * then any uploader captions, then whatever is usable.
+ */
 export function captionTrack(data) {
   const renderer = data?.captions?.playerCaptionsTracklistRenderer
   const tracks = Array.isArray(renderer?.captionTracks) ? renderer.captionTracks : []
   const usable = track => track && typeof track.baseUrl === "string"
+  const manual = track => usable(track) && track.kind !== "asr"
   const audio = renderer?.audioTracks?.[renderer.defaultAudioTrackIndex ?? 0]
-  const preferred = tracks[audio?.defaultCaptionTrackIndex ?? -1]
-  const manual = tracks.filter(track => usable(track) && track.kind !== "asr")
-  if (usable(preferred) && preferred.kind !== "asr") return preferred
-  return manual[0] || (usable(preferred) ? preferred : tracks.find(usable) || null)
+  const language = String(audio?.audioTrackId || "").split(".")[0].split("-")[0].toLowerCase()
+  const spoken = track => language !== "" && usable(track) && String(track.languageCode || "").split("-")[0].toLowerCase() === language
+  const paired = tracks[audio?.defaultCaptionTrackIndex ?? audio?.captionTrackIndices?.[0] ?? -1]
+  return tracks.find(track => spoken(track) && manual(track))
+    || tracks.find(spoken)
+    || (usable(paired) ? paired : null)
+    || tracks.find(manual)
+    || tracks.find(usable)
+    || null
 }
 
 function trackName(track) {

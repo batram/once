@@ -560,4 +560,17 @@ test("video URLs are recognised in their usual shapes; caption XML of either sha
   assert.equal(captionTrack({ captions: { playerCaptionsTracklistRenderer: { captionTracks: tracks.captionTracks.slice(0, 1) } } }).kind, "asr")
   assert.equal(captionTrack({ captions: { playerCaptionsTracklistRenderer: { captionTracks: [tracks.captionTracks[0], tracks.captionTracks[2]] } } }).languageCode, "de")
   assert.equal(captionTrack({}), null)
+  // A dubbed video lists an auto-generated track per dub, alphabetically, and
+  // its audio tracks name no caption: the original audio's language decides.
+  const asr = (languageCode) => ({ baseUrl: `${CAPTIONS}&lang=${languageCode}&kind=asr`, languageCode, kind: "asr" })
+  const dubbed = (captionTracks, audioTrackId = "en-US.4") => ({ captions: { playerCaptionsTracklistRenderer: {
+    captionTracks, audioTracks: [{ captionTrackIndices: [1, 0, 2], audioTrackId: "ar.10" }, { captionTrackIndices: [1, 0, 2], audioTrackId }], defaultAudioTrackIndex: 1
+  } } })
+  assert.equal(captionTrack(dubbed([asr("ar"), asr("en"), asr("fr")])).languageCode, "en")
+  // The original language's auto-generated track beats another language's uploaded one.
+  assert.equal(captionTrack(dubbed([asr("ar"), { baseUrl: CAPTIONS, languageCode: "de" }, asr("en")])).kind, "asr")
+  assert.equal(captionTrack(dubbed([asr("ar"), { baseUrl: CAPTIONS, languageCode: "de" }, asr("en")])).languageCode, "en")
+  // Without a track in that language, YouTube's own pairing decides, then any uploaded captions.
+  assert.equal(captionTrack(dubbed([asr("ar"), asr("fr"), asr("ja")])).languageCode, "fr")
+  assert.equal(captionTrack(dubbed([asr("ar"), asr("fr")], "ja.10")).languageCode, "fr")
 })

@@ -145,8 +145,11 @@ come from the transcript, headed by the channel, duration and description. The
 addon asks YouTube's player endpoint for the video's caption tracks the way the
 YouTube Android app does, then downloads one track from `www.youtube.com`; no
 account, key or cookie is involved, and nothing about you reaches YouTube beyond
-the video ID. The video's own captions are preferred over auto-generated ones,
-and the track paired with the default audio language over other translations.
+the video ID. The track follows the video's own language, the one its default
+audio track speaks: the uploader's captions in that language first, then the
+auto-generated ones in it, then whatever YouTube pairs with the audio, then any
+uploaded captions. A dubbed video lists an auto-generated track per dub, so
+without that rule the first one alphabetically, Arabic, would be read.
 The transcript is grouped into half-minute paragraphs headed by `[m:ss]`
 timestamps, so a follow-up such as "when does she mention the price?" can be
 answered with a time. The status line names the track used, for example
