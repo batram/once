@@ -2,7 +2,8 @@ const { test, expect } = require("@playwright/test")
 const {
   gotoMobileApp,
   reloadMobileApp,
-  testServerUrl
+  testServerUrl,
+  triggerMobileBack
 } = require("./helpers/mobile-app")
 const {
   openSettingsSection,
@@ -341,26 +342,54 @@ test("the optional reader button opens the mobile Reading session on tap", async
   await page.screenshot({ path: "/tmp/once-mobile-reader-button.png" })
 })
 
-test("the address field clears in one tap and keeps focus", async ({ page }) => {
+test("tapping the address opens the editor, which clears in one tap and keeps focus", async ({ page }) => {
   await gotoMobileApp(page)
   await page.getByTestId("reading-menu").click()
   const address = page.getByTestId("reading-url-input")
-  const clear = page.getByTestId("reading-url-clear")
-  await expect(clear).toBeHidden()
+  const editor = page.getByTestId("address-editor-input")
+  const clear = page.getByTestId("address-editor-clear")
 
   await address.tap()
+  await expect(editor).toBeFocused()
   await expect(clear).toBeHidden()
-  await address.pressSequentially("example.com/some/long path")
+  await editor.pressSequentially("example.com/some/long path")
   await expect(clear).toBeVisible()
 
-  // A tap that blurred the field first would restore the address instead.
+  // A tap that blurred the field first would move the caret or close the keyboard.
   await clear.tap()
-  await expect(address).toHaveValue("")
-  await expect(address).toBeFocused()
+  await expect(editor).toHaveValue("")
+  await expect(editor).toBeFocused()
   await expect(clear).toBeHidden()
 
-  await address.pressSequentially("example.com")
-  await expect(clear).toBeVisible()
-  await address.blur()
-  await expect(clear).toBeHidden()
+  await editor.pressSequentially("example.com")
+  expect(await triggerMobileBack(page)).toBe(true)
+  await expect(editor).toBeHidden()
+  await expect(address).toHaveValue("")
+})
+
+test("the address editor's quick edits work on one field", async ({ page }) => {
+  await gotoMobileApp(page)
+  await page.getByTestId("reading-menu").click()
+  const url = "https://example.test/articles/42/?page=2&utm_source=rss#comments"
+  await page.getByTestId("reading-url-input").fill(url)
+  await page.getByTestId("reading-url-input").press("Enter")
+  await page.getByTestId("reading-url-input").tap()
+  const editor = page.getByTestId("address-editor-input")
+  const dialog = page.getByTestId("address-editor")
+  await expect(editor).toHaveValue(url)
+  await expect(dialog.getByText("Paste and go")).toBeVisible()
+
+  await dialog.getByRole("button", { name: "Remove 1 tracker" }).tap()
+  await expect(editor).toHaveValue("https://example.test/articles/42/?page=2#comments")
+  await expect(dialog.getByText("Paste and go")).toBeHidden()
+  await dialog.getByRole("button", { name: "Explode" }).tap()
+  await expect(editor).toHaveValue("https://example.test\n/articles\n/42/\n?page=2\n#comments")
+  await dialog.getByRole("button", { name: "Remove ?page=2#comments" }).tap()
+  await expect(editor).toHaveValue("https://example.test\n/articles\n/42/")
+  await dialog.getByRole("button", { name: "Remove /42" }).tap()
+  await dialog.getByRole("button", { name: "Collapse" }).tap()
+  await expect(editor).toHaveValue("https://example.test/articles/")
+  await editor.press("Enter")
+  await expect(dialog).toBeHidden()
+  await expect(page.getByTestId("reading-url-input")).toHaveValue("https://example.test/articles/")
 })

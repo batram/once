@@ -9,9 +9,16 @@ const tabMenu = async (page, item) => {
   await switcher(page).getByRole("button", { name: "More tab actions", exact: true }).click()
   await page.getByTestId(`menu-${item}`).click()
 }
+const addressEditor = page => page.getByTestId("address-editor-input")
+// A new tab opens the address editor on its blank page.
 const newTab = async page => {
   await openTabs(page)
   await tabMenu(page, "new-tab")
+  await expect(addressEditor(page)).toBeFocused()
+}
+const goTo = async (page, url) => {
+  await addressEditor(page).fill(url)
+  await addressEditor(page).press("Enter")
 }
 
 test("background story tabs preserve feed selection; foreground tabs append and ordinary taps reuse", async ({ page }) => {
@@ -34,13 +41,10 @@ test("empty tabs, close selection, close-all confirmation, undo and restart rest
   await gotoMobileApp(page)
   await page.getByRole("button", { name: "Reading", exact: true }).click()
   await newTab(page)
-  await expect(page.locator("#reading_url")).toBeFocused()
-  await page.locator("#reading_url").fill("https://first.example/")
-  await page.locator("#reading_url").press("Enter")
+  await goTo(page, "https://first.example/")
   await newTab(page)
-  await expect(page.locator("#reading_url")).toHaveValue("")
-  await page.locator("#reading_url").fill("https://second.example/")
-  await page.locator("#reading_url").press("Enter")
+  await expect(addressEditor(page)).toHaveValue("")
+  await goTo(page, "https://second.example/")
   await openTabs(page)
   await switcher(page).getByRole("button", { name: "Close tab: second.example", exact: true }).click()
   await switcher(page).getByRole("button", { name: "Close tab view", exact: true }).click()
@@ -76,8 +80,7 @@ test("reader documents survive tab switches and failures belong to their tab", a
   await expect(frame().locator("article").first()).toBeVisible()
   await frame().locator("body").evaluate(body => { body.dataset.retained = "original-document" })
   await newTab(page)
-  await page.locator("#reading_url").fill(new URL("/fixtures/article.html?second", page.url()).href)
-  await page.locator("#reading_url").press("Enter")
+  await goTo(page, new URL("/fixtures/article.html?second", page.url()).href)
   await page.evaluate(() => window.__onceE2E__.failReading("Only the second tab failed"))
   await expect(page.locator("#reading_error")).toBeVisible()
   await openTabs(page)
@@ -177,6 +180,7 @@ test("tabs occupy reading content while the URL bar and bottom navigation stay u
   await gotoMobileApp(page)
   await page.getByRole("button", { name: "Reading", exact: true }).click()
   await newTab(page)
+  await addressEditor(page).press("Escape")
   await openTabs(page)
   await expect(page.locator("#reading_tabs")).toHaveAttribute("aria-expanded", "true")
   await expect(page.locator("#reading_empty")).toBeHidden()
@@ -227,6 +231,7 @@ test("reader speech keeps playing across tab switches and the switcher marks pla
   const cancels = await page.evaluate(() => window.__onceSpeech.cancels)
 
   await newTab(page)
+  await addressEditor(page).press("Escape")
   await openTabs(page)
   const rows = switcher(page).locator(".reading_tab_row")
   await expect(rows.nth(0).locator(".reading_tab_audio")).toHaveAttribute("data-audio", "playing")

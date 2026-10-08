@@ -23,6 +23,7 @@ import { ReadingTabDialog } from "./readingTabDialog"
 import { ReadingFindBar } from "./readingFindBar"
 import { ReadingSurfaceCoordinator } from "./readingSurfaceCoordinator"
 import { clearAddress, installAddressMenu } from "./addressMenu"
+import { ReadingAddressEditor, openEditorOnTap } from "./readingAddressEditor"
 import { linkAddonItems } from "./readingPageActions"
 import { runSendItem, sendLinkItems } from "./tabSyncMenus"
 
@@ -38,6 +39,7 @@ export class MobileReadingController {
   private get nativeReading(): ReadingSurfaceCoordinator { return this.runtime.coordinator }
   get reader(): ReaderDocumentHost { return this.runtime.reader }
   private readonly findBar: ReadingFindBar
+  private addressEditor!: ReadingAddressEditor
   private activePanel = "stories"
   private editingAddress = false
   private renderedNavigationId = 0
@@ -110,6 +112,7 @@ export class MobileReadingController {
         closeStoryAnchoredMenu()
         this.ttsControls.tabChanged()
         this.editingAddress = false
+        this.addressEditor?.close()
       },
       direction => { void (direction === "back" ? this.handleBack() : this.handleForward()) },
       message => this.tabDialog.announce(message))
@@ -123,7 +126,7 @@ export class MobileReadingController {
     this.tabDialog = new ReadingTabDialog(this.tabs, {
       preview: () => this.runtime.capturePreview(),
       select: id => { this.tabs.select(id); PanelNavigation.open_panel("reading") },
-      create: () => { this.tabs.create(); PanelNavigation.open_panel("reading"); required<HTMLInputElement>("#reading_url").focus() }
+      create: () => { this.tabs.create(); PanelNavigation.open_panel("reading"); this.addressEditor.open() }
     })
     this.bindControls()
     this.bindEvents()
@@ -324,6 +327,7 @@ export class MobileReadingController {
       const event = rawEvent as CustomEvent<{ panel: string }>
       const nextPanel = event.detail.panel
       this.activePanel = nextPanel
+      if (nextPanel !== "reading") this.addressEditor.close()
       this.runtime.setPanelVisible(nextPanel === "reading")
       const state = this.session.snapshot()
       this.ttsControls.setReaderMode(
@@ -387,10 +391,7 @@ export class MobileReadingController {
     required<HTMLButtonElement>("#reading_browser_retry").onclick = () => {
       void this.nativeReading.reload()
     }
-    required<HTMLButtonElement>("#reading_browser_edit_address").onclick = () => {
-      address.focus()
-      address.select()
-    }
+    required<HTMLButtonElement>("#reading_browser_edit_address").onclick = () => this.addressEditor.open()
     required<HTMLButtonElement>("#reading_reader_open_page").onclick = () => {
       const state = this.session.snapshot()
       if (!state.currentUrl) return
@@ -429,14 +430,22 @@ export class MobileReadingController {
       clearAddress(address)
     })
     clear.onclick = () => clearAddress(address)
-    installAddressMenu(address, {
-      go: (text) => {
-        PanelNavigation.open_panel("reading")
-        address.value = text
-        void this.submitAddress()
-      },
-      clear: () => clearAddress(address)
+    const go = (text: string) => {
+      this.addressEditor.close()
+      PanelNavigation.open_panel("reading")
+      address.value = text
+      void this.submitAddress()
+    }
+    installAddressMenu(address, { go, clear: () => this.addressEditor.isOpen ? this.addressEditor.clear() : clearAddress(address) })
+    const state = () => this.session.snapshot()
+    this.addressEditor = new ReadingAddressEditor(form, {
+      page: () => ({ url: state().currentUrl, title: this.tabs.selected?.title || state().story?.title || "" }),
+      go,
+      readerAvailable: () => Boolean(state().currentUrl),
+      readerActive: () => state().mode === "reader",
+      toggleReader: () => required<HTMLButtonElement>("#reading_reader_toggle").click()
     })
+    openEditorOnTap(address, this.addressEditor)
     required<HTMLButtonElement>("#reading_story_menu").onclick = (event) => {
       const story = this.storyElement()
       if (!story) return

@@ -1099,6 +1099,289 @@
     display: none;
   }
 
+  /* The address editor: a sheet from the address row down, the page dimmed under it. */
+  #reading_address_editor {
+    position: fixed;
+    inset: var(--address-editor-top, 0) 0 0 0;
+    width: auto;
+    max-width: none;
+    height: auto;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--m-ink);
+    font-family: var(--m-sans);
+  }
+
+  /* With the keyboard up the sheet may not fit: it keeps its size and the
+     dialog scrolls rather than squeezing the field into the tools. */
+  #reading_address_editor[open] {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  #reading_address_editor :is(.address_editor_sheet, .address_editor_list) {
+    flex: 0 0 auto;
+  }
+
+  #reading_address_editor::backdrop {
+    background: transparent;
+  }
+
+  /* Outranks the editor's own `#reading_address_editor .class` display rules. */
+  #reading_address_editor [hidden][hidden] {
+    display: none;
+  }
+
+  #reading_address_editor button {
+    margin: 0;
+    border: 0;
+    border-radius: var(--m-radius);
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    font: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #reading_address_editor button:active {
+    background: var(--m-pressed-bg);
+  }
+
+  .address_editor_sheet {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    padding: var(--sp-1) var(--sp-2) var(--sp-2);
+    border-bottom: var(--m-bw) solid var(--border-high-color);
+    background: var(--main-bg-color);
+  }
+
+  .address_editor_field {
+    position: relative;
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: var(--input-bg-color);
+  }
+
+  .address_editor_field:focus-within {
+    box-shadow: 0 0 0 var(--m-bw) var(--m-ink);
+  }
+
+  /* The field's text is drawn by a mirror over it, so the parts of the address
+     can be styled; both must keep identical metrics. The mirror lets touches
+     through, and the field's selection and caret show under its letters. */
+  .address_editor_mirror {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .address_editor_mirror,
+  #reading_address_editor textarea {
+    box-sizing: border-box;
+    min-height: var(--touch);
+    margin: 0;
+    padding: var(--sp-2) calc(var(--touch) - var(--sp-1)) var(--sp-2) var(--sp-3);
+    font-family: var(--m-mono);
+    font-size: var(--fs-title);
+    line-height: 22px;
+    letter-spacing: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
+  #reading_address_editor.exploded :is(.address_editor_mirror, textarea) {
+    line-height: 28px;
+  }
+
+  #reading_address_editor textarea {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    outline: none;
+    resize: none;
+    overflow: hidden;
+    background: transparent;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    caret-color: var(--m-ink);
+  }
+
+  #reading_address_editor textarea::selection {
+    background: var(--highlight-bg-color);
+  }
+
+  .address_editor_mirror .dim {
+    opacity: 0.62;
+  }
+
+  .address_editor_mirror .site {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+
+  .address_editor_mirror .tracker {
+    opacity: 0.5;
+    text-decoration: line-through;
+  }
+
+  #reading_address_editor .address_editor_clear {
+    position: absolute;
+    z-index: 2;
+    top: 1px;
+    right: 1px;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    opacity: 0.6;
+  }
+
+  .address_editor_tools {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-0-5);
+  }
+
+  .address_editor_edits {
+    display: flex;
+    flex: 1 1 auto;
+    gap: var(--sp-0-5);
+    min-width: 0;
+    overflow: auto hidden;
+    scrollbar-width: none;
+  }
+
+  /* Right-aligned while the edits fit; justify-content: flex-end would push
+     an overflow off the unscrollable left edge instead. */
+  .address_editor_edits::before {
+    content: "";
+    margin-left: auto;
+  }
+
+  #reading_address_editor .address_editor_tool {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--sp-1-5);
+    height: 36px;
+    padding: 0 var(--sp-2);
+    font-size: var(--fs-dense);
+    white-space: nowrap;
+  }
+
+  #reading_address_editor .address_editor_tool[aria-pressed="true"] {
+    background: var(--highlight-bg-color);
+  }
+
+  .address_editor_tool code {
+    font-family: var(--m-mono);
+    font-size: var(--fs-dense);
+  }
+
+  .address_editor_error {
+    margin: 0;
+    padding: 0 var(--sp-1);
+    color: var(--error-color);
+    font-size: var(--fs-dense);
+  }
+
+  .address_editor_list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background: var(--main-bg-color);
+  }
+
+  .address_editor_list li {
+    display: flex;
+    align-items: center;
+    padding-right: var(--sp-1-5);
+    border-bottom: var(--m-bw) solid var(--border-high-color);
+  }
+
+  #reading_address_editor .address_editor_row {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: var(--sp-3);
+    min-width: 0;
+    min-height: 52px;
+    padding: 0 var(--sp-4);
+    border-radius: 0;
+    text-align: left;
+  }
+
+  .address_editor_row > :is(svg, .icon) {
+    flex: 0 0 auto;
+  }
+
+  .address_editor_text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--sp-0-5);
+    min-width: 0;
+  }
+
+  .address_editor_text > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .address_editor_text b {
+    font-size: var(--fs-body);
+    font-weight: 600;
+  }
+
+  .address_editor_text span {
+    font-size: var(--fs-meta);
+    color: var(--text-low-color);
+  }
+
+  .address_editor_text .address_editor_url {
+    font-family: var(--m-mono);
+  }
+
+  #reading_address_editor .address_editor_icon {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: var(--touch);
+    height: var(--touch);
+    padding: 0;
+  }
+
+  #reading_address_editor .address_editor_scrim {
+    flex: 1 1 auto;
+    border-radius: 0;
+    background: rgb(0 0 0 / 30%);
+  }
+
+  .address_editor_toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    margin: 0;
+    padding: var(--sp-2) var(--sp-4);
+    border-radius: var(--m-radius);
+    background: var(--m-ink);
+    color: var(--main-bg-color);
+    font-size: var(--fs-body);
+    white-space: nowrap;
+    transform: translateX(-50%);
+  }
+
   /* Frames the native extension page under the active panel's header. The
      native view fills the rectangle below the bar; only the bar is ours. */
   #extension_page_frame {

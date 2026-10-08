@@ -2,11 +2,25 @@ import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor
 
 export interface AddressBarPlugin {
   setEditing(options: { editing: boolean; hasText: boolean }): Promise<void>
+  clipboardState?(): Promise<{ hasText: boolean }>
+  readClipboard?(): Promise<{ text: string }>
+  copyText?(options: { text: string; label?: string }): Promise<void>
+  share?(options: { url: string; title?: string }): Promise<void>
   addListener(
     event: "pasteAndGo",
     listener: (event: { text: string }) => void
   ): Promise<PluginListenerHandle>
   addListener(event: "clear", listener: () => void): Promise<PluginListenerHandle>
+}
+
+let nativeAddressBar: AddressBarPlugin | null | undefined
+
+/** The native address bar plugin, or null in a browser build. */
+export function addressBarPlugin(): AddressBarPlugin | null {
+  if (nativeAddressBar === undefined) {
+    nativeAddressBar = Capacitor.isNativePlatform() ? registerPlugin<AddressBarPlugin>("AddressBar") : null
+  }
+  return nativeAddressBar
 }
 
 /**
@@ -30,9 +44,7 @@ export function clearAddress(address: HTMLInputElement): void {
 export function installAddressMenu(
   address: HTMLInputElement,
   actions: { go: (text: string) => void; clear: () => void },
-  plugin: AddressBarPlugin | null = Capacitor.isNativePlatform()
-    ? registerPlugin<AddressBarPlugin>("AddressBar")
-    : null
+  plugin: AddressBarPlugin | null = addressBarPlugin()
 ): void {
   if (!plugin) return
   const report = (editing: boolean) =>

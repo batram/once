@@ -4,6 +4,7 @@ import android.content.ClipData;
 import android.content.ClipDescription;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Rect;
 import android.view.ActionMode;
 import android.view.Menu;
@@ -18,6 +19,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 /**
  * "Paste and go" and "Clear" for the web address field. Its text menu belongs
  * to the shell WebView, so the items are added only while the field has focus.
+ * The address editor also reads and writes the clipboard and shares the page
+ * address through it, which the shell WebView cannot do on its own.
  */
 @CapacitorPlugin(name = "AddressBar")
 public class AddressBarPlugin extends Plugin {
@@ -31,6 +34,44 @@ public class AddressBarPlugin extends Plugin {
         hasText = call.getBoolean("hasText", false);
         editing = call.getBoolean("editing", false);
         call.resolve();
+    }
+
+    /** Whether "Paste and go" has anything to open, without reading the clip. */
+    @PluginMethod
+    public void clipboardState(PluginCall call) {
+        call.resolve(new JSObject().put("hasText", clipboardHasText()));
+    }
+
+    /** The clipboard's text for the address editor's "Paste and go" row. */
+    @PluginMethod
+    public void readClipboard(PluginCall call) {
+        call.resolve(new JSObject().put("text", clipboardText()));
+    }
+
+    @PluginMethod
+    public void copyText(PluginCall call) {
+        ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard == null) {
+            call.reject("No clipboard");
+            return;
+        }
+        clipboard.setPrimaryClip(ClipData.newPlainText(call.getString("label", "Link"), call.getString("text", "")));
+        call.resolve();
+    }
+
+    /** The system share sheet for a page address. */
+    @PluginMethod
+    public void share(PluginCall call) {
+        Intent send = new Intent(Intent.ACTION_SEND)
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_TEXT, call.getString("url", ""));
+        String title = call.getString("title", "");
+        if (!title.isEmpty()) send.putExtra(Intent.EXTRA_SUBJECT, title);
+        Intent chooser = Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getActivity().runOnUiThread(() -> {
+            getContext().startActivity(chooser);
+            call.resolve();
+        });
     }
 
     /** Adds the items to each text menu the shell WebView prepares. */
