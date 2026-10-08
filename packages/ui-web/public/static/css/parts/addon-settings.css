@@ -116,8 +116,8 @@
 #addon_install_settings #addon_updates:empty { display: none; }
 #addon_install_settings .addon_list_empty { margin: var(--sp-2) 0 var(--sp-4); }
 
-/* An add-on's row, and the Add-on sync row built like one (last in the list). */
-#addon_install_settings :is(.addon_list_row, .addon_sync_link) {
+/* An add-on's row. */
+#addon_install_settings .addon_list_row {
   position: relative; display: flex; flex-direction: column; align-items: stretch;
   gap: var(--sp-1-5); width: 100%; min-width: 0;
   margin: 0 0 var(--sp-3); padding: var(--sp-4) var(--sp-6) var(--sp-4) var(--sp-4);
@@ -125,22 +125,22 @@
   background: var(--input-bg-color); color: var(--text-high-color);
   font: inherit; text-align: left; cursor: pointer;
 }
-#addon_install_settings :is(.addon_list_row, .addon_sync_link):hover { border-color: var(--cursor-color); }
-#addon_install_settings :is(.addon_list_row, .addon_sync_link) strong { font-size: var(--fs-body); line-height: 1.5; }
+#addon_install_settings .addon_list_row:hover { border-color: var(--cursor-color); }
+#addon_install_settings .addon_list_row strong { font-size: var(--fs-body); line-height: 1.5; }
 #addon_install_settings .addon_list_description { font-size: var(--fs-dense); line-height: 1.5; }
 #addon_install_settings .addon_list_description:empty { display: none; }
 #addon_install_settings .addon_list_meta { font-size: var(--fs-meta); line-height: 1.5; color: var(--text-muted-color); }
 #addon_install_settings .addon_list_arrow { position: absolute; right: var(--sp-3); top: var(--sp-4); font-size: var(--fs-title); }
-#addon_install_settings .addon_sync_link[hidden] { display: none; }
-/* The vault's state leads its status line, with the panel header's sync dot
-   colours; locked or in conflict the row also takes the warning edge. */
-#addon_install_settings .addon_sync_link_state::before { content: "●"; margin-right: var(--sp-1-5); color: #888; }
-#addon_install_settings .addon_sync_link[data-vault-state="ready"] .addon_sync_link_state::before { color: #2f9e44; }
-#addon_install_settings .addon_sync_link:is([data-vault-state="conflict"], [data-vault-state="error"], [data-vault-state="locked"]) {
-  border-left: 3px solid var(--warning-color);
+/* Add-on sync, said in a sentence under the list: its state, what it does,
+   and a link to its page. The state leads with the panel header's sync dot
+   colours; locked or in conflict the sentence takes the warning colour. */
+#addon_install_settings .addon_sync_note {
+  margin: var(--sp-4) 0 0; font-size: var(--fs-dense); line-height: 1.5; color: var(--text-muted-color);
 }
-#addon_install_settings .addon_sync_link:is([data-vault-state="conflict"], [data-vault-state="error"], [data-vault-state="locked"]) .addon_sync_link_state,
-#addon_install_settings .addon_sync_link:is([data-vault-state="conflict"], [data-vault-state="error"], [data-vault-state="locked"]) .addon_sync_link_state::before {
+#addon_install_settings .addon_sync_note[hidden] { display: none; }
+#addon_install_settings .addon_sync_link_state::before { content: "●"; margin-right: var(--sp-1-5); color: #888; }
+#addon_install_settings .addon_sync_note[data-vault-state="ready"] .addon_sync_link_state::before { color: #2f9e44; }
+#addon_install_settings .addon_sync_note:is([data-vault-state="conflict"], [data-vault-state="error"], [data-vault-state="locked"]) {
   color: var(--warning-color);
 }
 /* White, not --input-bg-color: the dark-theme input background is a blue-grey

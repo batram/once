@@ -106,9 +106,6 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
       row.children[1].textContent = group.dataset.addonDescription ?? ""
       row.children[2].textContent = meta
     }
-    // The Add-on sync row stays last, after add-ons installed since.
-    const syncLink = list.querySelector(":scope > .addon_sync_link")
-    if (syncLink && syncLink !== list.lastElementChild) list.append(syncLink)
     describeCollection(root, count, empty, addons.size)
     invalidateSettingsPages()
     if (current.startsWith("addon:") && !rows.has(current)) render("overview")

@@ -12,42 +12,31 @@ export function addonPageAction(text: string, testid: string, run: () => void): 
 }
 
 /**
- * Add-on sync lives in Settings › Sync; this row, last in the list, leads
- * there. It is built like an add-on's row (name, what it does, a status line)
- * but is not one: it carries no `addon_list_row`, so nothing counts it. Its
- * state comes from addonVaultControls. Locked or in conflict the list is
- * otherwise empty, so the row is at the top exactly when it needs attention.
- * A shell without that page keeps the vault controls on this page instead.
+ * Add-on sync lives in Settings › Sync; a sentence under the list says what
+ * it does, its state, and links there. Not a row: it is not an add-on and
+ * must not read like one. Its state comes from addonVaultControls. A shell
+ * without that page keeps the vault controls on this page instead.
  */
-function addonSyncLink(): HTMLElement[] {
+function addonSyncNote(): HTMLElement[] {
   if (!document.querySelector("#sync_page_addons")) return []
-  const link = document.createElement("button")
-  link.type = "button"
-  link.className = "addon_sync_link"
-  link.dataset.testid = "open-addon-sync"
-  link.dataset.addonSyncLink = ""
-  const name = document.createElement("strong")
-  name.textContent = "Add-on sync"
-  const description = document.createElement("span")
-  description.className = "addon_list_description"
-  description.textContent = "Keeps your add-ons, their settings and tokens the same on all your devices, encrypted."
-  const meta = document.createElement("span")
-  meta.className = "addon_list_meta"
+  const note = document.createElement("p")
+  note.className = "addon_sync_note"
+  note.dataset.addonSyncLink = ""
   const state = document.createElement("span")
   state.className = "addon_sync_link_state"
   state.dataset.addonSyncSummary = ""
-  meta.append(state, " · Settings › Sync")
-  const arrow = document.createElement("span")
-  arrow.className = "addon_list_arrow"
-  arrow.setAttribute("aria-hidden", "true")
-  arrow.textContent = "›"
-  link.append(name, description, meta, arrow)
+  const link = document.createElement("button")
+  link.type = "button"
+  link.className = "settings_inline_link"
+  link.dataset.testid = "open-addon-sync"
+  link.textContent = "Add-on sync settings"
   // Already in Settings: switch section, without the menu button that toggles the panel.
   link.addEventListener("click", () => {
     document.querySelector<HTMLButtonElement>("[data-settings-target=\"sync\"]")?.click()
     document.dispatchEvent(new CustomEvent<SyncPage>(SYNC_PAGE_EVENT, { detail: "addons" }))
   })
-  return [link]
+  note.append(state, " · Add-on sync keeps your add-ons, their settings and tokens the same on all your devices, encrypted. ", link)
+  return [note]
 }
 
 export function createAddonSettingsLayout(root: HTMLElement, navigate: (target: string) => void) {
@@ -95,13 +84,12 @@ export function createAddonSettingsLayout(root: HTMLElement, navigate: (target: 
   const list = document.createElement("div")
   list.id = "addon_list"
   list.setAttribute("aria-label", "Once Add-ons")
-  list.append(...addonSyncLink())
   const empty = document.createElement("p")
   empty.className = "settings_group_hint addon_list_empty"
   empty.textContent = "Add-ons add new features to Once. None are installed yet: import a ZIP, choose a folder, or use a manifest URL to get started."
   const advancedButton = action("Advanced: edit add-on JSON…", "open-addon-advanced", () => navigate("advanced"))
   advancedButton.classList.add("addon_advanced_action")
-  overview.append(header, updates, empty, list, advancedButton)
+  overview.append(header, updates, empty, list, ...addonSyncNote(), advancedButton)
 
   const imports = page("import", "Import an add-on")
   imports.classList.add("settings_editor")
