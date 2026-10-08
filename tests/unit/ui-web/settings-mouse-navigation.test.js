@@ -150,8 +150,12 @@ test("one history replays nested pages across sections through header and native
     visit(sources, "source options")
     navigation.open("filters")
     visit(filters, "filter")
-    for (const expected of ["filters", "source options", "source", "sources", "index"]) {
-      back.click()
+    // The header button goes up; where up is also the previous visit it
+    // retraces it, so the native steps that follow walk the same history.
+    back.click()
+    assert.equal(visible, "filters")
+    for (const expected of ["source options", "source", "sources", "index"]) {
+      navigation.navigate("back")
       assert.equal(visible, expected)
     }
     for (const expected of ["sources", "source", "source options", "filters", "filter"]) {

@@ -71,7 +71,8 @@ export class SettingsNavigation {
   constructor(private host: SettingsNavigationHost) {
     this.current = { section: host.section() }
     navigations.set(document, this)
-    host.back.onclick = () => this.navigate("back")
+    // The button goes up the tree; the mouse and swipe gestures below walk the history.
+    host.back.onclick = () => this.up()
     document.addEventListener("once-settings-index-requested", () => { this.open(null); host.resetIndex?.() })
     document.addEventListener("once-settings-navigate", event => {
       const direction = (event as CustomEvent<{ direction: string }>).detail.direction
@@ -86,7 +87,7 @@ export class SettingsNavigation {
           (key.target instanceof Element && key.target.matches("input,textarea,select"))) return
       key.preventDefault()
       key.stopPropagation()
-      this.navigate("back")
+      this.up()
     })
     document.addEventListener("once-panel-changed", event => {
       const { panel, previous } = (event as CustomEvent<{ panel: string; previous: string | null }>).detail
@@ -101,6 +102,34 @@ export class SettingsNavigation {
   }
 
   open(section: string | null): void { this.visit({ section }) }
+
+  /**
+   * Up the tree: a page to its section, a section to the index, the index out
+   * of Settings. Where up is also the previous visit, the move retraces it so
+   * Forward still reopens what was left; otherwise it is a visit of its own,
+   * which the gestures can then retrace. Labelled by where it goes, so the
+   * button reads the same however the page was reached.
+   */
+  up(): void {
+    if (!this.active()) return
+    const parent = this.parentOf(this.current)
+    if (!parent) { this.leave(); return }
+    const previous = [...this.backHistory].reverse().find(visit => this.valid(visit))
+    if (previous && previous.section === parent.section && !previous.page) this.navigate("back")
+    else this.visit(parent)
+  }
+
+  private parentOf(visit: Visit): Visit | null {
+    if (visit.page) return { section: visit.section }
+    return visit.section === null ? null : { section: null }
+  }
+
+  private leave(): void {
+    this.capture()
+    this.replaying = true
+    try { open_panel(this.returnPanel) } finally { this.replaying = false }
+    this.forwardToSettings = true
+  }
 
   openPage(root: HTMLElement, page: SettingsPage, alreadyShown = false, replace = false): void {
     const section = root.closest<HTMLElement>("[data-settings-section]")?.dataset.settingsSection
@@ -140,12 +169,7 @@ export class SettingsNavigation {
       this.apply(next)
       return
     }
-    if (direction === "back") {
-      this.capture()
-      this.replaying = true
-      try { open_panel(this.returnPanel) } finally { this.replaying = false }
-      this.forwardToSettings = true
-    }
+    if (direction === "back") this.leave()
   }
 
   complete(root: HTMLElement): void {
@@ -200,7 +224,7 @@ export class SettingsNavigation {
   }
 
   private updateBack(): void {
-    const previous = [...this.backHistory].reverse().find(visit => this.valid(visit))
-    this.host.back.textContent = previous?.page?.title() ?? (previous ? this.host.label(previous.section) : "Back")
+    const parent = this.parentOf(this.current)
+    this.host.back.textContent = parent ? this.host.label(parent.section) : "Back"
   }
 }
