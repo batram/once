@@ -59,11 +59,6 @@ export function removeExplodedLine(display: string, index: number): string {
   return lines.join("\n")
 }
 
-/** The joined address without line `index` of an exploded `display`. */
-export function removeAddressLine(display: string, index: number): string {
-  return joinAddress(removeExplodedLine(display, index))
-}
-
 // Word and label separators inside one part: a line breaks before each.
 const FINER_SEPARATORS = /(?<=[^\n])(?=[-_.+~,=])/g
 

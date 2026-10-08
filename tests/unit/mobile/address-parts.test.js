@@ -52,13 +52,14 @@ test("caret offsets survive exploding and joining", () => {
 
 test("a swiped-away line leaves a valid address", () => {
   const display = parts.explodeAddress(ARTICLE)
-  assert.equal(parts.removeAddressLine(display, 0), "lwn.net/Articles/990001/?page=2&utm_source=rss&utm_medium=feed#comments")
-  assert.equal(parts.removeAddressLine(display, 2), "https://lwn.net/990001/?page=2&utm_source=rss&utm_medium=feed#comments")
-  assert.equal(parts.removeAddressLine(display, 4), "https://lwn.net/Articles/990001/?utm_source=rss&utm_medium=feed#comments")
-  assert.equal(parts.removeAddressLine(display, 5), "https://lwn.net/Articles/990001/?page=2&utm_medium=feed#comments")
-  assert.equal(parts.removeAddressLine(display, 7), "https://lwn.net/Articles/990001/?page=2&utm_source=rss&utm_medium=feed")
+  const without = (exploded, index) => parts.joinAddress(parts.removeExplodedLine(exploded, index))
+  assert.equal(without(display, 0), "lwn.net/Articles/990001/?page=2&utm_source=rss&utm_medium=feed#comments")
+  assert.equal(without(display, 2), "https://lwn.net/990001/?page=2&utm_source=rss&utm_medium=feed#comments")
+  assert.equal(without(display, 4), "https://lwn.net/Articles/990001/?utm_source=rss&utm_medium=feed#comments")
+  assert.equal(without(display, 5), "https://lwn.net/Articles/990001/?page=2&utm_medium=feed#comments")
+  assert.equal(without(display, 7), "https://lwn.net/Articles/990001/?page=2&utm_source=rss&utm_medium=feed")
   const single = parts.explodeAddress("https://x.test/a?only=1")
-  assert.equal(parts.removeAddressLine(single, 3), "https://x.test/a")
+  assert.equal(without(single, 3), "https://x.test/a")
 })
 
 test("a long part explodes further at word and label separators", () => {
