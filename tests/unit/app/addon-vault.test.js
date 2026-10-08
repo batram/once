@@ -319,3 +319,14 @@ test("turning add-on sync off on one device keeps its add-ons, package and token
   assert.deepEqual(json(await second.client.getAddons()), json(installed()))
   assert.equal(second.local.has("once:addon-local-document"), false)
 })
+
+test("running from the folder instead keeps the synced tokens on this device", async () => {
+  const { first } = await setup()
+  assert.equal(first.local.has(`addon:${manifest.id}:token`), false)
+  await first.client.localizeAddonSecrets(manifest.id)
+  assert.equal(JSON.parse(first.local.get(`addon:${manifest.id}:token`)).value, "private-test-token")
+  // The folder's connection then finds the token in the local store, as a development add-on does.
+  assert.equal(await first.client.hasAddonSecret(manifest.id, "token", "https://provider.test/messages", true), true)
+  await first.client.localizeAddonSecrets("someone-else")
+  assert.equal([...first.local.keys()].filter(name => name.startsWith("addon:someone-else:")).length, 0)
+})

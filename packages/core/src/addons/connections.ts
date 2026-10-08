@@ -5,6 +5,13 @@ export interface AddonConnection {
   endpoint: string
   secret?: string
   auth?: "bearer" | "x-api-key"
+  /** Where the connection lists its models: a URL relative to the endpoint, on the same origin. */
+  models?: string
+}
+/** One entry of a connection's model list, as the host hands it to the settings form. */
+export interface AddonModel {
+  id: string
+  name: string
 }
 export interface AddonRequest {
   method?: "GET" | "POST"
@@ -33,8 +40,53 @@ export function readConnections(value: unknown, schema?: ConfigSchema): AddonCon
     if (endpoint?.type !== "string" || endpoint.format !== "url") throw new Error("connection endpoint must name a URL setting")
     if (raw.secret !== undefined && (secret?.type !== "string" || secret.format !== "secret")) throw new Error("connection secret must name a secret setting")
     if (raw.auth !== undefined && raw.auth !== "bearer" && raw.auth !== "x-api-key") throw new Error("unsupported connection authentication")
-    return { id: raw.id, endpoint: raw.endpoint, secret: raw.secret, auth: raw.auth ?? "bearer" }
+    if (raw.models !== undefined && (typeof raw.models !== "string" || !raw.models || raw.models.length > 200 || /^[a-z][a-z0-9+.-]*:|^\/\/|[\s#]/i.test(raw.models))) {
+      throw new Error("connection models must be a URL relative to the endpoint")
+    }
+    return { id: raw.id, endpoint: raw.endpoint, secret: raw.secret, auth: raw.auth ?? "bearer", ...(raw.models ? { models: raw.models } : {}) }
   })
+}
+
+/** A setting's `suggestions` must point at a connection that lists models, directly or through a setting that names one. */
+export function checkSuggestions(schema: ConfigSchema | undefined, connections: readonly AddonConnection[]): void {
+  if (schema?.type !== "object") return
+  for (const [name, property] of Object.entries(schema.properties)) {
+    const suggestions = property.suggestions
+    if (!suggestions) continue
+    if (suggestions.connection !== undefined && !connections.some(connection => connection.id === suggestions.connection && connection.models)) {
+      throw new Error(`${name} suggestions must name a connection that lists models`)
+    }
+    if (suggestions.connectionField !== undefined && schema.properties[suggestions.connectionField]?.type !== "string") {
+      throw new Error(`${name} suggestions must name a string setting that holds the connection`)
+    }
+  }
+}
+
+/** The connection's model list URL: the relative reference resolved against the endpoint, which it may not leave. */
+export function addonModelsUrl(endpoint: string, models: string): string {
+  const base = new URL(addonEndpoint(endpoint))
+  const url = new URL(models, base)
+  if (url.origin !== base.origin || url.username || url.password || url.hash) throw new Error("The model list must live on the endpoint's origin")
+  return url.href
+}
+
+/** Reads a provider's model list body: `{ data: [{ id }] }` (OpenAI, Anthropic and compatible servers) or a bare list of ids. */
+export function readAddonModels(text: string): AddonModel[] {
+  let data: unknown
+  try { data = JSON.parse(text) } catch { throw new Error("The model list is not JSON") }
+  const list = Array.isArray(data) ? data : (data as { data?: unknown })?.data
+  if (!Array.isArray(list)) throw new Error("The model list has an unexpected format")
+  const seen = new Set<string>()
+  const models: AddonModel[] = []
+  for (const item of list) {
+    const id = typeof item === "string" ? item : (item as { id?: unknown })?.id
+    if (typeof id !== "string" || !id || id.length > 200 || /[\r\n]/.test(id) || seen.has(id)) continue
+    seen.add(id)
+    const label = (item as { display_name?: unknown; name?: unknown })?.display_name ?? (item as { name?: unknown })?.name
+    models.push({ id, name: typeof label === "string" && label !== id ? label.slice(0, 200) : "" })
+    if (models.length >= 500) break
+  }
+  return models.sort((a, b) => a.id.localeCompare(b.id))
 }
 
 export function readAddonRequest(value: unknown): AddonRequest {

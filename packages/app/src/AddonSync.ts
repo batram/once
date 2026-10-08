@@ -183,7 +183,7 @@ export class AddonSync {
 
   methods(): Pick<OnceClient, "getAddonVaultStatus" | "unlockAddonVault" | "lockAddonVault" | "changeAddonVaultPassphrase" |
     "getAddonVaultChoices" | "resolveAddonVault" | "getAddons" | "saveAddons" | "updateAddons" | "getAddonScript" |
-    "storeAddonScript" | "saveAddonSecret" | "hasAddonSecret" | "requestAddonConnection" | "shareAddonSnapshot" |
+    "storeAddonScript" | "saveAddonSecret" | "hasAddonSecret" | "requestAddonConnection" | "listAddonModels" | "localizeAddonSecrets" | "shareAddonSnapshot" |
     "verifyAddonVaultPassphrase" | "leaveAddonVault"> {
     return {
       getAddonVaultStatus: () => this.vault.status(),
@@ -217,6 +217,20 @@ export class AddonSync {
         if (localOnly || !await this.vault.enabled()) return this.local.request(manifest, options, connection, request, signal, onChunk)
         await this.approved(manifest, options, connection)
         return this.synced.request(manifest, options, connection, request, signal, onChunk)
+      },
+      // The form may hold an endpoint not saved yet, so the installed copy is
+      // only checked for approval; its token is bound to the endpoint anyway.
+      localizeAddonSecrets: async addon => {
+        if (!this.platform.secretStore || !await this.vault.enabled()) return
+        const data = await this.vault.read()
+        for (const [name, value] of Object.entries(data?.secrets ?? {})) {
+          if (name.startsWith(`addon:${addon}:`)) await this.platform.secretStore.set(name, value)
+        }
+      },
+      listAddonModels: async (manifest, options, connection, localOnly) => {
+        if (localOnly || !await this.vault.enabled()) return this.local.models(manifest, options, connection)
+        await this.approved(manifest, options, connection)
+        return this.synced.models(manifest, options, connection)
       }
     }
   }

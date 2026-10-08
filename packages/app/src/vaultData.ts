@@ -16,8 +16,16 @@ export function readVaultData(value: unknown): VaultData {
       typeof data.author !== "string" || typeof data.updatedAt !== "string" || !data.document ||
       !data.secrets || !data.scripts || Array.isArray(data.secrets) || Array.isArray(data.scripts)) throw new Error("Invalid vault contents")
   if (data.author.length > 80 || data.commit.length > 80) throw new Error("Invalid vault metadata")
+  // A newer Once may have written manifest fields this one does not know. They
+  // are no reason to lock the reader out: the add-ons still read, and the stored
+  // document keeps its bytes until this device changes an entry. Only an entry
+  // this version cannot read at all is a reason to stop.
   const normalized = readAddonsDocument(data.document)
-  if (JSON.stringify(normalized) !== JSON.stringify(data.document)) throw new Error("Vault contains an invalid add-on; update Once before opening it")
+  const stored = (data.document as { addons?: unknown[] }).addons
+  const ids = Array.isArray(stored) ? stored.map(entry => (entry as { manifest?: { id?: unknown } } | null)?.manifest?.id) : null
+  if (!ids || ids.length !== normalized.addons.length || normalized.addons.some((entry, index) => entry.manifest.id !== ids[index])) {
+    throw new Error("Vault contains an add-on this version of Once cannot read; update Once before opening it")
+  }
   for (const [name, text] of Object.entries(data.secrets)) {
     if (!/^addon:[a-z0-9-]{3,40}:[a-zA-Z_][a-zA-Z0-9_]{0,39}$/.test(name) || typeof text !== "string" || text.length > 16000) throw new Error("Invalid vault connection")
   }

@@ -17,7 +17,7 @@ export function addonOrigin(entry: AddonEntry): string {
 export function addonOriginSentence(entry: AddonEntry): string {
   if (isBundledAddon(entry)) return "Bundled with Once. It updates when Once does."
   if (entry.source) return "Installed from this manifest URL. Check for updates fetches it again and shows what changed before installing."
-  return "An imported copy, from a ZIP, a folder or a shared snapshot. To update it, import the newer version."
+  return "An imported copy: installed from a ZIP, a folder or a shared snapshot on one of your devices, and carried to the others by add-on sync. To update it, import the newer version on any device."
 }
 
 /** The last part of a folder path, for a row that has no room for the whole of it. */

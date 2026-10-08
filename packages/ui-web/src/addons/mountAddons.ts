@@ -120,18 +120,25 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
       // The manifest carries the script's integrity, so it names the folder's files as read just now.
       const files = JSON.stringify(read.manifest)
       if (installed) {
-        // The installed copy wins; the folder is ignored. Its page says so and
-        // offers the two ways out rather than a toast that names neither. The
-        // actions install what was read now, so the page must redraw on edits.
-        devControls.set(read.manifest.id, { kind: "shadowed", directory: dev.directory, files, ...unload,
+        // The installed copy runs and the folder is its update source. The
+        // page says whether the folder has anything new; the actions install
+        // what was read now, so the page must redraw on edits.
+        const upToDate = sameFiles(installed.entry.manifest, read.manifest)
+        devControls.set(read.manifest.id, { kind: "shadowed", directory: dev.directory, files, version: read.manifest.version, upToDate, ...unload,
           useFolder: async () => {
+            // Settings and tokens move over with the switch, so going back and forth loses nothing.
+            if (installed.entry.options) localStorage.setItem(`once:dev-addon:${read.manifest.id}`, JSON.stringify(installed.entry.options))
+            await client.localizeAddonSecrets(read.manifest.id)
             await client.updateAddons(doc => ({ ...doc, addons: doc.addons.filter(item => item.manifest.id !== read.manifest.id) }))
             localStorage.setItem(`once:dev-addon-enabled:${read.manifest.id}`, "true")
             window.dispatchEvent(new Event(DEV_OPTIONS_EVENT))
+            return `The folder now runs ${read.manifest.name} ${read.manifest.version}, with the settings and tokens the installed copy had.`
           },
           replace: async () => {
+            if (upToDate) return `The installed copy already holds the folder's files (${read.manifest.version}).`
             const { source: _source, ...current } = installed.entry
             await client.shareAddonSnapshot({ ...current, manifest: read.manifest }, dev.code, true)
+            return `Installed copy updated to ${read.manifest.version} from the folder; settings and tokens kept.`
           } })
         continue
       }
@@ -140,8 +147,9 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
         install: async () => {
           await client.shareAddonSnapshot({ enabled: true, manifest: read.manifest, options: readDevAddonOptions(read.manifest.id) }, dev.code)
           localStorage.setItem(`once:dev-addon-enabled:${read.manifest.id}`, "false")
-          if (dev.removable) await options.devAddons?.removeDirectory?.(dev.directory)
+          // The folder stays linked: the installed copy's page can then update from it.
           window.dispatchEvent(new Event(DEV_OPTIONS_EVENT))
+          return `Installed ${read.manifest.name} ${read.manifest.version}; the folder stays linked for later updates.`
         } })
       candidates.push({ entry: { enabled: devAddonEnabled(read.manifest.id), manifest: read.manifest, options: readDevAddonOptions(read.manifest.id) }, code: dev.code })
     }
@@ -150,6 +158,11 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
   }
   const refresh = (): void => {
     refreshing = refreshing.then(apply).catch((error) => report("Add-ons could not be loaded", error))
+  }
+  /** Whether an installed copy holds a folder's files: the same manifest, with the script named by hash rather than by where it is served from. */
+  const sameFiles = (installed: AddonManifest, folder: AddonManifest): boolean => {
+    const identity = ({ script, ...rest }: AddonManifest) => JSON.stringify({ ...rest, integrity: script?.integrity ?? null })
+    return identity(installed) === identity(folder)
   }
   setAddonRetry((id) => {
     void reconciler.retry(id).then(refresh).catch(error => report("Add-on could not be retried", error))

@@ -1,4 +1,4 @@
-import { AddonManifest, AddonRequest, AddonResponse, addonEndpoint, readAddonRequest } from "@once/core"
+import { AddonManifest, AddonModel, AddonRequest, AddonResponse, addonEndpoint, addonModelsUrl, readAddonModels, readAddonRequest } from "@once/core"
 import type { SecretStorePort } from "./types"
 
 export class AddonConnections {
@@ -25,6 +25,34 @@ export class AddonConnections {
     const binding = JSON.parse(stored)
     if (binding.endpoint !== addonEndpoint(endpoint)) throw new Error("Endpoint changed: replace the token in Add-ons settings before sending it to this destination")
     return typeof binding.value === "string" ? binding.value : ""
+  }
+
+  /** The models a connection's provider offers, read with the connection's credential from its declared list URL. */
+  async models(manifest: AddonManifest, options: Record<string, unknown>, id: string, signal?: AbortSignal): Promise<AddonModel[]> {
+    const connection = manifest.connections?.find(item => item.id === id)
+    if (!connection) throw new Error("Connection is not declared by this addon")
+    if (!connection.models) throw new Error("This connection does not list its models")
+    const endpoint = addonEndpoint(options[connection.endpoint])
+    const url = addonModelsUrl(endpoint, connection.models)
+    const token = connection.secret ? await this.secret(manifest.id, connection.secret, endpoint) : ""
+    signal?.throwIfAborted()
+    const headers = new Headers({ accept: "application/json" })
+    // Anthropic's API, the x-api-key user, wants its version header on every request.
+    if (connection.auth === "x-api-key") headers.set("anthropic-version", "2023-06-01")
+    if (token) headers.set(connection.auth === "x-api-key" ? "x-api-key" : "authorization", connection.auth === "x-api-key" ? token : `Bearer ${token}`)
+    let response: Response
+    let text: string
+    try {
+      response = await this.fetch(url, { method: "GET", headers, signal, credentials: "omit", redirect: "error" })
+      text = await boundedText(response, signal)
+    } catch (error) {
+      if (signal?.aborted) throw new Error("Request cancelled")
+      if (error instanceof Error && error.message === "Response is too large") throw error
+      throw new Error("The model list request failed. Check the endpoint and network access.")
+    }
+    if (response.status === 401 || response.status === 403) throw new Error(`The provider refused the token (HTTP ${response.status})`)
+    if (response.status !== 200) throw new Error(`The model list request failed (HTTP ${response.status})`)
+    return readAddonModels(text)
   }
 
   async request(manifest: AddonManifest, options: Record<string, unknown>, id: string, raw: AddonRequest, signal?: AbortSignal,

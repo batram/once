@@ -75,18 +75,21 @@ No proxy, server deployment, or addon code change is required.
    | Setting | Value |
    | --- | --- |
    | AI provider | `compatible` |
-   | Model ID | `gemini-3.1-flash-lite` |
+   | Model ID | `gemini-3.5-flash-lite` |
    | Chat Completions endpoint | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` |
    | Compatible API token | Your Gemini API key, saved in the masked field |
    | Enable web search | Off |
 
 3. Set the endpoint before saving the key: Once binds the saved token to that
    exact endpoint. Keep the key out of the manifest and advanced JSON editor.
+   With the endpoint and key saved, **Load models** under Model ID lists what
+   the key can use; Google's list names models as `models/gemini-…`, which the
+   endpoint accepts as well as the bare name.
 4. Open a story's addon tray to explain its title and summarize its article,
    then try a follow-up question. These are separate requests. Reopening an
    existing tray reuses its answers during the same session.
 
-For new projects, use `gemini-3.1-flash-lite`: Google has
+For new projects, use `gemini-3.5-flash-lite` (or 3.1 while it answers): Google has
 [restricted 2.5 model access to previous users](https://discuss.ai.google.dev/t/gemini-2-5-flash-deprecated-without-warning-earlier-than-shutdown-date/174217/27).
 A 404 with `gemini-2.5-flash-lite` can therefore mean the project lacks model
 access even when the endpoint is correct. Change the model, keeping the endpoint

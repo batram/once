@@ -8,6 +8,8 @@ export interface ConfigFieldPresentation {
   group?: string
   format?: "multiline" | "url" | "secret"
   visibleWhen?: { field: string; equals: string | boolean }
+  /** A string setting offers the model list of a connection: named outright, or by the setting whose value is the connection ID. */
+  suggestions?: { connection?: string; connectionField?: string }
 }
 
 export type ConfigSchema = ConfigFieldPresentation & (
@@ -149,6 +151,20 @@ function readPresentation(value: Record<string, unknown>): ConfigFieldPresentati
     const condition = value.visibleWhen
     if (!isRecord(condition) || typeof condition.field !== "string" || !["string", "boolean"].includes(typeof condition.equals)) throw new Error("Invalid visibleWhen")
     result.visibleWhen = { field: condition.field, equals: condition.equals as string | boolean }
+  }
+  if (value.suggestions !== undefined) {
+    const source = value.suggestions
+    const name = (key: "connection" | "connectionField"): string | undefined => {
+      if (!isRecord(source) || source[key] === undefined) return undefined
+      if (typeof source[key] !== "string" || !/^[a-zA-Z_][a-zA-Z0-9_-]{0,39}$/.test(source[key])) throw new Error("Invalid suggestions")
+      return source[key]
+    }
+    const connection = name("connection")
+    const connectionField = name("connectionField")
+    if (value.type !== "string" || value.enum !== undefined || result.format !== undefined || (connection === undefined) === (connectionField === undefined)) {
+      throw new Error("suggestions need a plain string setting and exactly one of connection or connectionField")
+    }
+    result.suggestions = connection !== undefined ? { connection } : { connectionField }
   }
   return result
 }

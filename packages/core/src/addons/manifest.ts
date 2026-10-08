@@ -5,7 +5,7 @@
 
 import { AddonCondition, CONDITION_KEYS } from "./conditions"
 import { ConfigSchema, readConfigSchema } from "./configSchema"
-import { AddonConnection, readConnections } from "./connections"
+import { AddonConnection, checkSuggestions, readConnections } from "./connections"
 import { AddonTray } from "./trayProtocol"
 import { MatchPatternSet } from "../webext/matchPattern"
 import { isKnownPlaceholder, templatePlaceholders } from "./templates"
@@ -547,6 +547,7 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
   let trays: AddonTray[] = []
   try {
     connections = readConnections(value.connections, settings)
+    checkSuggestions(settings, connections)
     trays = readTrays(value.trays)
     for (const contribution of contributions) {
       if (contribution.kind === "action" && "tray" in contribution.run) {

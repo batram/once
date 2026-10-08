@@ -70,12 +70,14 @@ shows their settings alongside other addons. Each addon's page opens with a
 "Where this addon comes from" card naming the folder, URL, or installed copy it
 runs from. **Unload folder** removes the remembered link and runtime
 contributions without deleting the original files or local settings. **Install
-this version** saves the folder's current files as an installed, synced copy.
-An installed copy with the same addon ID takes precedence over a linked folder;
-the installed addon's page then says the folder is ignored and offers **Use the
-folder instead** (removes the installed copy) or **Update installed copy from
-folder** (keeps its settings and tokens). `ONCE_ADDONS` remains available for
-unpackaged development builds.
+this version** saves the folder's current files as an installed, synced copy and
+keeps the folder linked. An installed copy with the same addon ID is what runs;
+the linked folder is then its update source: the installed addon's page says
+whether the folder's files are already installed or newer, offers **Update
+installed copy from folder** (keeps settings and tokens) when they are newer,
+and **Run from the folder instead** (removes the installed copy; its settings and
+tokens carry over to the folder on this device). `ONCE_ADDONS` remains available
+for unpackaged development builds.
 
 Browsers expose folder selection as a one-time import and do not offer Electron's
 watched path. ZIP selection uses the platform file picker, including mobile where
@@ -297,6 +299,20 @@ bound to the normalized full endpoint URL. Changing that URL requires replacing
 the saved token. Tokens never travel into the sandbox or plaintext synced settings;
 encrypted addon sync carries them inside the authenticated vault.
 Browser storage is device-local, not equivalent to native OS encryption.
+
+A connection may add `"models": "<relative URL>"`, resolved against the
+endpoint and confined to its origin (`"models"` turns `.../v1/messages` into
+`.../v1/models`; `"../models"` turns `.../v1/chat/completions` into
+`.../v1/models`). A plain string setting then declares where its suggestions
+come from: `"suggestions": { "connection": "provider" }`, or
+`{ "connectionField": "provider" }` when another string setting holds the
+connection ID. The settings form shows a select and a Load models button
+under that setting. The host sends a GET with the connection's credential and
+offers the `data[].id` entries of the reply (OpenAI, Anthropic and compatible
+servers share that shape; a bare list of IDs also works); picking one writes
+it into the setting. The list loads by itself once the connection's endpoint
+and token are saved, each connection keeps its own list, and the token never
+reaches the sandbox.
 
 `once.request(id, { method?, headers?, query?, body? }, context?)` returns
 `{ status, headers, text }`, including HTTP error statuses. Only GET/POST are

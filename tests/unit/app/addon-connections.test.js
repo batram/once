@@ -62,3 +62,23 @@ test("cancelled operations never begin, oversized responses fail, transport erro
   const broken = fixture(async () => { throw new Error("server echoed secret") }).connections
   await assert.rejects(broken.request(manifest, options, "provider", {}), error => !error.message.includes("secret"))
 })
+
+test("the model list is read from the connection's own origin with its credential", async () => {
+  const listing = { id: "example-addon", connections: [{ id: "provider", endpoint: "endpoint", secret: "token", auth: "x-api-key", models: "models" }, { id: "plain", endpoint: "endpoint" }] }
+  let received
+  const { connections } = fixture(async (url, init) => {
+    received = { url, init }
+    return new Response(JSON.stringify({ data: [{ id: "claude-opus-5-5", display_name: "Claude Opus 5.5" }, { id: "claude-haiku-5-5" }] }), { headers: { "content-type": "application/json" } })
+  })
+  await connections.save(listing.id, "token", options.endpoint, "abc-secret")
+  const models = await connections.models(listing, options, "provider")
+  assert.equal(received.url, "https://api.example.test/v1/models")
+  assert.equal(received.init.method, "GET")
+  assert.equal(received.init.headers.get("x-api-key"), "abc-secret")
+  assert.equal(received.init.headers.get("anthropic-version"), "2023-06-01")
+  assert.deepEqual(models, [{ id: "claude-haiku-5-5", name: "" }, { id: "claude-opus-5-5", name: "Claude Opus 5.5" }])
+  await assert.rejects(connections.models(listing, options, "plain"), /does not list/)
+  const refused = fixture(async () => new Response("{}", { status: 401 })).connections
+  await refused.save(listing.id, "token", options.endpoint, "abc-secret")
+  await assert.rejects(refused.models(listing, options, "provider"), /refused the token \(HTTP 401\)/)
+})

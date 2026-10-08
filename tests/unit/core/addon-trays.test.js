@@ -30,6 +30,25 @@ test("invalid tray references, secret defaults and connection schemas are reject
   assert.equal(core.readAddonManifest(changed).ok, false)
 })
 
+test("model lists stay on the endpoint's origin and suggestions must name a connection that has one", () => {
+  const result = core.readAddonManifest(manifest())
+  assert.equal(result.ok, true, JSON.stringify(result.reports))
+  assert.equal(result.manifest.connections.find(item => item.id === "compatible").models, "../models")
+  assert.deepEqual(result.manifest.settings.properties.model.suggestions, { connectionField: "provider" })
+  assert.equal(core.addonModelsUrl("https://api.example.test/v1/chat/completions", "../models"), "https://api.example.test/v1/models")
+  assert.equal(core.addonModelsUrl("https://api.example.test/v1/messages", "models"), "https://api.example.test/v1/models")
+  assert.throws(() => core.addonModelsUrl("https://api.example.test/v1/messages", "https://other.test/models"), /origin/)
+  const bad = (change) => { const value = manifest(); change(value); return core.readAddonManifest(value).ok }
+  assert.equal(bad(value => { value.connections[0].models = "https://other.test/models" }), false)
+  assert.equal(bad(value => { value.settings.properties.model.suggestions = { connection: "youtube" } }), false)
+  assert.equal(bad(value => { value.settings.properties.model.suggestions = { connectionField: "webSearch" } }), false)
+  assert.equal(bad(value => { value.settings.properties.model.suggestions = { connection: "openai", connectionField: "provider" } }), false)
+  assert.equal(bad(value => { value.settings.properties.provider.suggestions = { connection: "openai" } }), false, "an enum cannot take suggestions")
+  assert.deepEqual(core.readAddonModels(JSON.stringify({ data: [{ id: "b", display_name: "B" }, { id: "a" }, { id: "a" }, { id: 3 }] })), [{ id: "a", name: "" }, { id: "b", name: "B" }])
+  assert.deepEqual(core.readAddonModels(JSON.stringify(["z", "y"])), [{ id: "y", name: "" }, { id: "z", name: "" }])
+  assert.throws(() => core.readAddonModels("{}"), /unexpected format/)
+})
+
 test("tray views only allow bounded text and safe source URLs", () => {
   assert.equal(core.readTrayView({ messages: [{ role: "assistant", text: "<script>text</script>" }] }).messages[0].text, "<script>text</script>")
   assert.throws(() => core.readTrayView({ messages: [{ role: "assistant", text: "answer", sources: [{ title: "bad", url: "javascript:alert(1)" }] }] }), /Invalid source/)

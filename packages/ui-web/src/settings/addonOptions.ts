@@ -1,5 +1,5 @@
 import { OnceClient } from "@once/app"
-import { AddonEntry, ConfigSchema, validateConfig } from "@once/core"
+import { AddonEntry, AddonModel, ConfigSchema, validateConfig } from "@once/core"
 import { requireElement } from "../dom"
 import { createSchemaControl } from "./schemaControls"
 import { addonButton, addonHead } from "./addonManagement"
@@ -26,13 +26,16 @@ export interface DevAddonControls {
   directory: string
   /** Identity of the folder's current files: the actions below capture them, so the page redraws when they change. */
   files?: string
+  /** Shadowed: the folder's manifest version, and whether the installed copy already holds the folder's files. */
+  version?: string
+  upToDate?: boolean
   unload?: () => Promise<void>
-  /** Folder: saves the folder's files as an installed, synced copy. */
-  install?: () => Promise<void>
+  /** Folder: saves the folder's files as an installed, synced copy. A returned sentence is shown as the outcome. */
+  install?: () => Promise<string | undefined>
   /** Shadowed: overwrites the installed copy with the folder's files, keeping its settings. */
-  replace?: () => Promise<void>
+  replace?: () => Promise<string | undefined>
   /** Shadowed: removes the installed copy so the folder runs. */
-  useFolder?: () => Promise<void>
+  useFolder?: () => Promise<string | undefined>
 }
 
 export function devAddonEnabled(id: string): boolean {
@@ -87,7 +90,7 @@ function settingsGroup(client: OnceClient, entry: AddonEntry, dev: boolean, cont
   group.append(legend)
   // The list row names the source: a folder by its name, an ignored folder beside what runs instead.
   if (dev) group.dataset.addonOrigin = controls ? `Linked folder ${folderName(controls.directory)} · this device` : "Linked folder · this device"
-  else if (controls?.kind === "shadowed") group.dataset.addonOrigin = `${addonOrigin(entry)} · linked folder ignored`
+  else if (controls?.kind === "shadowed") group.dataset.addonOrigin = `${addonOrigin(entry)} · folder linked`
   if (dev) {
     // A folder add-on has no installed row, so its page head is built here, the same way.
     const toggle = addonButton(devAddonEnabled(manifest.id) ? "Disable" : "Enable", () => {
@@ -139,7 +142,8 @@ function settingsGroup(client: OnceClient, entry: AddonEntry, dev: boolean, cont
     }
     const field = property.format === "secret"
       ? secretField(client, entry, name, values, dev)
-      : optionField(manifest.id, name, property, values[name], value => save(name, value))
+      : optionField(manifest.id, name, property, values[name], value => save(name, value),
+        property.suggestions ? modelSuggestions(client, entry, property.suggestions, values, dev) : undefined)
     if (!field) continue
     fields.push({ element: field, schema: property })
     group.append(field)
@@ -186,10 +190,18 @@ function sourceCard(entry: AddonEntry, dev: boolean, controls?: DevAddonControls
     path.textContent = text
     after.after(path)
   }
-  const action = (label: string, hint: string, run: () => Promise<void> | void, testid: string, primary = false): void => {
+  const action = (label: string, hint: string, run: () => Promise<unknown> | unknown, testid: string, primary = false): void => {
     const item = document.createElement("div")
     item.className = "addon_source_action"
-    const button = addonButton(label, run)
+    // An action that worked says what it did; silence after a click reads as nothing having happened.
+    const button = addonButton(label, async () => {
+      status.textContent = ""
+      status.dataset.tone = "ok"
+      try {
+        const outcome = await run()
+        if (typeof outcome === "string") status.textContent = outcome
+      } catch (error) { status.dataset.tone = "error"; throw error }
+    })
     button.dataset.testid = testid
     if (primary) button.classList.add("addon_primary_action")
     const help = document.createElement("p")
@@ -199,21 +211,27 @@ function sourceCard(entry: AddonEntry, dev: boolean, controls?: DevAddonControls
     actions.append(item)
   }
   if (controls?.kind === "shadowed") {
-    // What runs first, then the folder that does not: one card, the folder as its notice.
-    card.classList.add("addon_source--attention")
+    // The installed copy runs; the linked folder is where its updates come
+    // from. One card says both, and only a folder with newer files asks for
+    // anything.
     summary.textContent = addonOriginSentence(entry)
-    const notice = document.createElement("p")
-    notice.className = "addon_source_notice"
-    notice.textContent = "A linked folder with the same ID is being ignored, so edits in it change nothing:"
-    summary.after(notice)
-    location(controls.directory, notice)
-    if (controls.useFolder) action("Use the folder instead", "Removes the installed copy with its settings and tokens; the folder then runs and reloads on edits.", controls.useFolder, "addon-source-use-folder", true)
-    if (controls.replace) action("Update installed copy from folder", "Overwrites the installed copy with the folder's current files and keeps its settings and tokens. Needs add-on sync.", controls.replace, "addon-source-replace")
+    const folder = document.createElement("p")
+    folder.className = "addon_source_folder"
+    folder.dataset.testid = "addon-source-folder"
+    const version = controls.version ? ` (${controls.version})` : ""
+    folder.textContent = controls.upToDate
+      ? `Linked folder, up to date: the installed copy holds its current files${version}.`
+      : `Linked folder with newer files${version}: the installed copy does not have them yet.`
+    if (!controls.upToDate) card.classList.add("addon_source--update")
+    summary.after(folder)
+    location(controls.directory, folder)
+    if (controls.replace && !controls.upToDate) action("Update installed copy from folder", "Replaces the installed copy's files with the folder's. Settings and tokens stay. Needs add-on sync.", controls.replace, "addon-source-replace", true)
+    if (controls.useFolder) action("Run from the folder instead", "Runs the folder directly on this device, reloading when you save, without sync. Settings and tokens carry over; the installed copy is removed.", controls.useFolder, "addon-source-use-folder")
     if (controls.unload) action("Unload folder", "Forgets the folder link. The files stay where they are.", controls.unload, "addon-source-unload")
   } else if (dev) {
     summary.textContent = "Runs from a linked folder on this device and reloads when you save. Nothing about it is synced."
     if (controls) location(controls.directory)
-    if (controls?.install) action("Install this version", "Saves the folder's current files as an installed copy, synced to your devices with add-on sync, then unloads the folder.", controls.install, "addon-source-install", true)
+    if (controls?.install) action("Install this version", "Saves the folder's current files as an installed copy, synced to your devices with add-on sync. The folder stays linked, so the installed copy can be updated from it later.", controls.install, "addon-source-install", true)
     if (controls?.unload) action("Unload folder", "Stops running the addon from this folder. The files and its local settings stay.", controls.unload, "addon-source-unload")
   } else if (entry.source) {
     summary.textContent = addonOriginSentence(entry)
@@ -227,22 +245,121 @@ function sourceCard(entry: AddonEntry, dev: boolean, controls?: DevAddonControls
   return card
 }
 
-function optionField(addon: string, name: string, property: ConfigSchema, value: unknown, save: (value: unknown) => Promise<void>): HTMLElement | null {
+function optionField(addon: string, name: string, property: ConfigSchema, value: unknown, save: (value: unknown) => Promise<void>,
+  suggestions?: (input: HTMLInputElement) => HTMLElement[]): HTMLElement | null {
   const control = createSchemaControl(property, value, { id: `addon_option_${addon}_${name}`, testid: `addon-option-${addon}-${name}`, json: true })
   if (!control) return null
   const field = fieldShell(property, name, control.input.id)
   const status = document.createElement("span")
   status.setAttribute("role", "status")
   const commit = async () => {
-    try { await save(control.read()); delete control.input.dataset.dirty; status.textContent = "Saved" }
-    catch (error) { status.textContent = error instanceof Error ? error.message : String(error) }
+    try {
+      await save(control.read())
+      delete control.input.dataset.dirty
+      status.textContent = "Saved"
+      window.dispatchEvent(new CustomEvent<OptionSaved>(OPTION_SAVED_EVENT, { detail: { addon, field: name } }))
+    } catch (error) { status.textContent = error instanceof Error ? error.message : String(error) }
   }
   control.input.addEventListener("input", () => { control.input.dataset.dirty = "true"; status.textContent = "Unsaved" })
   control.input.addEventListener("change", () => { void commit() })
   field.append(control.input)
   if ("default" in property && property.default !== undefined) field.append(resetToDefault(field, control, property.default, commit))
   field.append(status)
+  if (suggestions && control.input instanceof HTMLInputElement) field.append(...suggestions(control.input))
   return field
+}
+
+/** An option or token of an add-on was saved from its page; the fields that depend on it listen. */
+const OPTION_SAVED_EVENT = "once:addon-option-saved"
+interface OptionSaved { addon: string; field: string; token?: true }
+/** The select entry that hands the model field back to typing. */
+const OTHER_MODEL = "\u0000other"
+
+/**
+ * The provider's own model list behind a text setting: once loaded, a select
+ * stands in for the input, with "Other…" bringing the input back for a model
+ * the list does not name. The list comes from the connection the setting
+ * names (or the one named by another setting, such as a provider choice), and
+ * until one is loaded the setting stays a plain text field. Each connection keeps its own
+ * list, so switching provider shows that provider's models, not the last
+ * ones loaded. The list loads by itself once the connection's endpoint and
+ * token are saved, and again on the Load models button.
+ */
+function modelSuggestions(client: OnceClient, entry: AddonEntry, source: NonNullable<ConfigSchema["suggestions"]>,
+  values: Record<string, unknown>, localOnly: boolean): (input: HTMLInputElement) => HTMLElement[] {
+  const lists = new Map<string, AddonModel[]>()
+  return input => {
+    const picker = document.createElement("select")
+    picker.id = `${input.id}_models`
+    picker.dataset.testid = `${input.dataset.testid}-models`
+    picker.setAttribute("aria-label", "Models the provider offers")
+    const status = document.createElement("span")
+    status.setAttribute("role", "status")
+    status.className = "addon_option_models_status"
+    const connection = () => {
+      const id = source.connection ?? String(values[source.connectionField ?? ""] ?? "")
+      return entry.manifest.connections?.find(item => item.id === id)
+    }
+    // One control at a time: the select once a list is loaded, the text field
+    // only for a model the list does not name (chosen through "Other…").
+    const show = () => {
+      const current = connection()
+      const models = (current && lists.get(current.id)) ?? []
+      const other = document.createElement("option")
+      other.value = OTHER_MODEL
+      other.textContent = "Other model ID…"
+      picker.replaceChildren(...models.map(model => {
+        const option = document.createElement("option")
+        option.value = model.id
+        option.textContent = model.name ? `${model.id} — ${model.name}` : model.id
+        return option
+      }), other)
+      picker.hidden = !models.length
+      const listed = models.some(model => model.id === input.value)
+      choose(listed ? input.value : OTHER_MODEL)
+      input.hidden = listed
+    }
+    const choose = (value: string) => { for (const option of picker.querySelectorAll("option")) option.selected = option.value === value }
+    const load = async (quiet = false) => {
+      const current = connection()
+      if (!current?.models) { if (!quiet) status.textContent = "This provider does not list its models."; return }
+      status.textContent = "Loading models…"
+      try {
+        const models = await client.listAddonModels(entry.manifest, values, current.id, localOnly)
+        lists.set(current.id, models)
+        show()
+        status.textContent = models.length ? `${models.length} models listed.` : "The provider listed no models."
+      } catch (error) { status.textContent = error instanceof Error ? error.message : String(error) }
+    }
+    // Loads on its own only when the connection can answer: endpoint set and, where one is declared, a token saved for it.
+    const loadIfReady = async () => {
+      const current = connection()
+      if (!current?.models || lists.has(current.id) || !String(values[current.endpoint] ?? "").trim()) return
+      const ready = !current.secret || await client.hasAddonSecret(entry.manifest.id, current.secret, String(values[current.endpoint]), localOnly).catch(() => false)
+      if (ready) await load(true)
+    }
+    picker.addEventListener("change", () => {
+      if (picker.value === OTHER_MODEL) { input.hidden = false; input.focus(); return }
+      input.hidden = true
+      input.value = picker.value
+      input.dispatchEvent(new Event("input"))
+      input.dispatchEvent(new Event("change"))
+    })
+    const saved = (event: Event) => {
+      if (!picker.isConnected) { window.removeEventListener(OPTION_SAVED_EVENT, saved); return }
+      const detail = (event as CustomEvent<OptionSaved>).detail
+      if (detail.addon !== entry.manifest.id) return
+      const current = connection()
+      if (detail.field === source.connectionField) { show(); void loadIfReady() }
+      else if (current && (detail.field === current.endpoint || (detail.token && detail.field === current.secret))) { lists.delete(current.id); show(); void loadIfReady() }
+    }
+    window.addEventListener(OPTION_SAVED_EVENT, saved)
+    const button = addonButton("Load models", () => load())
+    button.dataset.testid = `${input.dataset.testid}-load-models`
+    show()
+    void loadIfReady()
+    return [picker, button, status]
+  }
 }
 
 /**
@@ -309,6 +426,7 @@ function secretField(client: OnceClient, entry: AddonEntry, name: string, values
       if (value) await refresh()
       else status.textContent = "Token cleared"
       window.dispatchEvent(new CustomEvent(DEV_OPTIONS_EVENT, { detail: entry.manifest.id }))
+      window.dispatchEvent(new CustomEvent<OptionSaved>(OPTION_SAVED_EVENT, { detail: { addon: entry.manifest.id, field: name, token: true } }))
     } catch (error) { status.textContent = error instanceof Error ? error.message : String(error) }
   }
   field.append(input, addonButton("Save token", () => save(input.value)), addonButton("Clear token", () => save("")), status)

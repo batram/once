@@ -227,6 +227,11 @@ export interface OnceClient {
   requestAddonConnection(manifest: import("@once/core").AddonManifest, options: Record<string, unknown>, connection: string,
     request: import("@once/core").AddonRequest, signal?: AbortSignal, localOnly?: boolean,
     onChunk?: (text: string) => void): Promise<import("@once/core").AddonResponse>
+  /** Copies an add-on's synced tokens into this device's own secret store, so they outlive the synced copy's removal here. */
+  localizeAddonSecrets(addon: string): Promise<void>
+  /** The models a connection's provider lists, for the settings form; `options` carry the endpoint as typed there. */
+  listAddonModels(manifest: import("@once/core").AddonManifest, options: Record<string, unknown>, connection: string,
+    localOnly?: boolean): Promise<import("@once/core").AddonModel[]>
   getCacheTime(): Promise<number>
   setCacheTime(cacheTime: string): Promise<void>
   getCacheTiming(): Promise<CacheTimingDocument>

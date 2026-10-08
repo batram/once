@@ -313,7 +313,7 @@ export function providerRequest(settings, prompt, context, messages, nativeSearc
     headers["anthropic-version"] = "2023-06-01"
     if (settings.workspace) headers["anthropic-workspace-id"] = settings.workspace
     payload = { model, system: prompt, messages: grounded, max_tokens: 2048,
-      ...(nativeSearch ? { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }] } : {}), ...(stream ? { stream } : {}) }
+      ...(nativeSearch ? { tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }] } : {}), ...(stream ? { stream } : {}) }
   } else {
     payload = { model, messages: [{ role: "system", content: prompt }, ...grounded], max_tokens: 2048, stream }
   }
