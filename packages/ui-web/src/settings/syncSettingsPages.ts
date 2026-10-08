@@ -9,6 +9,13 @@ export const SYNC_PAGE_SHOWN = "once:sync-page-shown"
 
 /** Asks Settings › Sync to show one of its pages, from anywhere in the shell. */
 export const SYNC_PAGE_EVENT = "once:sync-page"
+/**
+ * What the event asks for: a page, or a page that takes the current visit's
+ * place in the settings history. A jump from elsewhere switches to Sync
+ * first and then names its page; with `replace` that reads as one step, so
+ * Back returns to where the jump was made.
+ */
+export type SyncPageRequest = SyncPage | { page: SyncPage; replace?: boolean }
 
 /**
  * Settings › Sync as pages: the overview (connection, this device, links)
@@ -30,12 +37,12 @@ export function bindSyncSettingsPages(root: HTMLElement, onShow: (page: SyncPage
     if (!active()) return
     title.textContent = current === "overview" ? "Sync" : pages.get(current)?.dataset.syncTitle ?? "Sync"
   }
-  const show = (target: SyncPage, focus = true) => openSettingsPage(root, {
+  const show = (target: SyncPage, focus = true, replace = false) => openSettingsPage(root, {
     key: target,
     title: () => target === "overview" ? "Sync" : pages.get(target)?.dataset.syncTitle ?? "Sync",
     show: () => render(target, focus),
     valid: () => pages.has(target)
-  })
+  }, false, replace)
   const render = (target: SyncPage, focus = true) => {
     if (!pages.has(target)) return
     if (current === "overview" && target !== "overview") {
@@ -65,7 +72,11 @@ export function bindSyncSettingsPages(root: HTMLElement, onShow: (page: SyncPage
     const details = target?.closest("details")
     if (details) details.open = true
   })
-  document.addEventListener(SYNC_PAGE_EVENT, (event) => show((event as CustomEvent<SyncPage>).detail))
+  document.addEventListener(SYNC_PAGE_EVENT, (event) => {
+    const detail = (event as CustomEvent<SyncPageRequest>).detail
+    if (typeof detail === "string") show(detail)
+    else show(detail.page, true, detail.replace === true)
+  })
   let wasActive = false
   new MutationObserver(() => {
     const isActive = active()

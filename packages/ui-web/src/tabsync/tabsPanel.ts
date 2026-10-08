@@ -1,6 +1,6 @@
 import type { OnceClient } from "@once/app"
 import { mountRemoteTabs, RemoteTabsPort } from "./RemoteTabsView"
-import { SYNC_PAGE_EVENT, type SyncPage } from "../settings/syncSettingsPages"
+import { SYNC_PAGE_EVENT, type SyncPage, type SyncPageRequest } from "../settings/syncSettingsPages"
 
 /** The view's port over the app client, for shells that run the app themselves. */
 export function clientRemoteTabsPort(client: OnceClient): RemoteTabsPort {
@@ -26,11 +26,11 @@ export function clientRemoteTabsPort(client: OnceClient): RemoteTabsPort {
   }
 }
 
-/** Shows Settings › Sync, or one of its pages: Tab sync from the tabs list. */
+/** Shows Settings › Sync, or one of its pages: Tab sync from the tabs list. One step, so Back leaves Settings again. */
 export function openSyncSettings(page: SyncPage = "overview"): void {
   document.querySelector<HTMLElement>("#settings_menu_btn")?.click()
   document.querySelector<HTMLButtonElement>("[data-settings-target=\"sync\"]")?.click()
-  document.dispatchEvent(new CustomEvent<SyncPage>(SYNC_PAGE_EVENT, { detail: page }))
+  if (page !== "overview") document.dispatchEvent(new CustomEvent<SyncPageRequest>(SYNC_PAGE_EVENT, { detail: { page, replace: true } }))
 }
 
 /**

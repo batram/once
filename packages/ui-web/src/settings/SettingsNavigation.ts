@@ -44,10 +44,15 @@ export function registerSettingsOverview(root: HTMLElement, show: () => void): v
   overviews.set(document, views)
 }
 
-/** Open a page through the shared history, including search and deep links. */
-export function openSettingsPage(root: HTMLElement, page: SettingsPage, alreadyShown = false): void {
+/**
+ * Open a page through the shared history, including search and deep links.
+ * `replace` makes the page take the current visit's place instead of adding
+ * one: a link that first switches section and then opens a page within it
+ * is one step to the reader, and Back must go to where the link was.
+ */
+export function openSettingsPage(root: HTMLElement, page: SettingsPage, alreadyShown = false, replace = false): void {
   const navigation = navigations.get(document)
-  if (navigation) navigation.openPage(root, page, alreadyShown)
+  if (navigation) navigation.openPage(root, page, alreadyShown, replace)
   else if (!alreadyShown) page.show()
 }
 
@@ -97,20 +102,20 @@ export class SettingsNavigation {
 
   open(section: string | null): void { this.visit({ section }) }
 
-  openPage(root: HTMLElement, page: SettingsPage, alreadyShown = false): void {
+  openPage(root: HTMLElement, page: SettingsPage, alreadyShown = false, replace = false): void {
     const section = root.closest<HTMLElement>("[data-settings-section]")?.dataset.settingsSection
     if (!section) { if (!alreadyShown) page.show(); return }
-    this.visit({ section, root, page }, alreadyShown)
+    this.visit({ section, root, page }, alreadyShown, replace)
   }
 
-  private visit(next: Visit, alreadyShown = false): void {
+  private visit(next: Visit, alreadyShown = false, replace = false): void {
     if (!this.valid(next)) return
     if (next.section === this.current.section && next.root === this.current.root && next.page?.key === this.current.page?.key) {
       this.updateBack()
       return
     }
     this.capture()
-    this.backHistory.push(this.current)
+    if (!replace) this.backHistory.push(this.current)
     this.forwardHistory = []
     this.apply(next, alreadyShown)
   }

@@ -1,5 +1,5 @@
 import { requireClosestElement } from "../dom"
-import { SYNC_PAGE_EVENT, type SyncPage } from "./syncSettingsPages"
+import { SYNC_PAGE_EVENT, type SyncPageRequest } from "./syncSettingsPages"
 
 export function addonPageAction(text: string, testid: string, run: () => void): HTMLButtonElement {
   const button = document.createElement("button")
@@ -29,10 +29,11 @@ function addonSyncNote(): HTMLElement[] {
   link.className = "settings_inline_link"
   link.dataset.testid = "open-addon-sync"
   link.textContent = "Add-on sync settings"
-  // Already in Settings: switch section, without the menu button that toggles the panel.
+  // Already in Settings: switch section, without the menu button that toggles
+  // the panel, and open the page in that visit's place so Back comes back here.
   link.addEventListener("click", () => {
     document.querySelector<HTMLButtonElement>("[data-settings-target=\"sync\"]")?.click()
-    document.dispatchEvent(new CustomEvent<SyncPage>(SYNC_PAGE_EVENT, { detail: "addons" }))
+    document.dispatchEvent(new CustomEvent<SyncPageRequest>(SYNC_PAGE_EVENT, { detail: { page: "addons", replace: true } }))
   })
   const status = document.createElement("span")
   const state = document.createElement("span")
