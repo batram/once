@@ -41,7 +41,6 @@ export function bindMenuCollapseControls(
       else {
         collapsedByButton = true
         setMenuCollapsed(menu, true)
-        reflectButtons(true)
         announceCollapsed?.(true)
       }
     }
@@ -60,10 +59,7 @@ export function bindMenuCollapseControls(
 function expand(menu: HTMLElement): void {
   setMenuCollapsed(menu, false)
   store(COLLAPSED_KEY, null)
-  if (collapsedByButton) {
-    reflectButtons(false)
-    announceCollapsed?.(false)
-  }
+  if (collapsedByButton) announceCollapsed?.(false)
   collapsedByButton = false
 }
 
@@ -170,13 +166,4 @@ function store(key: string, value: string | null): void {
 
 function setMenuCollapsed(menu: HTMLElement, collapsed: boolean): void {
   menu.classList.toggle("collapse", collapsed)
-}
-
-// The buttons show the state they control: the whole sidebar. A menu folded
-// by a drag leaves them pointing the way they did.
-function reflectButtons(collapsed: boolean): void {
-  document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((element) => {
-    element.classList.toggle("collapsebutton--collapsed", collapsed)
-    element.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar")
-  })
 }

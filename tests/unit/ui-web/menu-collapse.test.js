@@ -75,19 +75,9 @@ test("collapse controls toggle the menu and notify their host", () => {
 
     controls[0].click()
     assert.ok(menu.classList.contains("collapse"))
-    assert.ok(controls.every((control) => control.classList.contains("collapsebutton--collapsed")))
-    assert.deepEqual(
-      controls.map((control) => control.getAttribute("aria-label")),
-      ["Expand sidebar", "Expand sidebar"]
-    )
 
     document.querySelector(".sidebar_panel").click()
     assert.ok(!menu.classList.contains("collapse"))
-    assert.ok(controls.every((control) => !control.classList.contains("collapsebutton--collapsed")))
-    assert.deepEqual(
-      controls.map((control) => control.getAttribute("aria-label")),
-      ["Collapse sidebar", "Collapse sidebar"]
-    )
 
     controls[1].click()
     expandMenu()
@@ -108,10 +98,6 @@ test("a drag folds the menu alone, without telling the host", () => {
     pointer(handle, "pointermove", MENU_WIDTH.min - FOLD_SLACK - 1)
     pointer(handle, "pointerup", MENU_WIDTH.min - FOLD_SLACK - 1)
     assert.ok(menu.classList.contains("collapse"))
-    assert.ok(
-      controls.every((control) => !control.classList.contains("collapsebutton--collapsed")),
-      "the buttons keep pointing the sidebar's way"
-    )
     document.querySelector(".sidebar_panel").click()
     assert.ok(!menu.classList.contains("collapse"))
     assert.deepEqual(changes, [])

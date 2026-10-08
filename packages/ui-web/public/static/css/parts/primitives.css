@@ -249,10 +249,6 @@
   color: var(--text-muted-color);
 }
 
-.collapsebutton--collapsed .collapsebutton_icon {
-  transform: rotate(180deg);
-}
-
 /**
  * Help tip: a setting's longer explanation behind a (?) beside its name
  * (helpTip.ts). The button is a quiet glyph until hovered or focused; the
