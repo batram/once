@@ -11,9 +11,11 @@
  * behaviour. `openStoryAnchoredMenu` is the story-specific wrapper over it.
  */
 
+import type { StoryListItem } from "../story/StoryListItem"
 import {
   describeStoryMenu,
   executeStoryMenuAction,
+  StoryMenuActionId,
   StoryMenuContext
 } from "./storyContextMenu"
 
@@ -32,6 +34,8 @@ export interface StoryAnchoredMenuOptions {
    */
   bottomInset?: number
   onClose?: () => void
+  /** Runs the chosen item in place of executeStoryMenuAction, for a shell that routes some itself. */
+  execute?: (id: StoryMenuActionId, story: StoryListItem | undefined) => void | Promise<void>
 }
 
 /** One row of a generic anchored menu. */
@@ -66,6 +70,7 @@ export function openStoryAnchoredMenu(
   options: StoryAnchoredMenuOptions
 ): void {
   const story = options.context.story
+  const execute = options.execute ?? executeStoryMenuAction
   openAnchoredMenu({
     anchor: options.anchor,
     bottomInset: options.bottomInset,
@@ -77,7 +82,7 @@ export function openStoryAnchoredMenu(
         label: item.label,
         enabled: item.enabled,
         testid: `story-menu-${item.id}`,
-        select: () => void executeStoryMenuAction(item.id, story)
+        select: () => void execute(item.id, story)
       }))
   })
 }

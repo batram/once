@@ -54,6 +54,16 @@ const actions = new Map<string, RegisteredPageAction>()
 const trays = new Map<string, (href: string) => HTMLElement | null>()
 let placementAvailable = false
 
+let pageTrayScope = ""
+
+/**
+ * Which of the host's page views the page trays belong to: a shell with
+ * several reading tabs opens and closes a tray in each on its own. One view,
+ * one scope; the default suits a shell with a single reading surface.
+ */
+export function setPageTrayScope(scope: string): void { pageTrayScope = scope }
+export function currentPageTrayScope(): string { return pageTrayScope }
+
 export function setConversationPlacementAvailable(available: boolean): void { placementAvailable = available }
 export function canChooseConversationPlacement(): boolean { return placementAvailable }
 

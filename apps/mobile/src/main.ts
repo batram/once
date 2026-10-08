@@ -23,6 +23,7 @@ import { bindMobileBrowserExtensionSettings } from "./browserExtensionSettings"
 import { bindMobileExtensionToolbar } from "./browserExtensionToolbar"
 import { bindExtensionPageFrame } from "./extensionPageFrame"
 import { attachEdgeSwipe } from "./edgeSwipe"
+import { attachTraySwipe } from "./traySwipe"
 import { mobileAddonConversations } from "./addonConversations"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import { installReaderTtsControls } from "./readerTtsControls"
@@ -54,6 +55,9 @@ function mountTouchNavigation(reading: MobileReadingController): void {
   // Touch has no keyboard shortcut, no mouse back button and no room left on
   // the back gesture, so undo needs a control of its own.
   UndoButton.mount()
+  // A tray is swiped like a row: left closes it, right continues its
+  // conversation in a new tab.
+  attachTraySwipe()
   // The mobile header suppresses the button's label, so the icon needs a name.
   document.querySelector<HTMLButtonElement>("#settings_section_back")
     ?.setAttribute("aria-label", "Back")
@@ -230,7 +234,8 @@ async function startMobileApp(): Promise<void> {
     nativeBridge.openExternal(url)
   )
   const navigationListeners = captureNavigationListeners(browserSurface)
-  installStoryMenu(browserSurface)
+  // The reading card's menu opens a tray above the page, in that tab.
+  installStoryMenu(browserSurface, (id, anchor) => anchor.id === "reading_story_menu" && reading.addonTrays.toggle(id))
   const reader = new ReaderDocumentHost(
     document.querySelector<HTMLElement>("#reading_content") ?? document.body,
     new URL("reader-runtime.js", document.baseURI).href

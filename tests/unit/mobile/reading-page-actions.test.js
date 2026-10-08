@@ -22,7 +22,7 @@ test("mobile menu actions render for direct, comments, redirected and unlisted p
   }
   const content = document.createElement("div")
   document.body.append(content)
-  const reading = new (load("readingAddonTrays.ts").ReadingAddonTrays)(content, () => {})
+  const reading = new (load("readingAddonTrays.ts").ReadingAddonTrays)(content, { activeId: null, subscribe: () => () => {} }, () => {})
   const row = document.createElement("story-item")
   row.story = { href: "https://article.test/", comment_url: "https://forum.test/comments", title: "Listed", type: "HN" }
   row.dataset.redirected_url = "https://mirror.test/"

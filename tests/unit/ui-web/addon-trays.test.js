@@ -206,6 +206,52 @@ test("the open story's mirror row shares the conversation but opens its tray on 
   } finally { trays.dispose(); global.document = previous; global.CustomEvent = previousCustomEvent }
 })
 
+test("the list and each page view open a story's tray on their own, and a moving continue carries it over", async () => {
+  const previous = global.document
+  const previousCustomEvent = global.CustomEvent
+  const { document, CustomEvent } = parseHTML('<html><body><div id="stories"></div><div id="host"></div></body></html>')
+  global.document = document
+  global.CustomEvent = CustomEvent
+  const { AddonTrays } = require("../../../packages/ui-web/dist/addons/AddonTrays")
+  const { renderPageTrays, setPageTrayScope } = require("../../../packages/ui-web/dist/addons/pageAddons")
+  let calls = 0
+  const continued = []
+  const surface = { label: "Continue in new tab", moves: true, open: handle => { setPageTrayScope("tab-2"); handle.showOnPage(); continued.push(handle.snapshot().story.href) } }
+  const trays = new AddonTrays({ id: "example", trays: [{ id: "assistant", title: "Assistant" }] }, {
+    ensure: async () => ({ tray: async () => { calls++; return { messages: [{ role: "assistant", text: "Shared answer" }] } } })
+  }, surface)
+  const row = document.createElement("story-item")
+  row.story = { href: "https://story.test/", title: "Title", type: "HN" }
+  document.querySelector("#stories").append(row)
+  const host = document.querySelector("#host")
+  const shown = scope => { setPageTrayScope(scope); renderPageTrays("https://story.test/", host); return host.querySelectorAll(".addon_tray").length }
+  try {
+    trays.toggle(row, "assistant")
+    await new Promise(resolve => setImmediate(resolve))
+    // Open in the list is not open above the page.
+    assert.equal(shown("tab-1"), 0)
+    setPageTrayScope("tab-1")
+    trays.togglePage({ href: "https://story.test/" }, "assistant")
+    assert.equal(shown("tab-1"), 1)
+    assert.equal(shown("tab-2"), 0)
+    // Closing it above the page leaves the list's open.
+    shown("tab-1")
+    host.querySelector('button[aria-label="Close"]').click()
+    assert.equal(shown("tab-1"), 0)
+    assert.equal(row.querySelectorAll(".addon_tray").length, 1)
+    // The page's tray offers no continue: it is already on the page.
+    trays.togglePage({ href: "https://story.test/" }, "assistant")
+    assert.equal(shown("tab-1"), 1)
+    assert.equal(host.querySelector('[data-testid="addon-tray-continue"]'), null)
+    row.querySelector('[data-testid="addon-tray-continue"]').click()
+    assert.deepEqual(continued, ["https://story.test/"])
+    assert.equal(row.querySelectorAll(".addon_tray").length, 0)
+    assert.equal(shown("tab-2"), 1)
+    assert.equal(shown("tab-1"), 1)
+    assert.equal(calls, 1)
+  } finally { trays.dispose(); setPageTrayScope(""); global.document = previous; global.CustomEvent = previousCustomEvent }
+})
+
 test("titled messages fold behind disclosures whose state outlives a redraw and ends with the conversation", async () => {
   const previous = global.document
   const previousCustomEvent = global.CustomEvent

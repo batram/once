@@ -6,14 +6,18 @@ import type { StoryListItem } from "../story/StoryListItem"
 import { registerStoryElement, STORY_TRAYS_CHANGED } from "../story/storyElements"
 import { getOnceClient } from "../client"
 import { AddonSandbox } from "./AddonSandbox"
-import { AddonPage, pageStoryRow, pageStoryView, registerPageTray } from "./pageAddons"
+import { AddonPage, currentPageTrayScope, pageStoryRow, pageStoryView, registerPageTray } from "./pageAddons"
 import { TrayDisclosures, renderTrayMessages, renderTrayStatus, trayButton, trayIcon } from "./trayMessages"
 
 /**
  * Where a tray shows: on a row in the list, on the mirror of the open story
- * in #selected_container, or beside a page that has no row at all.
+ * in #selected_container, or above a page in the reading surface. Each page
+ * view the host keeps (a mobile reading tab) is a place of its own.
  */
-type TrayPlace = "list" | "selected" | "page"
+type TrayPlace = "list" | "selected" | `page:${string}`
+
+function pagePlace(): TrayPlace { return `page:${currentPageTrayScope()}` }
+function isPagePlace(place: TrayPlace): boolean { return place.startsWith("page:") }
 
 interface TrayState {
   /** The conversation is one per story; which places show it is the reader's choice per place. */
@@ -40,11 +44,15 @@ export interface AddonConversationHandle {
   /** Null tells the surface the conversation is gone (the addon was reset, disabled or removed). */
   subscribe(listener: (snapshot: AddonConversationSnapshot | null) => void): () => void
   send(command: AddonConversationCommand): void
+  /** Opens the conversation's tray above the page the host is showing now, in its current page view. */
+  showOnPage(): void
 }
 
 /** A platform's way of continuing a tray somewhere larger, offered as a tray button. */
 export interface AddonConversationSurface {
   label: string
+  /** Continuing moves the tray rather than copying it: it closes where it was continued from. */
+  moves?: boolean
   open(handle: AddonConversationHandle): void
   /** The story behind a conversation page's URL, so the shell can treat that page as the story it is about. */
   storyHref?(url: string): string | null
@@ -79,12 +87,13 @@ export class AddonTrays {
   }
 
   /**
-   * Opens or closes the reading host's tray. Listed pages and their aliases
-   * share the story's conversation, with visibility owned by the page host.
+   * Opens or closes the reading host's tray in its current page view. Listed
+   * pages and their aliases share the story's conversation; whether it shows
+   * is up to each place on its own.
    */
   togglePage(page: AddonPage, tray: string): void {
     const href = pageStoryRow(page.href)?.story.href ?? page.href
-    this.togglePlace(this.pageState(page, tray), href, tray, "page")
+    this.togglePlace(this.pageState(page, tray), href, tray, pagePlace())
   }
 
   /**
@@ -141,7 +150,13 @@ export class AddonTrays {
         state.listeners.add(listener)
         return () => { state.listeners.delete(listener) }
       },
-      send: command => this.command(href, tray, command)
+      send: command => this.command(href, tray, command),
+      showOnPage: () => {
+        const state = this.stateFor(href, tray)
+        if (state.open.has(pagePlace())) return
+        state.open.add(pagePlace())
+        this.refresh(href, tray)
+      }
     }
   }
 
@@ -316,9 +331,7 @@ export class AddonTrays {
   }
 
   private renderPage(href: string, tray: string): HTMLElement | null {
-    const row = pageStoryRow(href)
-    // A reading view can also continue a tray opened from a story row.
-    return this.renderPlace(row?.story.href ?? href, tray, "page") ?? (row ? this.render(row, tray) : null)
+    return this.renderPlace(pageStoryRow(href)?.story.href ?? href, tray, pagePlace())
   }
 
   private renderPlace(href: string, tray: string, place: TrayPlace): HTMLElement | null {
@@ -338,9 +351,12 @@ export class AddonTrays {
     header.append(heading)
     // A page's own tray is drawn by the platform's reading surface already,
     // so there is nowhere larger to continue it.
-    if (this.surface && place !== "page") {
+    if (this.surface && !isPagePlace(place)) {
       const surface = this.surface
-      const open = trayButton(surface.label, () => surface.open(this.handleOf(href, tray)))
+      const open = trayButton(surface.label, () => {
+        if (surface.moves) { state.open.delete(place); this.refresh(href, tray) }
+        surface.open(this.handleOf(href, tray))
+      })
       open.dataset.testid = "addon-tray-continue"
       open.prepend(trayIcon("popout", "icon--inline"))
       header.append(open)

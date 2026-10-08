@@ -34,7 +34,7 @@ export class MobileReadingController {
   readonly runtime: ReadingTabRuntime
   /** The tab view; it also lists other devices' tabs once the app runs. */
   readonly tabDialog: ReadingTabDialog
-  private readonly addonTrays: ReadingAddonTrays
+  readonly addonTrays: ReadingAddonTrays
   private readonly content: HTMLElement
   private get nativeReading(): ReadingSurfaceCoordinator { return this.runtime.coordinator }
   get reader(): ReaderDocumentHost { return this.runtime.reader }
@@ -108,7 +108,7 @@ export class MobileReadingController {
     this.runtime = new ReadingTabRuntime(this.tabs, surface, initialReader, this.content,
       () => {
         this.findBar.close()
-        this.addonTrays.close()
+        // Trays stay open: each tab keeps its own (ReadingAddonTrays).
         closeStoryAnchoredMenu()
         this.ttsControls.tabChanged()
         this.editingAddress = false
@@ -116,7 +116,8 @@ export class MobileReadingController {
       },
       direction => { void (direction === "back" ? this.handleBack() : this.handleForward()) },
       message => this.tabDialog.announce(message))
-    this.addonTrays = new ReadingAddonTrays(this.content, open => this.runtime.setCovered("overlay", open))
+    // Built ahead of the runtime's start, so a tab's trays are its own before anything renders in it.
+    this.addonTrays = new ReadingAddonTrays(this.content, this.tabs, open => this.runtime.setCovered("overlay", open))
     this.session = this.runtime.session
     const readerProxy = new Proxy(initialReader, { get: (_target, property) => {
       const value = Reflect.get(this.reader, property)

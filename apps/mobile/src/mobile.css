@@ -489,6 +489,65 @@
     padding: var(--sp-1);
   }
 
+  /* ---------- Tray swipes (traySwipe.ts) ---------- */
+
+  /* Released short of the threshold, the tray settles back into the row. */
+  :is(story-item, #reading_addon_trays) .addon_tray {
+    transition: translate 0.18s ease-out, opacity 0.18s ease-out;
+  }
+
+  :is(story-item, #reading_addon_trays) .addon_tray[data-tray-swipe] {
+    position: relative;
+    translate: var(--tray-swipe-travel, 0) 0;
+    opacity: calc(1 - 0.35 * min(1, var(--tray-swipe-progress, 0)));
+    transition: none;
+  }
+
+  /* A small badge that slides out from behind the edge the tray uncovers —
+     a cross for closing, a pop-out for a new tab — and fills in once a
+     release would commit. */
+  .tray_swipe_indicator {
+    position: absolute;
+    top: var(--tray-swipe-y, 50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    box-sizing: border-box;
+    border: 1.5px solid var(--text-muted-color);
+    border-radius: 50%;
+    color: var(--text-muted-color);
+    opacity: min(1, var(--tray-swipe-progress, 0));
+    transform: translateY(-50%) scale(calc(0.7 + 0.3 * min(1, var(--tray-swipe-progress, 0))));
+    transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+    pointer-events: none;
+  }
+
+  .tray_swipe_indicator .icon {
+    --icon-size: var(--icon-sm);
+  }
+
+  .addon_tray[data-tray-swipe-action="close"] .tray_swipe_indicator {
+    left: calc(100% + var(--sp-2));
+  }
+
+  .addon_tray[data-tray-swipe-action="continue"] .tray_swipe_indicator {
+    right: calc(100% + var(--sp-2));
+  }
+
+  .addon_tray[data-tray-swipe="armed"] .tray_swipe_indicator {
+    border-color: var(--text-high-color);
+    background: var(--text-high-color);
+    color: var(--main-bg-color);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :is(story-item, #reading_addon_trays) .addon_tray {
+      transition: none;
+    }
+  }
+
   .story .star_btn::before,
   .story .star_btn::after {
     inset: 0;
@@ -1599,6 +1658,8 @@
     z-index: 3;
     display: block;
     overflow: auto;
+    /* A tray swiped aside, and its badge, must not scroll the view sideways. */
+    overflow-x: hidden;
     box-sizing: border-box;
     margin: 0;
     padding: var(--sp-1-5);

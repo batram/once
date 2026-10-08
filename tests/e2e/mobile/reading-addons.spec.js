@@ -66,10 +66,12 @@ for (const mode of ["reader", "browser"]) {
     await page.locator("#reading_story_menu").click()
     await page.getByTestId("story-menu").getByText("What? Wait, who, why?", { exact: true }).click()
     await expect(host).toContainText("Developers use it")
+    // The list opens and closes the story's tray on its own; the tab keeps its own open.
     await page.getByTestId("stories-menu").click()
-    await expect(story.getByTestId("addon-tray")).toContainText("Developers use it")
-    await story.getByRole("button", { name: "Close", exact: true }).click()
+    await expect(story.getByTestId("addon-tray")).toHaveCount(0)
     await page.getByTestId("reading-menu").click()
+    await expect(host).toContainText("Developers use it")
+    await triggerMobileBack(page)
     await expect(host).toBeHidden()
   })
 }

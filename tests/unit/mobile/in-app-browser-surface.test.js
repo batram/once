@@ -257,7 +257,7 @@ test("native embedded browsers present menus and prompts above web content", () 
   assert.match(ios, /preferredStyle: \.alert/)
   assert.match(storyMenu, /await surface\.showMenu\(/)
   assert.match(storyMenu, /await surface\.showPrompt\(/)
-  assert.match(storyMenu, /installStoryMenu\(surface\?: InAppBrowserSurface\)/)
+  assert.match(storyMenu, /installStoryMenu\(surface\?: InAppBrowserSurface\b/)
 })
 
 test("visual inspection installs the current app before preserving its state", () => {

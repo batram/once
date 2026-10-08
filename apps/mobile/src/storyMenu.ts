@@ -20,11 +20,15 @@ import {
   StoryMenuRequestEvent
 } from "@once/ui-web"
 
+/** Runs a chosen action itself instead of on the row; false leaves it to the row. */
+type MenuActionRoute = (id: StoryMenuActionId, anchor: HTMLElement) => boolean
+
 const LONG_PRESS_MS = 500
 const MOVE_TOLERANCE_PX = 10
 /** Marks the row while the long-press builds; drives the progress line. */
 const PRESS_CLASS = "press_building"
 let nativeMenuOpen = false
+let route: MenuActionRoute = () => false
 
 /** The tab bar is fixed to the bottom; the menu must never hide behind it. */
 function tabBarHeight(): number {
@@ -37,7 +41,8 @@ function buildChannel(): "release" | "dev" {
   return document.body.dataset.buildChannel === "dev" ? "dev" : "release"
 }
 
-export function installStoryMenu(surface?: InAppBrowserSurface): void {
+export function installStoryMenu(surface?: InAppBrowserSurface, routeAction?: MenuActionRoute): void {
+  if (routeAction) route = routeAction
   document.addEventListener(STORY_MENU_REQUEST, (event) => {
     const request = event as StoryMenuRequestEvent
     if (surface?.available) {
@@ -58,9 +63,15 @@ export function installStoryMenu(surface?: InAppBrowserSurface): void {
   })
 }
 
+function runAction(id: StoryMenuActionId, request: StoryMenuRequestEvent): Promise<void> | void {
+  if (route(id, request.anchor)) return
+  return executeStoryMenuAction(id, request.story)
+}
+
 function openDomStoryMenu(request: StoryMenuRequestEvent): void {
   openStoryAnchoredMenu({
     anchor: request.anchor,
+    execute: id => runAction(id, request),
     bottomInset: tabBarHeight(),
     context: {
       platform: "mobile",
@@ -106,7 +117,7 @@ async function openNativeStoryMenu(
       await showNativeFilterPrompt(surface, request.story)
       return
     }
-    await executeStoryMenuAction(selected, request.story)
+    await runAction(selected, request)
   } catch (error) {
     console.error("Unable to show the native story menu", error)
     usingDomFallback = true
