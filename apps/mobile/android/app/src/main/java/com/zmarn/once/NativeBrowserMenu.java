@@ -87,8 +87,9 @@ final class NativeBrowserMenu {
         dialog.setOnDismissListener(ignored -> { if (settled.compareAndSet(false, true)) call.resolve(); });
         LinearLayout navigation = new LinearLayout(activity);
         boolean open = session != null && session.isOpen();
-        // Squarish tiles like iOS's: an outline icon over a one-line label.
-        int tileHeight = Math.round(76 * density);
+        // Square tiles like iOS's: an outline icon over a one-line label, as tall
+        // as each of the five is wide.
+        int tileHeight = (activity.getResources().getDisplayMetrics().widthPixels - 2 * spacing - 4 * gap) / 5;
         navigation.addView(tile(activity, palette, R.drawable.browser_back, "Back", open && canBack, () -> {
             dialog.dismiss(); back.run();
         }), cell(gap, false, tileHeight));
@@ -110,10 +111,10 @@ final class NativeBrowserMenu {
             dialog.dismiss();
         }), cell(gap, true, tileHeight));
         // One label size for the row, the largest at which the longest label
-        // ("Forward") still fits its tile on this screen.
+        // ("Forward") still fits its tile with room to either side.
         int tileWidth = (activity.getResources().getDisplayMetrics().widthPixels - 2 * spacing - 4 * gap) / 5
-            - 2 * Math.round(2 * density);
-        float labelSize = 15;
+            - 2 * Math.round(6 * density);
+        float labelSize = 13;
         android.graphics.Paint measure = new android.graphics.Paint();
         for (int index = 0; index < navigation.getChildCount(); index++) {
             Button tile = (Button) navigation.getChildAt(index);
@@ -294,7 +295,10 @@ final class NativeBrowserMenu {
         glyph.setBounds(0, 0, size, size);
         glyph.setTint(enabled ? palette.text : palette.muted);
         button.setCompoundDrawables(null, glyph, null, null);
-        button.setCompoundDrawablePadding(Math.round(6 * density));
+        // The glyph's own margin and the label's ascent already part the two;
+        // overlap their empty edges so they read as one unit, as on iOS.
+        button.setCompoundDrawablePadding(-Math.round(6 * density));
+        button.setIncludeFontPadding(false);
         button.setSingleLine(true);
         button.setGravity(Gravity.CENTER);
         // Regular weight, as iOS draws these labels; a Button defaults to medium.
@@ -303,7 +307,7 @@ final class NativeBrowserMenu {
             ? android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, 400, false)
             : android.graphics.Typeface.DEFAULT);
         int inset = Math.round(2 * density);
-        button.setPadding(inset, Math.round(12 * density), inset, Math.round(10 * density));
+        button.setPadding(inset, Math.round(7 * density), inset, Math.round(2 * density));
         return button;
     }
 
