@@ -120,6 +120,10 @@ what the search finds. All of them are asked at once and stream in as they are
 written, in that order. The answer stays in view; **Key entities** and **Summary**
 fold behind disclosures you expand when you want them. For a release
 announcement, the default prompt explains what the software does and who uses it.
+The prompts in Settings are the whole instruction: each request adds only the
+story material and a one-line task name such as "Explain this story.", so the
+`## Key entities` heading the fold relies on comes from the editable
+explanation prompt, and an answer without it simply shows whole.
 The **Summarize** button appears only while the conversation has no summary, for
 example after the automatic one failed; the question box continues the conversation.
 Saved/feed content is used before fetching and extracting the original article.

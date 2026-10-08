@@ -2,8 +2,10 @@
 // All UI, content access, and network requests go through the supplied host API.
 const SUMMARIZE = { id: "summarize", label: "Summarize" }
 const MAX_HISTORY = 32_000
-// The explanation answers first, then folds its entities: the heading is where the addon splits the text.
-const EXPLAIN = "Answer the title if it asks a question and explain it in plain paragraphs without any heading. Then explain its key named entities under one heading line that reads exactly `## Key entities`."
+// Each task's user turn only names the task; everything about wording and
+// structure is in the editable prompts, so Settings shows the whole instruction.
+// The explanation folds at its first heading, which the default prompt asks for.
+const EXPLAIN = "Explain this story."
 const WEB = "What does the web add to this story?"
 
 export default function activate(once) {

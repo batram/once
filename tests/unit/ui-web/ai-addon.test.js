@@ -249,7 +249,7 @@ test("Tavily fallback posts a JSON query to its own connection and shares the ci
   const unconfigured = await missing.run({ type: "open" })
   assert.match(unconfigured.status, /Tavily/)
   // The explanation and summary, which never search, still arrive; only the web section is missing.
-  assert.deepEqual(missing.requests.map(request => JSON.parse(request.request.body).messages.at(-1).content.slice(0, 20)), ["Answer the title if ", "Summarize this artic"])
+  assert.deepEqual(missing.requests.map(request => JSON.parse(request.request.body).messages.at(-1).content.slice(0, 20)), ["Explain this story.", "Summarize this artic"])
   assert.deepEqual(unconfigured.messages.map(message => message.title), [undefined, "Summary"])
   const failed = await fixture({ webSearch: true, searchProvider: "tavily" }, connection => connection === "tavily"
     ? { status: 401, text: "{}" } : { status: 200, text: JSON.stringify({ choices: [{ message: { content: "Answer." } }] }) })
