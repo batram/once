@@ -1,3 +1,6 @@
+const fs = require("node:fs")
+const os = require("node:os")
+const path = require("node:path")
 const { By, error: webdriverError, until } = require("selenium-webdriver")
 const firefox = require("selenium-webdriver/firefox")
 
@@ -142,9 +145,17 @@ async function openSettingsSection(driver, target, controlSelector) {
 // geckodriver's own output is inherited by the test process: a Firefox that
 // crashes or refuses the marionette handshake explains itself there, and it
 // used to be thrown away.
+//
+// Firefox is also given its own app-data directory (MOZ_APP_DATA, inherited
+// through geckodriver). Even with an explicit -profile it reads profiles.ini
+// from ~/Library/Application Support/Firefox at startup, and recent macOS
+// denies that folder to a Firefox launched by a terminal or geckodriver: the
+// launch then exits with "Could not find profile folder." and status 1.
 function systemAccessService() {
+  const appData = fs.mkdtempSync(path.join(os.tmpdir(), "once-firefox-appdata-"))
   return new firefox.ServiceBuilder()
     .addArguments("--allow-system-access")
+    .setEnvironment({ ...process.env, MOZ_APP_DATA: appData, MOZ_LOCAL_APP_DATA: appData })
     .setStdio("inherit")
 }
 
