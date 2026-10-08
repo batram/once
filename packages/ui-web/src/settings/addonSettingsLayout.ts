@@ -12,19 +12,21 @@ export function addonPageAction(text: string, testid: string, run: () => void): 
 }
 
 /**
- * Add-on sync lives in Settings › Sync; a sentence under the list says what
- * it does, its state, and links there. Not a row: it is not an add-on and
- * must not read like one. Its state comes from addonVaultControls. A shell
- * without that page keeps the vault controls on this page instead.
+ * Add-on sync lives in Settings › Sync; two lines under the list give its
+ * state and the way there. Not a row: it is not an add-on and must not read
+ * like one. Its state comes from addonVaultControls. A shell without that
+ * page keeps the vault controls on this page instead.
  */
 function addonSyncNote(): HTMLElement[] {
   if (!document.querySelector("#sync_page_addons")) return []
-  const note = document.createElement("p")
+  const note = document.createElement("div")
   note.className = "addon_sync_note"
   note.dataset.addonSyncLink = ""
+  const status = document.createElement("p")
   const state = document.createElement("span")
   state.className = "addon_sync_link_state"
   state.dataset.addonSyncSummary = ""
+  status.append("Sync status: ", state)
   const link = document.createElement("button")
   link.type = "button"
   link.className = "settings_inline_link"
@@ -35,7 +37,9 @@ function addonSyncNote(): HTMLElement[] {
     document.querySelector<HTMLButtonElement>("[data-settings-target=\"sync\"]")?.click()
     document.dispatchEvent(new CustomEvent<SyncPage>(SYNC_PAGE_EVENT, { detail: "addons" }))
   })
-  note.append(state, " · Add-on sync keeps your add-ons, their settings and tokens the same on all your devices, encrypted. ", link)
+  const way = document.createElement("p")
+  way.append(link)
+  note.append(status, way)
   return [note]
 }
 
