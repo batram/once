@@ -552,8 +552,15 @@ npm run test:live:collectors
 npm run refresh:fixtures:collectors -- reddit_json
 ```
 
-On Linux, the Firefox extension smoke runs headlessly. On Windows it opens a
-separate headful Firefox instance because current Windows Firefox headless
+Run `npm run test:firefox` to test an already-built Firefox extension. This is
+also the Firefox step of `npm run test:extensions`. On Windows the runner uses
+`~/tools/agent-scripts/Invoke-OnHiddenDesktop.ps1` to put Firefox and its child
+processes on a private desktop, so their windows cannot steal focus. The launcher
+must be installed; a missing launcher fails the run. Output is saved to
+`test-results/firefox-logs/hidden-desktop.log` and printed when the run finishes.
+
+On Linux, the Firefox extension smoke runs headlessly. On Windows it uses a
+separate headful Firefox instance on that hidden desktop because Windows Firefox headless
 sessions can discard their initial browsing context. The test uses a temporary
 profile, `-no-remote`, a test-owned internal extension UUID, and WebDriver BiDi;
 it does not reuse or close a developer's normal Firefox session.
