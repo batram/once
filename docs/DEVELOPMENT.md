@@ -552,6 +552,19 @@ npm run test:live:collectors
 npm run refresh:fixtures:collectors -- reddit_json
 ```
 
+On Windows, Electron E2E, story-debug, design-system Electron, and native-rendering
+npm commands run their test processes on a private desktop through
+`scripts/run-hidden.js`. This contains shell consoles, app windows, popups, and
+native dialogs. The launcher requires
+`~/tools/agent-scripts/Invoke-OnHiddenDesktop.ps1`; it fails if that file is missing.
+Logs are saved under `artifacts/hidden-tests/` (outside Playwright's cleared output
+directory) and printed after completion. Use `npm run test:electron:e2e:run --
+<spec-path>` to test an existing build. For an explicitly visible run, use
+`node scripts/run-hidden.js --visible node_modules/@playwright/test/cli.js test
+--config tests/e2e/electron/playwright.config.js`. Direct Playwright invocations
+bypass the private desktop. CI and other platforms run the command directly;
+hosted runners do not require the local desktop launcher.
+
 Run `npm run test:firefox` to test an already-built Firefox extension. This is
 also the Firefox step of `npm run test:extensions`. On Windows the runner uses
 `~/tools/agent-scripts/Invoke-OnHiddenDesktop.ps1` to put Firefox and its child

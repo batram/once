@@ -13,8 +13,12 @@ fresh workaround-on / workaround-off pairs. After an existing package build,
 use `npm run test:electron:rendering:run`. Both CI and release workflows run
 the latter after the existing Electron E2E package step.
 
-The test opens small topmost windows. For unattended local runs use the repository's
-hidden-desktop workflow and redirect the runner output to a file. Keep
+The test opens small topmost windows. The npm commands now run it on the private
+Windows desktop automatically for local runs, with logs under `artifacts/hidden-tests/`.
+CI runs directly without requiring the local desktop launcher.
+For an explicitly visible calibration, run
+`node scripts/run-hidden.js --visible tests/e2e/electron/native-rendering/run.js`.
+Keep
 ONCE_ELECTRON_TEST_BACKGROUND at 0: an off-screen window is not equivalent to
 a normally positioned window on a private desktop. The runner sets this
 explicitly and uses disposable user profiles, leaving normal Once data alone.
@@ -25,6 +29,14 @@ and a healthy Electron GPU process are required. GPU or renderer crashes are
 recorded and rejected, including startup GPU failures followed by fallback.
 The private desktop on the development machine showed such GPU failures;
 clean-GPU calibration therefore also needs a suitable interactive test desktop.
+The hidden-desktop probe on 2026-10-09 reproduced a GPU process crash with exit
+code -1073741819 before any measurement stages; the suite failed as intended.
+Local crash dumps from both a minimal Electron window and the native-rendering
+driver resolved to the same null-pointer write at `NvMemMapStoragex+0x5a7d1`
+in NVIDIA driver 596.49 (32.0.15.9649), with `nvwgf2umx` on the calling stack.
+Further driver investigation is deferred. Dumps and debugger logs are retained
+locally under `artifacts/gpu-investigation/`, outside version control.
+The runner never falls back to the interactive desktop automatically.
 
 The test loads `.webpack/<arch>/main/index.js` with the project's Electron
 binary, just as the existing E2E harness does. It tests the built application,
