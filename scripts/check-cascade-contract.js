@@ -89,7 +89,10 @@ const allowedImportant = new Set([
   "apps/mobile/src/mobile.css|body,*,*::before,*::after|transition-duration",
   "apps/mobile/src/mobile.css|body,*,*::before,*::after|animation-duration",
   "apps/mobile/src/mobile.css|body,*,*::before,*::after|animation-iteration-count",
-  "packages/webext-shell/src/webext.css|body[data-webext-target=\"chrome\"]|font-family"
+  "packages/webext-shell/src/webext.css|body[data-webext-target=\"chrome\"]|font-family",
+  // Chrome's injected, unlayered extension-page fonts override the reader base layer.
+  "packages/ui-web/src/reader/readerDocument.css|body|font-family",
+  "packages/ui-web/src/reader/readerDocument.css|body|font-size"
 ])
 
 const cssFiles = childProcess.execFileSync("git", ["ls-files", "*.css"], {

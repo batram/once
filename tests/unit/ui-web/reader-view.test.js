@@ -80,6 +80,37 @@ test("a story without stored content is fetched and extracted as before", async 
   assert.deepEqual(fetched, [story.href])
 })
 
+test("the supplied extension runtime opens stored and live readers without a browser global", async () => {
+  const { ReaderView, Story } = loadReaderView()
+  const story = Story.from_obj({
+    type: "rss", href: "https://example.com/stored", title: "Saved", timestamp: 1,
+    stored_content: { source: "page", saved_at: 1 },
+    _attachments: { content: { content_type: "text/html", length: 10, stub: true } }
+  })
+  const commands = []
+  ReaderView.mount({
+    async findStoryByUrl(url) { return url === story.href ? story : null },
+    async getStoryContent() { return { html: ARTICLE, meta: story.stored_content } },
+    async fetchDocument() { throw new Error("extension readers use the background") }
+  }, undefined, {
+    getURL(path) { return `chrome-extension://once/${path}` },
+    async sendMessage(message) { commands.push(message) }
+  })
+  try {
+    await ReaderView.open(story.href, "middle")
+    assert.equal(commands[0].onceCommand, "openStoredReader")
+    assert.equal(commands[0].sourceUrl, story.href)
+    assert.equal(commands[0].active, false)
+    assert.match(commands[0].html, /<title>Saved<\/title>/)
+    await ReaderView.open("https://example.com/live")
+    assert.equal(commands[1].onceCommand, "openReader")
+    assert.equal(commands[1].url, "https://example.com/live")
+    assert.equal(commands[1].active, true)
+  } finally {
+    ReaderView.mount({})
+  }
+})
+
 test("reader keeps article markup while dropping document controls and active attributes", () => {
   const { articleFromStoredContent } = loadReaderView()
   const article = articleFromStoredContent(

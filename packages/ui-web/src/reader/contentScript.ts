@@ -1,4 +1,4 @@
-import "webextension-polyfill"
+import browser from "webextension-polyfill"
 import { extractArticle } from "./extractArticle"
 import { readerDocument, ReaderTheme } from "./readerDocument"
 import {
@@ -17,7 +17,7 @@ async function render(): Promise<void> {
   try {
     const article = extractArticle(document.documentElement.outerHTML, sourceUrl)
     installReaderDocument(readerDocument(article, theme))
-    await installReaderPageTts()
+    await installReaderPageTts(browser.runtime)
   } catch (error) {
     showReaderPageError(error)
   }

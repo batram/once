@@ -286,13 +286,15 @@ Static colour, padding, cursor, or display belongs in a class or a token.
 ## Utility exceptions
 
 `!important` is allowlisted by `file|selector|property` in
-[`check-cascade-contract.js`](../scripts/check-cascade-contract.js). Thirteen
+[`check-cascade-contract.js`](../scripts/check-cascade-contract.js). Fifteen
 declarations are sanctioned, all behaviour that genuinely requires priority:
 
 - `prefers-reduced-motion` overrides in `mobile.css`;
 - canonical `[hidden]` behavior in `settings.css`;
 - the `.visually_hidden` accessibility utility;
-- `pointer-events` during an active drag.
+- `pointer-events` during an active drag;
+- extension sidebar font correction and reader body font family and size,
+  which must override Chrome's injected, unlayered extension-page typography.
 
 Each family has a direct test. Adding a new `!important` requires adding it to
 the allowlist, which is a review, not a formality.

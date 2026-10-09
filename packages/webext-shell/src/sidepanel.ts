@@ -91,6 +91,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await app.start()
   await mountOnceUi(client, {
     shell: "webext",
+    readerRuntime: browser.runtime,
     addonSandboxUrl: browser.runtime.getURL("static/addon-sandbox.html"),
     // A test panel starts with no add-ons unless a spec asks for the shipped ones.
     bundledAddons: testMode && !query.has("bundled-addons") ? [] : __ONCE_BUNDLED_ADDONS__,

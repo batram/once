@@ -41,6 +41,8 @@ export interface MountOnceUiOptions {
    * those never reach their settings. Defaults to the full Electron catalogue.
    */
   shell?: ShellId
+  /** The extension shell supplies its polyfilled runtime in both browsers. */
+  readerRuntime?: Parameters<typeof ReaderView.mount>[2]
   appVersion: string
   buildChannel: "release" | "dev"
   buildIdentifier?: string
@@ -121,7 +123,7 @@ export async function mountOnceUi(
   setOnceClient(client)
   StoryListItem.devToolsEnabled = options.buildChannel === "dev"
   if (StoryListItem.devToolsEnabled) registerStoryButton("purge", "Purge story (development)")
-  ReaderView.mount(client)
+  ReaderView.mount(client, undefined, options.readerRuntime)
   installStoredContentSaver(client, {
     reportError: (message, details) => LoaderInsights.showErrorMessage(message, details)
   })

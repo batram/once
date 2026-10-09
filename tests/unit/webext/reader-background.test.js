@@ -82,6 +82,7 @@ test("parks a stored reader document for its page and hands it over once", async
   const [, created] = fake.calls.find(([kind]) => kind === "create")
   assert.match(created.url, /^moz-extension:\/\/once\/static\/reader\.html\?token=/)
   assert.equal(created.active, false)
+  assert.equal(new URL(created.url).searchParams.get("sourceUrl"), "https://example.com/article")
   const token = new URLSearchParams(created.url.split("?")[1]).get("token")
   assert.ok(token)
   // No script injection: the page is the extension's own.

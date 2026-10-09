@@ -12,13 +12,16 @@ declare const browser: {
 export class ReaderView {
   private static client: OnceClient | null = null
   private static openDocument: ReaderDocumentOpener | null = null
+  private static runtime: typeof browser.runtime = undefined
 
   static mount(
     client: OnceClient,
-    openDocument?: (html: string, sourceUrl: string, target: "_self" | "middle") => Promise<void>
+    openDocument?: (html: string, sourceUrl: string, target: "_self" | "middle") => Promise<void>,
+    runtime?: typeof browser.runtime
   ): void {
     ReaderView.client = client
     if (openDocument) ReaderView.openDocument = openDocument
+    ReaderView.runtime = runtime
   }
 
   static async open(url: string, target: "_self" | "middle" = "_self"): Promise<void> {
@@ -38,9 +41,10 @@ export class ReaderView {
     const stored = ReaderView.client
       ? await storedArticle(ReaderView.client, url)
       : null
-    if (typeof browser !== "undefined" && browser.runtime?.getURL) {
+    const runtime = ReaderView.runtime ?? (typeof browser !== "undefined" ? browser.runtime : undefined)
+    if (runtime?.getURL) {
       if (stored) {
-        await browser.runtime.sendMessage({
+        await runtime.sendMessage({
           onceCommand: "openStoredReader",
           html: readerDocument(stored, currentTheme()),
           sourceUrl: url,
@@ -48,7 +52,7 @@ export class ReaderView {
         })
         return
       }
-      await browser.runtime.sendMessage({
+      await runtime.sendMessage({
         onceCommand: "openReader",
         url,
         active: target !== "middle",

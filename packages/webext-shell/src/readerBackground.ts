@@ -150,8 +150,9 @@ async function openStoredReaderTab(
 ): Promise<void> {
   const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
   await readerStorage(browserApi).set({ [`${STORED_READER_PREFIX}${token}`]: document })
+  const search = new URLSearchParams({ token, sourceUrl: document.sourceUrl })
   await browserApi.tabs.create({
-    url: browserApi.runtime.getURL(`static/reader.html?token=${encodeURIComponent(token)}`),
+    url: browserApi.runtime.getURL(`static/reader.html?${search}`),
     active
   })
 }

@@ -36,8 +36,10 @@ body {
   margin: auto;
   padding: 0 20px;
   max-width: 700px;
-  font-family: Georgia, "Times New Roman", Times, serif;
-  font-size: 1.1em;
+  /* Chrome injects unlayered body typography into extension pages. Keep the
+     reader's font above those defaults while retaining the shared base layer. */
+  font-family: Georgia, "Times New Roman", Times, serif !important;
+  font-size: 1.1em !important;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   box-sizing: border-box;

@@ -290,6 +290,16 @@ test("shows a story's comments in the side panel beside the page", async () => {
   }
 })
 
+async function expectReaderTypography(page) {
+  await expect(page.locator("body")).toHaveCSS("font-family", 'Georgia, "Times New Roman", Times, serif')
+  await expect.poll(() => page.evaluate(() => {
+    const body = getComputedStyle(document.body)
+    const root = getComputedStyle(document.documentElement)
+    return Number.parseFloat(body.fontSize) / Number.parseFloat(root.fontSize)
+  })).toBeCloseTo(1.1, 2)
+  await expect(page.locator("main > article p").first()).toHaveCSS("font-family", 'Georgia, "Times New Roman", Times, serif')
+}
+
 test("opens the reader and marks the story read", async () => {
   const harness = await launchStoryExtension()
   const { context, page, source } = harness
@@ -298,7 +308,11 @@ test("opens the reader and marks the story read", async () => {
     const readerPage = await waitForOpenedPage(context, "reader link", () =>
       alpha.locator(storyFixture.SELECTORS.outlineBtn).click()
     )
-    await expect(readerPage).toHaveURL(/^data:text\/html/)
+    await expect(readerPage).toHaveURL(source.urls.alpha)
+    await expect(readerPage.locator(".once-reader-error")).toHaveCount(0)
+    await expect(readerPage.locator("[data-tts-play]")).toBeVisible()
+    await expectReaderTypography(readerPage)
+    await expect(page.locator("#selected_container story-item.selected")).toHaveAttribute("data-href", source.urls.alpha)
     await expect(readerPage).toHaveTitle(storyFixture.STORY_TITLES.alpha)
     await expect(readerPage.locator("a.reader-original")).toHaveAttribute(
       "href",
@@ -329,18 +343,20 @@ test("a bookmarked story's saved article opens in the extension's reader page of
       timeout: 10_000
     })
 
-    // The site is gone: the reader still opens from the stored copy. Chrome's
-    // panel has no `browser` global, so it renders the document itself (a data:
-    // URL, as for a live article); Firefox goes through the background and the
-    // extension's reader page instead.
+    // The site is gone: the reader still opens from the stored copy.
     const pageRequests = source.requests.length
     await context.route(source.urls.alpha, (route) => route.abort())
     const readerPage = await waitForOpenedPage(context, "stored reader", () =>
       alpha.locator(storyFixture.SELECTORS.outlineBtn).click()
     )
-    await expect(readerPage).toHaveURL(/^data:text\/html|\/static\/reader\.html\?token=/)
+    await expect(readerPage).toHaveURL(/\/static\/reader\.html\?token=/)
+    expect(new URL(readerPage.url()).searchParams.get("sourceUrl")).toBe(source.urls.alpha)
+    await expect(page.locator("#selected_container story-item.selected")).toHaveAttribute("data-href", source.urls.alpha)
     await expect(readerPage).toHaveTitle(storyFixture.STORY_TITLES.alpha)
     expect(source.requests.length, "nothing was fetched for the reader").toBe(pageRequests)
+    await expectReaderTypography(readerPage)
+    await expect(readerPage.locator(".once-reader-error")).toHaveCount(0)
+    await expect(readerPage.locator("[data-tts-play]")).toBeVisible()
     await expect(readerPage.locator("main > article")).toContainText(
       "The reader pipeline extracts long-form content"
     )

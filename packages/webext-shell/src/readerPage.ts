@@ -21,7 +21,7 @@ async function render(): Promise<void> {
       throw new Error("This reader page has expired; open the story again")
     }
     installReaderDocument(stored.html)
-    await installReaderPageTts()
+    await installReaderPageTts(browser.runtime)
   } catch (error) {
     showReaderPageError(error)
   }

@@ -29,8 +29,9 @@ export function createWebExtActiveTab(
       const notifySelectedTab = async (tab: browser.tabs.Tab | undefined) => {
         const request = ++generation
         if (!tab?.url) return
-        const context = await browserApi.runtime.sendMessage({ onceGetNavigation: tab.id, url: tab.url }).catch(() => null)
-        if (request === generation) handler(tab.url, context ?? undefined)
+        const url = readerSourceUrl(browserApi, tab.url) ?? tab.url
+        const context = await browserApi.runtime.sendMessage({ onceGetNavigation: tab.id, url }).catch(() => null)
+        if (request === generation) handler(url, context ?? undefined)
       }
       const navigationListener = (message: { onceNavigationChanged?: number }) => {
         if (typeof message?.onceNavigationChanged !== "number") return
@@ -64,6 +65,18 @@ export function createWebExtActiveTab(
         browserApi.tabs.onUpdated.removeListener(updatedListener)
       }
     }
+  }
+}
+
+// Only our own stored-reader page may name a different story for the sidebar.
+function readerSourceUrl(browserApi: typeof browser, value: string): string | null {
+  try {
+    const url = new URL(value)
+    if (`${url.protocol}//${url.host}${url.pathname}` !== browserApi.runtime.getURL("static/reader.html")) return null
+    const source = new URL(url.searchParams.get("sourceUrl") ?? "")
+    return source.protocol === "https:" || source.protocol === "http:" ? source.href : null
+  } catch {
+    return null
   }
 }
 
