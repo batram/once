@@ -102,7 +102,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
     showHoveredLinks: __ONCE_WEBEXT_TARGET__ === "chrome",
     tabsPanel: true,
-    initialStoryLoad: testMode ? "disabled" : "cache"
+    initialStoryLoad: testMode ? "disabled" : "cache",
+    // Register the context-menu action handler without waiting for sources.
+    // A freshly opened panel must be able to run What4 while stories load.
+    backgroundInitialStoryLoad: true
   })
   bindSentTabNotifications(browser)
   // A manifest command pressed while the page had focus. It arrives as a
