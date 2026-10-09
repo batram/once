@@ -384,18 +384,22 @@ export class ReadingAddressEditor {
   }
 
   /**
-   * In the exploded view a part's line follows a leftward swipe; let go past
-   * the threshold and the part is removed, with Undo in the toast. The
-   * threshold is a share of the room left of the finger: a short part like
-   * "/blog" sits near the edge, and a fixed distance could run off the screen
-   * before it is reached. A mostly vertical drag is left to scrolling, a tap
-   * to the caret.
+   * In the exploded view a part's line follows a horizontal swipe. Let go
+   * past the threshold to the left and the part is removed; to the right, a
+   * part that splits further is exploded. Both come with Undo in the toast.
+   * The threshold is a share of the room on the swipe's side of the finger:
+   * a short part like "/blog" sits near the edge, and a fixed distance could
+   * run off the screen before it is reached. A mostly vertical drag is left
+   * to scrolling, a tap to the caret.
    */
   private bindSwipe(): void {
-    let swipe: { line: HTMLElement; index: number; x: number; y: number; dx: number; active: boolean; threshold: number } | null = null
-    const threshold = (x: number) => Math.max(24, Math.min(64, x * 0.4))
+    let swipe: {
+      line: HTMLElement; index: number; x: number; y: number; dx: number
+      direction: "left" | "right" | null; explodable: boolean; threshold: number
+    } | null = null
+    const threshold = (room: number) => Math.max(24, Math.min(64, room * 0.4))
     const reset = () => {
-      if (swipe) { swipe.line.style.left = ""; swipe.line.classList.remove("removing") }
+      if (swipe) { swipe.line.style.left = ""; swipe.line.classList.remove("removing", "exploding") }
       swipe = null
     }
     this.field.addEventListener("touchstart", (event) => {
@@ -403,31 +407,49 @@ export class ReadingAddressEditor {
       const touch = event.touches[0]
       if (!this.exploded || event.touches.length !== 1 || !touch) return
       const hit = this.lineAt(touch.clientY)
-      if (hit) swipe = { ...hit, x: touch.clientX, y: touch.clientY, dx: 0, active: false, threshold: threshold(touch.clientX) }
+      if (!hit) return
+      const line = this.field.value.split("\n")[hit.index] ?? ""
+      swipe = { ...hit, x: touch.clientX, y: touch.clientY, dx: 0, direction: null, explodable: explodeLine(line) !== line, threshold: 0 }
     }, { passive: true })
     this.field.addEventListener("touchmove", (event) => {
       const touch = event.touches[0]
       if (!swipe || !touch) return
       const dx = touch.clientX - swipe.x
       const dy = touch.clientY - swipe.y
-      if (!swipe.active) {
+      if (!swipe.direction) {
         if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { reset(); return }
-        if (dx > -6 || Math.abs(dx) < Math.abs(dy)) return
-        swipe.active = true
+        if (Math.abs(dx) < 6 || Math.abs(dx) < Math.abs(dy)) return
+        // A part that cannot split further has nothing for a right swipe.
+        if (dx > 0 && !swipe.explodable) { reset(); return }
+        swipe.direction = dx < 0 ? "left" : "right"
+        swipe.threshold = threshold(dx < 0 ? swipe.x : this.field.getBoundingClientRect().right - swipe.x)
       }
       event.preventDefault()
-      swipe.dx = Math.min(0, dx)
+      swipe.dx = swipe.direction === "left" ? Math.min(0, dx) : Math.max(0, dx)
       swipe.line.style.left = `${swipe.dx}px`
-      swipe.line.classList.toggle("removing", -swipe.dx > swipe.threshold)
+      const past = Math.abs(swipe.dx) > swipe.threshold
+      swipe.line.classList.toggle("removing", past && swipe.direction === "left")
+      swipe.line.classList.toggle("exploding", past && swipe.direction === "right")
     }, { passive: false })
     this.field.addEventListener("touchend", (event) => {
-      if (!swipe?.active) { swipe = null; return }
+      if (!swipe?.direction) { swipe = null; return }
       event.preventDefault()
-      const remove = -swipe.dx > swipe.threshold ? swipe.index : -1
+      const { index, direction } = swipe
+      const past = Math.abs(swipe.dx) > swipe.threshold
       reset()
-      if (remove >= 0) this.removeLine(remove)
+      if (past && direction === "left") this.removeLine(index)
+      else if (past && direction === "right") this.explodeAt(index)
     }, { passive: false })
     this.field.addEventListener("touchcancel", reset)
+  }
+
+  private explodeAt(index: number): void {
+    const display = this.field.value
+    const part = display.split("\n")[index] ?? ""
+    const next = explodeLines(display, index, index)
+    if (next === display) return
+    this.change(joinAddress(next), this.caret(), next)
+    this.toast(`Exploded ${shorten(part, 24)}`, true)
   }
 
   /** The exploded line drawn at viewport height `y`. */

@@ -1306,6 +1306,11 @@
     text-decoration: line-through;
   }
 
+  /* A right swipe past the threshold splits the part further. */
+  .address_editor_line.exploding {
+    background: var(--highlight-bg-color);
+  }
+
   #reading_address_editor.exploded textarea {
     touch-action: pan-y;
   }

@@ -448,6 +448,49 @@ test("a part swiped left in the exploded address goes, and Undo brings it back",
   await expect(undo).toBeHidden()
 })
 
+test("a part swiped right in the exploded address splits further when it can", async ({ page }) => {
+  await gotoMobileApp(page)
+  await page.getByTestId("reading-menu").click()
+  const url = "https://example.test/x/the-long-part/"
+  await page.getByTestId("reading-url-input").fill(url)
+  await page.getByTestId("reading-url-input").press("Enter")
+  await page.getByTestId("reading-url-input").tap()
+  const editor = page.getByTestId("address-editor-input")
+  const dialog = page.getByTestId("address-editor")
+  await dialog.getByRole("button", { name: "Explode" }).tap()
+  const touch = await page.context().newCDPSession(page)
+  const swipeRight = async (line, distance) => {
+    const box = await dialog.locator(`[data-line="${line}"]`).boundingBox()
+    const y = box.y + box.height / 2
+    const x = box.x + 4
+    await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
+    for (let step = 1; step <= 8; step += 1) {
+      await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x + distance * step / 8, y }] })
+    }
+    await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+  }
+  const exploded = "https://\nexample.test\n/x\n/the-long-part/"
+  await expect(editor).toHaveValue(exploded)
+
+  // "/x" has nothing to split; a short swipe does not reach the threshold.
+  await swipeRight(2, 150)
+  await swipeRight(3, 15)
+  await expect(editor).toHaveValue(exploded)
+  await swipeRight(3, 150)
+  await expect(editor).toHaveValue("https://\nexample.test\n/x\n/the\n-long\n-part/")
+  await expect(dialog.getByRole("status")).toContainText("Exploded /the-long-part/")
+  // The site splits at its dots; Undo steps back one split at a time.
+  await swipeRight(1, 150)
+  await expect(editor).toHaveValue("https://\nexample\n.test\n/x\n/the\n-long\n-part/")
+  const undo = dialog.getByRole("toolbar").getByRole("button", { name: "Undo" })
+  await undo.tap()
+  await expect(editor).toHaveValue("https://\nexample.test\n/x\n/the\n-long\n-part/")
+  await undo.tap()
+  await expect(editor).toHaveValue(exploded)
+  await editor.press("Enter")
+  await expect(page.getByTestId("reading-url-input")).toHaveValue(url)
+})
+
 test("Undo in the address editor steps back through every change, typing included", async ({ page }) => {
   await gotoMobileApp(page)
   await page.getByTestId("reading-menu").click()
