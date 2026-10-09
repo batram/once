@@ -27,6 +27,27 @@ export function isPageActionRunForContext(
 const prefix = "once_page_"
 const cacheKey = "oncePageActionMenus"
 
+async function createReaderMenus(menus: typeof browser.contextMenus, filtersOnShow: boolean): Promise<void> {
+  for (const link of [false, true]) {
+    const id = link ? "once_reader_link" : "once_reader_page"
+    await menus.remove(id).catch(() => undefined)
+    menus.create({ id, title: link ? "Open link in reader" : "Open in reader", contexts: [link ? "link" : "page"],
+      documentUrlPatterns: ["http://*/*", "https://*/*"],
+      ...(link && !filtersOnShow ? { targetUrlPatterns: ["http://*/*", "https://*/*"] } : {}) })
+  }
+}
+
+function handleReaderMenuClick(browserApi: typeof browser, info: browser.contextMenus.OnClickData): boolean {
+  const id = String(info.menuItemId)
+  if (id !== "once_reader_page" && id !== "once_reader_link") return false
+  const url = id === "once_reader_link" ? info.linkUrl : info.pageUrl
+  if (url && /^https?:/i.test(url)) {
+    void openReaderTab(browserApi, url, true, "system")
+      .catch(error => console.error("Could not open page in reader", error))
+  }
+  return true
+}
+
 /**
  * The menu entries exist from the moment the extension does. Until a panel
  * has published the add-ons it actually has, they are the `defaults`: the
@@ -90,13 +111,7 @@ export function installPageActionMenuBackground(
   // Chrome checks only the link, and has no onShown, so it keeps the filter.
   const filtersOnShow = Boolean(browserApi.menus?.onShown)
   const apply = async (items: PageActionMenuItem[]): Promise<void> => {
-    for (const link of [false, true]) {
-      const id = link ? "once_reader_link" : "once_reader_page"
-      await menus.remove(id).catch(() => undefined)
-      menus.create({ id, title: link ? "Open link in reader" : "Open in reader", contexts: [link ? "link" : "page"],
-        documentUrlPatterns: ["http://*/*", "https://*/*"],
-        ...(link && !filtersOnShow ? { targetUrlPatterns: ["http://*/*", "https://*/*"] } : {}) })
-    }
+    await createReaderMenus(menus, filtersOnShow)
     for (const item of known) {
       for (const id of ids(item)) await menus.remove(id).catch(() => undefined)
     }
@@ -147,15 +162,8 @@ export function installPageActionMenuBackground(
   })
 
   menus.onClicked.addListener((info, tab) => {
+    if (handleReaderMenuClick(browserApi, info)) return
     const id = String(info.menuItemId)
-    if (id === "once_reader_page" || id === "once_reader_link") {
-      const url = id === "once_reader_link" ? info.linkUrl : info.pageUrl
-      if (url && /^https?:/i.test(url)) {
-        void openReaderTab(browserApi, url, true, "system")
-          .catch(error => console.error("Could not open page in reader", error))
-      }
-      return
-    }
     if (!id.startsWith(prefix)) return
     const marked = id.slice(prefix.length).replace(/^link:/, "")
     const inPanel = marked.startsWith("panel:")
