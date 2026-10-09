@@ -7,7 +7,7 @@ const {
   saveSourcesAndWait
 } = require("./helpers/settings")
 
-test("structured settings sections do not autofocus search on mobile", async ({
+test("settings sections do not autofocus a field on mobile", async ({
   page
 }) => {
   await gotoMobileApp(page)
@@ -20,6 +20,10 @@ test("structured settings sections do not autofocus search on mobile", async ({
     await expect(page.getByTestId(`${section}-list-search`)).not.toBeFocused()
     await back.click()
   }
+
+  await page.locator('[data-settings-target="sync"]').click()
+  await expect(back).toBeFocused()
+  await expect(page.locator('[data-settings-section="sync"] :is(input, textarea, select):focus')).toHaveCount(0)
 })
 
 test("list settings are the default and expose structured add actions", async ({ page }) => {

@@ -429,10 +429,8 @@ export class SettingsPanel {
     requestAnimationFrame(() => {
       if (this.activeSettingsSection !== key) return
       // On touch, focusing a control opens its picker or the keyboard over
-      // the section the user just opened. Only a section that is essentially
-      // one text field (the sync URL) keeps that shortcut there; the rest
-      // park focus on the back button.
-      if (document.body.dataset.platform === "mobile" && key !== "sync") {
+      // the section the user just opened, so park focus on the back button.
+      if (document.body.dataset.platform === "mobile") {
         back.focus({ preventScroll: true })
         return
       }
