@@ -1,7 +1,7 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const { parseHTML } = require("linkedom")
-const { SettingsNavigation, openSettingsPage } = require("../../../packages/ui-web/dist/settings/SettingsNavigation")
+const { SettingsNavigation, openSettingsPage, settingsEnteredFrom } = require("../../../packages/ui-web/dist/settings/SettingsNavigation")
 
 function withNavigation(run) {
   const { window } = parseHTML('<html><body><main id="left_panel" active_panel="settings"><div id="settings_panel"><button id="settings_section_back"></button><section class="settings_section" data-settings-section="addons"><div id="addons_root"></div></section><section class="settings_section" data-settings-section="sync"><div id="sync_root"></div></section></div></main></body></html>')
@@ -85,5 +85,25 @@ test("Up retraces a containing page and Forward restores its nested editor", () 
     assert.equal(shown.at(-1), "page:supplemental")
     navigation.navigate("forward")
     assert.equal(shown.at(-1), "page:new")
+  })
+})
+
+test("an entry from outside Settings is left in one Back step and reopens where it was made", () => {
+  withNavigation(({ navigation, page, where, label }) => {
+    let restored = 0
+    navigation.open("sync")
+    openSettingsPage(document.getElementById("sync_root"), page("tabs"), false, true)
+    settingsEnteredFrom(() => restored++)
+    assert.equal(label(), "Sync", "the button still goes up the tree")
+    navigation.navigate("back")
+    assert.equal(document.getElementById("left_panel").getAttribute("active_panel"), "stories")
+    assert.equal(restored, 1, "the place the entry closed opens again")
+    navigation.navigate("forward")
+    assert.equal(where(), "sync", "forward returns to the page left")
+    navigation.up()
+    navigation.up()
+    assert.equal(where(), null)
+    navigation.up()
+    assert.equal(restored, 2, "leaving by the button reopens it too")
   })
 })

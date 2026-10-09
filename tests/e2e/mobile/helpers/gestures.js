@@ -107,7 +107,32 @@ async function touchEnd(element, { touchId, clientY }) {
   }, { touchId, clientY })
 }
 
+// A finger from the screen edge, as the shell's touch handlers see it. Playwright's
+// touchscreen only taps, so the touch sequence is dispatched directly.
+async function edgeSwipe(page, direction) {
+  await page.evaluate((direction) => {
+    const width = window.innerWidth
+    const y = 300
+    const startX = direction === "back" ? 6 : width - 6
+    const travel = [30, 70, 110, 150].map(x => direction === "back" ? x : width - x)
+    const target = document.elementFromPoint(startX, y) || document.body
+    const fire = (type, x) => {
+      const touch = new Touch({ identifier: 1, target, clientX: x, clientY: y, pageX: x, pageY: y })
+      target.dispatchEvent(new TouchEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        touches: type === "touchend" ? [] : [touch],
+        changedTouches: [touch]
+      }))
+    }
+    fire("touchstart", startX)
+    for (const x of travel) fire("touchmove", x)
+    fire("touchend", travel[travel.length - 1])
+  }, direction)
+}
+
 module.exports = {
+  edgeSwipe,
   dragAcross,
   startDrag,
   endDrag,

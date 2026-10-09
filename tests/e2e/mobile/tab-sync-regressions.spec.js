@@ -1,6 +1,7 @@
 const { test, expect } = require("@playwright/test")
 const { gotoMobileApp } = require("./helpers/mobile-app")
 const { openSettingsSection } = require("./helpers/settings")
+const { edgeSwipe } = require("./helpers/gestures")
 const { encodePairingLink } = require("../../../packages/core/dist")
 const auth = { Authorization: `Basic ${Buffer.from("once-test:once-test").toString("base64")}` }
 const other = "fedcba9876543210fedcba9876543210"
@@ -69,6 +70,22 @@ test("remote updates retain keyboard focus and phone navigation jumps directly t
   await request.put(`${db}/dev_${other}`, { headers: auth, data: { ...next, seq: 3, name: "Final laptop" } })
   await expect(header).toContainText("Final laptop")
   await expect(link).toBeFocused()
+})
+
+test("back from tab sync settings opened in the tab view returns to its other devices", async ({ page, request, baseURL }) => {
+  const { db } = await connect(page, request, baseURL, "settings_return_regression")
+  await request.post(`${db}/_bulk_docs`, { headers: auth, data: { docs: [device()] } })
+  await page.getByRole("button", { name: "Reading", exact: true }).click()
+  await page.locator("#reading_tabs").click()
+  await page.getByRole("tablist", { name: "Tab groups" }).getByRole("tab", { name: /^Other devices/ }).click()
+  await page.locator("#reading_tabs_dialog").getByTestId("remote-tabs-settings").click()
+  await expect(page.locator("#left_panel")).toHaveAttribute("active_panel", "settings")
+  await expect(page.getByRole("checkbox", { name: "Receive sent tabs", exact: true })).toBeVisible()
+  await edgeSwipe(page, "back")
+  await expect(page.locator("#left_panel")).toHaveAttribute("active_panel", "reading")
+  await expect(page.locator("#reading_tabs_dialog")).toHaveAttribute("open", "")
+  await expect(page.getByRole("tab", { name: /^Other devices/ })).toHaveAttribute("aria-selected", "true")
+  await expect(page.locator("#reading_tabs_dialog .remote_device_toggle")).toContainText("Review laptop")
 })
 
 test("pairing never claims success for invalid credentials and keeps one offer", async ({ page, request, baseURL }) => {

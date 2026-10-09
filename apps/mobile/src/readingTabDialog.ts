@@ -1,4 +1,4 @@
-import { domMenu, mountRemoteTabs, type RemoteTabsPort, type ShowMenu } from "@once/ui-web"
+import { domMenu, mountRemoteTabs, settingsEnteredFrom, type RemoteTabsPort, type ShowMenu } from "@once/ui-web"
 import { ReadingTabs } from "./readingTabs"
 import { attachReadingTabSwipe, ReadingTabSwipe } from "./readingTabSwipe"
 
@@ -34,6 +34,8 @@ export class ReadingTabDialog {
   /** The tab sync port's menu (mobile's native sheet), once tab sync is set up. */
   private showMenu: ShowMenu = domMenu
   private tabMenu?: (tab: { id: string; url: string; title: string }, anchor: HTMLElement) => void
+  private readonly preview: () => Promise<void>
+  private opening = false
 
   constructor(private readonly tabs: ReadingTabs, actions: { select(id: string): void; create(): void; preview(): Promise<void> }) {
     this.count.type = "button"
@@ -42,20 +44,10 @@ export class ReadingTabDialog {
     this.count.setAttribute("aria-haspopup", "dialog")
     this.count.setAttribute("aria-controls", "reading_tabs_dialog")
     this.count.setAttribute("aria-expanded", "false")
-    let opening = false
-    this.count.onclick = async () => {
-      if (this.dialog.open) { this.dialog.close(); return }
-      if (opening) return
-      opening = true
-      // Capture while the native content is still visible; never block the UI indefinitely.
-      await Promise.race([actions.preview(), new Promise(resolve => setTimeout(resolve, 250))])
-      opening = false
-      if (document.querySelector("#left_panel")?.getAttribute("active_panel") !== "reading") return
-      this.dialog.show()
-      this.showGroup("local")
-      this.renderRows()
-      this.count.setAttribute("aria-expanded", "true")
-      this.rows.querySelector('[aria-current="true"]')?.scrollIntoView({ block: "nearest" })
+    this.preview = actions.preview
+    this.count.onclick = () => {
+      if (this.dialog.open) this.dialog.close()
+      else void this.open("local")
     }
     document.querySelector("#reading_url_form")?.append(this.count)
     this.dialog.id = "reading_tabs_dialog"
@@ -252,6 +244,20 @@ export class ReadingTabDialog {
     this.renderRows()
   }
 
+  private async open(group: TabGroup): Promise<void> {
+    if (this.opening) return
+    this.opening = true
+    // Capture while the native content is still visible; never block the UI indefinitely.
+    await Promise.race([this.preview(), new Promise(resolve => setTimeout(resolve, 250))])
+    this.opening = false
+    if (document.querySelector("#left_panel")?.getAttribute("active_panel") !== "reading") return
+    this.dialog.show()
+    this.showGroup(group)
+    this.renderRows()
+    this.count.setAttribute("aria-expanded", "true")
+    this.rows.querySelector('[aria-current="true"]')?.scrollIntoView({ block: "nearest" })
+  }
+
   /**
    * Other devices' tabs in their own panel, one tap from this phone's.
    * Choosing one closes the tab view, like choosing a tab of this device.
@@ -271,7 +277,12 @@ export class ReadingTabDialog {
       ...port,
       open: (tab, background) => { if (!background) this.dialog.close(); port.open(tab, background) },
       openSent: port.openSent && ((id, background) => { if (!background) this.dialog.close(); port.openSent?.(id, background) }),
-      openSettings: port.openSettings && ((page) => { this.dialog.close(); port.openSettings?.(page) })
+      // Back from the settings it opens returns here, not to the page under the tab view.
+      openSettings: port.openSettings && ((page) => {
+        this.dialog.close()
+        port.openSettings?.(page)
+        settingsEnteredFrom(() => void this.open("remote"))
+      })
     }, { inbox, foldFilter: true })
     this.remote = section
     this.remotePanel.append(section)

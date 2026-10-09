@@ -61,6 +61,13 @@ export function openSettingsPage(root: HTMLElement, page: SettingsPage, alreadyS
 /** Save/Cancel completes an editor: its abandoned draft must not replay. */
 export function completeSettingsPage(root: HTMLElement): void { navigations.get(document)?.complete(root) }
 export function invalidateSettingsPages(): void { navigations.get(document)?.prune() }
+/**
+ * The Settings location just opened was entered from a place outside
+ * Settings that a panel switch does not bring back, such as a dialog over
+ * the panel. Back leaves Settings in one step and `restore` reopens that
+ * place; the button still goes up the tree.
+ */
+export function settingsEnteredFrom(restore: () => void): void { navigations.get(document)?.enteredFrom(restore) }
 /** One history for the index, sections and every nested settings page. */
 export class SettingsNavigation {
   private current: Visit
@@ -69,6 +76,8 @@ export class SettingsNavigation {
   private replaying = false
   private returnPanel = "stories"
   private forwardToSettings = false
+  /** Reopens what the entry into Settings closed, once Back has left it. */
+  private restoreOrigin?: () => void
 
   constructor(private host: SettingsNavigationHost) {
     this.current = { section: host.section() }
@@ -97,6 +106,7 @@ export class SettingsNavigation {
       this.forwardToSettings = false
       if (panel !== "settings") return
       this.returnPanel = previous || "stories"
+      this.restoreOrigin = undefined
       this.backHistory = this.current.section === null ? [] : [{ section: null }]
       this.forwardHistory = []
       this.updateBack()
@@ -136,6 +146,14 @@ export class SettingsNavigation {
     this.replaying = true
     try { open_panel(this.returnPanel) } finally { this.replaying = false }
     this.forwardToSettings = true
+    this.restoreOrigin?.()
+  }
+
+  enteredFrom(restore: () => void): void {
+    if (!this.active()) return
+    this.backHistory = []
+    this.restoreOrigin = restore
+    this.updateBack()
   }
 
   openPage(root: HTMLElement, page: SettingsPage, alreadyShown = false, replace = false): void {
