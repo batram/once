@@ -155,12 +155,10 @@ test("keeps browser contents within the window after restoring from maximized @i
   }
 })
 
-test("keeps the icon rail and restores either sidebar panel @interactive", async () => {
-  // Window manipulation needs a normal, on-screen window: the background
-  // mode used everywhere else parks the window off every monitor, and a
-  // maximize restores onto a monitor rather than back to where it was.
-  // Safe here because @interactive specs only run on CI.
-  const { electronApp, userData, window } = await launchApp({ background: false })
+test("keeps the icon rail and restores either sidebar panel", async () => {
+  // Panel clicks and layout checks need no native window manipulation, so
+  // this regression also runs locally with the normal background window.
+  const { electronApp, userData, window } = await launchApp()
   try {
     const collapse = window.locator("#stories_panel .collapsebutton")
     const dividerGap = await window.evaluate(() => {
@@ -188,7 +186,9 @@ test("keeps the icon rail and restores either sidebar panel @interactive", async
 
     await window.getByTestId("settings-menu").click()
     await expect(window.locator("#left_main")).toBeVisible()
-    await expect(window.locator("#menu")).not.toHaveClass(/\bcollapse\b/)
+    // Restoring a panel preserves the folded icon rail; dragging its edge
+    // back out is what unfolds the menu.
+    await expect(window.locator("#menu")).toHaveClass(/\bcollapse\b/)
     await expect(window.locator("#left_panel")).toHaveAttribute(
       "active_panel",
       "settings"
@@ -233,6 +233,7 @@ test("keeps the icon rail and restores either sidebar panel @interactive", async
     await expect(window.locator("#left_main")).toBeHidden()
     await window.getByTestId("stories-menu").click()
     await expect(window.locator("#left_main")).toBeVisible()
+    await expect(window.locator("#menu")).toHaveClass(/\bcollapse\b/)
     await expect(window.locator("#left_panel")).toHaveAttribute(
       "active_panel",
       "stories"
