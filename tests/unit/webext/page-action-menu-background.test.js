@@ -21,7 +21,12 @@ function harness({ defaults, saved = {}, chrome = false, openPanel } = {}) {
   if (chrome) delete menus.onShown
   const api = { ...(chrome ? {} : { menus }), contextMenus: menus,
     storage: { local: { get: async () => saved, set: async values => Object.assign(saved, values) } },
-    tabs: { async create(properties) { opened.push(properties) } },
+    tabs: {
+      async create(properties) { opened.push(properties); return { id: 7 } },
+      async get() { return { id: 7, status: "complete" } },
+      onUpdated: { addListener() {}, removeListener() {} }
+    },
+    scripting: { async executeScript() {}, async insertCSS() {} },
     runtime: {
       getURL: path => `moz-extension://once/${path.replace(/^\//, "")}`,
       onMessage: { addListener(listener) { received = listener } },
@@ -51,10 +56,39 @@ const conditioned = [
   { id: "bad", label: "Bad", when: { domain: "invalid" } }
 ]
 
+for (const chrome of [false, true]) {
+  test(`${chrome ? "Chrome" : "Firefox"} opens pages and links in reader without a panel`, async () => {
+    const h = harness({ chrome })
+    await h.receive(state([]))
+    assert.equal(h.entries.get("once_reader_page").title, "Open in reader")
+    assert.deepEqual(h.entries.get("once_reader_page").contexts, ["page"])
+    assert.deepEqual(h.entries.get("once_reader_link").contexts, ["link"])
+    if (!chrome) {
+      h.show({ linkUrl: "mailto:a@example.test", pageUrl: "https://a.test/" })
+      await tick()
+      assert.equal(h.entries.get("once_reader_link").visible, false)
+      h.show({ linkUrl: "https://b.test/link", pageUrl: "https://a.test/" })
+      await tick()
+      assert.equal(h.entries.get("once_reader_link").visible, true)
+    } else {
+      assert.deepEqual(h.entries.get("once_reader_link").targetUrlPatterns, ["http://*/*", "https://*/*"])
+    }
+    h.click({ menuItemId: "once_reader_page", pageUrl: "https://a.test/page" }, {})
+    h.click({ menuItemId: "once_reader_link", pageUrl: "https://a.test/page", linkUrl: "https://b.test/link" }, {})
+    h.click({ menuItemId: "once_reader_link", linkUrl: "file:///secret" }, {})
+    await tick()
+    assert.deepEqual(h.opened, [
+      { url: "https://a.test/page", active: true },
+      { url: "https://b.test/link", active: true }
+    ])
+    assert.deepEqual(h.sent, [])
+  })
+}
+
 test("Chrome page and link entries carry native target filters and respect conditions", async () => {
   const h = harness({ chrome: true })
   await h.receive(state(conditioned))
-  assert.equal(h.entries.size, 2)
+  assert.equal(h.entries.size, 4)
   assert.deepEqual(h.entries.get("once_page_example").documentUrlPatterns, ["https://*.example.test/*"])
   assert.deepEqual(h.entries.get("once_page_link:example").targetUrlPatterns, ["https://*.example.test/*"])
   assert.equal(h.entries.get("once_page_example").title, "Example")
@@ -102,7 +136,7 @@ test("a retained menu finds a live panel after worker restart and routes page an
   ])
   assert.ok(h.sent.filter(message => message.onceCommand === "page-actions-query").every(message => message.windowId === 7))
   await h.receive(state([]))
-  assert.equal(h.entries.size, 0, "removed addons clear retained entries after a restart")
+  assert.equal(h.entries.size, 2, "removed addons leave the built-in reader entries after a restart")
 })
 
 test("execution rechecks the live addon and its condition", async () => {
@@ -121,7 +155,7 @@ test("a panel entry opens the panel inside the click and runs there once it is r
   const windows = []
   const h = harness({ openPanel: tab => windows.push(tab?.windowId) })
   await h.receive(state([{ id: "addon:wwww/explain", label: "Explain", place: "panel" }]))
-  assert.deepEqual([...h.entries.keys()].sort(), ["once_page_link:panel:addon:wwww/explain", "once_page_panel:addon:wwww/explain"])
+  assert.deepEqual([...h.entries.keys()].filter(id => id.startsWith("once_page_")).sort(), ["once_page_link:panel:addon:wwww/explain", "once_page_panel:addon:wwww/explain"])
   h.restart() // the click wakes a worker that has not read its retained list yet
   h.panel(undefined)
   h.click({ menuItemId: "once_page_panel:addon:wwww/explain", pageUrl: "https://a.test/page" }, { title: "A page", windowId: 4 })
@@ -137,7 +171,7 @@ test("a panel entry opens the panel inside the click and runs there once it is r
   assert.equal(h.opened.length, 0, "no conversation tab")
   // Back to tabs: the entry loses its marker and a click no longer opens the panel.
   await h.receive(state([{ id: "addon:wwww/explain", label: "Explain" }]))
-  assert.deepEqual([...h.entries.keys()].sort(), ["once_page_addon:wwww/explain", "once_page_link:addon:wwww/explain"])
+  assert.deepEqual([...h.entries.keys()].filter(id => id.startsWith("once_page_")).sort(), ["once_page_addon:wwww/explain", "once_page_link:addon:wwww/explain"])
   h.click({ menuItemId: "once_page_addon:wwww/explain", pageUrl: "https://a.test/page" }, { windowId: 4 })
   assert.deepEqual(windows, [4])
 })
@@ -148,20 +182,20 @@ test("bundled actions are in the menu before any panel has published", async () 
   const bundled = [{ id: "addon:wwww/explain", label: "Explain" }]
   const h = harness({ defaults: Promise.resolve(bundled) })
   for (let i = 0; i < 5; i++) await tick()
-  assert.deepEqual([...h.entries.keys()].sort(), ["once_page_addon:wwww/explain", "once_page_link:addon:wwww/explain"])
+  assert.deepEqual([...h.entries.keys()].filter(id => id.startsWith("once_page_")).sort(), ["once_page_addon:wwww/explain", "once_page_link:addon:wwww/explain"])
   assert.deepEqual(h.entries.get("once_page_addon:wwww/explain").documentUrlPatterns, ["http://*/*", "https://*/*"])
   // The user removed every add-on in the panel: an empty list is a list, not a reason to bring defaults back.
   await h.receive(state([]))
-  assert.equal(h.entries.size, 0)
+  assert.equal(h.entries.size, 2)
   h.restart()
   for (let i = 0; i < 5; i++) await tick()
-  assert.equal(h.entries.size, 0)
+  assert.equal(h.entries.size, 2)
 })
 
 test("every background start rebuilds the retained menu", async () => {
   const h = harness({ saved: { oncePageActionMenus: [{ id: "addon:kept/run", label: "Kept" }] }, defaults: [{ id: "addon:wwww/explain", label: "Explain" }] })
   for (let i = 0; i < 5; i++) await tick()
-  assert.deepEqual([...h.entries.keys()].sort(), ["once_page_addon:kept/run", "once_page_link:addon:kept/run"])
+  assert.deepEqual([...h.entries.keys()].filter(id => id.startsWith("once_page_")).sort(), ["once_page_addon:kept/run", "once_page_link:addon:kept/run"])
   h.entries.clear() // a browser restart that did not keep the menus
   h.restart()
   for (let i = 0; i < 5; i++) await tick()

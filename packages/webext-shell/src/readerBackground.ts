@@ -98,7 +98,7 @@ export function installReaderBackground(
   }
 }
 
-async function openReaderTab(
+export async function openReaderTab(
   browserApi: typeof browser,
   url: string,
   active: boolean,

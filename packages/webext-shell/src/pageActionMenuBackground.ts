@@ -2,6 +2,7 @@ import { pageMatchesCondition } from "@once/core"
 import { PageActionMenuItem, pageActionMenuPatterns, readPageActionMenuItems } from "./pageActionMenuItems"
 import { isExtensionPageSender, isTabContentSender } from "./messageSender"
 import { PAGE_ACTION_RUN } from "./addonConversations"
+import { openReaderTab } from "./readerBackground"
 
 export interface PageActionMenuState {
   onceCommand: "page-actions-context"
@@ -89,6 +90,13 @@ export function installPageActionMenuBackground(
   // Chrome checks only the link, and has no onShown, so it keeps the filter.
   const filtersOnShow = Boolean(browserApi.menus?.onShown)
   const apply = async (items: PageActionMenuItem[]): Promise<void> => {
+    for (const link of [false, true]) {
+      const id = link ? "once_reader_link" : "once_reader_page"
+      await menus.remove(id).catch(() => undefined)
+      menus.create({ id, title: link ? "Open link in reader" : "Open in reader", contexts: [link ? "link" : "page"],
+        documentUrlPatterns: ["http://*/*", "https://*/*"],
+        ...(link && !filtersOnShow ? { targetUrlPatterns: ["http://*/*", "https://*/*"] } : {}) })
+    }
     for (const item of known) {
       for (const id of ids(item)) await menus.remove(id).catch(() => undefined)
     }
@@ -110,6 +118,7 @@ export function installPageActionMenuBackground(
     return applying
   }
   const target = (href: string, link?: string): Promise<void> => enqueue(async () => {
+    if (filtersOnShow) await menus.update("once_reader_link", { visible: /^https?:/i.test(link ?? "") })
     for (const item of known) {
       if (!pageActionMenuPatterns(item.when).length) continue
       for (const id of ids(item)) await menus.update(id, { enabled: pageMatchesCondition(item.when, href) })
@@ -139,6 +148,14 @@ export function installPageActionMenuBackground(
 
   menus.onClicked.addListener((info, tab) => {
     const id = String(info.menuItemId)
+    if (id === "once_reader_page" || id === "once_reader_link") {
+      const url = id === "once_reader_link" ? info.linkUrl : info.pageUrl
+      if (url && /^https?:/i.test(url)) {
+        void openReaderTab(browserApi, url, true, "system")
+          .catch(error => console.error("Could not open page in reader", error))
+      }
+      return
+    }
     if (!id.startsWith(prefix)) return
     const marked = id.slice(prefix.length).replace(/^link:/, "")
     const inPanel = marked.startsWith("panel:")
