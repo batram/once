@@ -127,7 +127,7 @@
 }
 
 .addon_tray_assistant :where(ul, ol) {
-  padding-inline-start: var(--sp-5);
+  padding-inline-start: var(--sp-3);
 }
 
 .addon_tray_assistant li + li {
