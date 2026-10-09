@@ -153,10 +153,12 @@ export class ReadingAddressEditor {
    */
   private dismiss(): void {
     const dismissal = ++this.dismissal
-    const typing = document.activeElement === this.field
+    // A tapped button may already own focus, even while the IME is visible.
+    // Register before blurring so the hide event cannot race the listener.
+    const hidden = Capacitor.isNativePlatform() ? keyboardHidden(600) : Promise.resolve()
     this.field.blur()
-    if (!typing || !Capacitor.isNativePlatform()) { this.close(); return }
-    void keyboardHidden(600).then(() => { if (dismissal === this.dismissal) this.close() })
+    if (!Capacitor.isNativePlatform()) { this.close(); return }
+    void hidden.then(() => { if (dismissal === this.dismissal) this.close() })
   }
 
   clear(): void {
@@ -246,7 +248,7 @@ export class ReadingAddressEditor {
     // Buttons act without taking focus, so the keyboard stays up and the
     // caret stays where it was.
     for (const button of this.dialog.querySelectorAll<HTMLButtonElement>("button")) {
-      if (button.dataset.action !== "cancel") button.addEventListener("pointerdown", event => event.preventDefault())
+      button.addEventListener("pointerdown", event => event.preventDefault())
     }
     this.part(".address_editor_clear").addEventListener("click", () => this.clear())
     this.part(".address_editor_undo").addEventListener("click", () => this.undo())
@@ -562,9 +564,12 @@ function keyboardHidden(timeout: number): Promise<void> {
     }
     const timer = window.setTimeout(done, timeout)
     Keyboard.addListener("keyboardDidHide", done)
-      .then(registered => { handle = registered; if (settled) void registered.remove().catch(() => undefined) })
+      .then(registered => {
+        handle = registered
+        if (settled) void registered.remove().catch(() => undefined)
+        else void Keyboard.hide().catch(() => undefined)
+      })
       .catch(done)
-    void Keyboard.hide().catch(() => undefined)
   })
 }
 
