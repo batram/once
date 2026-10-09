@@ -288,10 +288,10 @@ test("drags the menu's edge to size it, folds it under the minimum and remembers
     await dragMenuEdge(20)
     await expect(window.locator("#menu")).toHaveClass(/\bcollapse\b/)
 
-    // A menu entry opens the folded menu at the width it had before the fold.
+    // A menu entry opens its panel while preserving the folded icon rail.
     await window.getByTestId("settings-menu").click()
-    await expect(window.locator("#menu")).not.toHaveClass(/\bcollapse\b/)
-    expect(Math.round(await menuRight())).toBe(242)
+    await expect(window.locator("#menu")).toHaveClass(/\bcollapse\b/)
+    await expect(window.locator("#menu")).toHaveCSS("width", "28px")
     await expect(window.locator("#left_panel")).toHaveAttribute("active_panel", "settings")
 
     // Dragging the edge back out of the rail opens the menu at that width.
@@ -310,14 +310,14 @@ test("drags the menu's edge to size it, folds it under the minimum and remembers
     ])).toEqual(["118", "true"])
 
     // The collapse button still hides the whole sidebar, and a menu entry
-    // brings it back with the menu open.
+    // brings it back with the menu still folded.
     await window.getByTestId("stories-menu").click()
     await window.locator("#stories_panel .collapsebutton").click()
     await expect(window.locator("#left_main")).toBeHidden()
     await expect(window.locator("#left_panel")).toHaveCSS("width", "30px")
     await window.getByTestId("stories-menu").click()
     await expect(window.locator("#left_main")).toBeVisible()
-    await expect(window.locator("#menu")).not.toHaveClass(/\bcollapse\b/)
+    await expect(window.locator("#menu")).toHaveClass(/\bcollapse\b/)
   } finally {
     await closeApp(electronApp, userData)
   }

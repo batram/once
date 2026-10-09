@@ -64,7 +64,7 @@ function resizer(window) {
   return { menu, handle }
 }
 
-test("collapse controls toggle the menu and notify their host", () => {
+test("menu clicks and panel requests reveal sidebar content without unfolding the menu", () => {
   withDocument(SHELL, () => {
     const { bindMenuCollapseControls, expandMenu } = load()
     const changes = []
@@ -77,11 +77,12 @@ test("collapse controls toggle the menu and notify their host", () => {
     assert.ok(menu.classList.contains("collapse"))
 
     document.querySelector(".sidebar_panel").click()
-    assert.ok(!menu.classList.contains("collapse"))
+    assert.ok(menu.classList.contains("collapse"))
+    document.querySelector(".sidebar_panel").click()
 
     controls[1].click()
     expandMenu()
-    assert.ok(!menu.classList.contains("collapse"))
+    assert.ok(menu.classList.contains("collapse"))
     assert.deepEqual(changes, [true, false, true, false])
   })
 })
@@ -99,7 +100,7 @@ test("a drag folds the menu alone, without telling the host", () => {
     pointer(handle, "pointerup", MENU_WIDTH.min - FOLD_SLACK - 1)
     assert.ok(menu.classList.contains("collapse"))
     document.querySelector(".sidebar_panel").click()
-    assert.ok(!menu.classList.contains("collapse"))
+    assert.ok(menu.classList.contains("collapse"))
     assert.deepEqual(changes, [])
 
     // A button fold after a drag fold still reaches the host both ways.
@@ -181,8 +182,8 @@ test("a stored width and collapsed state are restored on mount", () => {
     assert.deepEqual(changes, [], "a restored fold is the menu's alone")
 
     document.querySelector(".sidebar_panel").click()
-    assert.ok(!menu.classList.contains("collapse"))
-    assert.equal(stored.get("once:menu-collapsed"), undefined)
+    assert.ok(menu.classList.contains("collapse"))
+    assert.equal(stored.get("once:menu-collapsed"), "true")
     assert.equal(menu.style.getPropertyValue("--menu-width"), "200px")
   })
 })

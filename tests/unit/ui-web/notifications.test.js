@@ -231,7 +231,7 @@ test("status issues stack, dismiss, restore, and reset per reload", async (t) =>
   }
 })
 
-test("an issue glyph in the folded rail opens the menu, and the error log when the sidebar was hidden", () => {
+test("an issue glyph preserves the folded rail and opens the error log when the sidebar was hidden", () => {
   const dom = installDom(`
     <nav id="menu" class="collapse">
       <button id="settings_menu_btn" class="sidebar_panel">Settings</button>
@@ -258,14 +258,14 @@ test("an issue glyph in the folded rail opens the menu, and the error log when t
     // The sidebar as a whole is hidden: the bubbles have no box.
     document.querySelector("#status_surfaces").getClientRects = () => []
     errors.click()
-    assert.ok(!menu.classList.contains("collapse"))
+    assert.ok(menu.classList.contains("collapse"))
     assert.deepEqual(clicks, ["settings", "errors"])
 
-    // Only the menu folded: the click opens it and toggles the bubbles as usual.
+    // Only the menu folded: the click preserves it and toggles the bubbles as usual.
     menu.classList.add("collapse")
     document.querySelector("#status_surfaces").getClientRects = () => [{}]
     errors.click()
-    assert.ok(!menu.classList.contains("collapse"))
+    assert.ok(menu.classList.contains("collapse"))
     assert.deepEqual(clicks, ["settings", "errors"])
     assert.equal(document.querySelectorAll(".status_issue_bubble").length, 0, "the shown bubble was dismissed")
   } finally {

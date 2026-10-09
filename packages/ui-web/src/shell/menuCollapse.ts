@@ -1,7 +1,7 @@
 // The sidebar menu's width and fold. Its right edge is a drag handle: the
 // reader sets the width, it is remembered, and dragging it under the minimum
-// folds the menu to its icon rail. A click on a folded menu's entry opens it
-// again. The desktop also keeps the collapse buttons in the panel title bars,
+// folds the menu to its icon rail. Only dragging it back unfolds the menu.
+// The desktop also keeps the collapse buttons in the panel title bars,
 // which fold the menu and tell the shell, so it can hide the whole sidebar.
 
 const WIDTH_KEY = "once:menu-width"
@@ -22,11 +22,10 @@ let measuredMinimum: number | undefined
 // hides the whole sidebar for it; a drag folds the menu alone.
 let collapsedByButton = false
 
-/** Opens a collapsed sidebar, as a click on its menu would, for a panel that needs to be seen. */
+/** Reveals the sidebar content without changing the menu's fold or saved width. */
 export function expandMenu(): void {
-  const menu = document.querySelector<HTMLElement>("#menu")
-  if (!menu?.classList.contains("collapse")) return
-  expand(menu)
+  if (collapsedByButton) announceCollapsed?.(false)
+  collapsedByButton = false
 }
 
 export function bindMenuCollapseControls(
@@ -51,7 +50,7 @@ export function bindMenuCollapseControls(
     if (!menu.classList.contains("collapse")) return
     const target = event.target
     if (!(target instanceof Element) || !target.closest(".sidebar_panel")) return
-    expand(menu)
+    expandMenu()
   }
 
   if (options.resizable) bindMenuResize(menu)
