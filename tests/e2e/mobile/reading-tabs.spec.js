@@ -13,7 +13,7 @@ const addressEditor = page => page.getByTestId("address-editor-input")
 // A new tab opens the address editor on its blank page.
 const newTab = async page => {
   await openTabs(page)
-  await tabMenu(page, "new-tab")
+  await switcher(page).getByTestId("reading-tabs-new").click()
   await expect(addressEditor(page)).toBeFocused()
 }
 const goTo = async (page, url) => {

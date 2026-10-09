@@ -3658,7 +3658,8 @@
   .reading_tab_rows {
     flex: 1;
     min-height: 0;
-    padding: var(--sp-1) var(--sp-3) var(--sp-3);
+    /* The last row's close button scrolls clear of the floating new tab. */
+    padding: var(--sp-1) var(--sp-3) calc(var(--m-fab-clearance) + var(--sp-3));
     overflow: auto;
     overscroll-behavior: contain;
   }
@@ -4074,6 +4075,38 @@
 
   #reading_tabs_dialog .button:active {
     background: var(--second-bg-color);
+  }
+
+  /* New tab: a rounded square in the thumb's corner, filled like the lit
+     tab count above it, so the two read as one control family. */
+  #reading_tabs_dialog .reading_tab_new {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    z-index: 2;
+    right: calc(env(safe-area-inset-right) + var(--sp-4));
+    bottom: var(--sp-4);
+    box-sizing: border-box;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: var(--m-accent-bg);
+    color: var(--text-high-color);
+    box-shadow: 0 3px 10px rgb(0 0 0 / 20%);
+  }
+
+  #reading_tabs_dialog .reading_tab_new[hidden] {
+    display: none;
+  }
+
+  #reading_tabs_dialog .reading_tab_new .icon {
+    --icon-size: var(--icon-lg);
+  }
+
+  #reading_tabs_dialog .reading_tab_new:active {
+    background: var(--m-pressed-bg);
   }
 
   .reading_tab_undo {

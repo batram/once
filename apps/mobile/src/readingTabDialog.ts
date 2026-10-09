@@ -11,6 +11,7 @@ export class ReadingTabDialog {
   private readonly count = document.createElement("button")
   private readonly undo = document.createElement("button")
   private readonly more = document.createElement("button")
+  private readonly create: HTMLButtonElement
   private readonly title = document.createElement("h2")
   private readonly total = document.createElement("span")
   private readonly undoBar = document.createElement("div")
@@ -99,6 +100,7 @@ export class ReadingTabDialog {
     dismiss.autofocus = true
     controls.append(this.more, dismiss)
     header.append(controls)
+    this.create = newTabButton(() => { this.dialog.close(); actions.create() })
     this.status.setAttribute("role", "status")
     this.status.setAttribute("aria-live", "polite")
     this.status.className = "reading_tab_status"
@@ -108,7 +110,7 @@ export class ReadingTabDialog {
     this.remotePanel.setAttribute("role", "tabpanel")
     this.remotePanel.setAttribute("aria-labelledby", this.remoteTab.id)
     this.remotePanel.hidden = true
-    this.dialog.append(header, this.undoBar, this.rows, this.remotePanel)
+    this.dialog.append(header, this.undoBar, this.rows, this.remotePanel, this.create)
     const content = document.querySelector("#reading_content")
     if (!content) throw new Error("Missing mobile reading content")
     content.append(this.dialog)
@@ -216,6 +218,7 @@ export class ReadingTabDialog {
     this.rows.hidden = remote
     this.undoBar.classList.toggle("reading_tab_undo_away", remote)
     this.remotePanel.hidden = !remote
+    this.create.hidden = remote
     if (!remote) {
       this.rowsStale = true
       this.renderRows()
@@ -427,7 +430,18 @@ function button(label: string, action: () => void): HTMLButtonElement {
   return element
 }
 
-function icon(name: "more" | "x" | "volume"): HTMLElement {
+/** New tab floats in the thumb's corner, over this phone's tabs. */
+function newTabButton(action: () => void): HTMLButtonElement {
+  const element = button("", action)
+  element.className = "button reading_tab_new"
+  element.setAttribute("aria-label", "New tab")
+  element.title = "New tab"
+  element.dataset.testid = "reading-tabs-new"
+  element.append(icon("plus"))
+  return element
+}
+
+function icon(name: "more" | "x" | "volume" | "plus"): HTMLElement {
   const element = document.createElement("span")
   element.className = `icon icon--chrome icon--${name}`
   element.setAttribute("aria-hidden", "true")
