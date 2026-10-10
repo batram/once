@@ -1,4 +1,4 @@
-import { isPdfSource } from "./pdfSource"
+import { watchPdfSources } from "./pdfSource"
 import {
   isReaderTtsRate,
   normalizeReaderTtsPreferences
@@ -109,14 +109,21 @@ export async function openReaderTab(
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error("Reader source must use HTTP or HTTPS")
   }
-  if (await isPdfSource(parsed.toString())) {
-    const search = new URLSearchParams({ pdf: "1", sourceUrl: parsed.toString(), theme })
-    await browserApi.tabs.create({ url: browserApi.runtime.getURL(`static/reader.html?${search}`), active })
-    return
-  }
-  const tab = await browserApi.tabs.create({ url: parsed.toString(), active })
-  if (tab.id == null) throw new Error("Reader tab was not created")
-  await waitUntilLoaded(browserApi, tab.id)
+  const watch = watchPdfSources(browserApi, parsed.toString())
+  let tab: browser.tabs.Tab
+  try {
+    tab = await browserApi.tabs.create({ url: parsed.toString(), active })
+    if (tab.id == null) throw new Error("Reader tab was not created")
+    const loaded = waitUntilLoaded(browserApi, tab.id)
+    loaded.catch(() => undefined)
+    if (await watch.isPdf(tab.id, loaded)) {
+      // The browser's PDF viewer is privileged; extraction happens in our own page.
+      const search = new URLSearchParams({ pdf: "1", sourceUrl: parsed.toString(), theme })
+      await browserApi.tabs.update(tab.id, { url: browserApi.runtime.getURL(`static/reader.html?${search}`) })
+      return
+    }
+    await loaded
+  } finally { watch.stop() }
   await browserApi.scripting.executeScript({
     target: { tabId: tab.id },
     func: (configuredTheme: string) => {

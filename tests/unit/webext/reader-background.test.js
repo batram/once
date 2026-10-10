@@ -19,10 +19,12 @@ function event() {
   }
 }
 
-function createBrowser() {
+function createBrowser({ responseHeaders } = {}) {
   const onMessage = event()
   const onRemoved = event()
   const onUpdated = event()
+  const onHeadersReceived = event()
+  const onCompleted = event()
   const calls = []
   const stored = {}
   return {
@@ -30,12 +32,22 @@ function createBrowser() {
     stored,
     onMessage,
     onRemoved,
+    onHeadersReceived,
     api: {
       runtime: { onMessage, getURL: (path) => `moz-extension://once/${path.replace(/^\//, "")}` },
+      webRequest: { onHeadersReceived },
+      webNavigation: { onCompleted },
       tabs: {
         onRemoved,
         onUpdated,
-        async create(options) { calls.push(["create", options]); return { id: 7, status: "complete" } },
+        async create(options) {
+          calls.push(["create", options])
+          // The navigation's response headers arrive while the tab loads.
+          if (responseHeaders) for (const listener of onHeadersReceived.listeners) listener({ tabId: 7, statusCode: 200, url: options.url, responseHeaders })
+          queueMicrotask(() => { for (const listener of onCompleted.listeners) listener({ tabId: 7, frameId: 0, url: options.url }) })
+          return { id: 7, status: "complete" }
+        },
+        async update(tabId, options) { calls.push(["update", tabId, options]) },
         async get() { return { id: 7, status: "complete" } },
         async sendMessage(tabId, message) { calls.push(["sendMessage", tabId, message]) }
       },
@@ -69,6 +81,7 @@ test("injects reader theme, styles, and content after a safe page loads", async 
   cleanup()
   assert.equal(fake.onMessage.listeners.length, 0)
   assert.equal(fake.onRemoved.listeners.length, 0)
+  assert.equal(fake.onHeadersReceived.listeners.length, 0, "the header watch ends with the open")
 })
 
 test("parks a stored reader document for its page and hands it over once", async () => {
@@ -139,17 +152,28 @@ test("a speed stored before speeds were per voice becomes the default voice's", 
 })
 
 
-test("PDF sources open in the extension reader without injecting into a privileged PDF viewer", async context => {
-  context.mock.method(globalThis, "fetch", async () => new Response(null, { headers: { "content-type": "application/pdf" } }))
-  const fake = createBrowser()
+test("a PDF response moves the tab to the extension reader without injecting into a privileged PDF viewer", async context => {
+  const probe = context.mock.method(globalThis, "fetch", async () => { throw new Error("no probe expected") })
+  const fake = createBrowser({ responseHeaders: [{ name: "Content-Type", value: "application/pdf" }] })
   installReaderBackground(fake.api)
   await fake.onMessage.listeners[0]({ onceCommand: "openReader", url: "https://example.test/document", active: false, theme: "dark" }, panelSender)
-  const created = fake.calls.find(([kind]) => kind === "create")[1]
-  const url = new URL(created.url)
+  assert.deepEqual(fake.calls.find(([kind]) => kind === "create")[1], { url: "https://example.test/document", active: false })
+  const [, tabId, updated] = fake.calls.find(([kind]) => kind === "update")
+  assert.equal(tabId, 7)
+  const url = new URL(updated.url)
   assert.equal(url.pathname, "/static/reader.html")
   assert.equal(url.searchParams.get("pdf"), "1")
   assert.equal(url.searchParams.get("sourceUrl"), "https://example.test/document")
   assert.equal(url.searchParams.get("theme"), "dark")
-  assert.equal(created.active, false)
+  assert.equal(fake.calls.filter(([kind]) => kind === "script" || kind === "css").length, 0)
+  assert.equal(probe.mock.callCount(), 0)
+})
+
+test("a PDF the browser served without reporting headers is still found by the fallback probe", async context => {
+  context.mock.method(globalThis, "fetch", async () => new Response(null, { headers: { "content-type": "application/pdf" } }))
+  const fake = createBrowser()
+  installReaderBackground(fake.api)
+  await fake.onMessage.listeners[0]({ onceCommand: "openReader", url: "https://example.test/document", active: true, theme: "light" }, panelSender)
+  assert.equal(new URL(fake.calls.find(([kind]) => kind === "update")[2].url).searchParams.get("pdf"), "1")
   assert.equal(fake.calls.filter(([kind]) => kind === "script" || kind === "css").length, 0)
 })
