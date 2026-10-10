@@ -26,9 +26,15 @@ PouchDB.plugin(PouchDBFind)
 
 const OS_NAMES: Record<string, string> = { darwin: "macOS", win32: "Windows", linux: "Linux" }
 
+export interface ElectronPlatformOptions {
+  /** The PDF sandbox page, served under `once-addon://pdf/`. */
+  pdfSandboxUrl?: string
+}
+
 export function createElectronPlatform(
   bridge: ElectronBridge,
-  buildInfo?: ElectronBuildInfo
+  buildInfo?: ElectronBuildInfo,
+  options: ElectronPlatformOptions = {}
 ): OncePlatformPorts {
   const syncWindowBackground = () => {
     const color = getComputedStyle(document.body).backgroundColor
@@ -116,7 +122,7 @@ export function createElectronPlatform(
       appVersion: buildInfo?.version ?? ""
     },
     textRecognition: buildInfo?.platform === "darwin" ? { recognizeImage: bytes => bridge.recognizeImage(bytes) } : undefined,
-    pdfText: createPdfTextPort(),
+    ...(options.pdfSandboxUrl ? { pdfText: createPdfTextPort({ sandboxUrl: options.pdfSandboxUrl }) } : {}),
     fetch: fetchThroughMain,
     // Document bodies stream from main so retrieval can stop at its byte cap;
     // the plain bridge fetch buffers a whole body in main first.

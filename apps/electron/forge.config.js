@@ -134,6 +134,13 @@ module.exports = {
             js: "./src/addonSandbox.ts",
             name: "addon_sandbox"
           },
+          // The PDF sandbox page: PDF.js in a sandboxed iframe, served under
+          // once-addon://pdf/ with no preload and no bridge.
+          {
+            html: "../../packages/ui-web/public/pdf-sandbox.html",
+            js: "./src/pdfSandbox.ts",
+            name: "pdf_sandbox"
+          },
           // A tray's conversation in a browser tab: served under once-addon://
           // like the sandbox, with a preload that only relays to the shell.
           {

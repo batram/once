@@ -24,6 +24,7 @@
     "@capacitor/status-bar": "8.0.4",
     "@once/app": "*",
     "@once/platform-mobile": "*",
+    "@once/platform-web": "*",
     "@once/ui-web": "*"
   },
   "devDependencies": {

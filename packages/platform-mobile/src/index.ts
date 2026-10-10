@@ -163,6 +163,8 @@ export interface MobilePlatformOptions {
   livePageHtml?: (url: string) => Promise<{ html: string; url: string } | null>
   /** The app's version, which other devices show for this one. */
   appVersion?: string
+  /** The PDF sandbox page (`pdf-sandbox.html` beside the app); without it PDFs are not extracted. */
+  pdfSandboxUrl?: string
   /** The reading tabs this device shares, and where another device's tab opens. */
   tabSource?: TabSourcePort
   tabOpener?: TabOpenerPort
@@ -229,7 +231,7 @@ export function createMobilePlatform(
         }
       } satisfies TextRecognitionPort
     } : {}),
-    pdfText: createPdfTextPort(),
+    ...(options.pdfSandboxUrl ? { pdfText: createPdfTextPort({ sandboxUrl: options.pdfSandboxUrl }) } : {}),
     fetch: nativeFetch,
     ...(Capacitor.isNativePlatform() ? { documentFetch: createDocumentFetch(ImageText) } : {}),
     addonFetch: mobileAddonFetch,

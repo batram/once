@@ -41,30 +41,40 @@ class ReaderRuntimeCspPlugin {
   }
 }
 
-// The add-on sandbox runtime is inlined into its page for the same reason the
-// reader runtime is: older WebKit refuses external scripts inside an
-// opaque-origin sandboxed frame. The page's own policy then allows exactly
-// that inline text by hash, plus blob: for the add-on's code.
-class AddonSandboxInlinePlugin {
+// The add-on and PDF sandbox runtimes are inlined into their pages for the
+// same reason the reader runtime is: older WebKit refuses external scripts
+// inside an opaque-origin sandboxed frame. Each page's own policy then allows
+// exactly that inline text by hash, plus blob: for what it loads itself.
+class SandboxInlinePlugin {
+  constructor(name) {
+    this.name = name
+  }
+
   apply(compiler) {
-    compiler.hooks.thisCompilation.tap("AddonSandboxInline", (compilation) => {
+    const script = `${this.name}.js`
+    const page = `${this.name}.html`
+    compiler.hooks.thisCompilation.tap("SandboxInline", (compilation) => {
       compilation.hooks.processAssets.tap(
         {
-          name: "AddonSandboxInline",
+          name: "SandboxInline",
           stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE
         },
         (assets) => {
-          const runtime = assets["addon-sandbox.js"]
-          const page = assets["addon-sandbox.html"]
-          if (!runtime || !page) {
-            throw new Error("AddonSandboxInline expects addon-sandbox.js and addon-sandbox.html assets")
+          const runtime = assets[script]
+          const html = assets[page]
+          if (!runtime || !html) {
+            throw new Error(`SandboxInline expects ${script} and ${page} assets`)
           }
           const inlined = runtime.source().toString().replace(/<\/script/gi, "<\\/script")
           const hash = crypto.createHash("sha256").update(inlined, "utf8").digest("base64")
-          const html = page.source().toString()
-            .replace("script-src 'self' blob:", `script-src 'sha256-${hash}' blob:`)
-            .replace("</body>", `  <script>${inlined}</script>\n  </body>`)
-          compilation.updateAsset("addon-sandbox.html", new compiler.webpack.sources.RawSource(html))
+          const source = html.source().toString()
+          // Replacer functions: a bundle contains `$$` and `$&`, which a
+          // replacement string would rewrite and so break the hash.
+          const output = source
+            .replace("script-src 'self' blob:", () => `script-src 'sha256-${hash}' blob:`)
+            .replace("</body>", () => `  <script>${inlined}</script>\n  </body>`)
+          if (output === source) throw new Error(`${page} no longer carries the expected script-src policy`)
+          compilation.updateAsset(page, new compiler.webpack.sources.RawSource(output))
         }
       )
     })
@@ -77,7 +87,8 @@ const entry = {
   "reader-runtime": path.join(__dirname, "src", "readerRuntime.ts"),
   "picker-injection": path.join(__dirname, "src", "pickerInjection.ts"),
   "page-find": path.join(__dirname, "src", "pageFindRuntime.ts"),
-  "addon-sandbox": path.join(__dirname, "src", "addonSandbox.ts")
+  "addon-sandbox": path.join(__dirname, "src", "addonSandbox.ts"),
+  "pdf-sandbox": path.join(__dirname, "src", "pdfSandbox.ts")
 }
 
 module.exports = (_env = {}, argv = {}) => {
@@ -133,7 +144,8 @@ module.exports = (_env = {}, argv = {}) => {
       }),
       new webpack.IgnorePlugin({ resourceRegExp: /^node:module$/ }),
       new ReaderRuntimeCspPlugin(),
-      new AddonSandboxInlinePlugin(),
+      new SandboxInlinePlugin("addon-sandbox"),
+      new SandboxInlinePlugin("pdf-sandbox"),
       new CopyPlugin({
         patterns: [
           { from: path.join(root, "node_modules/pdfjs-dist/LICENSE"), to: "pdf/LICENSE" },
@@ -171,6 +183,11 @@ module.exports = (_env = {}, argv = {}) => {
           {
             from: path.join(root, "packages", "ui-web", "public", "addon-sandbox.html"),
             to: "addon-sandbox.html"
+          },
+          // The PDF sandbox page, likewise its own document with its own policy.
+          {
+            from: path.join(root, "packages", "ui-web", "public", "pdf-sandbox.html"),
+            to: "pdf-sandbox.html"
           },
           {
             from: path.join(root, "packages", "ui-web", "public", "shell.html"),

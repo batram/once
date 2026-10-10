@@ -72,6 +72,7 @@
         // Standalone browser-world runtime served to once-reader:// pages.
         "src/readerRuntime.ts",
         "src/addonSandbox.ts",
+        "src/pdfSandbox.ts",
         "src/pickerInjection.ts",
         // Standalone image selection runtime built by webpack.main.config.js.
         "src/imageTextInjection.ts",
@@ -121,6 +122,7 @@
       "entry": [
         "src/main.ts",
         "src/addonSandbox.ts",
+        "src/pdfSandbox.ts",
         "src/pickerInjection.ts",
         // The find engine the iOS surface plugin evaluates in the page.
         "src/pageFindRuntime.ts",
@@ -181,6 +183,7 @@
         "src/keyCommandBackground.ts",
         // Content script the extension manifests load by bundle name.
         "src/pageActionTarget.ts",
+        "src/pdfSandbox.ts",
         "src/pickerBackground.ts",
         "src/readerBackground.ts",
         "src/readerPage.ts",

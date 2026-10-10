@@ -696,7 +696,13 @@ its manifest permits blob modules, while the shell and sandbox each retain
 their narrower document CSP. `tests/e2e/extensions/firefox-addons.test.js`
 installs scripts without configuring a sandbox URL and checks opaque-origin
 isolation, denied direct network access, and absent extension APIs. No hosted
-sandbox asset is emitted. Signing and Mozilla policy review are separate from
+sandbox asset is emitted. The PDF sandbox (`pdf_sandbox` Forge entry,
+`pdf-sandbox.html` on mobile, `static/pdf-sandbox.html` in the extensions) is
+served the same way and likewise needs a repackage after a change to
+`packages/platform-web/src/pdfSandboxRuntime.ts`; the PDF reader specs
+(`tests/e2e/electron/pdf-reader.spec.js`, `tests/e2e/mobile/pdf-reader.spec.js`,
+`tests/e2e/extensions/chrome-pdf-reader.spec.js`,
+`tests/e2e/extensions/firefox-pdf-reader.test.js`) extract through it. Signing and Mozilla policy review are separate from
 this local execution path. The
 Android smoke suite (`mobile.smoke.js`) ends with the same add-on in the
 device WebView. See [ADDONS.md](ADDONS.md) for what the fixture exercises.

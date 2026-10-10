@@ -246,7 +246,8 @@ async function startMobileApp(): Promise<void> {
     appVersion: __ONCE_APP_VERSION__,
     // The reading controller exists before the app starts, which is when these first run.
     tabSource: readingTabSource(() => reading.tabs, () => reading.runtime.capturePreview(), (tabId, script) => reading.runtime.evaluate(tabId, script)),
-    tabOpener: readingTabOpener(() => reading)
+    tabOpener: readingTabOpener(() => reading),
+    pdfSandboxUrl: new URL("pdf-sandbox.html", window.location.href).toString()
   })
   const app = createOnceApp(platform)
   const browserSurface = createInAppBrowserSurface((url) =>

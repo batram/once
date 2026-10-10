@@ -26,6 +26,7 @@ module.exports = (env = {}, argv = {}) => {
       "page-action-target": path.join(root, "packages", "webext-shell", "dist", "pageActionTarget.js"),
       sidepanel: path.join(root, "packages", "webext-shell", "dist", "sidepanel.js"),
       "addon-sandbox": path.join(root, "packages", "webext-shell", "dist", "addonSandbox.js"),
+      "pdf-sandbox": path.join(root, "packages", "webext-shell", "dist", "pdfSandbox.js"),
       "reader-content": path.join(root, "packages", "ui-web", "dist", "reader", "contentScript.js"),
       "reader-page": path.join(root, "packages", "webext-shell", "dist", "readerPage.js"),
       "addon-conversation-page": path.join(root, "packages", "webext-shell", "dist", "addonConversationPage.js"),
@@ -62,7 +63,9 @@ module.exports = (env = {}, argv = {}) => {
     },
     performance: {
       maxAssetSize: 350 * 1024,
-      maxEntrypointSize: 350 * 1024
+      maxEntrypointSize: 350 * 1024,
+      // PDF.js and its worker are large by nature and load only in the PDF sandbox.
+      assetFilter: (name) => !/^pdf-sandbox\.js|^pdf\//.test(name)
     },
     resolve: {
       extensions: [".ts", ".js"],
@@ -134,6 +137,14 @@ module.exports = (env = {}, argv = {}) => {
             to: "static/addon-sandbox.html",
             transform(content) {
               return content.toString().replace("</body>", '  <script src="../addon-sandbox.js"></script>\n  </body>')
+            }
+          },
+          // The PDF sandbox page, served and framed the same way.
+          {
+            from: path.join(root, "packages", "ui-web", "public", "pdf-sandbox.html"),
+            to: "static/pdf-sandbox.html",
+            transform(content) {
+              return content.toString().replace("</body>", '  <script src="../pdf-sandbox.js"></script>\n  </body>')
             }
           },
           // The reader page for stored articles; the panel hands the rendered

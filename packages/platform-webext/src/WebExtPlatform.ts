@@ -75,7 +75,7 @@ export function createWebExtPlatform(
     },
     activeTab: createWebExtActiveTab(browserApi, window),
     tabOpener: createWebExtTabOpener(browserApi),
-    pdfText: createPdfTextPort(),
+    pdfText: createPdfTextPort({ sandboxUrl: browserApi.runtime.getURL("static/pdf-sandbox.html") }),
     fetch: window.fetch.bind(window),
     onHistoryCommand: createWebExtHistorySubscription(browserApi),
     onDatabaseChange(handler) {

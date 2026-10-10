@@ -23,7 +23,7 @@ async function render(): Promise<void> {
       status.textContent = "Preparing PDF reader…"
       document.body.append(status)
       const sourceUrl = params.get("sourceUrl") || ""
-      const fetched = await fetchDocument(fetch, sourceUrl, undefined, createPdfTextPort())
+      const fetched = await fetchDocument(fetch, sourceUrl, undefined, createPdfTextPort({ sandboxUrl: browser.runtime.getURL("static/pdf-sandbox.html") }))
       const article = extractArticle(fetched.html, fetched.url, fetched.mediaType)
       const theme = params.get("theme")
       installReaderDocument(readerDocument(article, theme === "dark" || theme === "light" ? theme : "system"))

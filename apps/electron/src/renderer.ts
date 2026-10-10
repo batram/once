@@ -31,6 +31,7 @@ import "./browserExtensionSettings.css"
 // Served by main from the Forge output: a sandboxed frame has an opaque origin
 // and may not load file: subresources, so the add-on sandbox page needs a scheme.
 const ADDON_SANDBOX_URL = "once-addon://sandbox/index.html"
+const PDF_SANDBOX_URL = "once-addon://pdf/index.html"
 
 // The add-on packages the build inlined (apps/electron/webpack.renderer.config.js).
 declare const __ONCE_BUNDLED_ADDONS__: BundledAddonFiles[]
@@ -132,7 +133,7 @@ async function startRenderer(): Promise<void> {
   const buildInfo = await window.onceElectron.app.getBuildInfo()
   document.body.classList.add(`electron-platform-${buildInfo.platform}`)
 
-  const platform = createElectronPlatform(window.onceElectron, buildInfo)
+  const platform = createElectronPlatform(window.onceElectron, buildInfo, { pdfSandboxUrl: PDF_SANDBOX_URL })
   applyTabSyncTestTiming(platform)
   platform.tabOpener = electronTabOpener(window.onceElectron)
   const app = createOnceApp(platform)

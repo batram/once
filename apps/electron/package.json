@@ -16,6 +16,7 @@
   "dependencies": {
     "@once/app": "*",
     "@once/platform-electron": "*",
+    "@once/platform-web": "*",
     "@once/ui-web": "*",
     "adm-zip": "^0.6.1",
     "electron-squirrel-startup": "^1.0.1",

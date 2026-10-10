@@ -161,7 +161,7 @@ export function createWebPlatform(): OncePlatformPorts {
         return () => undefined
       }
     },
-    pdfText: createPdfTextPort(),
+    pdfText: createPdfTextPort({ sandboxUrl: new URL("pdf-sandbox.html", window.location.href).toString() }),
     fetch: window.fetch.bind(window)
   }
 }

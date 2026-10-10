@@ -13,6 +13,10 @@
     "./pdf": {
       "types": "./dist/pdfText.d.ts",
       "default": "./dist/pdfText.js"
+    },
+    "./pdf-sandbox": {
+      "types": "./dist/pdfSandboxRuntime.d.ts",
+      "default": "./dist/pdfSandboxRuntime.js"
     }
   },
   "dependencies": {

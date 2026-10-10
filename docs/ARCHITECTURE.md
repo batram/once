@@ -355,6 +355,7 @@ Firefox it is the packaged `static/addon-sandbox.html` page. Firefox uses MV2
 with `script-src 'self' blob:` in its manifest; the shell narrows its own
 scripts to `'self'`, while the sandbox permits blob modules and denies direct
 network access. The iframe has no same-origin permission or extension APIs.
+The PDF sandbox (see PDF retrieval) is served the same way under its own page.
 No user-provided hosting is involved. Add-on code is cached per device by its hash;
 an add-on installed from a URL remembers that URL for update
 checks.
@@ -473,17 +474,43 @@ a single paragraph across a page boundary.
 
 The bundled browser adapter lives at `@once/platform-web/pdf`. Electron,
 Capacitor and extensions use PDF.js 6.4.299's legacy build; the inactive website
-composition root can reuse the same adapter when it is implemented. Parsing
-runs in a packaged same-origin module worker; encoding maps, standard fonts, image decoders and
-the license ship alongside it (the QuickJS PDF scripting engine is excluded). No CDN, blob worker, PDF scripting or additional
-CSP exception is needed. The adapter prefers each page's text layer and renders
-only pages without usable alphanumeric text for the optional native OCR port.
-Rasterization is bounded to a 2600-pixel longest side, and pages are processed
-sequentially with canvas/page/worker cleanup. Extraction is limited to 200 pages
-and two minutes, with explicit password, scan-support and recognition errors.
-An unreadable scan fails extraction rather than returning an incomplete article.
+composition root can reuse the same adapter when it is implemented. PDF.js is
+treated as untrusted code handling untrusted input: it runs only inside the PDF
+sandbox, a hidden `<iframe sandbox="allow-scripts">` on an opaque origin whose
+page (`packages/ui-web/public/pdf-sandbox.html`, runtime
+`@once/platform-web/pdf-sandbox`) carries its own policy: its bundled runtime,
+the parser as a blob module built from code the shell hands over (PDF.js runs
+it as a worker where the host allows one; Chromium refuses workers to an
+opaque origin, so there it imports the module onto the frame's own thread,
+still outside the shell), `'wasm-unsafe-eval'` for the image decoders, and no
+network, storage, bridge or PDF scripting (the QuickJS engine is not shipped).
+The shell posts the bytes and the parser's source, answers the frame's requests for encoding maps,
+standard fonts and decoders from its own origin (file names of known kinds
+only), runs the optional native OCR port on the bitmaps it sends back, and
+validates every message (`pdfSandboxProtocol.ts`: page count, line shapes,
+bounds, title length, image size) so a compromised parser can at most return
+wrong text. A fresh frame serves each PDF and is removed afterwards. The page is
+served like the add-on sandbox: `once-addon://pdf/` on Electron, the inlined
+`pdf-sandbox.html` asset on mobile, a manifest `sandbox` page on Chrome and the
+packaged `static/pdf-sandbox.html` on Firefox.
+
+The adapter prefers each page's text layer and rasterizes only pages without
+usable alphanumeric text, once, with annotations disabled; a uniform bitmap is
+a blank page, anything else goes to the optional native OCR port. Rasterization
+is bounded to a 2600-pixel longest side, and pages are processed sequentially
+with canvas/page/worker cleanup. Extraction is limited to 200 pages and two
+minutes, with explicit password, scan-support and recognition errors. An
+unreadable scan fails extraction rather than returning an incomplete article.
 A page with a small amount of embedded text over a larger scan currently uses
 that text layer; detecting incomplete text layers is a separate improvement.
+
+Document bodies are bounded before a decoder sees them. Retrieval reads at most
+`MAX_DOCUMENT_BYTES` (64 MiB) and uses `OncePlatformPorts.documentFetch` where
+the platform's ordinary fetch would buffer a whole body first: Electron streams
+document bodies from main, and the Capacitor apps download them through their
+own native method (`fetchDocument` on the surface plugin, URLSession on iOS and
+HttpURLConnection on Android) which stops reading at the cap as bytes arrive, so
+a misreported or absent Content-Length cannot fill memory.
 
 macOS/iOS can OCR scan pages using the existing Apple Vision backend. Windows,
 Linux, Android and extensions can extract embedded text now; scanned pages need
@@ -492,12 +519,16 @@ backends such as PDFKit without changing Reader or addon consumers. Android's
 native text API requires API 35, so PDF.js keeps older devices on the same text
 retrieval path.
 
-Extension reader actions probe the source MIME type with HEAD (GET headers if
-HEAD is unsupported), then open PDFs in their own reader page. This avoids
-injecting into Chromium/Firefox's privileged PDF viewer and handles extensionless
-PDF URLs. HTML sources retain the existing live content-script reader path.
-Reader links still identify their original source URL, and addons retrieve PDF
-text through the same capability-gated article content API.
+Extension reader actions open the source tab and read its main-frame response
+headers through `webRequest` (`webext-shell/src/pdfSource.ts`); a PDF response
+moves the tab to the extension's own reader page, so no extra request reaches
+the site before the user's navigation and extensionless PDF URLs are handled.
+This avoids injecting into Chromium/Firefox's privileged PDF viewer. Only a
+navigation the browser served without reporting headers (a cached document)
+falls back to a credential-less HEAD probe once loaded. HTML sources retain the
+existing live content-script reader path. Reader links still identify their
+original source URL, and addons retrieve PDF text through the same
+capability-gated article content API.
 
 Reference implementations: [PDF.js API](https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib.html),
 [Apple PDFPage](https://developer.apple.com/documentation/pdfkit/pdfpage), and

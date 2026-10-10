@@ -197,6 +197,12 @@ All paths below are under `packages/ui-web/src/story`.
   (`apps/mobile/webpack.config.js`), Chrome as a manifest `sandbox` page, and
   Firefox as the packaged `static/addon-sandbox.html` in its MV2 extension
   (`scripts/webpack.webext.config.js`, `webext-shell/src/sidepanel.ts`).
+- The PDF sandbox follows the same pattern for PDF.js:
+  `packages/platform-web/src/pdfSandboxRuntime.ts` runs inside
+  `public/pdf-sandbox.html` (Electron: the `pdf_sandbox` Forge entry under
+  `once-addon://pdf/`; mobile: inlined `pdf-sandbox.html`; extensions:
+  `static/pdf-sandbox.html`), `pdfText.ts` is the shell side that owns the
+  frame, and `pdfSandboxProtocol.ts` validates every message between them.
 - `storyRowSubstories.ts` builds the per-source lines under the title.
 - `storyLinks.ts` owns anchor behaviour on a row: claiming clicks and
   middle-clicks from the browser, and marking a story read when its URL opens.

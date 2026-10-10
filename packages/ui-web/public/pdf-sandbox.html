@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      The PDF sandbox: PDF.js parses untrusted documents here, inside a hidden
+      <iframe sandbox="allow-scripts"> on an opaque origin. This page carries
+      its own policy: its bundled runtime, the parser as a blob module built
+      from code the shell hands over (a worker where the host allows one, this
+      frame's own thread otherwise), WebAssembly image decoders, and nothing else.
+      It cannot reach the network, storage, or the shell.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' blob: 'wasm-unsafe-eval'; worker-src blob:; connect-src 'none'; img-src 'none'; style-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Once PDF sandbox</title>
+  </head>
+  <body></body>
+</html>
