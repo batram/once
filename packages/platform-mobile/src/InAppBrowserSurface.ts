@@ -2,6 +2,7 @@ import type { StoryPageContext } from "@once/core"
 import { Capacitor, PluginListenerHandle, registerPlugin } from "@capacitor/core"
 import type { FilterListsDocument, UserscriptsDocument } from "@once/core"
 import { parseUserscript } from "@once/core"
+import type { NativeExtensions } from "./BrowserExtensions"
 
 export interface BrowserSurfaceBounds {
   /** CSS viewport pixels. Native implementations perform scale conversion. */
@@ -358,8 +359,9 @@ function nativeExtensionSettings(
   }
 }
 
-const NativeInAppBrowser =
-  registerPlugin<NativeInAppBrowserPlugin>("InAppBrowserSurface")
+/** The one proxy for the native surface; Capacitor warns when a name is registered twice. */
+export const NativeInAppBrowser =
+  registerPlugin<NativeInAppBrowserPlugin & NativeExtensions>("InAppBrowserSurface")
 
 export function isEmbeddableUrl(value: string): boolean {
   try {

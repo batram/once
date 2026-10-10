@@ -7,9 +7,14 @@ import type { ReaderMediaAction, ReaderTtsEngine, ReaderTtsHostController } from
  * text-to-speech plugin already plays where system controls reach it.
  */
 export function nativeReaderSpeechEngine(): ReaderTtsEngine | undefined {
-  return Capacitor.getPlatform() === "ios"
-    ? registerPlugin<ReaderTtsEngine>("ReaderMediaSession")
-    : undefined
+  return Capacitor.getPlatform() === "ios" ? mediaSessionPlugin() : undefined
+}
+
+let registered: (ReaderTtsEngine & ReaderMediaSessionPlugin) | undefined
+
+// Speech and media controls share the plugin; Capacitor warns when a name is registered twice.
+function mediaSessionPlugin(): ReaderTtsEngine & ReaderMediaSessionPlugin {
+  return registered ??= registerPlugin<ReaderTtsEngine & ReaderMediaSessionPlugin>("ReaderMediaSession")
 }
 
 export interface ReaderMediaSessionPlugin {
@@ -36,9 +41,7 @@ export interface ReaderMediaSessionPlugin {
 export function installReaderMediaSession(
   tts: ReaderTtsHostController,
   describe: (frame: Window) => { title: string; subtitle: string },
-  plugin: ReaderMediaSessionPlugin | null = Capacitor.isNativePlatform()
-    ? registerPlugin<ReaderMediaSessionPlugin>("ReaderMediaSession")
-    : null
+  plugin: ReaderMediaSessionPlugin | null = Capacitor.isNativePlatform() ? mediaSessionPlugin() : null
 ): void {
   if (!plugin) return
   let shown = false
