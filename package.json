@@ -57,6 +57,7 @@
     "run:mobile:android": "npm run mobile -- run android --channel dev",
     "run:mobile:android:emulator": "npm run mobile -- run android --channel dev --target Pixel_7_API_36_AOSP",
     "run:mobile:ios": "npm run mobile -- run ios --channel dev",
+    "inspect:ios": "node scripts/ios-inspect.js",
     "inspect:mobile:android": "node tests/e2e/mobile/run-android-local.js --visual",
     "inspect:mobile:android:run": "node tests/e2e/mobile/run-mobile-e2e.js android --visual",
     "inspect:mobile:ios": "node tests/e2e/mobile/run-mobile-e2e.js ios --visual",

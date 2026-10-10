@@ -410,6 +410,27 @@ Release builds keep two aids for errors that happen away from a debugger:
   Firefox for GeckoView pages. It is off by default and stored natively, so it
   also applies from the next launch on. Debug builds are always inspectable.
 
+From the command line (and for coding agents), `npm run inspect:ios --` reaches
+the app on a USB-connected iPhone without Safari, through the CDP bridge of
+[pymobiledevice3](https://github.com/doronz88/pymobiledevice3) (`pip install
+pymobiledevice3` in a virtual environment; the script finds it in
+`$PYMOBILEDEVICE3`, `~/.local/share/pymobiledevice3/bin` or `PATH`). It needs no
+tunnel or sudo; the phone must be unlocked, trust this Mac and have Web
+Inspector on (Settings → Apps → Safari → Advanced).
+
+```bash
+npm run inspect:ios -- targets
+npm run inspect:ios -- eval "document.body.dataset.buildChannel"
+npm run inspect:ios -- console --levels error,warning --eval "location.reload()"
+npm run inspect:ios -- log
+```
+
+`eval` awaits promises and prints JSON; `console` follows messages as they
+happen; `log` prints what the app kept in its console messages and error log.
+Pass `--target "Once Dev"` when both apps are inspectable; the in-app browser's
+pages are listed by their titles too. The bridge serves one connection per
+page, so a new command takes the page over from a running `console`.
+
 ### Inspect the Android WebView with Chrome DevTools
 
 Both `run android --channel dev` (`com.zmarn.once.dev`) and the locally deployed
