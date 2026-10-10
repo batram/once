@@ -114,6 +114,7 @@ export function createElectronPlatform(
       defaultName: `Once on ${OS_NAMES[buildInfo?.platform ?? ""] ?? "desktop"}`,
       appVersion: buildInfo?.version ?? ""
     },
+    textRecognition: { recognizeImage: bytes => bridge.recognizeImage(bytes) },
     fetch: fetchThroughMain,
     // Addon connections stream, so a tray can show an answer as it is written.
     addonFetch: (input, init) => bridgeStreamingFetch(bridge, input, init),

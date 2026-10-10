@@ -35,7 +35,8 @@ import {
 } from "./sourceMenu"
 import { SourceLoader } from "./SourceLoader"
 import { DiagnosticLog, errorDetails } from "./DiagnosticLog"
-import { fetchDocument, fetchText } from "./fetchDocument"
+import { fetchText } from "./fetchDocument"
+import { documentRetrievalMethods } from "./documentRetrievalMethods"
 import { AddonSync } from "./AddonSync"
 import { waitForStartupStorage } from "./startupStorage"
 import { StoryContentService } from "./storyContent"
@@ -244,8 +245,7 @@ export class AppRuntime {
       purgeStory: (href) => this.purgeStory(href),
       getStoryContent: (href) => this.content.get(href),
       saveStoryContent: (href, html, meta) => this.content.save(href, html, meta),
-      fetchDocument: (url) => fetchDocument(this.platform.fetch, url),
-      livePageHtml: async (url) => await this.platform.livePage?.html(url) ?? null,
+      ...documentRetrievalMethods(this.platform),
       fetchText: (url) => fetchText(this.platform.fetch, url),
       openUrl: (url, target) => {
         if (url.startsWith("search:")) {

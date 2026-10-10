@@ -49,3 +49,26 @@ test("an open page is read as shown there before any fetch, and a failed fetch s
   const closed = { ...client, livePageHtml: async () => null, fetchDocument: async () => { throw new Error("The reader request failed with HTTP 403") } }
   await assert.rejects(addonStoryContent(closed, "https://example.test/a"), /HTTP 403\. Open the page, then choose Read the page/)
 })
+
+test("an open image retrieves OCR text for addons instead of its empty HTML", async () => {
+  const { window } = parseHTML("<html><body></body></html>")
+  class FragmentParser extends window.DOMParser {
+    parseFromString(html, type) { return super.parseFromString(/<html[\s>]/i.test(html) ? html : `<html><head></head><body>${html}</body></html>`, type) }
+  }
+  Object.assign(global, { document: window.document, DOMParser: FragmentParser })
+  installRawAssetLoader()
+  const { addonStoryContent } = require("../../../packages/ui-web/dist/addons/addonStoryContent")
+  const { fetchDocument } = require("../../../packages/app/dist/fetchDocument")
+  const client = {
+    getStoryContent: async () => null,
+    livePageHtml: async url => ({ url, html: '<html><head></head><body><img src="image.jpeg"></body></html>' }),
+    fetchDocument: url => fetchDocument(async () => new Response(new Uint8Array([1]), {
+      headers: { "content-type": "image/jpeg" }
+    }), url, { async recognizeImage() { return { lines: ["Short image text", "Second line"] } } })
+  }
+  const content = await addonStoryContent(client, "https://example.test/image.jpeg")
+  assert.match(content.text, /Short image text\nSecond line/)
+  assert.equal(content.origin, "page")
+  assert.equal(content.sourceUrl, "https://example.test/image.jpeg")
+  assert.equal(content.truncated, false)
+})

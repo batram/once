@@ -71,6 +71,8 @@
         "src/readerRuntime.ts",
         "src/addonSandbox.ts",
         "src/pickerInjection.ts",
+        // Standalone image selection runtime built by webpack.main.config.js.
+        "src/imageTextInjection.ts",
         "src/extensions/extensionPreload.ts",
         "src/extensions/contentPreload.ts",
         // The extensions menu window: a Forge entry with its own preload.

@@ -5,4 +5,4 @@ export interface ImageTextWord {
   topRight: ImageTextPoint
   bottomLeft: ImageTextPoint
 }
-export interface ImageTextResult { lines: ImageTextWord[][] }
+export interface ImageTextResult { lines: ImageTextWord[][]; textLines: string[]; lineBounds: { x: number; y: number; width: number; height: number }[] }

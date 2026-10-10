@@ -5,7 +5,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core"
 import { mobileAddonFetch } from "./addonFetch"
 import { installNativeFetch, nativeFetch } from "./nativeFetch"
 import { StatusBar, Style } from "@capacitor/status-bar"
-import { DatabaseChange, OncePlatformPorts, TabOpenerPort, TabSourcePort, ThemeName } from "@once/app"
+import { DatabaseChange, OncePlatformPorts, RecognizedText, TextRecognitionPort, TabOpenerPort, TabSourcePort, ThemeName } from "@once/app"
 import { DEFAULT_CACHE_MINUTES, Story } from "@once/core"
 import {
   IndexedDbCacheStore,
@@ -31,6 +31,8 @@ interface SecureSettingsPlugin {
   getSecret(options: { key: string }): Promise<{ value: string }>
   setSecret(options: { key: string; value: string }): Promise<void>
 }
+
+const ImageText = registerPlugin<{ recognizeImage(options: { base64: string }): Promise<RecognizedText> }>("InAppBrowserSurface")
 
 const SecureSettings = registerPlugin<SecureSettingsPlugin>("SecureSettings")
 
@@ -214,6 +216,17 @@ export function createMobilePlatform(
     tabSource: options.tabSource,
     tabOpener: options.tabOpener,
     device: mobileDevice(options.appVersion ?? ""),
+    ...(Capacitor.getPlatform() === "ios" ? {
+      textRecognition: {
+        async recognizeImage(bytes: Uint8Array) {
+          let binary = ""
+          for (let offset = 0; offset < bytes.length; offset += 8192) {
+            binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192))
+          }
+          return ImageText.recognizeImage({ base64: btoa(binary) })
+        }
+      } satisfies TextRecognitionPort
+    } : {}),
     fetch: nativeFetch,
     addonFetch: mobileAddonFetch,
     onDatabaseChange(handler) {

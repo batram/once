@@ -19,7 +19,7 @@ export async function addonStoryContent(client: OnceClient, href: string, signal
   } else {
     const live = await client.livePageHtml(href).catch(() => null)
     signal?.throwIfAborted()
-    if (live) {
+    if (live && !isImageDocument(live.html)) {
       article = extractArticle(live.html, live.url)
       origin = "live"
     } else {
@@ -41,4 +41,9 @@ export async function addonStoryContent(client: OnceClient, href: string, signal
   const text = (doc.body.textContent ?? "").replace(/[ \t]+/g, " ").replace(/\n\s*\n/g, "\n\n").trim()
   if (!text) throw new Error("No readable article content was found. Open the page, then choose Read the page to use it as shown there.")
   return { text: text.slice(0, 64_000), title: article.title, sourceUrl: article.sourceUrl, origin, truncated: text.length > 64_000 }
+}
+
+function isImageDocument(html: string): boolean {
+  const doc = new DOMParser().parseFromString(html, "text/html")
+  return Boolean(doc.body.querySelector("img")) && !(doc.body.textContent ?? "").trim()
 }

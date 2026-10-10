@@ -54,3 +54,53 @@ test("rejects a non-HTTP source", async () => {
     /only supports HTTP and HTTPS/
   )
 })
+
+const { retrieveDocument } = require("../../../packages/app/dist/fetchDocument")
+const { MAX_IMAGE_BYTES } = require("../../../packages/app/dist/textRetrieval")
+
+function imageResponse(body = new Uint8Array([1, 2, 3]), headers = {}) {
+  return async () => new Response(body, { headers: { "content-type": "image/jpeg", ...headers } })
+}
+
+test("retrieval exposes OCR as plain text and preserves line order", async () => {
+  const result = await retrieveDocument(imageResponse(), "https://example.test/image", {
+    async recognizeImage(bytes) {
+      assert.deepEqual(bytes, new Uint8Array([1, 2, 3]))
+      return { lines: [" Title ", "", "First principle", "Second principle"] }
+    }
+  })
+  assert.equal(result.kind, "text")
+  assert.equal(result.method, "ocr")
+  assert.equal(result.text, "Title\n\nFirst principle\n\nSecond principle")
+  assert.deepEqual(result.lines, ["Title", "First principle", "Second principle"])
+  assert.equal(result.mediaType, "image/jpeg")
+})
+
+test("reader adapter escapes recognized text and supports short images", async () => {
+  const result = await fetchDocument(imageResponse(), "https://example.test/image.jpeg", {
+    async recognizeImage() { return { lines: ['<script>"hi" & bye</script>'] } }
+  })
+  assert.equal(result.mediaType, "text/plain")
+  assert.match(result.html, /&lt;script&gt;&quot;hi&quot; &amp; bye/)
+  assert.doesNotMatch(result.html, /<script>/)
+})
+
+test("image retrieval explains missing OCR support and empty recognition", async () => {
+  await assert.rejects(retrieveDocument(imageResponse(), "https://example.test/image"), /not available on this platform/)
+  await assert.rejects(retrieveDocument(imageResponse(), "https://example.test/image", {
+    async recognizeImage() { return { lines: [" ", ""] } }
+  }), /No text was found/)
+})
+
+test("oversized image headers and streamed bytes never reach recognition", async () => {
+  const recognition = { async recognizeImage() { assert.fail("oversized input reached OCR") } }
+  await assert.rejects(retrieveDocument(imageResponse(undefined, { "content-length": String(MAX_IMAGE_BYTES + 1) }),
+    "https://example.test/image", recognition), /Image too large/)
+  let cancelled = false
+  const fetch = async () => new Response(new ReadableStream({
+    start(controller) { controller.enqueue(new Uint8Array(MAX_IMAGE_BYTES + 1)) },
+    cancel() { cancelled = true }
+  }), { headers: { "content-type": "image/png" } })
+  await assert.rejects(retrieveDocument(fetch, "https://example.test/image", recognition), /Image too large/)
+  assert.equal(cancelled, true)
+})

@@ -1,3 +1,4 @@
+import { registerTextRecognition } from "./browser/NativeTextRecognition"
 import {
   app,
   autoUpdater,
@@ -86,10 +87,7 @@ function registerAddonConversationHandlers(options: IpcHandlerOptions): void {
 
 const connectionRequests = new Map<string, AbortController>()
 
-function trusted(
-  event: IpcMainInvokeEvent,
-  coordinator: BrowserCoordinator
-): void {
+function trusted(event: IpcMainInvokeEvent, coordinator: BrowserCoordinator): void {
   coordinator.requireWindow(event)
 }
 
@@ -148,6 +146,7 @@ function registerAppHandlers(options: IpcHandlerOptions): void {
     }
     return options.getUpdateStatus()
   })
+  registerTextRecognition(event => trusted(event, coordinator))
   ipcMain.handle(
     ELECTRON_IPC.fetch,
     async (event, request: ElectronFetchRequest): Promise<ElectronFetchResponse> => {

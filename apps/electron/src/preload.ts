@@ -30,6 +30,7 @@ const bridge: ElectronBridge = {
         ipcRenderer.removeListener(ELECTRON_IPC.appUpdateStatusChanged, listener)
     }
   },
+  recognizeImage: bytes => ipcRenderer.invoke(ELECTRON_IPC.recognizeImage, bytes),
   fetch(request: ElectronFetchRequest) {
     return ipcRenderer.invoke(ELECTRON_IPC.fetch, request)
   },

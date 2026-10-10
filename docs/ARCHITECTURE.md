@@ -423,3 +423,37 @@ pre-cleanup documentation is preserved by the annotated Git tag
 git show monorepo-migration-complete:migration-status.md
 git show monorepo-migration-complete:legacy-electron-archive.md
 ```
+
+### Document text retrieval
+
+`OnceClient.retrieveDocument(url)` retrieves an HTTP(S) resource and returns a
+platform-neutral `RetrievedDocument`. HTML/XHTML results have `kind: "html"`
+and preserve their source markup for Readability. Image results have
+`kind: "text"`, `method: "ocr"`, the original media type and source URL, plus
+plain `text`, reconstructed `paragraphs`, and original `lines` in the recognition engine's reading order. OCR text is
+untrusted content and must never be inserted as HTML.
+
+Platforms add OCR by implementing the optional
+`OncePlatformPorts.textRecognition.recognizeImage(Uint8Array)` port, returning
+`{ lines: string[], lineBounds?: TextLineBounds[] }`. Bounds are aligned with
+lines and use upright image coordinates (x rightwards, y downwards, common units
+for both axes). macOS shares its Apple Vision helper with native image
+text selection; iOS uses Vision through the trusted Capacitor shell bridge.
+Windows, Linux, Android and browser extensions report unavailable image OCR
+until they supply a backend. Recognition runs on device, with a 32 MiB image
+limit and Apple-side image dimension and downsampling limits.
+
+The existing `fetchDocument` method adapts this result for Reader, offline
+story storage and addon `getStoryContent()`. For recognized text its `html`
+field contains escaped paragraphs and its `mediaType` is `text/plain`, marking
+already-extracted text that must bypass article-length heuristics. HTML pages
+continue through Readability. Addons retain their existing saved/live/fetched
+precedence; a live image document falls through to image retrieval because its
+HTML contains no article text. The addon text limit and capability checks are
+unchanged. A shared deterministic pass joins wrapped lines using their vertical
+spacing, alignment, overlap and text size; larger gaps, headings, list starts
+and column boundaries remain separate. Backends without geometry conservatively
+join lowercase sentence continuations. `text` separates reconstructed paragraphs
+with blank lines, and Reader renders one paragraph per group so speech does not
+pause at every image line wrap. Raw `lines` remain available. This reflows prose;
+it does not reconstruct tables, typography or arbitrary multi-column layouts.

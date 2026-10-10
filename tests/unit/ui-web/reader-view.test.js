@@ -129,3 +129,17 @@ test("reader keeps article markup while dropping document controls and active at
   assert.match(article.content, /<td colspan="2">Cell<\/td>/)
   assert.doesNotMatch(article.content, /custom-card|ping=|onclick=|onerror=|srcset=|http-equiv|<link|<math|<textarea|tracker\.test|bad\(\)/)
 })
+
+test("Reader displays short recognized text without article-length heuristics", async () => {
+  const { ReaderView } = loadReaderView()
+  const { fetchDocument } = require("../../../packages/app/dist/fetchDocument")
+  let opened
+  ReaderView.mount({
+    findStoryByUrl: async () => null,
+    fetchDocument: url => fetchDocument(async () => new Response(new Uint8Array([1]), {
+      headers: { "content-type": "image/png" }
+    }), url, { async recognizeImage() { return { lines: ["A short note <3"] } } })
+  }, async html => { opened = html })
+  await ReaderView.open("https://example.test/note.png")
+  assert.match(opened, /A short note &lt;3/)
+})

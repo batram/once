@@ -15,7 +15,14 @@ struct Word: Encodable {
     let topRight: Point
     let bottomLeft: Point
 }
-struct Recognition: Encodable { let lines: [[Word]] }
+struct LineBounds: Encodable {
+    let x: CGFloat; let y: CGFloat; let width: CGFloat; let height: CGFloat
+    init(_ box: CGRect, _ image: CGImage) {
+        x = box.minX * CGFloat(image.width); y = (1 - box.maxY) * CGFloat(image.height)
+        width = box.width * CGFloat(image.width); height = box.height * CGFloat(image.height)
+    }
+}
+struct Recognition: Encodable { let lines: [[Word]]; let textLines: [String]; let lineBounds: [LineBounds] }
 
 do {
     let data = FileHandle.standardInput.readDataToEndOfFile()
@@ -41,8 +48,9 @@ do {
     request.usesLanguageCorrection = true
     if #available(macOS 13, *) { request.automaticallyDetectsLanguage = true }
     try VNImageRequestHandler(cgImage: image).perform([request])
+    let observations = (request.results ?? []).filter { $0.topCandidates(1).first != nil }
     let tokens = try NSRegularExpression(pattern: "\\S+")
-    let lines: [[Word]] = (request.results ?? []).compactMap { observation in
+    let lines: [[Word]] = observations.compactMap { observation in
         guard let candidate = observation.topCandidates(1).first else { return nil }
         let text = candidate.string
         return tokens.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { match in
@@ -52,7 +60,8 @@ do {
                         topRight: Point(box.topRight), bottomLeft: Point(box.bottomLeft))
         }
     }
-    FileHandle.standardOutput.write(try JSONEncoder().encode(Recognition(lines: lines)))
+    FileHandle.standardOutput.write(try JSONEncoder().encode(Recognition(lines: lines, textLines: observations.compactMap { $0.topCandidates(1).first?.string },
+        lineBounds: observations.map { LineBounds($0.boundingBox, image) })))
 } catch {
     FileHandle.standardError.write(Data("Image text recognition failed.\n".utf8))
     exit(1)

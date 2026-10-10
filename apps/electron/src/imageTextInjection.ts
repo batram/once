@@ -43,6 +43,7 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
       transform-origin: 0 0; cursor: text; pointer-events: auto;
       user-select: text; -webkit-user-select: text; }
     .word::selection, .word *::selection { color: transparent; background: transparent; }
+    .separator { font-size: 0; }
     .highlights { position: absolute; inset: 0; width: 100%; height: 100%;
       pointer-events: none; user-select: none; fill: #3984ff; fill-opacity: .36; }
     .bar { position: absolute; display: flex; align-items: center; gap: 12px;
@@ -187,7 +188,7 @@ function renderWords(container: HTMLElement, result: ImageTextResult, width: num
       // Keep copy separators in DOM order without extending the fitted glyph
       // rectangle into the next word's selection highlight.
       const separator = document.createElement("span")
-      separator.style.fontSize = "0"
+      separator.className = "separator"
       separator.textContent = " "
       span.append(separator)
     }

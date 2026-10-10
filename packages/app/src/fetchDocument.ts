@@ -1,3 +1,5 @@
+import { documentHtml, recognizeResponse, recognizedDocument, RetrievedDocument, TextRecognitionPort } from "./textRetrieval"
+
 /**
  * Media types the reader can extract from. XHTML is included because sites that
  * serve `application/xhtml+xml` (build2.org, for one) are ordinary articles;
@@ -8,10 +10,11 @@ const READABLE_MEDIA_TYPES = new Set([
   "application/xhtml+xml"
 ])
 
-export async function fetchDocument(
+export async function retrieveDocument(
   fetch: typeof globalThis.fetch,
-  url: string
-): Promise<{ html: string; url: string; mediaType: string }> {
+  url: string,
+  recognition?: TextRecognitionPort
+): Promise<RetrievedDocument> {
   const parsed = new URL(url)
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error("Reader mode only supports HTTP and HTTPS pages")
@@ -30,12 +33,17 @@ export async function fetchDocument(
   }
   const contentType = response.headers.get("content-type") || ""
   const mediaType = contentType.split(";")[0].trim().toLowerCase()
+  if (mediaType.startsWith("image/")) {
+    const result = await recognizeResponse(response, recognition)
+    return recognizedDocument(result, response.url || parsed.toString(), mediaType)
+  }
   if (!READABLE_MEDIA_TYPES.has(mediaType)) {
     throw new Error(
       `Reader mode cannot display ${contentType || "this content type"}`
     )
   }
   return {
+    kind: "html",
     html: await response.text(),
     url: response.url || parsed.toString(),
     mediaType
@@ -63,4 +71,10 @@ export async function fetchText(
   const text = await response.text()
   if (text.length > MAX_TEXT_BYTES) throw new Error("The resource is too large")
   return text
+}
+
+/** Compatibility adapter for reader and stored-content consumers. */
+export async function fetchDocument(fetch: typeof globalThis.fetch, url: string, recognition?: TextRecognitionPort): Promise<{ html: string; url: string; mediaType: string }> {
+  const result = await retrieveDocument(fetch, url, recognition)
+  return { html: documentHtml(result), url: result.url, mediaType: result.kind === "text" ? "text/plain" : result.mediaType }
 }

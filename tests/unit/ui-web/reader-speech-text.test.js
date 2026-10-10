@@ -129,3 +129,23 @@ test("reader speech announces long code blocks instead of reading them", () => {
     "Intro.", "let a 1", "Code block, 5 lines."
   ])
 })
+
+test("OCR line wraps produce one speech segment per reconstructed paragraph", () => {
+  const { recognizedDocument, documentHtml } = require("../../../packages/app/dist/textRetrieval")
+  const result = recognizedDocument({
+    lines: ["Subject: Communication", "There are two schools of thought. By far the", "most common way is chain of command.", "Instead, talk directly to one another."],
+    lineBounds: [
+      { x: 10, y: 10, width: 180, height: 16 },
+      { x: 10, y: 50, width: 500, height: 16 },
+      { x: 10, y: 76, width: 450, height: 16 },
+      { x: 10, y: 116, width: 400, height: 16 }
+    ]
+  }, "https://example.test/memo.png", "image/png")
+  const { document } = parseHTML(documentHtml(result))
+  const segments = textPolicy.exports.createReaderSpeechSegments(document.querySelector("article"))
+  assert.deepEqual(segments.map(({ text }) => text), [
+    "Subject: Communication",
+    "There are two schools of thought. By far the most common way is chain of command.",
+    "Instead, talk directly to one another."
+  ])
+})

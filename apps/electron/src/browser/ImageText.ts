@@ -1,8 +1,8 @@
-import { app, type ContextMenuParams, type WebContents } from "electron"
-import { spawn } from "node:child_process"
+import { type ContextMenuParams, type WebContents } from "electron"
 import { readFileSync } from "node:fs"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
+import { recognize } from "./NativeTextRecognition"
 import type { ImageTextResult } from "./imageTextTypes"
 
 const MAX_BYTES = 32 * 1024 * 1024
@@ -83,28 +83,4 @@ async function fetchImage(contents: WebContents, src: string, referrer: string, 
     }
   } finally { await reader.cancel() }
   return Buffer.concat(chunks)
-}
-
-function recognize(bytes: Buffer, signal: AbortSignal): Promise<ImageTextResult> {
-  const executable = app.isPackaged
-    ? path.join(process.resourcesPath, "once-image-text")
-    : path.resolve(__dirname, "../../../.native/once-image-text")
-  return new Promise((resolve, reject) => {
-    const child = spawn(executable, [], { stdio: ["pipe", "pipe", "pipe"], signal })
-    const timer = setTimeout(() => { child.kill(); reject(new Error("Recognition timed out")) }, 20_000)
-    let output = ""
-    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
-      output += chunk
-      if (output.length > 4 * 1024 * 1024) child.kill()
-    })
-    child.stderr.resume()
-    child.stdin.on("error", () => undefined)
-    child.on("error", reject)
-    child.on("close", (code) => {
-      clearTimeout(timer)
-      if (code !== 0) { reject(new Error("Native recognition failed")); return }
-      try { resolve(JSON.parse(output) as ImageTextResult) } catch (error) { reject(error) }
-    })
-    child.stdin.end(bytes)
-  })
 }

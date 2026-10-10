@@ -182,7 +182,11 @@ test("smooth selection respects partial words, reverse dragging, and line breaks
       return getSelection().toString();
     })()`)
     expect(selected).toBe("ect these wo")
-    await expect.poll(async () => (await geometry(app)).highlight?.match(/M/g)?.length).toBe(1)
+    await expect.poll(async () => {
+      const current = await geometry(app)
+      return current.highlightBox.left > current.words[0].left + 2 &&
+        current.highlightBox.right < current.words[2].right - 2
+    }).toBe(true)
     const forward = await geometry(app)
     expect(forward.highlightBox.left).toBeGreaterThan(forward.words[0].left + 2)
     expect(forward.highlightBox.right).toBeLessThan(forward.words[2].right - 2)

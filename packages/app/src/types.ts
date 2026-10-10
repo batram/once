@@ -276,6 +276,8 @@ export interface OnceClient {
     meta: Omit<StoredContentMeta, "saved_at"> & { saved_at?: number }
   ): Promise<Story | undefined>
   addFilter(filter: string): Promise<void>
+  /** Retrieve HTML or plain OCR text for readers and other services. */
+  retrieveDocument(url: string): Promise<import("./textRetrieval").RetrievedDocument>
   fetchDocument(url: string): Promise<{
     html: string
     url: string
@@ -556,6 +558,7 @@ export interface OncePlatformPorts {
   activeTab?: ActiveTabPort
   /** The rendered document of a page this shell has open; without it, pages are only ever fetched. */
   livePage?: LivePagePort
+  textRecognition?: import("./textRetrieval").TextRecognitionPort
   fetch: typeof fetch
   /** Optional transport for addon connections with explicit redirect/cookie controls. */
   addonFetch?: typeof fetch

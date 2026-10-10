@@ -1,3 +1,4 @@
+import type { RecognizedText } from "@once/app"
 import type { AddonCondition, StoryPageContext } from "@once/core"
 
 export interface ElectronRect {
@@ -241,6 +242,7 @@ export interface ElectronBridge {
       handler: (status: ElectronUpdateStatus) => void
     ): () => void
   }
+  recognizeImage(bytes: Uint8Array): Promise<RecognizedText>
   fetch(request: ElectronFetchRequest): Promise<ElectronFetchResponse>
   cancelFetch?(requestId: string): Promise<void>
   onFetchChunk?(handler: (chunk: ElectronFetchChunk) => void): () => void
@@ -428,6 +430,7 @@ export const ELECTRON_IPC = {
   appGetUpdateStatus: "once:app:get-update-status",
   appCheckForUpdates: "once:app:check-for-updates",
   appUpdateStatusChanged: "once:app:update-status-changed",
+  recognizeImage: "once:text:recognize-image",
   fetch: "once:fetch",
   cancelFetch: "once:fetch-cancel",
   fetchChunk: "once:fetch-chunk",
