@@ -25,6 +25,13 @@ export type BuiltinKeyCommandId =
   | "story.toggle-comments"
   | "stories.reload"
   | "stories.reload-uncached"
+  | "comments.next"
+  | "comments.prev"
+  | "comments.collapse"
+  | "comments.expand"
+  | "comments.open-permalink"
+  | "comments.reload"
+  | "comments.toggle-page"
   | "browser.find-in-page"
   | "browser.new-tab"
   | "browser.close-tab"
@@ -48,6 +55,7 @@ export type TextEntryReach = "never" | "field" | "always"
 
 export type KeyCommandGroup =
   | "stories"
+  | "comments"
   | "actions"
   | "browser"
   | "panes"
@@ -59,8 +67,10 @@ export type KeyCommandGroup =
  * - `global`: anywhere in the shell.
  * - `stories`: only while the story list panel is the active panel.
  * - `browser`: only while focus is inside the Electron content pane.
+ * - `comments`: only while the comments panel shows a thread Once read itself
+ *   (not the site's page).
  */
-export type KeyCommandContext = "global" | "stories" | "browser"
+export type KeyCommandContext = "global" | "stories" | "browser" | "comments"
 
 /** The shells the UI runs in, as far as command availability is concerned. */
 export type ShellId = "electron" | "webext" | "mobile"
@@ -217,6 +227,64 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     defaultKeys: ["Shift+R"],
     allowInTextEntry: "never",
     shells: ["electron", "webext"]
+  },
+  // The thread's keys mirror the story list's: the comments panel replaces the
+  // list while it is open, so the same hands move through comments.
+  {
+    id: "comments.next",
+    label: "Next comment at this level",
+    group: "comments",
+    context: "comments",
+    defaultKeys: ["ArrowDown", "S"],
+    allowInTextEntry: "never"
+  },
+  {
+    id: "comments.prev",
+    label: "Previous comment at this level",
+    group: "comments",
+    context: "comments",
+    defaultKeys: ["ArrowUp", "W"],
+    allowInTextEntry: "never"
+  },
+  {
+    id: "comments.collapse",
+    label: "Collapse comment, or go to its parent",
+    group: "comments",
+    context: "comments",
+    defaultKeys: ["ArrowLeft", "A"],
+    allowInTextEntry: "never"
+  },
+  {
+    id: "comments.expand",
+    label: "Expand comment, or go to its first reply",
+    group: "comments",
+    context: "comments",
+    defaultKeys: ["ArrowRight", "D"],
+    allowInTextEntry: "never"
+  },
+  {
+    id: "comments.open-permalink",
+    label: "Open comment on its site",
+    group: "comments",
+    context: "comments",
+    defaultKeys: ["O"],
+    allowInTextEntry: "never"
+  },
+  {
+    id: "comments.reload",
+    label: "Reload comments",
+    group: "comments",
+    context: "comments",
+    defaultKeys: ["R"],
+    allowInTextEntry: "never"
+  },
+  {
+    id: "comments.toggle-page",
+    label: "Switch between thread and comment page",
+    group: "comments",
+    context: "comments",
+    defaultKeys: ["P"],
+    allowInTextEntry: "never"
   },
   {
     id: "browser.new-tab",

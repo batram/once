@@ -17,6 +17,7 @@ import { SETTINGS_LOCATION_CHANGED } from "./SettingsNavigation"
 // it is the longest group and the one nothing is bound in by default.
 const GROUP_LABELS: Record<KeyCommandGroup, string> = {
   stories: "Story list",
+  comments: "Comment threads",
   browser: "Tabs and windows",
   panes: "Panes and window",
   search: "Search",

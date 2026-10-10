@@ -34,15 +34,15 @@ check.
 
 ## Built-in collectors
 
-| Collector | Id | Source pattern | Input | Story type | Search support |
-| --- | --- | --- | --- | --- | --- |
-| Geny Match | `geny` | named only | HTML DOM | `GY` | none |
-| Hacker News | `hackernews` | `https://news.ycombinator.com/` | HTML DOM | `HN` | global and domain |
-| JSON Select | `jsonselect` | named only | JSON | `JX` | none |
-| Lobsters | `lobsters` | `https://lobste.rs/` | HTML DOM | `LO` | global and domain |
-| Reddit JSON | `redditjson` | `https://old.reddit.com/*.json` | JSON | `re` | global and domain |
-| Reddit RSS | `redditrss` | `https://old.reddit.com/*.rss` | DOM | `re` | none |
-| RSS/Atom | `rss` | `*.rss` | XML DOM | `RSS` | none |
+| Collector | Id | Source pattern | Input | Story type | Search support | Comments |
+| --- | --- | --- | --- | --- | --- | --- |
+| Geny Match | `geny` | named only | HTML DOM | `GY` | none | none |
+| Hacker News | `hackernews` | `https://news.ycombinator.com/` | HTML DOM | `HN` | global and domain | Algolia item API, item page fallback |
+| JSON Select | `jsonselect` | named only | JSON | `JX` | none | none |
+| Lobsters | `lobsters` | `https://lobste.rs/` | HTML DOM | `LO` | global and domain | story JSON |
+| Reddit JSON | `redditjson` | `https://old.reddit.com/*.json` | JSON | `re` | global and domain | comment JSON (signed-in session) |
+| Reddit RSS | `redditrss` | `https://old.reddit.com/*.rss` | DOM | `re` | none | none |
+| RSS/Atom | `rss` | `*.rss` | XML DOM | `RSS` | none | none |
 
 `options.id` is a **public persistence identifier**: a source that names its
 collector stores this string, so renaming one needs an alias and a migration of
@@ -274,6 +274,9 @@ with source-specific configuration exports its codec and registers it as
 `normalizeConfig` and `serializeConfig` in
 `packages/collectors/src/registry.ts`.
 
+A collector whose site has discussions may also register a `comments`
+capability (see the next section).
+
 Add the module to `get_active()`, taking overlap and first-match ordering into
 account, and add its public id to the frozen registry-id test. Renaming an id
 requires a persisted-source alias and migration.
@@ -300,3 +303,58 @@ npm run refresh:fixtures:collectors -- reddit_json
 Deterministic tests and fixtures live under `tests/unit/collectors` and
 `tests/fixtures/collectors`. Live compatibility cases live under
 `tests/live/collectors` and are intentionally excluded from normal test runs.
+
+## Comments
+
+A collector can read the discussion behind a story's `comment_url`, so the
+comments panel (desktop) and comments mode (mobile) show the thread natively
+instead of the site's page. The capability is optional: without it, the
+comment page is shown as a page, as before.
+
+```ts
+comments?: {
+  matches(url: string): boolean
+  load(url: string, io: { fetch: typeof fetch; signal?: AbortSignal }): Promise<CommentThread>
+}
+```
+
+- The provider is looked up by **comment URL** (`comments_provider_for`), not
+  by the story's collector. That way a story's substories (other aggregators'
+  threads) and both Reddit collectors find a reader.
+- `fetch` is the shell's own and is passed in. Collectors cannot import the
+  platform packages, and a renderer's global `fetch` would run into CORS where
+  the shell's does not. Pass `credentials: "include"` when the site needs the
+  user's session.
+- `CommentThread` and `CommentNode` live in `@once/core`
+  (`comments/CommentThread.ts`). Bodies stay as the site's HTML and are
+  sanitized where they are shown. `buildCommentTree` turns a flat
+  parent-linked list into the tree.
+- Throw `CommentsAuthError` when the site wants a signed-in user and
+  `CommentsNotFoundError` when the thread is missing. The UI then shows the
+  page with a note saying why.
+- `OnceClient.loadComments` (`packages/app/src/CommentLoader.ts`) applies a
+  20 second timeout and keeps the last ten threads in memory for five minutes.
+  Threads are never stored or synced.
+
+The built-in readers:
+
+| Site | Request | Notes |
+| --- | --- | --- |
+| Hacker News | `hn.algolia.com/api/v1/items/<id>` | One request for the whole tree. Algolia lags new items by minutes, so an empty or failed answer falls back to parsing `news.ycombinator.com/item?id=` (`tr.athing.comtr`, nesting from `td.ind[indent]`). A paged item page (`a.morelink`) is marked `partial`. |
+| Lobsters | `lobste.rs/s/<id>.json` | A flat list in display order, linked by `parent_comment`. `commenting_user` is a name (older responses: an object). |
+| Reddit | `old.reddit.com/comments/<id>.json?raw_json=1&limit=500` | Anonymous requests are redirected to the login page, so the request carries the session's cookies. Replies Reddit holds back (`kind: "more"`) link to the site. |
+
+The thread view (`packages/ui-web/src/comments/`) supports these keys and gestures:
+
+- Up/Down (W/S) move to the previous/next comment at the same or a shallower
+  level.
+- Right (D) expands a collapsed comment, or steps into its first reply.
+- Left (A) collapses the comment and moves on, or goes to the parent when it
+  is already collapsed.
+- O opens the comment's permalink, R reloads the thread, and P switches to the
+  site's page.
+- On touch screens, swiping a comment right expands it and swiping left
+  collapses it.
+
+These keys only apply while a thread is shown (the `comments` key context) and
+can be rebound under "Comment threads" in the keyboard settings.

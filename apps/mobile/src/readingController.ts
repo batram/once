@@ -617,6 +617,8 @@ export class MobileReadingController {
     const commentsUrl = state.story?.comment_url
     if (!commentsUrl) return
     if (state.mode === "comments" && state.currentUrl === commentsUrl) {
+      // Where Once reads the thread itself, the button switches thread and page.
+      if (this.runtime.commentThread.toggle(commentsUrl)) return
       if (this.nativeReading.isBrowserOpened() && state.loadState !== "loading") {
         await this.nativeReading.reload()
       }

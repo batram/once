@@ -3,12 +3,15 @@ import { readReaderPosition } from "@once/core"
 import { ReadingSession, ReaderDocumentHost, ReadingSessionState } from "@once/ui-web"
 import { ReadingTabs, type ReadingTab } from "./readingTabs"
 import { ReadingSurfaceCoordinator } from "./readingSurfaceCoordinator"
+import { ReadingCommentThread } from "./readingCommentThread"
 
-type Cover = "menu" | "overlay" | "dialog" | "extensionPage"
+type Cover = "menu" | "overlay" | "dialog" | "extensionPage" | "thread"
 
 /** Keeps page lifetimes independent of the selected shell panel and tab. */
 export class ReadingTabRuntime {
   readonly session: ReadingSession
+  /** Comments mode's thread, where Once can read it (see readingCommentThread). */
+  readonly commentThread: ReadingCommentThread
   private panelVisible = false
   private readonly runtimes = new Map<string, { generation: string; coordinator: ReadingSurfaceCoordinator; surface: InAppBrowserSurface; reader: ReaderDocumentHost }>()
   private readonly emptySession = new ReadingSession(true)
@@ -21,7 +24,7 @@ export class ReadingTabRuntime {
   private readerClosedListener: ((reader: ReaderDocumentHost) => void) | null = null
   // A tab is audible while its reader speaks or its page plays media.
   private readonly audible = new Map<string, { reader: boolean; page: boolean }>()
-  private readonly covers: Record<Cover, boolean> = { menu: false, overlay: false, dialog: false, extensionPage: false }
+  private readonly covers: Record<Cover, boolean> = { menu: false, overlay: false, dialog: false, extensionPage: false, thread: false }
 
   constructor(
     readonly tabs: ReadingTabs,
@@ -46,6 +49,9 @@ export class ReadingTabRuntime {
         return typeof value === "function" ? value.bind(session) : value
       }
     })
+    // Follows the selected tab's session, so a tab switch shows or hides it too.
+    this.commentThread = new ReadingCommentThread(content, { setCovered: open => this.setCovered("thread", open), announce })
+    this.session.subscribe(state => this.commentThread.sync(state.mode, state.currentUrl, this.panelVisible))
     window.addEventListener("message", event => {
       if (event.data?.channel !== "once-reader-scroll" || event.data.type !== "position" || !Number.isFinite(event.data.y)) return
       const readerPosition = readReaderPosition(event.data.position) ?? undefined
@@ -103,6 +109,8 @@ export class ReadingTabRuntime {
   setPanelVisible(visible: boolean): void {
     this.panelVisible = visible
     this.sync()
+    const state = this.session.snapshot()
+    this.commentThread.sync(state.mode, state.currentUrl, visible)
   }
 
   setCovered(cover: Cover, open: boolean): void {
@@ -201,5 +209,6 @@ function applyCover(coordinator: ReadingSurfaceCoordinator, cover: Cover, open: 
   if (cover === "menu") coordinator.setMenuOpen(open)
   else if (cover === "overlay") coordinator.setOverlayOpen(open)
   else if (cover === "dialog") coordinator.setDialogOpen(open)
+  else if (cover === "thread") coordinator.setThreadOpen(open)
   else coordinator.setExtensionPageOpen(open)
 }

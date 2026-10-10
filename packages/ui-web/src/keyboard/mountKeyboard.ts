@@ -7,6 +7,7 @@ import { isStoryAnchoredMenuOpen } from "../menu/storyAnchoredMenu"
 import { initPaneFocus } from "../shell/paneFocus"
 import { registerStoryActionHandlers } from "./storyActionCommands"
 import { getKeyboardDispatcher } from "./index"
+import { activeCommentThread, CommentThreadView } from "../comments/CommentThreadView"
 
 /** Installs the shell-wide keyboard commands and the story cursor. */
 export function mountKeyboard(history: StoryHistory): StoryCursor {
@@ -42,6 +43,19 @@ export function mountKeyboard(history: StoryHistory): StoryCursor {
   // Everything the story context menu can do is bindable too, unbound until
   // the user picks a key. See storyActionCommands.ts.
   registerStoryActionHandlers(cursor, (id, handler) => keyboard.register(id, handler))
+  // The "comments" context only exists while a thread is shown, so these
+  // always find one.
+  const thread = (run: (view: CommentThreadView) => void) => () => {
+    const view = activeCommentThread()
+    if (view) run(view)
+  }
+  keyboard.register("comments.next", thread(view => view.next()))
+  keyboard.register("comments.prev", thread(view => view.previous()))
+  keyboard.register("comments.collapse", thread(view => view.collapse()))
+  keyboard.register("comments.expand", thread(view => view.expand()))
+  keyboard.register("comments.open-permalink", thread(view => view.openPermalink()))
+  keyboard.register("comments.reload", thread(view => view.reload()))
+  keyboard.register("comments.toggle-page", thread(view => view.togglePage()))
   keyboard.mount()
   return cursor
 }

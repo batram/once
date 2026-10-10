@@ -44,6 +44,8 @@ export class ReadingSurfaceCoordinator {
   private overlayOpen = false
   private dialogOpen = false
   private extensionPageOpen = false
+  // A comment thread Once draws over the page (comments mode).
+  private threadOpen = false
   private surfaceGeneration = 0
   private surfaceKey: string | null = null
   private readerRequestId = 0
@@ -273,6 +275,15 @@ export class ReadingSurfaceCoordinator {
     void this.updateVisibility()
   }
 
+  setThreadOpen(open: boolean): void {
+    this.threadOpen = open
+    void this.updateVisibility()
+  }
+
+  private covered(): boolean {
+    return this.menuOpen || this.overlayOpen || this.dialogOpen || this.extensionPageOpen || this.threadOpen
+  }
+
   isBrowserReady(): boolean {
     return this.browserReady
   }
@@ -430,7 +441,7 @@ export class ReadingSurfaceCoordinator {
       }
     }
     if (this.disposed || generation !== this.surfaceGeneration) return
-    await this.surface.setVisible(this.readingPanelVisible && !this.menuOpen && !this.overlayOpen && !this.dialogOpen && !this.extensionPageOpen)
+    await this.surface.setVisible(this.readingPanelVisible && !this.covered())
     document.body.classList.toggle(
       "once-native-reading-surface",
       this.surface.available
@@ -443,7 +454,7 @@ export class ReadingSurfaceCoordinator {
       Boolean(state.currentUrl) &&
       state.loadState !== "error" &&
       state.mode !== "reader" &&
-      !this.menuOpen && !this.overlayOpen && !this.dialogOpen && !this.extensionPageOpen
+      !this.covered()
     await this.enqueue(async () => {
       if (!this.browserOpened) return
       await this.surface.setVisible(visible)

@@ -287,6 +287,13 @@ export interface OnceClient {
   livePageHtml(url: string): Promise<{ html: string; url: string } | null>
   /** A small http(s) text resource through the platform's fetch: add-on code. */
   fetchText(url: string): Promise<string>
+  /** Whether a collector can read the discussion at this comment URL. */
+  canLoadComments(url: string): boolean
+  /**
+   * The discussion at a comment URL, read by the collector that knows the
+   * site. Recent threads come from memory unless `refresh` asks again.
+   */
+  loadComments(url: string, options?: { refresh?: boolean }): Promise<import("@once/core").CommentThread>
   /**
    * Add-on code kept on this device only, keyed by its integrity hash, so an
    * add-on synced from elsewhere still runs offline once it was fetched here.

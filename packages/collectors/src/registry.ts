@@ -6,6 +6,10 @@ import * as lobstersHtml from "./collectors/lobstersHtml"
 import * as redditJson from "./collectors/redditJson"
 import * as redditRss from "./collectors/redditRss"
 import * as vanillaRss from "./collectors/vanillaRss"
+import * as hackerNewsComments from "./collectors/comments/hackerNewsComments"
+import * as lobstersComments from "./collectors/comments/lobstersComments"
+import * as redditComments from "./collectors/comments/redditComments"
+import { CommentsCapability } from "./collectors/comments/commentsIO"
 
 /** Everything a collector needs to know about the source being parsed. */
 export interface ParseContext {
@@ -78,12 +82,20 @@ export declare interface StoryParser {
   serializeConfig?: (config: unknown) => unknown
   global_search?: (needle: string) => Promise<Story[]>
   domain_search?: (needle: string) => Promise<Story[]>
+  /**
+   * Reads the discussion behind a comment URL, for collectors whose site has
+   * one worth showing natively. Optional: without it the comment page is
+   * simply shown as a page.
+   */
+  comments?: CommentsCapability
 }
 
 export type GlobalSearchProvider = StoryParser &
   Required<Pick<StoryParser, "global_search">>
 export type DomainSearchProvider = StoryParser &
   Required<Pick<StoryParser, "domain_search">>
+export type CommentsProvider = StoryParser &
+  Required<Pick<StoryParser, "comments">>
 
 /**
  * The cast stays. Each collector's `parse` takes the input type it actually
@@ -126,7 +138,8 @@ function builtinCollectors(): StoryParser[] {
       options: hackerNewsHtml.options,
       parse: hackerNewsHtml.parse,
       domain_search: hackerNewsHtml.domain_search,
-      global_search: hackerNewsHtml.global_search
+      global_search: hackerNewsHtml.global_search,
+      comments: hackerNewsComments.comments
     },
     {
       options: jsonSelect.options,
@@ -138,13 +151,16 @@ function builtinCollectors(): StoryParser[] {
       options: lobstersHtml.options,
       parse: lobstersHtml.parse,
       domain_search: lobstersHtml.domain_search,
-      global_search: lobstersHtml.global_search
+      global_search: lobstersHtml.global_search,
+      comments: lobstersComments.comments
     },
     {
       options: redditJson.options,
       parse: redditJson.parse,
       domain_search: redditJson.domain_search,
-      global_search: redditJson.global_search
+      global_search: redditJson.global_search,
+      // Any Reddit comment URL, the RSS collector's included.
+      comments: redditComments.comments
     },
     {
       options: redditRss.options,
@@ -177,5 +193,16 @@ export function global_search_providers(): GlobalSearchProvider[] {
 export function domain_search_providers(): DomainSearchProvider[] {
   return get_active().filter((parser): parser is DomainSearchProvider => {
     return parser.domain_search !== undefined
+  })
+}
+
+/**
+ * The collector that can read the discussion at a comment URL. Looked up by
+ * the URL rather than by the story's collector, so a story's other
+ * aggregators (its substories) and both Reddit collectors find one too.
+ */
+export function comments_provider_for(url: string): CommentsProvider | undefined {
+  return get_active().find((parser): parser is CommentsProvider => {
+    return parser.comments !== undefined && parser.comments.matches(url)
   })
 }

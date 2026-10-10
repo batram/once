@@ -157,7 +157,14 @@ export class KeyboardDispatcher {
     const active = document.activeElement
     if (active && active.closest("#right_panel")) contexts.push("browser")
     const panel = document.querySelector("#left_panel")
-    if (panel?.getAttribute("active_panel") === "stories") contexts.push("stories")
+    const activePanel = panel?.getAttribute("active_panel")
+    if (activePanel === "stories") contexts.push("stories")
+    // Only a thread Once shows itself, not the site's page: in the comments
+    // panel on the desktop shells, as the reading surface on mobile.
+    const thread = document.querySelector(".comment_thread[data-keys='on']")
+    if (thread && (activePanel === "comments" || document.body.dataset.platform === "mobile")) {
+      contexts.push("comments")
+    }
     contexts.push("global")
     return contexts
   }

@@ -1,0 +1,186 @@
+{
+ "author": "ilreb",
+ "children": [
+  {
+   "author": "phaser",
+   "children": [
+    {
+     "author": "weli",
+     "children": [
+      {
+       "author": "phaser",
+       "children": [],
+       "created_at": "2026-10-09T13:49:23.000Z",
+       "created_at_i": 1791553763,
+       "id": 50020530,
+       "options": [],
+       "parent_id": 50020094,
+       "points": null,
+       "story_id": 50019911,
+       "text": "it’s open source. i’m hoping it gets picked up by the community. maybe i’m just too hopeful",
+       "title": null,
+       "type": "comment",
+       "url": null
+      },
+      {
+       "author": "adobrawy",
+       "children": [],
+       "created_at": "2026-10-09T14:16:42.000Z",
+       "created_at_i": 1791555402,
+       "id": 50020880,
+       "options": [],
+       "parent_id": 50020094,
+       "points": null,
+       "story_id": 50019911,
+       "text": "The fact that Deno development is being suspended doesn&#x27;t mean the community can&#x27;t step in. The Deno runtime is licensed under MIT. Such forks might be impulse to grow even further.",
+       "title": null,
+       "type": "comment",
+       "url": null
+      }
+     ],
+     "created_at": "2026-10-09T13:17:55.000Z",
+     "created_at_i": 1791551875,
+     "id": 50020094,
+     "options": [],
+     "parent_id": 50020037,
+     "points": null,
+     "story_id": 50019911,
+     "text": "read the blogpost, they are discontinuing deno after 1 year",
+     "title": null,
+     "type": "comment",
+     "url": null
+    },
+    {
+     "author": "pimterry",
+     "children": [],
+     "created_at": "2026-10-09T13:19:20.000Z",
+     "created_at_i": 1791551960,
+     "id": 50020112,
+     "options": [],
+     "parent_id": 50020037,
+     "points": null,
+     "story_id": 50019911,
+     "text": "&gt; I’m happy if this means Deno is able to get a second impulse<p>Bad news, sorry, the article says:<p>&gt; We will support the Deno runtime for another year with monthly releases containing bug fixes and security updates. After that year we will end our development of the Deno runtime.<p>Sounds like Celld will live on within workerd, Deno is over.",
+     "title": null,
+     "type": "comment",
+     "url": null
+    }
+   ],
+   "created_at": "2026-10-09T13:14:01.000Z",
+   "created_at_i": 1791551641,
+   "id": 50020037,
+   "options": [],
+   "parent_id": 50019911,
+   "points": null,
+   "story_id": 50019911,
+   "text": "I’m happy if this means Deno is able to get a second impulse. I use Deno daily and while it’s true that it’s in this weird position where it’s not sexy like bun or enterprise-y like node, it has a great developer experience. a no-surprises runtime that does a lot of interesting things the right way (like compile to desktop to a browser-less webgpu runtime), the vscode extension is flawless and overall the perfect balance of batteries included without bloat.<p>of course i’m only talking about deno, the technology not deno, the cloud service.",
+   "title": null,
+   "type": "comment",
+   "url": null
+  },
+  {
+   "author": "theodorejb",
+   "children": [
+    {
+     "author": "simonw",
+     "children": [
+      {
+       "author": "elcritch",
+       "children": [],
+       "created_at": "2026-10-09T13:55:12.000Z",
+       "created_at_i": 1791554112,
+       "id": 50020618,
+       "options": [],
+       "parent_id": 50020172,
+       "points": null,
+       "story_id": 50019911,
+       "text": "Definitely negative karma points for Cloudflare.",
+       "title": null,
+       "type": "comment",
+       "url": null
+      },
+      {
+       "author": "rancar2",
+       "children": [],
+       "created_at": "2026-10-09T14:27:48.000Z",
+       "created_at_i": 1791556068,
+       "id": 50021024,
+       "options": [],
+       "parent_id": 50020172,
+       "points": null,
+       "story_id": 50019911,
+       "text": "I think it’s covered appropriately for the audiences. The two posts are for different audiences and purposes. The Deno post by Ryan is for the Deno audience, which is mention at the top of his writing on the Cloudflare post that is for a broader audience of what this means for the Cloudflare audience:\n“For more on what&#x27;s happening to the Deno runtime and our various efforts, see my post on the Deno blog.”<p>FWIW both Ryan and Kenton are very transparent in person, in public, and online over their professional careers. They will and do openly change their minds based on new information and opportunities as time goes along. Both are now founders of open source projects acquired by Cloudflare for the technical architecture talents seeing a future that they would like to build.",
+       "title": null,
+       "type": "comment",
+       "url": null
+      }
+     ],
+     "created_at": "2026-10-09T13:22:58.000Z",
+     "created_at_i": 1791552178,
+     "id": 50020172,
+     "options": [],
+     "parent_id": 50020072,
+     "points": null,
+     "story_id": 50019911,
+     "text": "I don&#x27;t like how that&#x27;s in the Deno post but gets no mention in the Cloudflare post. Seems like a pretty important detail!",
+     "title": null,
+     "type": "comment",
+     "url": null
+    },
+    {
+     "author": "rvz",
+     "children": [
+      {
+       "author": "binlog",
+       "children": [],
+       "created_at": "2026-10-09T13:27:23.000Z",
+       "created_at_i": 1791552443,
+       "id": 50020237,
+       "options": [],
+       "parent_id": 50020183,
+       "points": null,
+       "story_id": 50019911,
+       "text": "Bun admitted defeat and sold themselves even before Deno. Node.js is and always was the winner.",
+       "title": null,
+       "type": "comment",
+       "url": null
+      }
+     ],
+     "created_at": "2026-10-09T13:23:23.000Z",
+     "created_at_i": 1791552203,
+     "id": 50020183,
+     "options": [],
+     "parent_id": 50020072,
+     "points": null,
+     "story_id": 50019911,
+     "text": "I mean we already have a winner (Bun) and it just means that Deno has admitted defeat.<p>From what is likely going to happen is that Deno will be donated to the Linux Foundation to avoid this.",
+     "title": null,
+     "type": "comment",
+     "url": null
+    }
+   ],
+   "created_at": "2026-10-09T13:16:33.000Z",
+   "created_at_i": 1791551793,
+   "id": 50020072,
+   "options": [],
+   "parent_id": 50019911,
+   "points": null,
+   "story_id": 50019911,
+   "text": "&gt; We will support the Deno runtime for another year with monthly releases containing bug fixes and security updates. After that year we will end our development of the Deno runtime. Deno will remain open source, and we welcome others who want to continue its development.<p>So unless someone else picks up development, Deno will no longer be supported.",
+   "title": null,
+   "type": "comment",
+   "url": null
+  }
+ ],
+ "created_at": "2026-10-09T13:03:48.000Z",
+ "created_at_i": 1791551028,
+ "id": 50019911,
+ "options": [],
+ "parent_id": null,
+ "points": 1304,
+ "story_id": 50019911,
+ "text": null,
+ "title": "Cloudflare acquires Deno",
+ "type": "story",
+ "url": "https://deno.com/blog/cloudflare"
+}

@@ -35,8 +35,8 @@ import {
 } from "./sourceMenu"
 import { SourceLoader } from "./SourceLoader"
 import { DiagnosticLog, errorDetails } from "./DiagnosticLog"
-import { fetchText } from "./fetchDocument"
 import { documentRetrievalMethods } from "./documentRetrievalMethods"
+import { commentMethods } from "./CommentLoader"
 import { AddonSync } from "./AddonSync"
 import { waitForStartupStorage } from "./startupStorage"
 import { StoryContentService } from "./storyContent"
@@ -246,7 +246,7 @@ export class AppRuntime {
       getStoryContent: (href) => this.content.get(href),
       saveStoryContent: (href, html, meta) => this.content.save(href, html, meta),
       ...documentRetrievalMethods(this.platform),
-      fetchText: (url) => fetchText(this.platform.fetch, url),
+      ...commentMethods(this.platform),
       openUrl: (url, target) => {
         if (url.startsWith("search:")) {
           this.events.publish("searchRequested", {

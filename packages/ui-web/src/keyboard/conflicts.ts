@@ -8,8 +8,10 @@ export interface KeybindingConflict {
 
 /**
  * Two commands can both fire on one chord only when their contexts overlap.
- * "global" reaches everywhere, so it overlaps both panel contexts; "stories"
- * and "browser" are mutually exclusive, so they may share a chord safely.
+ * "global" reaches everywhere, so it overlaps the others; "stories",
+ * "comments" and "browser" never resolve the same press to two commands, so
+ * they may share a chord safely ("comments" and "stories" follow the active
+ * panel, which is one or the other).
  */
 export function contextsOverlap(a: KeyCommandContext, b: KeyCommandContext): boolean {
   return a === "global" || b === "global" || a === b

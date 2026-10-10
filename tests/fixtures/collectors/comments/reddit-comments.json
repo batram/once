@@ -1,0 +1,108 @@
+[
+ {
+  "kind": "Listing",
+  "data": {
+   "children": [
+    {
+     "kind": "t3",
+     "data": {
+      "id": "1abcde",
+      "name": "t3_1abcde",
+      "title": "Show me your terminal setup",
+      "author": "alice",
+      "selftext_html": "<!-- SC_OFF --><div class=\"md\"><p>Post body with <a href=\"https://example.com\">a link</a>.</p></div><!-- SC_ON -->",
+      "created_utc": 1791500000.0,
+      "score": 412,
+      "num_comments": 9,
+      "permalink": "/r/commandline/comments/1abcde/show_me_your_terminal_setup/"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "kind": "Listing",
+  "data": {
+   "children": [
+    {
+     "kind": "t1",
+     "data": {
+      "id": "c1",
+      "name": "t1_c1",
+      "author": "bob",
+      "body": "First!",
+      "body_html": "<div class=\"md\"><p>First!</p></div>",
+      "created_utc": 1791500100.0,
+      "score": 25,
+      "score_hidden": false,
+      "permalink": "/r/commandline/comments/1abcde/show_me_your_terminal_setup/c1/",
+      "replies": {
+       "kind": "Listing",
+       "data": {
+        "children": [
+         {
+          "kind": "t1",
+          "data": {
+           "id": "c2",
+           "name": "t1_c2",
+           "author": "[deleted]",
+           "body": "[removed]",
+           "body_html": "<div class=\"md\"><p>[removed]</p></div>",
+           "created_utc": 1791500200.0,
+           "score": 1,
+           "permalink": "/r/commandline/comments/1abcde/show_me_your_terminal_setup/c2/",
+           "replies": {
+            "kind": "Listing",
+            "data": {
+             "children": [
+              {
+               "kind": "t1",
+               "data": {
+                "id": "c3",
+                "name": "t1_c3",
+                "author": "carol",
+                "body": "Reply to a removed comment",
+                "body_html": "<div class=\"md\"><p>Reply to a removed comment</p></div>",
+                "created_utc": 1791500300.0,
+                "score": 3,
+                "score_hidden": true,
+                "permalink": "/r/commandline/comments/1abcde/show_me_your_terminal_setup/c3/",
+                "replies": {
+                 "kind": "Listing",
+                 "data": {
+                  "children": [
+                   { "kind": "more", "data": { "count": 0, "name": "t1__", "id": "_", "parent_id": "t1_c3", "children": [] } }
+                  ]
+                 }
+                }
+               }
+              }
+             ]
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     }
+    },
+    {
+     "kind": "t1",
+     "data": {
+      "id": "c4",
+      "name": "t1_c4",
+      "author": "dave",
+      "body": "No replies here",
+      "body_html": "<div class=\"md\"><p>No replies here</p></div>",
+      "created_utc": 1791500400.0,
+      "score": 7,
+      "permalink": "/r/commandline/comments/1abcde/show_me_your_terminal_setup/c4/",
+      "replies": ""
+     }
+    },
+    { "kind": "more", "data": { "count": 4, "name": "t1_c5", "id": "c5", "parent_id": "t3_1abcde", "children": ["c5", "c6", "c7", "c8"] } }
+   ]
+  }
+ }
+]

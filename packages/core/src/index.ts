@@ -1,4 +1,5 @@
 export * from "./addons"
+export * from "./comments/CommentThread"
 export * from "./keyboard/keyChord"
 export * from "./settings/defaults"
 export * from "./settings/extensionSettings"

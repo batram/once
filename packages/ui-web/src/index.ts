@@ -37,6 +37,8 @@ export { STORY_TRAYS_CHANGED } from "./story/storyElements"
 export { requestReading } from "./ReadingSession"
 export type { AddonConversationHandle, AddonConversationSurface } from "./addons/AddonTrays"
 export type { PanelPageHost } from "./story/commentsPanel"
+export { CommentThreadView } from "./comments/CommentThreadView"
+export { commentsFailureNote } from "./comments/commentsSurface"
 export {
   PAGE_ADDON_ACTIONS_CHANGED, isAddonPage, pageAddonActions, pageRunMode, renderPageTrays, runPageAddonAction, setPageTrayScope
 } from "./addons/pageAddons"
