@@ -580,6 +580,13 @@ export interface OncePlatformPorts {
   pdfText?: import("./pdfRetrieval").PdfTextPort
   textRecognition?: import("./textRetrieval").TextRecognitionPort
   fetch: typeof fetch
+  /**
+   * Fetch for whole documents handed to a decoder (PDFs, images). Its body must
+   * stream, or be capped natively at `MAX_DOCUMENT_BYTES`, so a server that
+   * misreports its size cannot fill memory before retrieval applies its own
+   * limit. Without one, `fetch` is used.
+   */
+  documentFetch?: typeof fetch
   /** Optional transport for addon connections with explicit redirect/cookie controls. */
   addonFetch?: typeof fetch
   onDatabaseChange?: (handler: (change: DatabaseChange) => void) => () => void

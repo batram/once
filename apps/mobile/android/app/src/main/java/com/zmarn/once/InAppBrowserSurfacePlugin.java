@@ -305,6 +305,12 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         });
     }
 
+    /** Reader's bounded document download; see DocumentDownload. */
+    @PluginMethod
+    public void fetchDocument(PluginCall call) {
+        DocumentDownload.fetch(call);
+    }
+
     @PluginMethod
     public void reload(PluginCall call) {
         if (!route(call, Missing.REJECT, tab -> tab.reload(call))) return;

@@ -5,6 +5,7 @@ import { Browser } from "@capacitor/browser"
 import { Capacitor, registerPlugin } from "@capacitor/core"
 import { mobileAddonFetch } from "./addonFetch"
 import { installNativeFetch, nativeFetch } from "./nativeFetch"
+import { createDocumentFetch, DocumentDownloadPlugin } from "./documentFetch"
 import { StatusBar, Style } from "@capacitor/status-bar"
 import { DatabaseChange, OncePlatformPorts, RecognizedText, TextRecognitionPort, TabOpenerPort, TabSourcePort, ThemeName } from "@once/app"
 import { DEFAULT_CACHE_MINUTES, Story } from "@once/core"
@@ -33,7 +34,7 @@ interface SecureSettingsPlugin {
   setSecret(options: { key: string; value: string }): Promise<void>
 }
 
-const ImageText = registerPlugin<{ recognizeImage(options: { base64: string }): Promise<RecognizedText> }>("InAppBrowserSurface")
+const ImageText = registerPlugin<{ recognizeImage(options: { base64: string }): Promise<RecognizedText> } & DocumentDownloadPlugin>("InAppBrowserSurface")
 
 const SecureSettings = registerPlugin<SecureSettingsPlugin>("SecureSettings")
 
@@ -230,6 +231,7 @@ export function createMobilePlatform(
     } : {}),
     pdfText: createPdfTextPort(),
     fetch: nativeFetch,
+    ...(Capacitor.isNativePlatform() ? { documentFetch: createDocumentFetch(ImageText) } : {}),
     addonFetch: mobileAddonFetch,
     onDatabaseChange(handler) {
       const changes = onceDb

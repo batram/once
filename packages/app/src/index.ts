@@ -8,3 +8,4 @@ export type { TabSyncView, RemoteDeviceView, SentTabView } from "./tabsync/TabSy
 export type { RecognizedText, TextRecognitionPort } from "./textRetrieval"
 export type { AddonRedirectHandler, AddonRedirectView } from "./AddonRedirects"
 export type { PdfTextPort, PdfTextResult, PdfTextPage } from "./pdfRetrieval"
+export { MAX_DOCUMENT_BYTES } from "./responseBytes"

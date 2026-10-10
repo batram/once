@@ -1,3 +1,6 @@
+/** The largest document (PDF or image) retrieval reads; native fetch layers cap downloads here too. */
+export const MAX_DOCUMENT_BYTES = 64 * 1024 * 1024
+
 /** Bound streamed input before passing untrusted bytes to a document decoder. */
 export async function readResponseBytes(response: Response, limit: number, label: string): Promise<Uint8Array> {
   if (Number(response.headers.get("content-length")) > limit) throw new Error(`${label} too large`)

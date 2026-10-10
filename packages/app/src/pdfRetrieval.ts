@@ -1,6 +1,6 @@
 import { ocrParagraphs } from "./ocrParagraphs"
 import type { RecognizedText, RetrievedDocument, TextRecognitionPort } from "./textRetrieval"
-import { readResponseBytes } from "./responseBytes"
+import { MAX_DOCUMENT_BYTES, readResponseBytes } from "./responseBytes"
 
 export interface PdfTextPage extends RecognizedText { method: "embedded" | "ocr" }
 export interface PdfTextResult { pages: PdfTextPage[]; title?: string }
@@ -11,7 +11,7 @@ export interface PdfTextPort {
 
 export async function retrievePdf(response: Response, url: string, pdf: PdfTextPort | undefined, recognition?: TextRecognitionPort): Promise<RetrievedDocument> {
   if (!pdf) throw new Error("PDF text extraction is not available on this platform")
-  const bytes = await readResponseBytes(response, 64 * 1024 * 1024, "PDF")
+  const bytes = await readResponseBytes(response, MAX_DOCUMENT_BYTES, "PDF")
   const result = await pdf.extract(bytes, recognition)
   const paragraphs = result.pages.flatMap(page => ocrParagraphs(page))
   const lines = result.pages.flatMap(page => page.lines)

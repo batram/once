@@ -93,7 +93,7 @@ function responseBody(native: HttpResponse): BodyInit | null {
   return typeof native.data === "string" ? native.data : JSON.stringify(native.data)
 }
 
-function isCrossOriginHttp(url: string): boolean {
+export function isCrossOriginHttp(url: string): boolean {
   const parsed = new URL(url)
   return (parsed.protocol === "https:" || parsed.protocol === "http:")
     && parsed.origin !== window.location.origin

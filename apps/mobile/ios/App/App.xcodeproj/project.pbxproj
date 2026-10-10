@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		7A1E0CA12E6800010000A001 /* TextRecognition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0CA02E6800010000A001 /* TextRecognition.swift */; };
+		7A1E0CA32E6800010000A001 /* DocumentDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0CA22E6800010000A001 /* DocumentDownload.swift */; };
 		7A1E0C992E6800010000A001 /* ReadingPageCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C982E6800010000A001 /* ReadingPageCommands.swift */; };
 		7A1E0C152E6800010000A001 /* BrowserNavigationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C142E6800010000A001 /* BrowserNavigationState.swift */; };
 		7A1E0C132E6800010000A001 /* InAppBrowserSurfacePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C122E6800010000A001 /* InAppBrowserSurfacePlugin.swift */; };
@@ -33,6 +34,7 @@
 
 /* Begin PBXFileReference section */
 		7A1E0CA02E6800010000A001 /* TextRecognition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextRecognition.swift; sourceTree = "<group>"; };
+		7A1E0CA22E6800010000A001 /* DocumentDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentDownload.swift; sourceTree = "<group>"; };
 		7A1E0C982E6800010000A001 /* ReadingPageCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPageCommands.swift; sourceTree = "<group>"; };
 		7A1E0C142E6800010000A001 /* BrowserNavigationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserNavigationState.swift; sourceTree = "<group>"; };
 		7A1E0C122E6800010000A001 /* InAppBrowserSurfacePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InAppBrowserSurfacePlugin.swift; sourceTree = "<group>"; };
@@ -94,6 +96,7 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				7A1E0C122E6800010000A001 /* InAppBrowserSurfacePlugin.swift */,
 				7A1E0CA02E6800010000A001 /* TextRecognition.swift */,
+				7A1E0CA22E6800010000A001 /* DocumentDownload.swift */,
 				7A1E0C982E6800010000A001 /* ReadingPageCommands.swift */,
 				7A1E0C142E6800010000A001 /* BrowserNavigationState.swift */,
 				7A1E0C0A2E6800010000A001 /* ExtensionSupport.swift */,
@@ -200,6 +203,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				7A1E0C132E6800010000A001 /* InAppBrowserSurfacePlugin.swift in Sources */,
 				7A1E0CA12E6800010000A001 /* TextRecognition.swift in Sources */,
+				7A1E0CA32E6800010000A001 /* DocumentDownload.swift in Sources */,
 				7A1E0C992E6800010000A001 /* ReadingPageCommands.swift in Sources */,
 				7A1E0C152E6800010000A001 /* BrowserNavigationState.swift in Sources */,
 				7A1E0C0B2E6800010000A001 /* ExtensionSupport.swift in Sources */,

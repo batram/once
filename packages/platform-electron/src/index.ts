@@ -118,6 +118,9 @@ export function createElectronPlatform(
     textRecognition: buildInfo?.platform === "darwin" ? { recognizeImage: bytes => bridge.recognizeImage(bytes) } : undefined,
     pdfText: createPdfTextPort(),
     fetch: fetchThroughMain,
+    // Document bodies stream from main so retrieval can stop at its byte cap;
+    // the plain bridge fetch buffers a whole body in main first.
+    documentFetch: (input, init) => bridgeStreamingFetch(bridge, input, init),
     // Addon connections stream, so a tray can show an answer as it is written.
     addonFetch: (input, init) => bridgeStreamingFetch(bridge, input, init),
     onDatabaseChange(handler) {
