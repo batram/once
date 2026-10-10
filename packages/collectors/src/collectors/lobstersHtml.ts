@@ -39,11 +39,19 @@ export function parse(doc: Document): Story[] {
         }
       }
 
+      // Prefer the slugged comments link. Lobsters page-caches the bare
+      // /s/<id> path separately and never refreshes it, so it can show a
+      // story frozen with no comments.
+      const comments_href = story.querySelector(".comments_label a")?.getAttribute("href")
+      const comment_url = comments_href
+        ? new URL(comments_href, base_url).href
+        : base_url + "/s/" + id
+
       const new_story = new Story(
         options.type,
         href,
         link.innerText,
-        base_url + "/s/" + id,
+        comment_url,
         timestamp
       )
 

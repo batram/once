@@ -19,6 +19,16 @@ export function sameStoryDocument(left: string | undefined, right: string): bool
   return typeof left === "string" && left.length > 0 && storyDocumentUrl(left) === storyDocumentUrl(right)
 }
 
+// Lobsters answers one discussion at /s/<id> and /s/<id>/<title slug>.
+const LOBSTERS_DISCUSSION = /^https?:\/\/lobste\.rs\/s\/([a-z0-9]+)(?:\/[^/?#]+)?\/?(?:[?#].*)?$/i
+
+/** Comment pages that differ only in a site's optional title slug are one discussion. */
+export function sameDiscussion(left: string | undefined, right: string): boolean {
+  if (sameStoryDocument(left, right)) return true
+  const id = left ? LOBSTERS_DISCUSSION.exec(left)?.[1] : undefined
+  return id !== undefined && LOBSTERS_DISCUSSION.exec(right)?.[1] === id
+}
+
 /** Only observed page provenance creates an alias; unrelated navigation never inherits it. */
 export function storyPageUrls(url: string, context?: StoryPageContext): string[] {
   if (context?.failed || (context?.statusCode ?? 0) >= 400) return []

@@ -19,6 +19,19 @@ test("document matching ignores fragments but preserves queries and paths", () =
   assert.equal(sameStoryDocument("https://example.test/a?q=1", "https://example.test/a?q=2"), false)
 })
 
+test("Lobsters comment pages match with or without the title slug", () => {
+  const short = new Story("LO", "https://example.test/a", "A", "https://lobste.rs/s/lgxq91")
+  const slugged = new Story("LO", "https://example.test/b", "B", "https://lobste.rs/s/lgxq91/there_s_little")
+  for (const story of [short, slugged]) {
+    assert.equal(story.matches_url("https://lobste.rs/s/lgxq91"), true)
+    assert.equal(story.matches_url("https://lobste.rs/s/lgxq91/there_s_little_s_inevitable_about_ai#c_2cstko"), true)
+    assert.equal(story.matches_url("https://lobste.rs/s/lgxq92"), false)
+    assert.equal(story.matches_url("https://lobste.rs/s/lgxq91.json"), false)
+    assert.equal(story.matches_url("https://lobste.rs/s/lgxq91/slug/comments/2cstko"), false)
+  }
+  assert.equal(sameStoryDocument("https://lobste.rs/s/lgxq91", "https://lobste.rs/s/lgxq91/slug"), false, "navigation provenance keeps exact pages")
+})
+
 test("successful redirect and same-document provenance is bounded by errors", () => {
   assert.deepEqual(storyPageUrls(destination + "#install", { sourceUrl: original, statusCode: 200 }), [destination + "#install", original])
   assert.deepEqual(storyPageUrls("http://example.test/final", { sourceUrl: original, statusCode: 200 }), ["http://example.test/final", original])

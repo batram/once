@@ -1,4 +1,4 @@
-import { sameStoryDocument } from "./storyPage"
+import { sameDiscussion, sameStoryDocument } from "./storyPage"
 import { compareStories } from "./compareStories"
 import {
   SortableStory,
@@ -121,13 +121,13 @@ export class Story {
 
   matches_comment_url(url: string): boolean {
     return (
-      sameStoryDocument(this.comment_url, url) ||
+      sameDiscussion(this.comment_url, url) ||
       (this.substories &&
         this.substories
           .map((x) => {
             return x.comment_url
           })
-          .some((commentUrl) => sameStoryDocument(commentUrl, url)))
+          .some((commentUrl) => sameDiscussion(commentUrl, url)))
     )
   }
   matches_url(url: string): boolean {

@@ -24,4 +24,7 @@ test("parses Lobsters stories and skips entries without links", () => {
   assert.equal(stories[0].timestamp, 1700000000000)
   assert.deepEqual(stories[0].tags.map((tag) => tag.text), ["bob", "security"])
   assert.equal(stories[1].href, "https://lobste.rs/s/self42/ask_lobsters")
+  // The bare /s/<id> path can be a stale page-cache copy; prefer the slugged link.
+  assert.equal(stories[0].comment_url, "https://lobste.rs/s/abc123/lobsters_story")
+  assert.equal(stories[1].comment_url, "https://lobste.rs/s/self42")
 })
