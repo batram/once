@@ -33,6 +33,8 @@
         "tests/**/*.spec.js",
         "tests/**/*.test.js",
         "tests/e2e/electron/story-list.debug.js",
+        // Playwright configs load this reporter by path, not by import.
+        "tests/e2e/shared/flaky-report.js",
         // Passed to run-hidden.js as a command argument, not a module import.
         "tests/e2e/electron/native-rendering/run.js",
         // native-rendering/run.js spawns this as an Electron main script by

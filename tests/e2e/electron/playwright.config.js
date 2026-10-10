@@ -20,14 +20,14 @@ module.exports = defineConfig({
   // Assertions get the same allowance as actions do there; the default five
   // seconds is what an assertion doubling as a page-load wait runs into.
   expect: { timeout: process.env.CI ? 15_000 : 5_000 },
-  // A retry is a second sample for the report, not a way to turn a red run
-  // green: on CI a test that needed one still fails the run, so a flake is
-  // noticed and fixed instead of quietly accumulating.
+  // A test that passes on its retry passes the run: failing it there turned
+  // a third of all red runs into a manual rerun of a test that had already
+  // passed. The flake is reported as a warning annotation instead, so it is
+  // still noticed and fixed rather than quietly accumulating.
   retries: 1,
-  failOnFlakyTests: Boolean(process.env.CI),
   workers: 1,
   reporter: process.env.CI
-    ? [["line"], ["json", {
+    ? [["line"], [path.resolve(__dirname, "../shared/flaky-report.js")], ["json", {
       outputFile: path.resolve(__dirname, "../../../artifacts/electron-e2e/results.json")
     }]]
     : "line",

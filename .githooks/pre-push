@@ -1,0 +1,3 @@
+#!/bin/sh
+# Static checks on the pushed commit; see scripts/pre-push-check.js.
+exec node scripts/pre-push-check.js "$@"

@@ -62,8 +62,12 @@ export function showExtensionMenu(
     else if (action === "settings") result.settings = true
     else if (action === "close") result.focusTrigger = true
     else throw new Error("Unknown extension menu action")
-    // Finish the invoke before disposing its webContents.
-    setImmediate(() => { if (!panel.isDestroyed()) panel.close() })
+    // Finish the invoke before disposing its webContents. The owner is
+    // activated first: closing an active owned window leaves handing
+    // activation back to the system, and until it does the shell's focused
+    // control ignores the keyboard. A blur close skips this, as the user
+    // has moved elsewhere.
+    setImmediate(() => { if (!panel.isDestroyed()) { owner.focus(); panel.close() } })
     return state()
   })
   const close = () => { if (!panel.isDestroyed()) panel.close() }

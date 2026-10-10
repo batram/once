@@ -82,7 +82,9 @@ test("Firefox runs scripted add-ons in its packaged sandbox without setup", { ti
     `, `${source.origin}/obsolete-sandbox.html`)
     const sources = await openSettingsSection(driver, "sources", '[data-testid="sources"]')
     await setValue(sources, source.source)
-    await driver.findElement(By.css('[data-testid="save-sources"]')).click()
+    const saveSources = await driver.findElement(By.css('[data-testid="save-sources"]'))
+    await saveSources.click()
+    await waitFor(until.elementIsEnabled(saveSources), 10_000, "sources stored before the panel reopens")
 
     // Source configuration survives reopening the panel.
     await reopenExtensionPanel(driver, extensionUuid)
@@ -177,7 +179,7 @@ test("Firefox runs scripted add-ons in its packaged sandbox without setup", { ti
     const secondUrl = `moz-extension://${extensionUuid}/static/sidepanel.html?once-e2e=1&second=1`
     const second = await driver.executeAsyncScript("browser.tabs.create({url: arguments[0], active: false}).then(arguments[1])", secondUrl)
     await waitFor(() => driver.executeScript(`
-      return browser.extension.getViews().some(w => w.location.href.includes('second=1') && w.document.body.dataset.onceReady === 'true')
+      return browser.extension.getViews().some(w => w.location.href.includes('second=1') && w.document.body?.dataset.onceReady === 'true')
     `), 15_000, "second panel ready")
     await driver.findElement(By.css('#stories [data-testid="addon-tray-continue"]')).click()
     const conversationState = () => driver.executeScript(`
