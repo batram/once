@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(InAppBrowserSurfacePlugin.class);
         registerPlugin(ViolentmonkeyRelayPlugin.class);
         registerPlugin(ReaderMediaSessionPlugin.class);
+        registerPlugin(WebInspectorPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

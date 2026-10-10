@@ -4,7 +4,6 @@ import android.content.Context;
 import android.app.ActivityManager;
 import android.os.Process;
 import android.util.Log;
-import android.content.pm.ApplicationInfo;
 import java.util.ArrayList;
 import java.util.List;
 import org.mozilla.geckoview.GeckoResult;
@@ -26,10 +25,15 @@ final class GeckoEngine {
         return instance;
     }
 
+    /** The engine if a page already started it; null otherwise. */
+    static synchronized GeckoEngine started() {
+        return instance;
+    }
+
     private GeckoEngine(Context context) {
         this.context = context;
         runtime = GeckoRuntime.create(context, new GeckoRuntimeSettings.Builder()
-            .remoteDebuggingEnabled((context.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0)
+            .remoteDebuggingEnabled(WebInspectorPlugin.allowed(context))
             // Avoid per-site subframe process fan-out on memory-constrained
             // devices. Content processes can still be shared between sessions.
             .fissionEnabled(false)

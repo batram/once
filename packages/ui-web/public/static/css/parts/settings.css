@@ -2913,3 +2913,33 @@
   flex: 0 0 auto;
   white-space: nowrap;
 }
+
+#console_log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+#console_log[hidden] {
+  display: none;
+}
+
+#console_log p {
+  margin: 0;
+}
+
+#console_log_text {
+  background: var(--input-bg-color);
+  border: 1px solid var(--border-color);
+  font:
+    11px/1.4 "Courier New",
+    monospace;
+  margin: 0;
+  max-height: 360px;
+  overflow: auto;
+  padding: var(--sp-2);
+  white-space: pre-wrap;
+  -webkit-user-select: text;
+  user-select: text;
+}

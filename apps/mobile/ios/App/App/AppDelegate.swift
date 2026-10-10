@@ -32,6 +32,7 @@ class ViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(SecureSettingsPlugin())
         bridge?.registerPluginInstance(surface)
         bridge?.registerPluginInstance(ReaderMediaSessionPlugin())
+        bridge?.registerPluginInstance(WebInspectorPlugin())
     }
 }
 

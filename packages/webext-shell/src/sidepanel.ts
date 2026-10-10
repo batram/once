@@ -6,11 +6,15 @@ import {
   describeStoryMenu,
   executeStoryMenuAction,
   getKeyboardDispatcher,
+  installConsoleCapture,
   mountOnceUi,
   storyFromTarget,
   StoryListItem,
   StoryMenuActionId
 } from "@once/ui-web"
+
+// First, so failures while the shell starts are kept too.
+installConsoleCapture()
 import { createWebExtPlatform } from "@once/platform-webext"
 import { webextAddonConversations } from "./addonConversations"
 import { isStoryMenuActionForContext } from "./storyMenuBackground"

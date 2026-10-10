@@ -395,6 +395,21 @@ nothing during that phase, so a fastdeploy install looks stuck after its
 scheme with release-channel web content, signed with the project's development
 team, installed on the phone named by `ONCE_IOS_DEVICE` with `xcrun devicectl`. It replaces the installed `com.zmarn.once` app.
 
+### Debug a running release build
+
+Release builds keep two aids for errors that happen away from a debugger:
+
+- **Console messages.** Settings → Error log → **Show console messages** lists
+  console errors and warnings, uncaught errors and unhandled rejections, kept
+  across launches (the last 300). Library failures that never reach the error
+  log, such as PouchDB's "Database has a global failure", show up here.
+- **Allow Web Inspector.** The switch below the console messages lets a
+  computer the device trusts attach to the running app without reinstalling
+  it: Safari → Develop → *device* → Once on iOS (the shell and every page
+  surface), `chrome://inspect` for the Android shell and `about:debugging` in
+  Firefox for GeckoView pages. It is off by default and stored natively, so it
+  also applies from the next launch on. Debug builds are always inspectable.
+
 ### Inspect the Android WebView with Chrome DevTools
 
 Both `run android --channel dev` (`com.zmarn.once.dev`) and the locally deployed

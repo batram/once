@@ -200,6 +200,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
         } else { throw hostError("Unsupported extension page URL") }
         closePage()
         let view = WKWebView(frame: .zero, configuration: configuration)
+        WebInspector.track(view)
         try present(view, context: context, isPopup: false)
         view.load(URLRequest(url: url))
     }

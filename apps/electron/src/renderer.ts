@@ -7,6 +7,7 @@ import { ElectronRedirectRule, ElectronUpdateStatus } from "@once/platform-elect
 import {
   bindMenuCollapseControls,
   HoverUrlIndicator,
+  installConsoleCapture,
   mountOnceUi,
   type BundledAddonFiles,
   ReaderView,
@@ -16,6 +17,9 @@ import {
   storyFromTarget,
   StoryMenuActionId
 } from "@once/ui-web"
+
+// First, so failures while the shell starts are kept too.
+installConsoleCapture()
 import { BrowserShell } from "./BrowserShell"
 import { electronAddonConversations } from "./addonConversations"
 import { electronPanelPages } from "./browser/PanelPageHost"

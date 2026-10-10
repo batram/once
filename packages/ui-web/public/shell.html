@@ -834,8 +834,39 @@
                   <div class="settings_error_log_header row">
                     <div class="settings_actions cluster">
                       <button type="button" class="button" id="clear_error_log">Clear</button>
+                      <button
+                        type="button"
+                        class="button"
+                        id="toggle_console_log"
+                        aria-expanded="false"
+                        aria-controls="console_log"
+                        data-testid="toggle-console-log"
+                      >
+                        Show console messages
+                      </button>
                     </div>
                   </div>
+                  <section id="console_log" data-testid="console-log" hidden>
+                    <p class="settings_description">
+                      Console errors, warnings and unhandled failures, kept across launches.
+                    </p>
+                    <div class="settings_actions cluster">
+                      <button type="button" class="button" id="copy_console_log">Copy console messages</button>
+                    </div>
+                    <pre id="console_log_text"></pre>
+                    <section class="settings_rows" id="web_inspector_setting" hidden>
+                      <div class="settings_row settings_row_inline">
+                        <label class="settings_row_name" for="web_inspector_enabled">Allow Web Inspector</label>
+                        <p class="settings_row_hint" id="web_inspector_hint" data-help>
+                          Lets Safari's Web Inspector (or chrome://inspect) on a computer this device trusts
+                          attach to the app and its pages, to debug errors as they happen. It can read
+                          everything the app shows and stores, so leave it off when you are not debugging.
+                        </p>
+                        <input type="checkbox" class="switch" id="web_inspector_enabled"
+                          data-testid="web-inspector-enabled" aria-describedby="web_inspector_hint" />
+                      </div>
+                    </section>
+                  </section>
                   <div id="error_log" data-testid="error-log">
                     <p class="error_log_empty">No errors recorded this session.</p>
                   </div>

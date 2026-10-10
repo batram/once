@@ -2,6 +2,7 @@ import { DiagnosticError, OnceClient, ProcessingSource, SourceError } from "@onc
 import { requireElement } from "../dom"
 import { expandMenu } from "./menuCollapse"
 import { copyErrorText } from "./copyErrorText"
+import { bindConsoleLog } from "./consoleLogView"
 
 type IssueType = "warning" | "error"
 
@@ -50,6 +51,7 @@ export class LoaderInsights {
   static init(client?: OnceClient, actions?: LoaderInsightsActions): void {
     if (actions) this.actions = actions
     this.ensureUi()
+    bindConsoleLog()
 
     document.querySelector("#clear_error_log")?.addEventListener("click", () => {
       document.querySelector("#error_log")?.replaceChildren()

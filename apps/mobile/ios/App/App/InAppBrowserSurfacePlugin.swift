@@ -211,6 +211,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         configuration.allowsInlineMediaPlayback = true
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.customUserAgent = desktopUserAgent
+        WebInspector.track(view)
         // A background tab's surface must not flash over the selected one.
         view.isHidden = !(wantsVisible && isSelected)
         extensions.attach(view, parent: parent)

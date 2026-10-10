@@ -10,6 +10,7 @@ import {
   createMobilePlatform
 } from "@once/platform-mobile"
 import {
+  installConsoleCapture,
   mountOnceUi,
   type BundledAddonFiles,
   PanelNavigation,
@@ -36,6 +37,7 @@ import { mountTabSyncInTabView, readingTabOpener, readingTabSource } from "./rea
 import { linkAddonItems, readingPageActions } from "./readingPageActions"
 import { sendLinkItems } from "./tabSyncMenus"
 import { bindReloadStatus, RELOAD_SPIN_TIMEOUT_MS } from "./reloadStatus"
+import { bindWebInspectorSetting } from "./webInspectorSetting"
 import {
   loadMobilePickerInjection,
   MobileSourcePicker
@@ -46,6 +48,9 @@ declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
 declare const __ONCE_BUILD_IDENTIFIER__: string
 declare const __ONCE_BUNDLED_ADDONS__: BundledAddonFiles[]
 declare const __ONCE_MOBILE_E2E__: boolean
+
+// First, so failures while the shell starts are kept too.
+installConsoleCapture()
 
 const MOBILE_SCROLLBAR_IDLE_DELAY_MS = 650
 
@@ -335,11 +340,10 @@ async function startMobileApp(): Promise<void> {
     scanPairingCode: setUpPairing()
   })
   const browserExtensions = createMobileBrowserExtensions()
-  if (browserExtensions) {
-    bindMobileBrowserExtensionSettings(browserExtensions, url => reading.openBrowserUrl(url))
-  }
+  if (browserExtensions) bindMobileBrowserExtensionSettings(browserExtensions, url => reading.openBrowserUrl(url))
   bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(reading),
     () => reading.historyState(), () => { if (reading.tabs.activeId) reading.tabs.close(reading.tabs.activeId) })
+  bindWebInspectorSetting()
   mountTouchNavigation(reading)
   if (__ONCE_MOBILE_E2E__) installMobileTestHooks(app, reading, browserSurface, navigationListeners)
   document.body.dataset.onceStage = "ready"
