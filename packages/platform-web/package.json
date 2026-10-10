@@ -9,10 +9,15 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./pdf": {
+      "types": "./dist/pdfText.d.ts",
+      "default": "./dist/pdfText.js"
     }
   },
   "dependencies": {
     "@once/app": "*",
-    "@once/core": "*"
+    "@once/core": "*",
+    "pdfjs-dist": "6.4.299"
   }
 }

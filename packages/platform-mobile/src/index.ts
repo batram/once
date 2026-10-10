@@ -1,3 +1,4 @@
+import { createPdfTextPort } from "@once/platform-web/pdf"
 import PouchDB from "pouchdb-browser"
 import PouchDBFind from "pouchdb-find"
 import { Browser } from "@capacitor/browser"
@@ -227,6 +228,7 @@ export function createMobilePlatform(
         }
       } satisfies TextRecognitionPort
     } : {}),
+    pdfText: createPdfTextPort(),
     fetch: nativeFetch,
     addonFetch: mobileAddonFetch,
     onDatabaseChange(handler) {

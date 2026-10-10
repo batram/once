@@ -457,3 +457,48 @@ join lowercase sentence continuations. `text` separates reconstructed paragraphs
 with blank lines, and Reader renders one paragraph per group so speech does not
 pause at every image line wrap. Raw `lines` remain available. This reflows prose;
 it does not reconstruct tables, typography or arbitrary multi-column layouts.
+
+### PDF retrieval
+
+`OncePlatformPorts.pdfText` is an optional local PDF extraction port. Its
+`extract(bytes, recognition?)` method returns ordered pages with recognized lines,
+optional line bounds, and per-page `embedded` or `ocr` provenance. The shared
+retrieval API recognizes `application/pdf` by MIME type, bounds decoder input to
+64 MiB, and reconstructs each page's paragraphs independently. First-line and hanging
+indents are treated as line wrapping when spacing and overlap agree; a new indent
+after a completed sentence preserves a paragraph boundary. `method` on the
+combined result is `embedded`, `ocr`, or `mixed`; PDF metadata can supply the
+reader title. Original lines remain available, and pages are never joined into
+a single paragraph across a page boundary.
+
+The bundled browser adapter lives at `@once/platform-web/pdf`. Electron,
+Capacitor and extensions use PDF.js 6.4.299's legacy build; the inactive website
+composition root can reuse the same adapter when it is implemented. Parsing
+runs in a packaged same-origin module worker; encoding maps, standard fonts, image decoders and
+the license ship alongside it (the QuickJS PDF scripting engine is excluded). No CDN, blob worker, PDF scripting or additional
+CSP exception is needed. The adapter prefers each page's text layer and renders
+only pages without usable alphanumeric text for the optional native OCR port.
+Rasterization is bounded to a 2600-pixel longest side, and pages are processed
+sequentially with canvas/page/worker cleanup. Extraction is limited to 200 pages
+and two minutes, with explicit password, scan-support and recognition errors.
+An unreadable scan fails extraction rather than returning an incomplete article.
+A page with a small amount of embedded text over a larger scan currently uses
+that text layer; detecting incomplete text layers is a separate improvement.
+
+macOS/iOS can OCR scan pages using the existing Apple Vision backend. Windows,
+Linux, Android and extensions can extract embedded text now; scanned pages need
+a future image-recognition implementation. The PDF port also permits native
+backends such as PDFKit without changing Reader or addon consumers. Android's
+native text API requires API 35, so PDF.js keeps older devices on the same text
+retrieval path.
+
+Extension reader actions probe the source MIME type with HEAD (GET headers if
+HEAD is unsupported), then open PDFs in their own reader page. This avoids
+injecting into Chromium/Firefox's privileged PDF viewer and handles extensionless
+PDF URLs. HTML sources retain the existing live content-script reader path.
+Reader links still identify their original source URL, and addons retrieve PDF
+text through the same capability-gated article content API.
+
+Reference implementations: [PDF.js API](https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib.html),
+[Apple PDFPage](https://developer.apple.com/documentation/pdfkit/pdfpage), and
+[Android PdfRenderer.Page](https://developer.android.com/reference/android/graphics/pdf/PdfRenderer.Page).

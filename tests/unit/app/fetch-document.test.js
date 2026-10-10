@@ -36,8 +36,8 @@ test("reads an XHTML document", async () => {
 
 test("rejects a document the reader cannot extract", async () => {
   await assert.rejects(
-    fetchDocument(respond("application/pdf"), "https://example.test/paper.pdf"),
-    /Reader mode cannot display application\/pdf/
+    fetchDocument(respond("application/zip"), "https://example.test/archive.zip"),
+    /Reader mode cannot display application\/zip/
   )
 })
 

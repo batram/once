@@ -1,6 +1,6 @@
 import type { RecognizedText } from "./textRetrieval"
 
-/** Bounds use the OCR engine's upright image coordinates, with y increasing downwards. */
+/** Text bounds use a common upright coordinate system, with y increasing downwards. */
 export interface TextLineBounds { x: number; y: number; width: number; height: number }
 
 const listItem = /^\s*(?:[•●▪‣*]|[-–—]\s|\(?\d{1,3}[.)]\s|[a-zA-Z][.)]\s)/u
@@ -26,7 +26,9 @@ export function ocrParagraphs(result: RecognizedText): string[] {
     const previous = lines[index - 1].box, current = lines[index].box
     if (!valid(previous) || !valid(current)) continue
     const gap = current.y - previous.y - previous.height
-    if (gap >= 0 && gap < typicalHeight * 1.5 && Math.abs(current.x - previous.x) < typicalHeight * 2) gaps.push(gap)
+    const overlap = Math.min(previous.x + previous.width, current.x + current.width) - Math.max(previous.x, current.x)
+    if (gap >= 0 && gap < typicalHeight * 1.5 && Math.abs(current.x - previous.x) <= typicalHeight * 3 &&
+      overlap > Math.min(previous.width, current.width) * 0.75) gaps.push(gap)
   }
   const typicalGap = median(gaps)
   const paragraphs: string[] = []
@@ -40,7 +42,16 @@ export function ocrParagraphs(result: RecognizedText): string[] {
         const height = Math.min(a.height, b.height)
         const overlap = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)
         const sameSize = Math.max(a.height, b.height) / height < 1.35
-        const aligned = Math.abs(a.x - b.x) < height * 1.5 || listItem.test(previous.text)
+        const shift = b.x - a.x
+        const overlapsText = overlap > Math.min(a.width, b.width) * 0.75
+        // PDF paragraphs often indent only their first line, or hang wrapped
+        // lines beneath the opening text. Neither is a sentence boundary.
+        const firstLineIndent = shift < 0 && -shift <= height * 3 && overlapsText
+        const hangingIndent = shift > 0 && shift <= height * 3 && overlapsText &&
+          !sentenceEnd.test(previous.text) && lowercase.test(current.text)
+        const newParagraphIndent = shift > height * 0.7 && sentenceEnd.test(previous.text)
+        const aligned = listItem.test(previous.text) || (!newParagraphIndent &&
+          (Math.abs(shift) < height * 1.5 || firstLineIndent || hangingIndent))
         // A short standalone line is more likely a heading/signature than a wrapped line.
         const heading = a.width < b.width * 0.55 && !sentenceEnd.test(previous.text) && !lowercase.test(current.text)
         join = sameSize && aligned && overlap > 0 && !heading &&

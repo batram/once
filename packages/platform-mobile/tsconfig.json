@@ -11,6 +11,7 @@
   "references": [
     { "path": "../app" },
     { "path": "../core" },
-    { "path": "../persistence" }
+    { "path": "../persistence" },
+    { "path": "../platform-web" }
   ]
 }

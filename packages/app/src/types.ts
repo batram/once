@@ -577,6 +577,7 @@ export interface OncePlatformPorts {
   activeTab?: ActiveTabPort
   /** The rendered document of a page this shell has open; without it, pages are only ever fetched. */
   livePage?: LivePagePort
+  pdfText?: import("./pdfRetrieval").PdfTextPort
   textRecognition?: import("./textRetrieval").TextRecognitionPort
   fetch: typeof fetch
   /** Optional transport for addon connections with explicit redirect/cookie controls. */

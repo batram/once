@@ -19,7 +19,7 @@ export async function addonStoryContent(client: OnceClient, href: string, signal
   } else {
     const live = await client.livePageHtml(href).catch(() => null)
     signal?.throwIfAborted()
-    if (live && !isImageDocument(live.html)) {
+    if (live && !isBinaryDocument(live.html)) {
       article = extractArticle(live.html, live.url)
       origin = "live"
     } else {
@@ -43,7 +43,8 @@ export async function addonStoryContent(client: OnceClient, href: string, signal
   return { text: text.slice(0, 64_000), title: article.title, sourceUrl: article.sourceUrl, origin, truncated: text.length > 64_000 }
 }
 
-function isImageDocument(html: string): boolean {
+function isBinaryDocument(html: string): boolean {
   const doc = new DOMParser().parseFromString(html, "text/html")
+  if (doc.querySelector('embed[type="application/pdf"],object[type="application/pdf"],pdf-viewer')) return true
   return Boolean(doc.body.querySelector("img")) && !(doc.body.textContent ?? "").trim()
 }

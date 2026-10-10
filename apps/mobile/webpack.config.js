@@ -104,6 +104,7 @@ module.exports = (_env = {}, argv = {}) => {
     module: {
       parser: { javascript: { url: false } },
       rules: [
+        { resourceQuery: /pdf-worker/, type: "asset/resource", generator: { filename: "pdf/pdf.worker.js" } },
         {
           resourceQuery: /raw/,
           type: "asset/source"
@@ -135,6 +136,10 @@ module.exports = (_env = {}, argv = {}) => {
       new AddonSandboxInlinePlugin(),
       new CopyPlugin({
         patterns: [
+          { from: path.join(root, "node_modules/pdfjs-dist/LICENSE"), to: "pdf/LICENSE" },
+          { from: path.join(root, "node_modules/pdfjs-dist/wasm"), to: "pdf/wasm", globOptions: { ignore: ["**/quickjs*"] } },
+          { from: path.join(root, "node_modules/pdfjs-dist/cmaps"), to: "pdf/cmaps" },
+          { from: path.join(root, "node_modules/pdfjs-dist/standard_fonts"), to: "pdf/standard_fonts" },
           ...(process.env.ONCE_MOBILE_PLATFORM === "ios" ? [
             // Preserve upstream extension runtime assets, including modules with top-level await.
             { from: path.join(root, "vendor", "extensions", "ublock-origin-lite"), to: "extensions/ublock-origin-lite", globOptions: { dot: false }, info: { minimized: true } },

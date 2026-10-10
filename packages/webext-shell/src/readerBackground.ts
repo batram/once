@@ -1,3 +1,4 @@
+import { isPdfSource } from "./pdfSource"
 import {
   isReaderTtsRate,
   normalizeReaderTtsPreferences
@@ -107,6 +108,11 @@ export async function openReaderTab(
   const parsed = new URL(url)
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error("Reader source must use HTTP or HTTPS")
+  }
+  if (await isPdfSource(parsed.toString())) {
+    const search = new URLSearchParams({ pdf: "1", sourceUrl: parsed.toString(), theme })
+    await browserApi.tabs.create({ url: browserApi.runtime.getURL(`static/reader.html?${search}`), active })
+    return
   }
   const tab = await browserApi.tabs.create({ url: parsed.toString(), active })
   if (tab.id == null) throw new Error("Reader tab was not created")

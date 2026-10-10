@@ -39,7 +39,7 @@ export function extractArticle(
 ): ReaderArticle {
   if (mediaType === "text/plain") {
     const doc = new DOMParser().parseFromString(html, "text/html")
-    return articleFromStoredContent(doc.body.innerHTML, { source: "page", saved_at: 0, title: doc.title }, sourceUrl)
+    return articleFromStoredContent(doc.querySelector("article")?.innerHTML ?? doc.body.innerHTML, { source: "page", saved_at: 0, title: doc.title }, sourceUrl)
   }
   const doc = parseDocument(html, mediaType)
   revealStreamedContent(doc)

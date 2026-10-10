@@ -1,3 +1,4 @@
+import { PdfTextPort, retrievePdf } from "./pdfRetrieval"
 import { documentHtml, recognizeResponse, recognizedDocument, RetrievedDocument, TextRecognitionPort } from "./textRetrieval"
 
 /**
@@ -13,7 +14,8 @@ const READABLE_MEDIA_TYPES = new Set([
 export async function retrieveDocument(
   fetch: typeof globalThis.fetch,
   url: string,
-  recognition?: TextRecognitionPort
+  recognition?: TextRecognitionPort,
+  pdf?: PdfTextPort
 ): Promise<RetrievedDocument> {
   const parsed = new URL(url)
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
@@ -33,6 +35,7 @@ export async function retrieveDocument(
   }
   const contentType = response.headers.get("content-type") || ""
   const mediaType = contentType.split(";")[0].trim().toLowerCase()
+  if (mediaType === "application/pdf") return retrievePdf(response, response.url || parsed.toString(), pdf, recognition)
   if (mediaType.startsWith("image/")) {
     const result = await recognizeResponse(response, recognition)
     return recognizedDocument(result, response.url || parsed.toString(), mediaType)
@@ -74,7 +77,7 @@ export async function fetchText(
 }
 
 /** Compatibility adapter for reader and stored-content consumers. */
-export async function fetchDocument(fetch: typeof globalThis.fetch, url: string, recognition?: TextRecognitionPort): Promise<{ html: string; url: string; mediaType: string }> {
-  const result = await retrieveDocument(fetch, url, recognition)
+export async function fetchDocument(fetch: typeof globalThis.fetch, url: string, recognition?: TextRecognitionPort, pdf?: PdfTextPort): Promise<{ html: string; url: string; mediaType: string }> {
+  const result = await retrieveDocument(fetch, url, recognition, pdf)
   return { html: documentHtml(result), url: result.url, mediaType: result.kind === "text" ? "text/plain" : result.mediaType }
 }

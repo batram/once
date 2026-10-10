@@ -142,4 +142,5 @@ test("Reader displays short recognized text without article-length heuristics", 
   }, async html => { opened = html })
   await ReaderView.open("https://example.test/note.png")
   assert.match(opened, /A short note &lt;3/)
+  assert.equal((opened.match(/<article\b/g) || []).length, 1)
 })

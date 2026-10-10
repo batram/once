@@ -22,7 +22,7 @@ export async function tabPageHtml<Entry>(tabs: TabWindow<Entry>, window: Entry, 
   if (!tab) return null
   const contents = tabs.tabContents(window, tab.id)
   if (contents.isLoading()) return null
-  const html: unknown = await contents.executeJavaScript("document.documentElement.outerHTML", true)
+  const html: unknown = await contents.executeJavaScript("document.contentType === 'application/pdf' ? null : document.documentElement.outerHTML", true)
   if (typeof html !== "string" || !html || html.length > MAX_PAGE_HTML) return null
   return { html, url: contents.getURL() }
 }

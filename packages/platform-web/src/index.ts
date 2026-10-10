@@ -1,3 +1,4 @@
+import { createPdfTextPort } from "./pdfText"
 import { DEFAULT_CACHE_MINUTES, Story } from "@once/core"
 import { OncePlatformPorts, ThemeName } from "@once/app"
 
@@ -160,6 +161,7 @@ export function createWebPlatform(): OncePlatformPorts {
         return () => undefined
       }
     },
+    pdfText: createPdfTextPort(),
     fetch: window.fetch.bind(window)
   }
 }

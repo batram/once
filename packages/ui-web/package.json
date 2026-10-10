@@ -66,6 +66,10 @@
     "./picker/sourcePicker": {
       "types": "./dist/picker/sourcePicker.d.ts",
       "default": "./dist/picker/sourcePicker.js"
+    },
+    "./reader/extractArticle": {
+      "types": "./dist/reader/extractArticle.d.ts",
+      "default": "./dist/reader/extractArticle.js"
     }
   },
   "dependencies": {

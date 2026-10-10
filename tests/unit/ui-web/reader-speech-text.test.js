@@ -136,8 +136,8 @@ test("OCR line wraps produce one speech segment per reconstructed paragraph", ()
     lines: ["Subject: Communication", "There are two schools of thought. By far the", "most common way is chain of command.", "Instead, talk directly to one another."],
     lineBounds: [
       { x: 10, y: 10, width: 180, height: 16 },
-      { x: 10, y: 50, width: 500, height: 16 },
-      { x: 10, y: 76, width: 450, height: 16 },
+      { x: 46, y: 50, width: 450, height: 16 },
+      { x: 10, y: 76, width: 500, height: 16 },
       { x: 10, y: 116, width: 400, height: 16 }
     ]
   }, "https://example.test/memo.png", "image/png")

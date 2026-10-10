@@ -58,3 +58,18 @@ test("memo paragraph gaps remain distinct even when only ten pixels larger than 
     "There are two schools of thought. By far the most common way is chain of command, through your manager.",
     "Instead of a problem getting solved quickly, people are forced to talk to their manager."])
 })
+
+test("PDF first-line indents and hanging sentence continuations reflow together", () => {
+  const firstLine = recognize(["An indented opening wraps onto the", "following line of the same sentence."],
+    [[46, 20, 400, 16], [10, 46, 450, 16]])
+  assert.deepEqual(ocrParagraphs(firstLine), ["An indented opening wraps onto the following line of the same sentence."])
+  const hanging = recognize(["An opening line continues with", "a hanging indent on the next line."],
+    [[10, 20, 450, 16], [46, 46, 400, 16]])
+  assert.deepEqual(ocrParagraphs(hanging), ["An opening line continues with a hanging indent on the next line."])
+})
+
+test("a new indented paragraph after a complete sentence stays separate without a blank line", () => {
+  assert.deepEqual(ocrParagraphs(recognize(["The previous paragraph ends here.", "The next paragraph starts with an indent and", "continues on the following line."],
+    [[10, 20, 450, 16], [46, 46, 400, 16], [10, 72, 450, 16]])),
+  ["The previous paragraph ends here.", "The next paragraph starts with an indent and continues on the following line."])
+})

@@ -22,6 +22,10 @@
     "./tabsync/pageScripts": {
       "types": "./dist/tabsync/pageScripts.d.ts",
       "default": "./dist/tabsync/pageScripts.js"
+    },
+    "./documents": {
+      "types": "./dist/fetchDocument.d.ts",
+      "default": "./dist/fetchDocument.js"
     }
   },
   "dependencies": {

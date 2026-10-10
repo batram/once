@@ -13,6 +13,7 @@ module.exports = {
       javascript: { url: false }
     },
     rules: [
+      { resourceQuery: /pdf-worker/, type: "asset/resource", generator: { filename: "pdf/pdf.worker.js" } },
       ...rules,
       {
         test: /\.css$/,
@@ -33,6 +34,10 @@ module.exports = {
     new webpack.IgnorePlugin({ resourceRegExp: /^node:module$/ }),
     new CopyPlugin({
       patterns: [
+        { from: path.join(root, "node_modules/pdfjs-dist/LICENSE"), to: "pdf/LICENSE" },
+        { from: path.join(root, "node_modules/pdfjs-dist/wasm"), to: "pdf/wasm", globOptions: { ignore: ["**/quickjs*"] } },
+        { from: path.join(root, "node_modules/pdfjs-dist/cmaps"), to: "pdf/cmaps" },
+        { from: path.join(root, "node_modules/pdfjs-dist/standard_fonts"), to: "pdf/standard_fonts" },
         {
           from: path.join(root, "packages", "ui-web", "public", "static", "css"),
           to: "main_window/css"

@@ -1,3 +1,4 @@
+import { createPdfTextPort } from "@once/platform-web/pdf"
 import PouchDB from "pouchdb-browser"
 import PouchDBFind from "pouchdb-find"
 import { DatabaseChange, OncePlatformPorts, pageScriptSource, ThemeName } from "@once/app"
@@ -114,7 +115,8 @@ export function createElectronPlatform(
       defaultName: `Once on ${OS_NAMES[buildInfo?.platform ?? ""] ?? "desktop"}`,
       appVersion: buildInfo?.version ?? ""
     },
-    textRecognition: { recognizeImage: bytes => bridge.recognizeImage(bytes) },
+    textRecognition: buildInfo?.platform === "darwin" ? { recognizeImage: bytes => bridge.recognizeImage(bytes) } : undefined,
+    pdfText: createPdfTextPort(),
     fetch: fetchThroughMain,
     // Addon connections stream, so a tray can show an answer as it is written.
     addonFetch: (input, init) => bridgeStreamingFetch(bridge, input, init),

@@ -1,5 +1,6 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
+test.beforeEach(context => context.mock.method(globalThis, "fetch", async () => new Response(null, { headers: { "content-type": "text/html" } })))
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
 function harness({ defaults, saved = {}, chrome = false, openPanel } = {}) {

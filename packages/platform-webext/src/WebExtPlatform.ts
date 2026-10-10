@@ -1,3 +1,4 @@
+import { createPdfTextPort } from "@once/platform-web/pdf"
 import PouchDB from "pouchdb-browser"
 import PouchDBFind from "pouchdb-find"
 import { Story } from "@once/core"
@@ -74,6 +75,7 @@ export function createWebExtPlatform(
     },
     activeTab: createWebExtActiveTab(browserApi, window),
     tabOpener: createWebExtTabOpener(browserApi),
+    pdfText: createPdfTextPort(),
     fetch: window.fetch.bind(window),
     onHistoryCommand: createWebExtHistorySubscription(browserApi),
     onDatabaseChange(handler) {

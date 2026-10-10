@@ -1,6 +1,8 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const { installReaderBackground } = require("../../../packages/webext-shell/dist/readerBackground")
+test.beforeEach(context => context.mock.method(globalThis, "fetch", async () => new Response(null, { headers: { "content-type": "text/html" } })))
+
 const panelSender = { url: "moz-extension://once/static/sidepanel.html" }
 const readerSender = { url: "moz-extension://once/static/reader.html?token=test" }
 const contentSender = id => ({ tab: { id }, url: "https://example.com/article" })
@@ -134,4 +136,20 @@ test("a speed stored before speeds were per voice becomes the default voice's", 
     voice: "",
     rates: { "": 1.7 }
   })
+})
+
+
+test("PDF sources open in the extension reader without injecting into a privileged PDF viewer", async context => {
+  context.mock.method(globalThis, "fetch", async () => new Response(null, { headers: { "content-type": "application/pdf" } }))
+  const fake = createBrowser()
+  installReaderBackground(fake.api)
+  await fake.onMessage.listeners[0]({ onceCommand: "openReader", url: "https://example.test/document", active: false, theme: "dark" }, panelSender)
+  const created = fake.calls.find(([kind]) => kind === "create")[1]
+  const url = new URL(created.url)
+  assert.equal(url.pathname, "/static/reader.html")
+  assert.equal(url.searchParams.get("pdf"), "1")
+  assert.equal(url.searchParams.get("sourceUrl"), "https://example.test/document")
+  assert.equal(url.searchParams.get("theme"), "dark")
+  assert.equal(created.active, false)
+  assert.equal(fake.calls.filter(([kind]) => kind === "script" || kind === "css").length, 0)
 })

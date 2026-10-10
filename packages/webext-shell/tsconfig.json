@@ -11,6 +11,7 @@
   "references": [
     { "path": "../app" },
     { "path": "../platform-webext" },
-    { "path": "../ui-web" }
+    { "path": "../ui-web" },
+    { "path": "../platform-web" }
   ]
 }
