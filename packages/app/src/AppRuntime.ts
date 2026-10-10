@@ -503,15 +503,7 @@ export class AppRuntime {
         this.emitDataChange([story.href, "tags"], story.tags, previousTags, null)
     )
 
-    const oldCommentUrls = oldStory.substories.map((substory) => {
-      return substory.comment_url
-    })
-
-    if (
-      newStory.comment_url &&
-      newStory.comment_url != oldStory.comment_url &&
-      !oldCommentUrls.includes(newStory.comment_url)
-    ) {
+    if (newStory.comment_url && !oldStory.matches_comment_url(newStory.comment_url)) {
       const previousSubstories = [...oldStory.substories]
       oldStory.substories.push({
         type: newStory.type,

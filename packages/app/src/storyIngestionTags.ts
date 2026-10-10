@@ -1,4 +1,4 @@
-import { Story } from "@once/core"
+import { sameDiscussion, Story } from "@once/core"
 
 /** Merge tags only for the same comment source, restoring them if persistence fails. */
 export async function mergeIngestionTags(
@@ -7,7 +7,7 @@ export async function mergeIngestionTags(
   save: (story: Story) => Promise<Story>,
   changed: (story: Story, previousTags: Story["tags"]) => void
 ): Promise<Story> {
-  if (incoming.comment_url != stored.comment_url) return stored
+  if (!sameDiscussion(stored.comment_url, incoming.comment_url) && incoming.comment_url !== stored.comment_url) return stored
   const existingTags = new Set(stored.tags.map((tag) => tag.text))
   const addedTags = incoming.tags.filter((tag) => {
     if (existingTags.has(tag.text)) return false

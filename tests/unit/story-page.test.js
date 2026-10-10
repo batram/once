@@ -32,6 +32,19 @@ test("Lobsters comment pages match with or without the title slug", () => {
   assert.equal(sameStoryDocument("https://lobste.rs/s/lgxq91", "https://lobste.rs/s/lgxq91/slug"), false, "navigation provenance keeps exact pages")
 })
 
+test("re-collecting a Lobsters story under its slugged URL is no new source", async () => {
+  const { mergeIngestionTags } = require("../../packages/app/dist/storyIngestionTags")
+  const stored = new Story("LO", "https://example.test/a", "A", "https://lobste.rs/s/lgxq91")
+  stored.tags = [{ class: "user", text: "cgrinds" }]
+  stored.substories = [{ type: "HN", comment_url: "https://news.ycombinator.com/item?id=1", timestamp: 1, tags: [] }]
+  const incoming = new Story("LO", "https://example.test/a", "A", "https://lobste.rs/s/lgxq91/there_s_little")
+  incoming.tags = [{ class: "category", text: "vibecoding" }]
+  // The ingestion path adds a substory only for a comment URL the story does not already match.
+  assert.equal(stored.matches_comment_url(incoming.comment_url), true)
+  const merged = await mergeIngestionTags(stored, incoming, async story => story, () => {})
+  assert.deepEqual(merged.tags.map(tag => tag.text), ["cgrinds", "vibecoding"])
+})
+
 test("successful redirect and same-document provenance is bounded by errors", () => {
   assert.deepEqual(storyPageUrls(destination + "#install", { sourceUrl: original, statusCode: 200 }), [destination + "#install", original])
   assert.deepEqual(storyPageUrls("http://example.test/final", { sourceUrl: original, statusCode: 200 }), ["http://example.test/final", original])

@@ -1,0 +1,347 @@
+/* A discussion Once read itself, in the comments panel or on mobile's
+   comments surface. Laid out like the aggregators it comes from: a dense
+   header line per comment, its text below, replies indented behind a rail
+   that collapses the comment when clicked. */
+
+.comment_thread {
+  --comment-indent: 14px;
+  --comment-rail-size: 14px;
+  box-sizing: border-box;
+  padding: 0 var(--sp-2) var(--sp-6);
+  /* The reader's body color: --text-color is a mid grey in both themes and reads as disabled. */
+  color: var(--text-high-color);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  /* The shell turns selection off for its lists; comments are there to be read and quoted. */
+  cursor: auto;
+  user-select: text;
+}
+
+#comments_panel[data-comments-mode="thread"] .temporary_panel_body {
+  display: block;
+  overflow: auto;
+}
+
+.comments_panel_note {
+  margin: 0;
+  padding: var(--sp-1) var(--sp-3);
+  border-block-end: var(--bw) solid var(--divider-color);
+  color: var(--text-muted-color);
+  font-size: var(--fs-meta);
+}
+
+.comment_thread_loading,
+.comment_thread_empty {
+  margin: var(--sp-4) 0;
+  color: var(--text-muted-color);
+  text-align: center;
+}
+
+.comment_thread_head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-1-5) var(--sp-2);
+  border-block-end: var(--bw) solid var(--divider-color);
+}
+
+.comment_thread_title {
+  color: var(--text-high-color);
+  font-size: var(--fs-title);
+  font-weight: bold;
+  line-height: 1.3;
+  text-decoration-line: none;
+}
+
+.comment_thread_title:hover {
+  text-decoration-line: underline;
+}
+
+.comment_thread_meta {
+  grid-column: 1;
+  margin: var(--sp-1-5) 0 0;
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+}
+
+.comment_thread_actions {
+  display: flex;
+  gap: var(--sp-1);
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+
+.comment_thread_story {
+  grid-column: 1 / -1;
+  margin-block-start: var(--sp-2);
+}
+
+.comment {
+  position: relative;
+  outline: none;
+}
+
+/* Each top-level thread is its own block, set off by a hairline. */
+.comment_list > .comment {
+  padding-block: 10px;
+  border-block-end: var(--bw) solid var(--divider-color);
+}
+
+.comment_list > .comment:last-child {
+  border-block-end: 0;
+}
+
+.comment_main {
+  padding: var(--sp-1-5) var(--sp-2);
+  transform: translateX(var(--comment-swipe-shift, 0));
+  transition: transform 150ms ease-out;
+}
+
+.comment_main.is-swiping {
+  transition: none;
+}
+
+.comment.is-current > .comment_main {
+  background-color: color-mix(in srgb, var(--cursor-color) 9%, transparent);
+  box-shadow: inset 0 0 0 var(--bw) color-mix(in srgb, var(--cursor-color) 35%, transparent);
+}
+
+.comment:focus-visible > .comment_main {
+  box-shadow: inset 0 0 0 calc(var(--bw) * 2) var(--cursor-color);
+}
+
+.comment_head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-0-5) var(--sp-2);
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+}
+
+/* A chevron while open; collapsed it shows its "[+N]" count instead. */
+.comment_toggle {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--sp-4);
+  block-size: var(--sp-4);
+  margin-inline-start: calc(var(--sp-0-5) * -1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-family: ui-monospace, monospace;
+  font-size: 0;
+  cursor: pointer;
+}
+
+.comment_toggle::before {
+  content: "";
+  inline-size: 5px;
+  block-size: 5px;
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(-1px) rotate(45deg);
+}
+
+.comment_toggle:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  color: var(--text-high-color);
+}
+
+.comment_avatar {
+  inline-size: var(--icon-sm);
+  block-size: var(--icon-sm);
+  border-radius: var(--radius-sm);
+}
+
+.comment_author {
+  color: var(--text-high-color);
+  font-weight: bold;
+  text-decoration-line: none;
+}
+
+.comment_author.is-anonymous {
+  color: var(--text-muted-color);
+  font-weight: normal;
+}
+
+.comment_op {
+  padding: 0 5px;
+  border-radius: var(--radius-sm);
+  background: var(--cursor-color);
+  color: white;
+  font-size: var(--fs-label);
+  font-weight: bold;
+  letter-spacing: 0.04em;
+}
+
+.comment_head a:hover {
+  text-decoration-line: underline;
+}
+
+.comment_permalink,
+.comment_time {
+  color: inherit;
+  text-decoration-line: none;
+}
+
+/* Only on the comment being looked at; every header repeating "link" is noise. */
+.comment_permalink {
+  margin-inline-start: auto;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.comment_main:hover .comment_permalink,
+.comment.is-current > .comment_main .comment_permalink,
+.comment_permalink:focus-visible {
+  opacity: 1;
+}
+
+/* Indented to line up with the author, past the toggle. */
+.comment_body {
+  margin-block-start: 3px;
+  padding-inline-start: 22px;
+  overflow-wrap: anywhere;
+}
+
+.comment_body > :first-child,
+.comment_body .md > :first-child {
+  margin-block-start: 0;
+}
+
+.comment_body > :last-child,
+.comment_body .md > :last-child {
+  margin-block-end: 0;
+}
+
+/* Hacker News sends the first paragraph as a bare text node and only the
+   rest as <p>, so space goes above each paragraph, never below. */
+.comment_thread .comment_body > p {
+  margin-block: var(--sp-1-5) 0;
+}
+
+.comment_body p {
+  margin-block: var(--sp-1-5) 0;
+}
+
+.comment_body pre {
+  overflow-x: auto;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius-sm);
+  background: var(--second-bg-color);
+  font-size: var(--fs-dense);
+}
+
+.comment_body blockquote {
+  margin: var(--sp-1) 0;
+  padding-block: var(--sp-0-5);
+  padding-inline-start: var(--sp-2);
+  border-inline-start: calc(var(--bw) * 2) solid var(--divider-color);
+  color: var(--text-muted-color);
+  font-style: italic;
+}
+
+.comment_body img {
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
+.comment_removed {
+  margin: var(--sp-0-5) 0 0;
+  color: var(--text-muted-color);
+  font-style: italic;
+}
+
+.comment_more {
+  display: inline-block;
+  margin-block-start: var(--sp-1);
+  margin-inline-start: 22px;
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+}
+
+.comment_replies {
+  position: relative;
+  margin-block-start: var(--sp-0-5);
+  margin-inline-start: 15px;
+  padding-inline-start: var(--sp-3);
+}
+
+/* The rail runs down the replies, as on Reddit; clicking it collapses the
+   comment. Its tint steps with depth so siblings far apart still line up. */
+.comment_rail {
+  --comment-rail-color: color-mix(in srgb, var(--cursor-color) 60%, transparent);
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(var(--sp-1-5) * -1);
+  inline-size: var(--comment-rail-size);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.comment[data-depth="1"] > .comment_replies > .comment_rail {
+  --comment-rail-color: color-mix(in srgb, var(--audio-playing-color) 60%, transparent);
+}
+
+.comment[data-depth="2"] > .comment_replies > .comment_rail {
+  --comment-rail-color: color-mix(in srgb, var(--warning-color) 60%, transparent);
+}
+
+.comment_rail::before {
+  content: "";
+  position: absolute;
+  inset-block: var(--sp-0-5);
+  inset-inline-start: var(--sp-1-5);
+  inline-size: 2px;
+  border-radius: 1px;
+  background: var(--comment-rail-color);
+}
+
+.comment_rail:hover::before {
+  background: var(--text-muted-color);
+}
+
+/* Collapsed: the header, its "[+N]" count, and the text cut to a one-line preview. */
+.comment.is-collapsed > .comment_main .comment_toggle {
+  inline-size: auto;
+  padding-inline: var(--sp-0-5);
+  color: var(--text-high-color);
+  font-size: var(--fs-caption);
+}
+
+.comment.is-collapsed > .comment_main .comment_toggle::before {
+  content: none;
+}
+
+.comment.is-collapsed > .comment_main > .comment_body {
+  overflow: hidden;
+  margin-block-start: 0;
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+  font-style: italic;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.comment.is-collapsed > .comment_main > .comment_body * {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.comment.is-collapsed > .comment_main > .comment_more,
+.comment.is-collapsed > .comment_replies {
+  display: none;
+}
+
+.comment.is-removed > .comment_main .comment_head {
+  font-style: italic;
+}

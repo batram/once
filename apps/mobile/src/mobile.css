@@ -1814,6 +1814,21 @@
     display: none;
   }
 
+  /* A comment thread Once read itself covers the page it came from, as the
+     Reader does; the native page stays loaded underneath for the toggle. */
+  #reading_content > .reading_comment_thread {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    background: var(--main-bg-color);
+  }
+
+  #reading_content > .reading_comment_thread[hidden] {
+    display: none;
+  }
+
   #reading_find_bar {
     position: relative;
     z-index: 2;

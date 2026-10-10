@@ -1,5 +1,5 @@
 import { positionStoryButtons } from "./storyButtonPreferences"
-import { humanTime, SubStory } from "@once/core"
+import { humanTime, sameDiscussion, SubStory } from "@once/core"
 import { getOnceClient } from "../client"
 import { requestReading } from "../ReadingSession"
 import { bindLinkBehavior, openStoryUrl } from "./storyLinks"
@@ -146,17 +146,17 @@ export function renderSubstories(row: StoryListItem): void {
   if (row.button_group && row.substories_el.contains(row.button_group)) row.appendChild(row.button_group)
   row.substories_el.innerHTML = ""
 
-  const subs = [
-    {
-      type: row.story.type,
-      comment_url: row.story.comment_url,
-      timestamp: row.story.timestamp,
-      tags: row.story.tags
-    },
-    ...row.story.substories.filter((sub) => {
-      return sub.comment_url != row.story.comment_url && sub.timestamp
-    })
-  ]
+  const subs: SubStory[] = [{
+    type: row.story.type,
+    comment_url: row.story.comment_url,
+    timestamp: row.story.timestamp,
+    tags: row.story.tags
+  }]
+  // One block per discussion: stored stories may list the same one under two
+  // URL forms (Lobsters' /s/<id> and /s/<id>/<slug>).
+  row.story.substories.forEach((sub) => {
+    if (sub.timestamp && !subs.some((seen) => sameDiscussion(seen.comment_url, sub.comment_url))) subs.push(sub)
+  })
 
   subs.forEach((x: SubStory) => {
     row.substories_el.append(buildInfoBlock(row, x))
