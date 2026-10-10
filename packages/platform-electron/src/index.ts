@@ -5,6 +5,7 @@ import { captureReaderPositionInPage } from "@once/app/tabsync"
 import { Story } from "@once/core"
 import {
   IndexedDbCacheStore,
+  keepIndexedDbOpenAfterAborts,
   LOCAL_POUCH_OPTIONS,
   PouchListStore,
   PouchStoryStore,
@@ -38,6 +39,7 @@ export function createElectronPlatform(
     .addEventListener("change", syncWindowBackground)
   syncWindowBackground()
 
+  keepIndexedDbOpenAfterAborts()
   const onceDb = new PouchDB("once_electron_v2", LOCAL_POUCH_OPTIONS)
   const fetchThroughMain = (input: RequestInfo | URL, init?: RequestInit) =>
     bridgeFetch(bridge, input, init)

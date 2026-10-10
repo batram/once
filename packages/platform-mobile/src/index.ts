@@ -9,6 +9,7 @@ import { DatabaseChange, OncePlatformPorts, TabOpenerPort, TabSourcePort, ThemeN
 import { DEFAULT_CACHE_MINUTES, Story } from "@once/core"
 import {
   IndexedDbCacheStore,
+  keepIndexedDbOpenAfterAborts,
   LOCAL_POUCH_OPTIONS,
   PouchListStore,
   PouchStoryStore,
@@ -169,6 +170,7 @@ export function createMobilePlatform(
   options: MobilePlatformOptions = {}
 ): OncePlatformPorts {
   installNativeFetch()
+  keepIndexedDbOpenAfterAborts()
   const onceDb = database || new PouchDB("once_mobile_v1", LOCAL_POUCH_OPTIONS)
   const listStore = new PouchListStore(onceDb)
   const storyStore = new PouchStoryStore(onceDb, (story) => Story.from_obj(story))

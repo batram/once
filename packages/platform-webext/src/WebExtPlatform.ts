@@ -11,6 +11,7 @@ import {
   PouchStoryStore,
   PouchSyncService,
   IndexedDbCacheStore,
+  keepIndexedDbOpenAfterAborts,
   LOCAL_POUCH_OPTIONS,
   PouchTabDocsDatabase,
   pouchTabDocs
@@ -38,6 +39,7 @@ export function createWebExtPlatform(
   browserApi: typeof browser = browser,
   options?: WebExtPlatformOptions
 ): OncePlatformPorts {
+  keepIndexedDbOpenAfterAborts()
   const onceDb = new PouchDB("once_db", LOCAL_POUCH_OPTIONS)
   const listStore = new PouchListStore(onceDb)
   const storyStore = new PouchStoryStore(onceDb, (story) =>
