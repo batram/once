@@ -40,6 +40,8 @@ if (shouldStopPackagedApp(process.platform, args[0], skipPackagedAppStop)) {
   console.log("Skipping packaged Once app termination (--nokill).")
 }
 
+if (["start", "package", "make"].includes(args[0])) require("./build-image-text").buildImageText()
+
 const result = spawnSync(process.execPath, [forgeCli, ...args], {
   cwd: path.resolve(__dirname, ".."),
   env: {

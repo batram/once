@@ -37,6 +37,7 @@ module.exports = {
     // because its executable does not contain a Windows-style icon resource.
     extraResource: [
       path.resolve(__dirname, "../../vendor/extensions"),
+      ...(process.platform === "darwin" ? [path.resolve(__dirname, ".native/once-image-text")] : []),
       linuxWindowIcon
     ]
   },

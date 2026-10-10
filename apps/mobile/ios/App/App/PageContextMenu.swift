@@ -5,8 +5,8 @@ import UniformTypeIdentifiers
 import WebKit
 
 // The page's long-press menu. WebKit hit-tests the press and draws the system
-// menu; Once supplies the actions, since WebKit's own "Open" replaces the page
-// in place and its image actions cannot be extended.
+// menu. Preserve WebKit's suggested image actions: these include Live Text
+// on supported devices, with native selection directly on the page's image.
 extension InAppBrowserSurfacePlugin {
     /// WKContextMenuElementInfo carries only the link, so the page side records
     /// where the press landed and names the image and link text under it. Runs
@@ -80,12 +80,20 @@ extension InAppBrowserSurfacePlugin {
     }
 
     private func menuConfiguration(link: URL?, linkText: String?, image: URL?, items: [ShellMenuItem], in webView: WKWebView) -> UIContextMenuConfiguration {
-        UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self, weak webView] _ in
+        UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self, weak webView] suggestedActions in
             guard let self, let webView else { return nil }
             var sections: [UIMenuElement] = []
             if let link { sections.append(self.linkActions(link, in: webView)) }
             if let link, !items.isEmpty { sections.append(self.shellActions(items, link: link, linkText: linkText)) }
-            if let image { sections.append(self.imageActions(image, in: webView)) }
+            if let image {
+                if suggestedActions.isEmpty {
+                    sections.append(self.imageActions(image, in: webView))
+                } else {
+                    // Do not identify system actions by localized titles or
+                    // private identifiers. WebKit owns its Live Text actions.
+                    sections.append(UIMenu(options: .displayInline, children: suggestedActions))
+                }
+            }
             return UIMenu(title: String((link ?? image)?.absoluteString.prefix(300) ?? ""), children: sections)
         }
     }

@@ -11,6 +11,7 @@ dist/
 distx/
 dist-*/
 .webpack/
+.native/
 out/
 apps/mobile/ios/build/
 test-results/

@@ -11,6 +11,7 @@ import { ElectronStoryMenuItem } from "@once/platform-electron/bridge"
 import { WindowEntry } from "./BrowserState"
 import { PageActions } from "./PageActions"
 import { sourceUrlFromReaderUrl } from "./reader-url"
+import { selectImageText } from "./ImageText"
 
 interface NativeMenuActions {
   close(owner: WindowEntry, id: string): void
@@ -132,6 +133,13 @@ export class NativeMenus {
           )
         }
       )
+    }
+
+    if (process.platform === "darwin" && params.hasImageContents) {
+      template.push({ type: "separator" }, {
+        label: "Select Text in Image",
+        click: () => void selectImageText(contents, params)
+      })
     }
 
     const link = this.actions.normalizeUrl(params.linkURL)
