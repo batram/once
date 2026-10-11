@@ -13,6 +13,7 @@ const compiled = ts.transpileModule(source, {
 const moduleStub = { exports: {} }
 Function("exports", "require", compiled)(moduleStub.exports, name => {
   if (name === "@once/platform-electron/bridge") return { ELECTRON_IPC: {} }
+  if (name === "./Zoom") return { handleZoomKey: () => false, bindWheelZoom: () => {} }
   throw new Error(`Unexpected import: ${name}`)
 })
 const { WindowLifecycle } = moduleStub.exports
