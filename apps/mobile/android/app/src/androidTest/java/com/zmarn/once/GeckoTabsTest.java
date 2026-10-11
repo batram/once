@@ -162,6 +162,9 @@ public class GeckoTabsTest {
             });
             // A generated 440 Hz tone: audible media without fixtures on disk. Gecko never
             // activated a media session for a 10 s looping clip; a minute-long one is controllable.
+            // Play only once the duration is known: Gecko classifies an element when play()
+            // starts, and one started at duration NaN stays a non-controllable source whose
+            // audibility never activates a media session (MOZ_LOG=MediaControl:5).
             evaluate(t, id, generation, "(() => { const rate = 8000, n = rate * 60, view = new DataView(new ArrayBuffer(44 + n * 2));"
                 + "const text = (at, s) => [...s].forEach((c, i) => view.setUint8(at + i, c.charCodeAt(0)));"
                 + "text(0, 'RIFF'); view.setUint32(4, 36 + n * 2, true); text(8, 'WAVEfmt '); view.setUint32(16, 16, true);"
@@ -169,8 +172,9 @@ public class GeckoTabsTest {
                 + "view.setUint16(32, 2, true); view.setUint16(34, 16, true); text(36, 'data'); view.setUint32(40, n * 2, true);"
                 + "for (let i = 0; i < n; i++) view.setInt16(44 + i * 2, Math.sin(i * 2 * Math.PI * 440 / rate) * 8000, true);"
                 + "const audio = document.createElement('audio'); audio.id = 'media'; audio.loop = true;"
-                + "audio.src = URL.createObjectURL(new Blob([view], {type: 'audio/wav'})); document.body.append(audio);"
-                + "audio.play().then(() => document.body.dataset.play = 'ok', e => document.body.dataset.play = String(e)); return true; })()");
+                + "audio.addEventListener('loadedmetadata', () => audio.play().then(() => document.body.dataset.play = 'ok',"
+                + " e => document.body.dataset.play = String(e)), {once: true});"
+                + "audio.src = URL.createObjectURL(new Blob([view], {type: 'audio/wav'})); document.body.append(audio); return true; })()");
             Boolean played = events.poll(15, java.util.concurrent.TimeUnit.SECONDS);
             if (played == null) fail("No playing report; page media: " + evaluate(t, id, generation, "(() => { const a = document.querySelector('#media');"
                 + "return JSON.stringify({play: document.body.dataset.play, paused: a.paused, time: a.currentTime, ready: a.readyState, muted: a.muted, volume: a.volume}) })()"));

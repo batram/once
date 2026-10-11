@@ -26,8 +26,10 @@ public class GeckoResilienceTest {
             return "true".equals(shellReady.get());
         }, 25);
         t.ui(() -> assertNull("The story list must not eagerly create Gecko", t.field("engine")));
+        // Open the section the way the shell does: settings navigation shows the
+        // overview, which lists extensions natively. A class toggle no longer does.
         t.ui(() -> t.activity.getBridge().getWebView().evaluateJavascript(
-            "document.querySelector('#extension_settings').closest('.settings_section').classList.add('active')", null));
+            "document.querySelector(\"[data-settings-target='extensions']\").click()", null));
         t.until("Opening extension settings must start Gecko on demand", () -> t.field("engine") != null, 15);
         t.close();
     }
