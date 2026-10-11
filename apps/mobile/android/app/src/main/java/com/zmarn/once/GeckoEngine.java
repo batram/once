@@ -32,12 +32,42 @@ final class GeckoEngine {
 
     private GeckoEngine(Context context) {
         this.context = context;
-        runtime = GeckoRuntime.create(context, new GeckoRuntimeSettings.Builder()
+        GeckoRuntimeSettings.Builder settings = new GeckoRuntimeSettings.Builder()
             .remoteDebuggingEnabled(WebInspectorPlugin.allowed(context))
             // Avoid per-site subframe process fan-out on memory-constrained
             // devices. Content processes can still be shared between sessions.
-            .fissionEnabled(false)
-            .build());
+            .fissionEnabled(false);
+        String config = writeConfig(context);
+        if (config != null) settings.configFilePath(config);
+        runtime = GeckoRuntime.create(context, settings.build());
+    }
+
+    /**
+     * Prefs GeckoView has no setting for, written where Gecko reads them at startup:
+     * a spare content process kept warm costs about 60 MB, and the language
+     * detector behind Translations, which the app never offers, about 17 MB.
+     */
+    private static final String CONFIG = "prefs:\n" +
+        "  dom.ipc.processPrelaunch.enabled: false\n" +
+        "  browser.translations.enable: false\n";
+
+    /**
+     * A debuggable build, or the current debug app, otherwise reads
+     * /data/local/tmp/<package>-geckoview-config.yaml; when one is present it keeps
+     * precedence, whole, so debugging setups behave as before.
+     */
+    private static String writeConfig(Context context) {
+        boolean debuggable = (context.getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0 ||
+            context.getPackageName().equals(android.provider.Settings.Global.getString(context.getContentResolver(), android.provider.Settings.Global.DEBUG_APP));
+        if (debuggable && new java.io.File("/data/local/tmp/" + context.getPackageName() + "-geckoview-config.yaml").exists()) return null;
+        java.io.File file = new java.io.File(context.getFilesDir(), "geckoview-config.yaml");
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+            out.write(CONFIG.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return file.getAbsolutePath();
+        } catch (java.io.IOException error) {
+            Log.w("OnceSurface", "Unable to write the Gecko configuration", error);
+            return null;
+        }
     }
 
     GeckoResult<List<WebExtension>> ready() {
