@@ -17,6 +17,8 @@ export default tseslint.config(
       // of whole third-party extensions. Flat config does not read .gitignore.
       "artifacts/",
       ".tmp/",
+      // local benchmark scratch (OCR engine runs), never committed
+      "benchmarks/",
       // design references dropped in as-is; not repo source
       "docs/**/*.js",
       "docs/**/*.jsx",

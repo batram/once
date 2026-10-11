@@ -34,7 +34,9 @@ button {
 button:hover:not(:disabled) { background: light-dark(#f1f3f4, #3c4043); }
 button:focus-visible { outline: 2px solid light-dark(#1a73e8, #8ab4f8); outline-offset: -2px; }
 button:disabled { opacity: 0.5; cursor: default; }
-[hidden] { display: none !important; }
+/* The menuitem rule below sets display, which would otherwise beat [hidden]. */
+[role="menuitem"][hidden],
+hr[hidden] { display: none; }
 
 [role="menuitem"] {
   display: flex;

@@ -64,7 +64,7 @@ export function handleZoomKey(
 export function shellPoint<T>(shell: Electron.WebContents, point: T): T {
   if (!point || typeof point !== "object") return point
   const factor = shell.getZoomFactor()
-  const { x, y } = point as { x: number; y: number }
+  const { x, y } = point as unknown as { x: number; y: number }
   return { ...point, x: Math.round(x * factor), y: Math.round(y * factor) }
 }
 
@@ -75,7 +75,7 @@ export function shellPoint<T>(shell: Electron.WebContents, point: T): T {
 export function shellRect<T>(shell: Electron.WebContents, rect: T): T {
   if (!rect || typeof rect !== "object") return rect
   const factor = shell.getZoomFactor()
-  const { x, y, width, height } = rect as { x: number; y: number; width: number; height: number }
+  const { x, y, width, height } = rect as unknown as { x: number; y: number; width: number; height: number }
   const left = Math.round(x * factor)
   const top = Math.round(y * factor)
   return {
