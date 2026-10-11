@@ -42,6 +42,119 @@ public class BackgroundMediaTest {
         exercisePlayback(true);
     }
 
+    @Test public void fullscreenVideoEntersPipWithoutBackgroundOptIn() throws Exception {
+        GeckoTestSupport support = new GeckoTestSupport();
+        assertEquals("Use the local emulator", "ranchu", android.os.Build.HARDWARE);
+        support.start();
+        activity = support.activity; plugin = support.plugin;
+        boolean original = media().isEnabled();
+        int orientation = activity.getRequestedOrientation();
+        try (ServerSocket server = new ServerSocket(0)) {
+            serve(server, """
+                <meta name="viewport" content="width=device-width,initial-scale=1">
+                <button id="fullscreen" onclick="document.body.dataset.tapped='true';document.querySelector(document.body.dataset.target || '#player').requestFullscreen().catch(e=>document.body.dataset.fullscreenError=String(e))">Fullscreen video</button>
+                """);
+            call(plugin::close, new JSObject());
+            call(plugin::open, new JSObject().put("url", "http://127.0.0.1:" + server.getLocalPort() + "/")
+                .put("visible", true).put("bounds", new JSObject().put("x", 0).put("y", 100).put("width", 300).put("height", 400)));
+            support.ui(() -> {
+                media().setEnabled(false);
+                session().setPermissionDelegate(new GeckoSession.PermissionDelegate() {
+                    @Override public GeckoResult<Integer> onContentPermissionRequest(GeckoSession source, ContentPermission permission) {
+                        return GeckoResult.fromValue(permission.permission == PERMISSION_AUTOPLAY_AUDIBLE || permission.permission == PERMISSION_AUTOPLAY_INAUDIBLE
+                            ? ContentPermission.VALUE_ALLOW : ContentPermission.VALUE_DENY);
+                    }
+                });
+            });
+            waitForPage(); createVideo();
+            evaluate("""
+                const style = document.createElement('style');
+                style.textContent = 'body{margin:0}#player:fullscreen{width:100vw;height:100vh;background:black}#player:fullscreen video{width:100%;height:100%;object-fit:contain}video:fullscreen{width:100vw;height:100vh}button{display:block;width:200px;height:60px}';
+                document.head.append(style);
+                const player = document.createElement('div'); player.id='player';
+                document.querySelector('#media').before(player); player.append(document.querySelector('#media'));
+                true
+                """);
+            // A wrapper (like YouTube's player) and the video itself, in both page themes.
+            for (String target : new String[] { "#player", "#media" }) {
+                if (target.equals("#media")) {
+                    support.ui(() -> activity.setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE));
+                    support.until("Landscape viewport", () -> activity.getWindow().getDecorView().getWidth() > activity.getWindow().getDecorView().getHeight(), 10);
+                    call(plugin::setBounds, new JSObject().put("x", 0).put("y", 50).put("width", 600).put("height", 250));
+                }
+                evaluate("document.body.dataset.target='" + target + "'; document.body.style.background='" +
+                    (target.equals("#player") ? "white" : "#202124") + "'; document.querySelector('#media').play(); true");
+                long started = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+                while (!"true".equals(evaluate("document.querySelector('#media').currentTime > 0.5")) && System.nanoTime() < started) Thread.sleep(200);
+                assertPlaying("inline video");
+                int[] originalSize = new int[2];
+                support.ui(() -> { originalSize[0] = plugin.surface.getWidth(); originalSize[1] = plugin.surface.getHeight(); });
+                tapElement("#fullscreen");
+                android.util.Log.i("OnceMediaTest", "Fullscreen request: " + evaluate("({fullscreen:document.fullscreenElement?.id,tapped:document.body.dataset.tapped,error:document.body.dataset.fullscreenError,enabled:document.fullscreenEnabled,paused:document.querySelector('video').paused,width:innerWidth,height:innerHeight})"));
+                support.ui(() -> android.util.Log.i("OnceMediaTest", "Native fullscreen=" + plugin.video.isFullscreen() + " playing=" + media().state.playing
+                    + " visible=" + plugin.visible + " owner=" + plugin.ownsForeground() + " metadata=" + (media().fullscreenVideo == null ? "null" : media().fullscreenVideo.width + "x" + media().fullscreenVideo.height)));
+                capture("fullscreen-request.png");
+                support.until("Gecko fullscreen video must be eligible for PiP", () -> plugin.video.canPip(), 10);
+                dismissFullscreenHelp();
+                support.until("Fullscreen surface fills the native window", () -> plugin.surface.getWidth() == activity.getWindow().getDecorView().getWidth()
+                    && plugin.surface.getHeight() == activity.getWindow().getDecorView().getHeight(), 10);
+                assertEquals("true", evaluate("document.fullscreenElement === document.querySelector('" + target + "')"));
+                assertEquals("Fullscreen video fills the browser viewport", "true", evaluate("(() => {const r=document.querySelector('video').getBoundingClientRect();return Math.abs(r.width-innerWidth)<2 && Math.abs(r.height-innerHeight)<2})()"));
+                support.ui(() -> {
+                    assertFalse("Fullscreen disables pull to refresh", plugin.refreshSurface.isEnabled());
+                    assertEquals(0, plugin.refreshSurface.getX(), 0.1);
+                    assertEquals(0, plugin.refreshSurface.getY(), 0.1);
+                });
+                capture("fullscreen-" + (target.equals("#player") ? "light" : "dark") + ".png");
+                shell("input keyevent KEYCODE_HOME");
+                support.until("Home enters Android PiP", activity::isInPictureInPictureMode, 10);
+                assertPlaying("picture in picture without background opt-in");
+                assertService(true);
+                controller().getTransportControls().pause();
+                assertService(false);
+                assertEquals("PiP Pause controls page video", "true", evaluate("document.querySelector('video').paused"));
+                controller().getTransportControls().play();
+                assertService(true);
+                assertPlaying("PiP Play controls page video");
+                capture("pip-" + (target.equals("#player") ? "light" : "dark") + ".png");
+                shell("am start -W -n " + activity.getPackageName() + "/com.zmarn.once.MainActivity");
+                support.until("Returning restores fullscreen", () -> !activity.isInPictureInPictureMode() && activity.hasWindowFocus(), 10);
+                assertService(false);
+                assertPlaying("returned from PiP");
+                dismissFullscreenHelp();
+                if (target.equals("#player")) shell("input keyevent KEYCODE_BACK");
+                else {
+                    int mid = activity.getWindow().getDecorView().getHeight() / 2;
+                    shell("input swipe 0 " + mid + " 350 " + mid + " 300");
+                    // Immersive Android first reveals its hidden system bars.
+                    if (plugin.video.isFullscreen()) shell("input swipe 0 " + mid + " 350 " + mid + " 300");
+                }
+                support.ui(() -> android.util.Log.i("OnceMediaTest", "After Back: fullscreen=" + plugin.video.isFullscreen()
+                    + " size=" + plugin.surface.getWidth() + "x" + plugin.surface.getHeight() + " original=" + originalSize[0] + "x" + originalSize[1]));
+                capture("after-back.png");
+                support.until("Back restores the reading viewport", () -> !plugin.video.isFullscreen()
+                    && plugin.surface.getWidth() == originalSize[0] && plugin.surface.getHeight() == originalSize[1], 10);
+                assertEquals("Back exits DOM fullscreen", "true", evaluate("document.fullscreenElement === null"));
+                assertFalse(media().isEnabled());
+            }
+            evaluate("document.querySelector('#media').pause(); true");
+            tapElement("#fullscreen");
+            support.until("Paused video can still enter fullscreen", () -> plugin.video.isFullscreen(), 10);
+            support.ui(() -> assertFalse("Paused video must not auto-enter PiP", plugin.video.canPip()));
+            shell("input keyevent KEYCODE_HOME");
+            assertFalse("Paused fullscreen stays out of PiP", activity.isInPictureInPictureMode());
+            shell("am start -W -n " + activity.getPackageName() + "/com.zmarn.once.MainActivity");
+            // Selecting another tab must release native fullscreen ownership.
+            call(plugin::setVisible, new JSObject().put("visible", false));
+            support.ui(() -> assertNull(activity.readingVideo));
+        } finally {
+            support.ui(() -> activity.setRequestedOrientation(orientation));
+            support.ui(() -> media().setEnabled(original));
+            call(plugin::close, new JSObject());
+            support.ui(activity::finish);
+        }
+    }
+
     private void exercisePlayback(boolean video) throws Exception {
         Context context = instrumentation.getTargetContext();
         assertTrue("Use the emulator or the isolated Gecko test app on a physical device",
@@ -239,18 +352,104 @@ public class BackgroundMediaTest {
         }
     }
 
+    @Test public void youtubeFullscreenEntersPip() throws Exception {
+        org.junit.Assume.assumeTrue("Opt-in network smoke", "true".equals(InstrumentationRegistry.getArguments().getString("youtubeLive")));
+        assertEquals("Use the local emulator", "ranchu", android.os.Build.HARDWARE);
+        GeckoTestSupport support = new GeckoTestSupport();
+        support.start(); activity = support.activity; plugin = support.plugin;
+        boolean original = media().isEnabled();
+        try {
+            call(plugin::close, new JSObject());
+            call(plugin::open, new JSObject().put("url", "https://m.youtube.com/watch?v=aqz-KE-bpKQ").put("visible", true)
+                .put("bounds", new JSObject().put("x", 0).put("y", 100).put("width", 400).put("height", 650)));
+            support.ui(() -> {
+                media().setEnabled(false);
+                session().setPermissionDelegate(new GeckoSession.PermissionDelegate() {
+                    @Override public GeckoResult<Integer> onContentPermissionRequest(GeckoSession source, ContentPermission permission) {
+                        return GeckoResult.fromValue(permission.permission == PERMISSION_AUTOPLAY_AUDIBLE || permission.permission == PERMISSION_AUTOPLAY_INAUDIBLE
+                            ? ContentPermission.VALUE_ALLOW : ContentPermission.VALUE_DENY);
+                    }
+                });
+            });
+            support.until("YouTube document bridge", () -> field("bridgePort") != null, 35);
+            Thread.sleep(5000);
+            evaluate("Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'Reject all')?.click(); true");
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (!"true".equals(evaluate("!!document.querySelector('video')")) && System.nanoTime() < deadline) Thread.sleep(300);
+            assertEquals("YouTube video element", "true", evaluate("!!document.querySelector('video')"));
+            tapVideo();
+            evaluate("document.querySelector('video').play().catch(e=>document.body.dataset.playError=String(e)); true");
+            deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(35);
+            while (!"true".equals(evaluate("document.querySelector('video').currentTime>1 && document.querySelector('video').readyState>=2")) && System.nanoTime() < deadline) Thread.sleep(300);
+            String stream = evaluate("(() => {const v=document.querySelector('video'); return {time:v.currentTime,paused:v.paused,ready:v.readyState,error:v.error?.message,playError:document.body.dataset.playError}})()");
+            android.util.Log.i("OnceMediaTest", "YouTube PiP stream: " + stream);
+            assertEquals("YouTube stream must load: " + stream, "true", evaluate("document.querySelector('video').currentTime>1 && document.querySelector('video').readyState>=2"));
+            tapVideo();
+            capture("youtube-inline.png");
+            // A real tap supplies fullscreen's user activation, using YouTube's own control.
+            evaluate("""
+                const buttons = Array.from(document.querySelectorAll('.ytp-fullscreen-button, button.fullscreen-icon, button[aria-label*="full screen" i], button[aria-label*="fullscreen" i]'));
+                const button = buttons.find(b => b.getBoundingClientRect().width > 0 && getComputedStyle(b).visibility !== 'hidden');
+                if (button) button.id='once-fullscreen';
+                true
+                """);
+            assertEquals("YouTube fullscreen control", "true", evaluate("!!document.querySelector('#once-fullscreen')"));
+            tapElement("#once-fullscreen");
+            android.util.Log.i("OnceMediaTest", "YouTube fullscreen: " + evaluate("({fullscreen:!!document.fullscreenElement,paused:document.querySelector('video').paused,buttons:Array.from(document.querySelectorAll('button[aria-label]')).map(b=>b.getAttribute('aria-label')).filter(s=>/full/i.test(s))})"));
+            capture("youtube-fullscreen-request.png");
+            support.until("YouTube fullscreen must be eligible for PiP", () -> plugin.video.canPip(), 15);
+            dismissFullscreenHelp();
+            capture("youtube-fullscreen.png");
+            double before = Double.parseDouble(evaluate("document.querySelector('video').currentTime"));
+            shell("input keyevent KEYCODE_HOME");
+            support.until("YouTube enters Android PiP", activity::isInPictureInPictureMode, 10);
+            Thread.sleep(2500);
+            assertTrue("YouTube continues in PiP", Double.parseDouble(evaluate("document.querySelector('video').currentTime")) > before + 1);
+            capture("youtube-pip.png");
+            shell("am start -W -n " + activity.getPackageName() + "/com.zmarn.once.MainActivity");
+            support.until("YouTube returns from PiP", () -> !activity.isInPictureInPictureMode() && activity.hasWindowFocus(), 10);
+            dismissFullscreenHelp();
+            shell("input keyevent KEYCODE_BACK");
+            support.until("YouTube exits fullscreen", () -> !plugin.video.isFullscreen(), 10);
+            assertFalse(media().isEnabled());
+        } finally {
+            shell("am start -W -n " + activity.getPackageName() + "/com.zmarn.once.MainActivity");
+            support.ui(() -> media().setEnabled(original));
+            call(plugin::close, new JSObject());
+            support.ui(activity::finish);
+        }
+    }
+
     private void tapVideo() throws Exception {
-        org.json.JSONObject point = new org.json.JSONObject(evaluate("(() => { const r = document.querySelector('video').getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()"));
+        tapElement("video");
+    }
+
+    private void tapElement(String selector) throws Exception {
+        org.json.JSONObject point = new org.json.JSONObject(evaluate("(() => { const r = document.querySelector('" + selector + "').getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()"));
         int[] origin = new int[2];
         instrumentation.runOnMainSync(() -> ((android.view.View) field("surface")).getLocationOnScreen(origin));
-        float density = activity.getResources().getDisplayMetrics().density;
-        shell("input tap " + (origin[0] + Math.round(point.getDouble("x") * density)) + " " +
-            (origin[1] + Math.round(point.getDouble("y") * density)));
+        double scale = ((android.view.View) field("surface")).getWidth() / Double.parseDouble(evaluate("innerWidth"));
+        shell("input tap " + (origin[0] + Math.round(point.getDouble("x") * scale)) + " " +
+            (origin[1] + Math.round(point.getDouble("y") * scale)));
     }
 
     private void capture(String name) throws Exception {
         try (java.io.OutputStream image = new java.io.FileOutputStream(new java.io.File(activity.getExternalFilesDir(null), name))) {
             instrumentation.getUiAutomation().takeScreenshot().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, image);
+        }
+    }
+
+    private void dismissFullscreenHelp() {
+        android.app.UiAutomation automation = instrumentation.getUiAutomation();
+        android.accessibilityservice.AccessibilityServiceInfo info = automation.getServiceInfo();
+        info.flags |= android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
+        automation.setServiceInfo(info);
+        for (android.view.accessibility.AccessibilityWindowInfo window : automation.getWindows()) {
+            android.view.accessibility.AccessibilityNodeInfo root = window.getRoot();
+            if (root == null) continue;
+            for (android.view.accessibility.AccessibilityNodeInfo node : root.findAccessibilityNodeInfosByText("Got it")) {
+                node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
+            }
         }
     }
 
@@ -359,6 +558,10 @@ public class BackgroundMediaTest {
     }
 
     private void serve(ServerSocket server) {
+        serve(server, "");
+    }
+
+    private void serve(ServerSocket server, String controls) {
         // A quiet PCM tone avoids network, codecs, and third-party autoplay policies.
         int samples = 8000 * 60;
         ByteBuffer wav = ByteBuffer.allocate(44 + samples * 2).order(ByteOrder.LITTLE_ENDIAN);
@@ -367,7 +570,7 @@ public class BackgroundMediaTest {
         wav.putInt(8000).putInt(16000).putShort((short) 2).putShort((short) 16);
         wav.put("data".getBytes(StandardCharsets.US_ASCII)).putInt(samples * 2);
         for (int index = 0; index < samples; index++) wav.putShort((short) (Math.sin(index * Math.PI * 440 / 8000) * 100));
-        byte[] html = ("<!doctype html><title>Once background media fixture</title><audio id='media' controls loop src='data:audio/wav;base64,"
+        byte[] html = ("<!doctype html><title>Once background media fixture</title>" + controls + "<audio id='media' controls loop src='data:audio/wav;base64,"
             + android.util.Base64.encodeToString(wav.array(), android.util.Base64.NO_WRAP) + "'></audio>").getBytes(StandardCharsets.UTF_8);
         new Thread(() -> {
             while (!server.isClosed()) {

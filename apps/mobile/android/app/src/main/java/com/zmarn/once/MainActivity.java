@@ -5,6 +5,7 @@ import android.view.MotionEvent;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    ReadingVideo readingVideo;
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(AddressBarPlugin.class);
@@ -20,6 +21,16 @@ public class MainActivity extends BridgeActivity {
     @Override public boolean dispatchTouchEvent(MotionEvent event) {
         if (event.getActionMasked() == MotionEvent.ACTION_DOWN) NativeSurfaceDialogs.touched(event.getRawX(), event.getRawY());
         return super.dispatchTouchEvent(event);
+    }
+
+    @Override protected void onUserLeaveHint() {
+        if (readingVideo != null) readingVideo.leave();
+        super.onUserLeaveHint();
+    }
+
+    @Override public void onPictureInPictureModeChanged(boolean enabled, android.content.res.Configuration configuration) {
+        super.onPictureInPictureModeChanged(enabled, configuration);
+        if (readingVideo != null) readingVideo.pipChanged(enabled);
     }
 
     @Override public void onTrimMemory(int level) {

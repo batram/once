@@ -17,6 +17,7 @@ final class BackgroundMedia implements MediaSession.Delegate, BackgroundMediaSer
     private GeckoSession session;
     private MediaSession playing;
     private boolean active = true;
+    private boolean inPictureInPicture;
     private WebExtension.Port port;
     private Image artwork;
     private String pageUrl;
@@ -26,6 +27,8 @@ final class BackgroundMedia implements MediaSession.Delegate, BackgroundMediaSer
     // Observed for every tab, whether or not background playback is enabled.
     java.util.function.Consumer<Boolean> playingChanged;
     private boolean reportedPlaying;
+    MediaSession.ElementMetadata fullscreenVideo;
+    Runnable presentationChanged;
 
     BackgroundMedia(Context context) {
         this.context = context.getApplicationContext();
@@ -33,19 +36,28 @@ final class BackgroundMedia implements MediaSession.Delegate, BackgroundMediaSer
     }
 
     boolean isEnabled() { return preferences.getBoolean("background-playback", false); }
-    boolean keepsPlaying() { return isEnabled() && playing != null; }
+    private boolean allowsBackground() { return isEnabled() || inPictureInPicture; }
+    boolean keepsPlaying() { return allowsBackground() && playing != null; }
+
+    void setPictureInPicture(boolean enabled) {
+        inPictureInPicture = enabled;
+        if (session != null) session.getSettings().setSuspendMediaWhenInactive(!allowsBackground());
+        if (!allowsBackground() && !active && playing != null) playing.pause();
+        observePage();
+        updateService();
+    }
 
     void attach(GeckoSession session) {
         reset();
         this.session = session;
-        session.getSettings().setSuspendMediaWhenInactive(!isEnabled());
+        session.getSettings().setSuspendMediaWhenInactive(!allowsBackground());
         session.setMediaSessionDelegate(this);
     }
 
     void setEnabled(boolean enabled) {
         preferences.edit().putBoolean("background-playback", enabled).apply();
-        if (session != null) session.getSettings().setSuspendMediaWhenInactive(!enabled);
-        if (!enabled && !active && playing != null) playing.pause();
+        if (session != null) session.getSettings().setSuspendMediaWhenInactive(!allowsBackground());
+        if (!allowsBackground() && !active && playing != null) playing.pause();
         observePage();
         updateService();
     }
@@ -53,11 +65,11 @@ final class BackgroundMedia implements MediaSession.Delegate, BackgroundMediaSer
     void setActive(boolean active) {
         this.active = active;
         if (session != null && session.isOpen()) session.setActive(active);
-        if (!active && !isEnabled() && playing != null) playing.pause();
+        if (!active && !allowsBackground() && playing != null) playing.pause();
     }
 
     private void updateService() {
-        if (!isEnabled() || playing == null) {
+        if (!allowsBackground() || playing == null) {
             BackgroundMediaService.release(context, this);
             return;
         }
@@ -77,7 +89,7 @@ final class BackgroundMedia implements MediaSession.Delegate, BackgroundMediaSer
         state.playing(true);
         reportPlaying();
         observePage();
-        if (!active && !isEnabled()) { media.pause(); return; }
+        if (!active && !allowsBackground()) { media.pause(); return; }
         updateService();
     }
 
@@ -103,20 +115,29 @@ final class BackgroundMedia implements MediaSession.Delegate, BackgroundMediaSer
         nativeTitle = "";
         nativeArtist = "";
         state = new ReadingMediaState();
+        fullscreenVideo = null;
         BackgroundMediaService.release(context, this);
         reportPlaying();
     }
 
     private void reportPlaying() {
+        if (presentationChanged != null) presentationChanged.run();
         if (reportedPlaying == state.playing) return;
         reportedPlaying = state.playing;
         if (playingChanged != null) playingChanged.accept(reportedPlaying);
+    }
+
+    @Override public void onFullscreen(GeckoSession source, MediaSession media, boolean enabled, MediaSession.ElementMetadata metadata) {
+        if (source != session) return;
+        fullscreenVideo = enabled ? metadata : null;
+        if (presentationChanged != null) presentationChanged.run();
     }
 
     void detach() {
         if (session != null) session.setMediaSessionDelegate(null);
         session = null;
         port = null;
+        inPictureInPicture = false;
         reset();
     }
 
@@ -129,12 +150,12 @@ final class BackgroundMedia implements MediaSession.Delegate, BackgroundMediaSer
 
     private void observePage() {
         if (port == null) return;
-        try { port.postMessage(new JSONObject().put("type", "media-observe").put("enabled", isEnabled())); }
+        try { port.postMessage(new JSONObject().put("type", "media-observe").put("enabled", allowsBackground())); }
         catch (Exception error) { Log.w("OnceMedia", "Media page bridge disconnected", error); }
     }
 
     void pageSnapshot(JSONObject snapshot) {
-        if (!isEnabled() || port == null) return;
+        if (!allowsBackground() || port == null) return;
         String url = snapshot.optString("url", "");
         String scheme = android.net.Uri.parse(url).getScheme();
         if (!"https".equals(scheme) && !"http".equals(scheme)) return;
@@ -153,7 +174,7 @@ final class BackgroundMedia implements MediaSession.Delegate, BackgroundMediaSer
     @Override public void command(String action, long position) {
         if (playing == null) return;
         switch (action) {
-            case "play": if (isEnabled() || active) playing.play(); break;
+            case "play": if (allowsBackground() || active) playing.play(); break;
             // Dismissing the controls only pauses page media; the page keeps its own player.
             case "pause": case "stop": playing.pause(); break;
             case "next": if (state.supports(MediaSession.Feature.NEXT_TRACK)) playing.nextTrack(); break;

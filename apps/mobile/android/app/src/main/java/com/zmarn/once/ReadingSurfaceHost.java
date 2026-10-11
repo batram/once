@@ -32,6 +32,7 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected GeckoEngine engine;
     protected GeckoExtensionManager extensions;
     protected BackgroundMedia backgroundMedia;
+    protected final ReadingVideo video = new ReadingVideo(this);
     protected final DesktopSite desktopSite = new DesktopSite(enabled ->
         notifyListeners("desktopSiteChanged", new JSObject().put("enabled", enabled)));
     protected final Handler handler = new Handler(Looper.getMainLooper());
@@ -261,6 +262,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         session = created;
         sessionState = null;
         backgroundMedia.playingChanged = playing -> notifyListeners("mediaStateChanged", new JSObject().put("playing", playing));
+        backgroundMedia.presentationChanged = video::update;
         backgroundMedia.attach(created);
         // The reading page is the selected tab: keep its process bound above the
         // cached-app bucket so the low-memory killer takes other things first.
@@ -280,7 +282,8 @@ abstract class ReadingSurfaceHost extends Plugin {
                 resumeWatchdog();
             }, title -> { if (session == created) pageTitle = title; },
             () -> { if (session == created) pageCloseRequested(); },
-            element -> { if (session == created) showPageContextMenu(element); }));
+            element -> { if (session == created) showPageContextMenu(element); },
+            enabled -> { if (session == created) video.fullscreen(enabled); }));
         session.setHistoryDelegate(new GeckoSession.HistoryDelegate() {
             @Override
             public void onHistoryStateChange(GeckoSession source, GeckoSession.HistoryDelegate.HistoryList list) {
@@ -308,6 +311,7 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected void requestHealthCheck() { display.requestHealthCheck(); }
 
     protected void destroySurface() {
+        video.reset();
         display.cancelResize();
         recoveryGeneration++;
         rebuilding = false;
@@ -355,10 +359,11 @@ abstract class ReadingSurfaceHost extends Plugin {
     }
 
     protected void applyBounds(JSObject bounds) {
-        display.bounds(bounds, getBridge().getWebView(), getContext().getResources().getDisplayMetrics().density);
+        video.bounds(bounds);
     }
 
     protected void setSurfaceVisible(boolean visible) {
+        if (!visible && video.isFullscreen()) video.exit();
         if (visible && !this.visible) displayReattached = false;
         if (visible && !this.visible && navigationDeadline != 0) navigationDeadline = SystemClock.elapsedRealtime() + NAVIGATION_TIMEOUT_MS;
         this.visible = visible;
@@ -471,6 +476,7 @@ abstract class ReadingSurfaceHost extends Plugin {
 
     /** Detach first: late events from the discarded session cannot mutate the replacement. */
     protected void releaseReadingSession() {
+        video.reset();
         pauseWatchdog();
         GeckoSession old = session;
         session = null;

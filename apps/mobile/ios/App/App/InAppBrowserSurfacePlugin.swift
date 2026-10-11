@@ -52,11 +52,12 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                                                                 object: nil, queue: .main) { [weak self] _ in
             guard let self else { return }
             for (id, tab) in self.tabs where id != self.selectedTab {
-                guard let view = tab.surface, !view.isLoading else { continue }
+                guard let view = tab.surface, !view.isLoading, tab.pictureInPictureFrames.isEmpty else { continue }
                 // Conservatively retain pages with playing media or opaque frames.
                 view.evaluateJavaScript("document.querySelector('iframe') !== null || Array.from(document.querySelectorAll('audio,video')).some(m => !m.paused && !m.ended)") { [weak self, weak tab] value, error in
                     guard let self, let tab, error == nil, value as? Bool == false,
-                          self.tabs[id] === tab, id != self.selectedTab, tab.surface === view else { return }
+                          self.tabs[id] === tab, id != self.selectedTab, tab.surface === view,
+                          tab.pictureInPictureFrames.isEmpty else { return }
                     tab.reclaimedURL = view.url
                     tab.dropSurface()
                 }
@@ -67,8 +68,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         backgroundObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification,
                                                                     object: nil, queue: .main) { [weak self] _ in
             guard let self, !PlaybackAudioSession.shared.keepsPageMedia else { return }
-            for view in ([self.surface] + self.tabs.values.map(\.surface)).compactMap({ $0 }) {
-                view.pauseAllMediaPlayback {}
+            for tab in [self] + Array(self.tabs.values) {
+                tab.pauseUnlessPictureInPicture()
             }
         }
     }
@@ -122,7 +123,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     @objc func selectTab(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.selectedTab = call.getString("tabId")
-            for (id, tab) in self.tabs where id != self.selectedTab { tab.surface?.isHidden = true }
+            for tab in self.tabs.values { tab.updateSurfaceVisibility() }
             self.extensions.select(self.selectedTab.flatMap { self.tabs[$0]?.surface })
             call.resolve()
         }
@@ -166,12 +167,15 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var extensionUserScripts: [WKUserScript] = []
     /// Frames (by their script's token) currently playing audible media.
     var playingFrames = Set<String>()
+    var pictureInPictureFrames = Set<String>()
     var mediaPlaying = false
     /// Root-only: a popup's configuration shares its opener's controller, and
     /// adding a second handler under the same name throws.
     let mediaControllers = NSHashTable<WKUserContentController>.weakObjects()
     lazy var mediaScript = WKUserScript(source: MediaObserver.source, injectionTime: .atDocumentStart,
                                                 forMainFrameOnly: false, in: MediaObserver.world)
+    lazy var mediaPresentationScript = WKUserScript(source: MediaObserver.presentationSource,
+                                                    injectionTime: .atDocumentStart, forMainFrameOnly: false)
     private(set) lazy var extensions: WebExtensionHost = {
         let host = WebExtensionHost()
         host.changed = { [weak self] in self?.notifyListeners("extensionsChanged", data: [:]) }
@@ -211,6 +215,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         // iPhone WebKit defaults to fullscreen-only video; like Safari, play
         // inline wherever the page allows it (playsinline).
         configuration.allowsInlineMediaPlayback = true
+        configuration.allowsPictureInPictureMediaPlayback = true
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.customUserAgent = desktopUserAgent
         WebInspector.track(view)
@@ -297,12 +302,16 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         savedBounds = object
         guard let surface else { return }
         // CSS viewport pixels and UIKit points share the same logical scale.
-        surface.frame = CGRect(
+        let frame = CGRect(
             x: max(0, object["x"] as? Double ?? 0),
             y: max(0, object["y"] as? Double ?? 0),
             width: max(0, object["width"] as? Double ?? 0),
             height: max(0, object["height"] as? Double ?? 0)
         )
+        // The shell's reading panel has zero bounds while Stories is open.
+        // Collapsing the source view also makes WebKit exit PiP.
+        if frame.isEmpty && !pictureInPictureFrames.isEmpty { return }
+        surface.frame = frame
     }
 
     @objc func open(_ call: CAPPluginCall) {
@@ -325,7 +334,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                 return
             }
             self.applyBounds(call.getObject("bounds") ?? [:])
-            view.isHidden = !(self.wantsVisible && self.isSelected)
+            self.updateSurfaceVisibility()
             if self.adoptedWindow {
                 self.adoptedWindow = false
                 self.replayNavigation(view)
@@ -418,8 +427,24 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                 self.reclaimedURL = nil
                 if let view = self.ensureSurface() { self.navigationState.load(url, in: view) }
             }
-            self.surface?.isHidden = !visible
+            self.updateSurfaceVisibility()
             call.resolve()
+        }
+    }
+
+    /// Hiding a WKWebView dismisses its native PiP window. Keep its source
+    /// attached behind the shell's content while browsing Stories or another
+    /// tab; it must neither cover the shell nor receive its touches.
+    func updateSurfaceVisibility() {
+        guard let surface else { return }
+        let visible = wantsVisible && isSelected
+        let keepsPictureInPicture = !pictureInPictureFrames.isEmpty
+        surface.isHidden = !visible && !keepsPictureInPicture
+        surface.isUserInteractionEnabled = visible
+        if visible {
+            surface.superview?.bringSubviewToFront(surface)
+        } else if keepsPictureInPicture {
+            surface.superview?.sendSubviewToBack(surface)
         }
     }
 

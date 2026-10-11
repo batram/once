@@ -205,7 +205,8 @@ final class ReadingDisplay {
     }
 
     private void applySize() {
-        if (h.refreshSurface == null || pendingWidth < 0) return;
+        // Fullscreen owns the layout; leaving it applies the latest bounds again.
+        if (h.refreshSurface == null || pendingWidth < 0 || h.video.isFullscreen()) return;
         ViewGroup.LayoutParams params = h.refreshSurface.getLayoutParams();
         if (params.width == pendingWidth && params.height == pendingHeight) return;
         params.width = pendingWidth;

@@ -3,9 +3,10 @@ import Capacitor
 import MediaPlayer
 import UIKit
 
-/// The app's one AVAudioSession, wanted by reader speech and, when the user
-/// keeps media playing in background, by tab page media. It stays active
-/// while either needs it. Main queue only.
+/// Reader speech owns the app's AVAudioSession. WebKit owns page playback and
+/// PiP audio sessions; activating this session for them interrupts their audio.
+/// The background preference controls the page pause policy, not audio ownership.
+/// Main queue only.
 final class PlaybackAudioSession {
     static let shared = PlaybackAudioSession()
     /// Android keeps the same choice under the same key.
@@ -15,9 +16,6 @@ final class PlaybackAudioSession {
     weak var reader: ReaderMediaSessionPlugin?
     private var readerActive = false
     private var pagePlaying = false
-    /// Page media keeps the session through a pause while the app is in the
-    /// background, so its lock screen controls can still resume it.
-    private var pageHeld = false
     private var active = false
     private var observers: [NSObjectProtocol] = []
 
@@ -26,7 +24,6 @@ final class PlaybackAudioSession {
         get { UserDefaults.standard.bool(forKey: Self.keepsPageMediaKey) }
         set {
             UserDefaults.standard.set(newValue, forKey: Self.keepsPageMediaKey)
-            apply()
         }
     }
 
@@ -48,12 +45,6 @@ final class PlaybackAudioSession {
                   AVAudioSession.RouteChangeReason(rawValue: raw) == .oldDeviceUnavailable else { return }
             self?.reader?.interrupted()
         })
-        observers.append(center.addObserver(forName: UIApplication.willEnterForegroundNotification,
-                                            object: nil, queue: .main) { [weak self] _ in
-            guard let self, !self.pagePlaying else { return }
-            self.pageHeld = false
-            self.apply()
-        })
     }
 
     func setReader(_ active: Bool) {
@@ -66,14 +57,12 @@ final class PlaybackAudioSession {
     func setPagePlaying(_ playing: Bool) {
         guard playing != pagePlaying else { return }
         pagePlaying = playing
-        if playing { pageHeld = true } else if UIApplication.shared.applicationState == .active { pageHeld = false }
-        apply()
         reader?.pageMediaChanged(playing)
     }
 
     private func apply() {
         let session = AVAudioSession.sharedInstance()
-        guard readerActive || keepsPageMedia && (pagePlaying || pageHeld) else {
+        guard readerActive else {
             guard active else { return }
             active = false
             // Page media may still be in this session as it stops; busy is harmless.
