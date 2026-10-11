@@ -1,6 +1,6 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
-const { ocrParagraphs } = require("../../../packages/app/dist/ocrParagraphs")
+const { ocrParagraphs, ocrParagraphLines, joinBlockLines } = require("../../../packages/app/dist/ocrParagraphs")
 
 function recognize(lines, boxes) {
   return { lines, lineBounds: boxes.map(([x, y, width, height = 16]) => ({ x, y, width, height })) }
@@ -72,4 +72,19 @@ test("a new indented paragraph after a complete sentence stays separate without 
   assert.deepEqual(ocrParagraphs(recognize(["The previous paragraph ends here.", "The next paragraph starts with an indent and", "continues on the following line."],
     [[10, 20, 450, 16], [46, 46, 400, 16], [10, 72, 450, 16]])),
   ["The previous paragraph ends here.", "The next paragraph starts with an indent and continues on the following line."])
+})
+
+test("paragraph line groups index the original lines and skip blank ones", () => {
+  const result = recognize(["Subject: A memo", "A long introductory paragraph that", "  ", "continues here.",
+    "1. Read the book on writing and", "read it three times."],
+  [[20, 10, 180], [20, 50, 600], [20, 70, 10], [20, 76, 150], [20, 122, 440], [35, 148, 220]])
+  // The blank line sits between two halves of one paragraph; groups keep the
+  // original indices so callers can map them back to their own line data.
+  assert.deepEqual(ocrParagraphLines(result), [[0], [1, 3], [4, 5]])
+})
+
+test("joining block lines re-attaches words hyphenated at the line end", () => {
+  assert.equal(joinBlockLines("a commu-", "nication line"), "a commu-nication line")
+  assert.equal(joinBlockLines("soft­", "hyphen"), "softhyphen")
+  assert.equal(joinBlockLines("ends with -", "Next"), "ends with - Next")
 })

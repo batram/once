@@ -16,9 +16,25 @@ function median(values: number[]): number {
   return sorted[Math.floor(sorted.length / 2)] ?? 0
 }
 
+/** Joins one block's lines: a space, or nothing after a word hyphenated at the line end. */
+export function joinBlockLines(previous: string, next: string): string {
+  const separator = /[\p{L}][-­]$/u.test(previous) && lowercase.test(next) ? "" : " "
+  return previous.replace(/­$/u, "") + separator + next
+}
+
 /** Reflow line wrapping, preserving paragraph spacing, headings, lists and column boundaries. */
 export function ocrParagraphs(result: RecognizedText): string[] {
-  const lines = result.lines.map((text, index) => ({ text: text.trim(), box: result.lineBounds?.[index] })).filter(line => line.text)
+  return ocrParagraphLines(result).map(block =>
+    block.map(index => result.lines[index].trim()).reduce((text, line) => joinBlockLines(text, line)))
+}
+
+/**
+ * The same reflow as line-index groups into `result.lines`: each group is one
+ * paragraph, heading or list item. Blank lines belong to no group.
+ */
+export function ocrParagraphLines(result: RecognizedText): number[][] {
+  const lines = result.lines.map((text, index) => ({ index, text: text.trim(), box: result.lineBounds?.[index] }))
+    .filter(line => line.text)
   const heights = lines.flatMap(line => valid(line.box) ? [line.box.height] : [])
   const typicalHeight = median(heights)
   const gaps: number[] = []
@@ -31,7 +47,7 @@ export function ocrParagraphs(result: RecognizedText): string[] {
       overlap > Math.min(previous.width, current.width) * 0.75) gaps.push(gap)
   }
   const typicalGap = median(gaps)
-  const paragraphs: string[] = []
+  const paragraphs: number[][] = []
   for (let index = 0; index < lines.length; index++) {
     const current = lines[index], previous = lines[index - 1]
     let join = false
@@ -62,12 +78,8 @@ export function ocrParagraphs(result: RecognizedText): string[] {
         join = !sentenceEnd.test(previous.text) && !/[:：]$/.test(previous.text) && lowercase.test(current.text)
       }
     }
-    if (join) {
-      const last = paragraphs.length - 1
-      const text = paragraphs[last]
-      const separator = /[\p{L}][-\u00ad]$/u.test(text) && lowercase.test(current.text) ? "" : " "
-      paragraphs[last] = text.replace(/\u00ad$/u, "") + separator + current.text
-    } else paragraphs.push(current.text)
+    if (join) paragraphs[paragraphs.length - 1].push(current.index)
+    else paragraphs.push([current.index])
   }
   return paragraphs
 }

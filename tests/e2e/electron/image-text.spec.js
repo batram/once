@@ -167,6 +167,49 @@ test("native OCR selects and copies image words with stable geometry and cleanup
   } finally { await closeApp(app, userData) }
 })
 
+test("triple-click selects a reflowed paragraph and copy joins its wrapped lines", async () => {
+  const { electronApp: app, userData, window } = await launchApp()
+  try {
+    await window.locator("#urlfield").fill(`${server.origin}/`)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
+    // A paragraph wrapped over two lines, a gap, then a second paragraph.
+    await inPage(app, `new Promise(resolve => {
+      const canvas=document.createElement('canvas'); canvas.width=1000; canvas.height=360;
+      const c=canvas.getContext('2d'); c.fillStyle='#fff'; c.fillRect(0,0,1000,360);
+      c.fillStyle='#14253d'; c.font='40px Arial';
+      c.fillText('The first paragraph wraps onto',40,70); c.fillText('a second line of text.',40,120);
+      c.fillText('Another paragraph follows.',40,260);
+      const image=document.querySelector('img'); image.onload=()=>resolve(true); image.src=canvas.toDataURL('image/png');
+    })`)
+    await startRecognition(app)
+    await app.evaluate(async ({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(c => c.getURL() === url)
+      const point = await page.executeJavaScript(`(() => {
+        const word=[...document.querySelector('[data-once-image-text]').shadowRoot.querySelectorAll('.word')]
+          .find(w=>w.textContent.trim()==='second');
+        const r=word.getBoundingClientRect(); return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)};
+      })()`)
+      page.focus()
+      page.sendInputEvent({ type: "mouseDown", ...point, button: "left", clickCount: 3 })
+      page.sendInputEvent({ type: "mouseUp", ...point, button: "left", clickCount: 3 })
+    }, `${server.origin}/`)
+    const paragraph = "The first paragraph wraps onto a second line of text."
+    await expect.poll(() => inPage(app, "getSelection().toString().replace(/\\s+/g,' ').trim()")).toBe(paragraph)
+    const copied = await app.evaluate(async ({ webContents, clipboard }, url) => {
+      const page = webContents.getAllWebContents().find(c => c.getURL() === url)
+      const previous = await clipboard.readText()
+      clipboard.writeText("")
+      try {
+        page.copy()
+        for (let attempt = 0; attempt < 40 && !(await clipboard.readText()); attempt++) await new Promise(resolve => setTimeout(resolve, 25))
+        return await clipboard.readText()
+      } finally { clipboard.writeText(previous) }
+    }, `${server.origin}/`)
+    expect(copied).toBe(paragraph)
+  } finally { await closeApp(app, userData) }
+})
+
 test("smooth selection respects partial words, reverse dragging, and line breaks", async () => {
   const { electronApp: app, userData, window } = await launchApp()
   try {

@@ -8,7 +8,8 @@
     "*": {
       "tabsync": ["dist/tabsync/index.d.ts"],
       "tabsync/pageScripts": ["dist/tabsync/pageScripts.d.ts"],
-      "browsingSite": ["dist/browsingSite.d.ts"]
+      "browsingSite": ["dist/browsingSite.d.ts"],
+      "ocrParagraphs": ["dist/ocrParagraphs.d.ts"]
     }
   },
   "exports": {
@@ -31,6 +32,10 @@
     "./browsingSite": {
       "types": "./dist/browsingSite.d.ts",
       "default": "./dist/browsingSite.js"
+    },
+    "./ocrParagraphs": {
+      "types": "./dist/ocrParagraphs.d.ts",
+      "default": "./dist/ocrParagraphs.js"
     }
   },
   "dependencies": {

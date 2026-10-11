@@ -1,4 +1,5 @@
 import type { ImageTextResult } from "./browser/imageTextTypes"
+import { ImageTextBlocks } from "./imageTextBlocks"
 import { ImageTextHighlights } from "./imageTextHighlights"
 import { playRecognitionScan } from "./imageTextScan"
 
@@ -67,6 +68,7 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
   words.className = "words"
   clip.append(words)
   const highlights = new ImageTextHighlights(shadow, words)
+  const blocks = new ImageTextBlocks(shadow, words)
   const bar = document.createElement("div")
   bar.className = "bar"
   bar.setAttribute("role", "region")
@@ -90,6 +92,7 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
     stopScan()
     document.removeEventListener("keydown", keydown, true)
     highlights.destroy()
+    blocks.destroy()
     host.remove()
     if (window.__onceImageText?.token === token) delete window.__onceImageText
   }
@@ -115,6 +118,7 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
       }
       renderWords(words, result, image.naturalWidth, image.naturalHeight)
       highlights.attach(image.naturalWidth, image.naturalHeight)
+      blocks.attach(result)
       stopScan = playRecognitionScan(image, clip, words)
       // Runs in the page, so the page reports the platform for the copy shortcut.
       status.textContent = `Drag to select text · ${/^Mac/.test(navigator.platform) ? "⌘C" : "Ctrl+C"} to copy`
