@@ -27,7 +27,8 @@ export function bindBrowsingDataSettings(host: BrowsingDataHost | undefined): vo
     const confirmed = await showConfirmDialog({
       message: "Clear all browsing data? Cookies, cache and site storage are removed and you are signed out of every site.",
       confirmLabel: "Clear",
-      positionWithin: button
+      // The button is too narrow to center a readable dialog in.
+      positionWithin: document.getElementById("settings_panel") ?? undefined
     })
     if (!confirmed) return
     button.disabled = true
