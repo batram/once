@@ -177,6 +177,7 @@ async function startRenderer(): Promise<void> {
     addonConversations: electronAddonConversations(window.onceElectron),
     addonPanel: true,
     panelPages: electronPanelPages(window.onceElectron),
+    browsingData: { clearAll: () => window.onceElectron.browsingData.clearAll() },
     appVersion: buildInfo.version,
     buildChannel: buildInfo.channel,
     buildIdentifier: buildInfo.buildIdentifier,

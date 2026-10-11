@@ -256,6 +256,13 @@ export interface InAppBrowserSurface {
   /** Closes a browser sheet a `holdsSheet` row left up, when no menu followed it. */
   closeBrowserMenu?(): Promise<void>
   showPrompt(options: NativeOverlayPromptOptions): Promise<string | null>
+  /**
+   * Asks natively, then clears what one site (registrable domain, subdomains
+   * included) stored in the browser engine. True when it was cleared.
+   */
+  clearSiteData?(site: string): Promise<boolean>
+  /** Clears every site's data; add-on storage and the shell's own data stay. */
+  clearAllData?(): Promise<void>
   evaluateJavaScript(script: string): Promise<string | null>
   /**
    * Selects the next (or previous) occurrence of `query` in the open page and
@@ -302,6 +309,8 @@ interface NativeInAppBrowserPlugin {
   showPrompt(
     options: NativeOverlayPromptOptions
   ): Promise<{ value?: string }>
+  clearSiteData(options: { site: string }): Promise<{ cleared?: boolean }>
+  clearAllData(): Promise<void>
   evaluateJavaScript(options: { script: string }): Promise<{ value?: string }>
   findInPage(options: { query: string; forward: boolean }): Promise<PageFindResult>
   clearFind(): Promise<void>
@@ -396,7 +405,7 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
     get(target, property: keyof NativeInAppBrowserPlugin) {
       if (property === "addListener") return target.addListener.bind(target)
       return (options: object = {}) => {
-        const global = ["selectTab", "extensionPage", "applyExtensionSettings", "showContextMenu", "setContextMenuItems"].includes(property)
+        const global = ["selectTab", "extensionPage", "applyExtensionSettings", "showContextMenu", "setContextMenuItems", "clearSiteData", "clearAllData"].includes(property)
         return (target[property] as (options: object) => Promise<unknown>)({ ...options, ...(global ? {} : identity ?? selectedIdentity) })
       }
     }
@@ -447,6 +456,8 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
       const result = await plugin.showPrompt(options)
       return result?.value ?? null
     },
+    clearSiteData: async (site) => (await plugin.clearSiteData({ site }))?.cleared === true,
+    clearAllData: () => plugin.clearAllData(),
     async evaluateJavaScript(script) {
       const result = await plugin.evaluateJavaScript({ script })
       return result?.value ?? null

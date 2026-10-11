@@ -7,7 +7,8 @@
   "typesVersions": {
     "*": {
       "tabsync": ["dist/tabsync/index.d.ts"],
-      "tabsync/pageScripts": ["dist/tabsync/pageScripts.d.ts"]
+      "tabsync/pageScripts": ["dist/tabsync/pageScripts.d.ts"],
+      "browsingSite": ["dist/browsingSite.d.ts"]
     }
   },
   "exports": {
@@ -26,10 +27,15 @@
     "./documents": {
       "types": "./dist/fetchDocument.d.ts",
       "default": "./dist/fetchDocument.js"
+    },
+    "./browsingSite": {
+      "types": "./dist/browsingSite.d.ts",
+      "default": "./dist/browsingSite.js"
     }
   },
   "dependencies": {
     "@once/collectors": "*",
-    "@once/core": "*"
+    "@once/core": "*",
+    "tldts": "^7.4.18"
   }
 }

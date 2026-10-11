@@ -12,6 +12,8 @@ import { WindowEntry } from "./BrowserState"
 import { PageActions } from "./PageActions"
 import { sourceUrlFromReaderUrl } from "./reader-url"
 import { selectImageText } from "./ImageText"
+import { siteForUrl } from "@once/app/browsingSite"
+import { confirmClearSiteData } from "./BrowsingData"
 
 interface NativeMenuActions {
   close(owner: WindowEntry, id: string): void
@@ -24,6 +26,16 @@ interface NativeMenuActions {
 }
 
 const isWebUrl = (url: unknown): url is string => typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"))
+
+/** "Clear Data for example.com…" for the site a page is on, or nothing for a page off the web. */
+function clearSiteItems(owner: WindowEntry, url: string | null): MenuItemConstructorOptions[] {
+  const site = siteForUrl(sourceUrlFromReaderUrl(url ?? "") ?? url ?? "")
+  if (!site) return []
+  return [
+    { type: "separator" },
+    { label: `Clear Data for ${site}…`, click: () => void confirmClearSiteData(owner.window, site) }
+  ]
+}
 
 export class NativeMenus {
   /** The add-on actions each window's renderer offers for pages; the page menu lists them. */
@@ -38,7 +50,8 @@ export class NativeMenus {
     id: string,
     point: ElectronPoint,
     hasPlayedAudio: boolean,
-    muted: boolean
+    muted: boolean,
+    pageUrl: string | null
   ): void {
     const template: MenuItemConstructorOptions[] = [
       {
@@ -66,7 +79,8 @@ export class NativeMenus {
     template.push(
       { label: "Duplicate Tab", click: () => void this.actions.duplicate(owner, id) },
       { label: "Move Tab to New Window", click: () => void this.actions.detach(owner, id) },
-      { label: "Close Tab", click: () => this.actions.close(owner, id) }
+      { label: "Close Tab", click: () => this.actions.close(owner, id) },
+      ...clearSiteItems(owner, pageUrl)
     )
     Menu.buildFromTemplate(template).popup({ window: owner.window })
   }
@@ -194,6 +208,7 @@ export class NativeMenus {
         click: () => this.pageActions.run(owner, action.id, { href: link as string, title: params.linkText })
       })
     }
+    template.push(...clearSiteItems(owner, page))
 
     Menu.buildFromTemplate(template).popup({ window: owner.window })
   }

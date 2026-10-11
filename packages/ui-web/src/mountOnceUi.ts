@@ -14,6 +14,7 @@ import { setOnceClient } from "./client"
 import { mountTabsPanel } from "./tabsync/tabsPanel"
 import { mountTabSyncNotices, type TabSyncNoticeOptions } from "./tabsync/tabSyncNotices"
 import { SettingsPanel } from "./settings/SettingsPanel"
+import { BrowsingDataHost, bindBrowsingDataSettings, revealBrowsingDataSettings } from "./settings/BrowsingDataPanel"
 import { StoryHistory } from "./story/StoryHistory"
 import { setSelectedUrl } from "./story/selectedStoryToggle"
 import * as StoryList from "./story/storyList"
@@ -110,6 +111,8 @@ export interface MountOnceUiOptions {
    * comments beside the current page. Absent means an iframe.
    */
   panelPages?: PanelPageHost
+  /** Clears what websites stored in this shell's browser. Absent keeps the section out of Settings. */
+  browsingData?: BrowsingDataHost
 }
 
 export async function mountOnceUi(
@@ -178,6 +181,8 @@ export async function mountOnceUi(
 
   const extensionSettings = document.querySelector<HTMLElement>("#extension_settings")
   if (options.extensionSettings && extensionSettings) extensionSettings.hidden = false
+  revealBrowsingDataSettings(options.browsingData)
+  bindBrowsingDataSettings(options.browsingData)
 
   const settingsPanel = new SettingsPanel(client, {
     scanPairingCode: options.scanPairingCode

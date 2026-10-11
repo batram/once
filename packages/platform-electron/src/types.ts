@@ -258,6 +258,12 @@ export interface ElectronBridge {
     getAccessibility(): Promise<boolean>
     setAccessibility(enabled: boolean): Promise<void>
   }
+  /** What websites stored in the browsing partition; never the shell's own data. */
+  browsingData: {
+    /** Clears one site (registrable domain) and its subdomains. */
+    clearSite(site: string): Promise<void>
+    clearAll(): Promise<void>
+  }
   tabs: {
     getAll(): Promise<ElectronTabState[]>
     openUrl(url: string, target: ElectronOpenTarget): Promise<void>
@@ -444,6 +450,8 @@ export const ELECTRON_IPC = {
   setAccessibility: "once:settings:set-accessibility",
   getSecret: "once:settings:get-secret",
   setSecret: "once:settings:set-secret",
+  browsingDataClearSite: "once:browsing-data:clear-site",
+  browsingDataClearAll: "once:browsing-data:clear-all",
   tabsGetAll: "once:tabs:get-all",
   tabsOpenUrl: "once:tabs:open-url",
   tabsPageHtml: "once:tabs:page-html",

@@ -18,6 +18,7 @@ import {
 import { SecureSettings } from "./SecureSettings"
 import { registerIpcHandlers } from "./IpcHandlers"
 import { registerPanelPageHandlers } from "./browser/PanelPages"
+import { registerBrowsingDataHandlers } from "./browser/BrowsingData"
 import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { OFFSCREEN_TEST_POSITION, isBackgroundMode } from "./browser/WindowLifecycle"
 import {
@@ -357,6 +358,7 @@ app
       })
     })
     registerPanelPageHandlers(browserCoordinator)
+    registerBrowsingDataHandlers(browserCoordinator)
     new RemoteTabsRelay(browserCoordinator).register()
     extensions.manager.onSyncChanged = document => {
       for (const window of BrowserWindow.getAllWindows()) {

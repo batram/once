@@ -11,6 +11,7 @@ module.exports = Object.freeze([
   ["keyboard", "Keyboard shortcuts", "#keyboard_shortcuts", "electron"],
   ["swipe", "Swipe actions", "#swipe_lab"],
   ["cache", "Cache timing", "#cache_time_input"],
+  ["browsing-data", "Browsing data", "#clear_browsing_data"],
   ["errors", "Error log", "#error_log"],
   ["about", "About Once", "[data-testid='app-version']"]
 ])

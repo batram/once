@@ -24,6 +24,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         CAPPluginMethod(name: "showMenu", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "closeBrowserMenu", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "showPrompt", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "clearSiteData", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "clearAllData", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "evaluateJavaScript", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "findInPage", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clearFind", returnType: CAPPluginReturnPromise),

@@ -18,6 +18,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -38,6 +39,17 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected final Handler handler = new Handler(Looper.getMainLooper());
     protected boolean destroyed;
     protected boolean resumed = true;
+
+    /** Starts the shared engine on the registered plugin (a tab borrows its owner's). */
+    protected abstract void ensureEngine();
+
+    // Every tab shares the one Gecko profile, so clearing belongs to the
+    // engine, not a tab. Capacitor finds inherited @PluginMethods too.
+    @PluginMethod
+    public void clearSiteData(PluginCall call) { getActivity().runOnUiThread(() -> { ensureEngine(); GeckoBrowsingData.clearSite(getActivity(), engine, call); }); }
+
+    @PluginMethod
+    public void clearAllData(PluginCall call) { getActivity().runOnUiThread(() -> { ensureEngine(); GeckoBrowsingData.clearAll(engine, call); }); }
     protected boolean visible;
     protected boolean killedWhileHidden;
     protected long surfaceGeneration;

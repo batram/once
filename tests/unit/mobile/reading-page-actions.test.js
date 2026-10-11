@@ -54,3 +54,25 @@ test("mobile menu actions render for direct, comments, redirected and unlisted p
     assert.equal(content.firstChild.hidden, true, "Back closes both a row and page view")
   } finally { release(); trays.dispose(); Object.assign(global, previous) }
 })
+
+test("the browser sheet clears a web page's whole site, and only where the surface can", async () => {
+  const { siteForUrl } = require("../../../packages/app/dist/browsingSite")
+  const code = ts.transpileModule(fs.readFileSync(path.resolve(__dirname, "../../../apps/mobile/src/readingPageActions.ts"), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+  }).outputText
+  const exports = {}
+  Function("exports", "require", code)(exports, () => ({
+    siteForUrl, isAddonPage: () => false, pageAddonActions: () => [], sendPageItems: () => [], runSendItem: () => null
+  }))
+  let currentUrl = "https://news.example.co.uk/story"
+  const reading = { session: { snapshot: () => ({ currentUrl }) }, tabs: { activeId: null } }
+  const cleared = []
+  const actions = exports.readingPageActions(reading, async site => { cleared.push(site); return true })
+  assert.deepEqual(actions.list(), [{ id: "once:clear-site-data", label: "Clear data for example.co.uk", placement: "page" }])
+  await actions.run("once:clear-site-data")
+  assert.deepEqual(cleared, ["example.co.uk"])
+  currentUrl = "about:blank"
+  assert.deepEqual(actions.list(), [])
+  currentUrl = "https://example.com/"
+  assert.deepEqual(exports.readingPageActions(reading).list(), [], "no item without a surface that clears")
+})

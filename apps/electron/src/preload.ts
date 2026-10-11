@@ -53,6 +53,10 @@ const bridge: ElectronBridge = {
     setAccessibility: (enabled) =>
       ipcRenderer.invoke(ELECTRON_IPC.setAccessibility, enabled)
   },
+  browsingData: {
+    clearSite: (site) => ipcRenderer.invoke(ELECTRON_IPC.browsingDataClearSite, site),
+    clearAll: () => ipcRenderer.invoke(ELECTRON_IPC.browsingDataClearAll)
+  },
   tabs: {
     getAll: () => ipcRenderer.invoke(ELECTRON_IPC.tabsGetAll),
     openUrl: (url, target) =>

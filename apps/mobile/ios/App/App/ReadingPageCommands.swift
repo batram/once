@@ -143,6 +143,54 @@ extension InAppBrowserSurfacePlugin {
         }
     }
 
+    // The tabs, the extension pages and the Capacitor shell all share the
+    // default website data store, so nothing here clears by date: records are
+    // fetched and chosen one by one. WebKit names each record after its
+    // registrable domain, the unit Once clears a site by.
+
+    /// Asks first, then clears one site; resolves `{ cleared }`.
+    @objc func clearSiteData(_ call: CAPPluginCall) {
+        guard let site = call.getString("site")?.lowercased(), !site.isEmpty, !site.contains("/") else {
+            call.reject("A site is required")
+            return
+        }
+        DispatchQueue.main.async {
+            guard let presenter = self.presenter() else {
+                call.reject("Unable to present the confirmation")
+                return
+            }
+            let alert = UIAlertController(
+                title: "Clear data for \(site)?",
+                message: "Cookies, cache and stored data for this site and its subdomains are removed. You will be signed out of it.",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in call.resolve(["cleared": false]) })
+            alert.addAction(UIAlertAction(title: "Clear", style: .destructive) { _ in
+                Self.removeWebsiteData(where: { $0 == site }) { call.resolve(["cleared": true]) }
+            })
+            presenter.present(alert, animated: true)
+        }
+    }
+
+    /// The shell already asked. Keeps every record that is not a web site:
+    /// the shell's own `localhost` (Once's database) and the extensions, whose
+    /// records carry no dotted name.
+    @objc func clearAllData(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            Self.removeWebsiteData(where: { $0 != "localhost" && $0.contains(".") }) { call.resolve() }
+        }
+    }
+
+    private static func removeWebsiteData(where matches: @escaping (String) -> Bool, completion: @escaping () -> Void) {
+        let store = WKWebsiteDataStore.default()
+        let types = WKWebsiteDataStore.allWebsiteDataTypes()
+        store.fetchDataRecords(ofTypes: types) { records in
+            let chosen = records.filter { matches($0.displayName.lowercased()) }
+            guard !chosen.isEmpty else { completion(); return }
+            store.removeData(ofTypes: types, for: chosen, completionHandler: completion)
+        }
+    }
+
     func presenter() -> UIViewController? {
         var current = bridge?.viewController
         while let presented = current?.presentedViewController {

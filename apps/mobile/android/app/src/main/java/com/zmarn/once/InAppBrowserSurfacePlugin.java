@@ -215,7 +215,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         getActivity().runOnUiThread(() -> backgroundMedia = new BackgroundMedia(getContext()));
     }
 
-    private void ensureEngine() {
+    @Override protected void ensureEngine() {
         if (engine != null) return;
         if (owner != null) {
             owner.ensureEngine();

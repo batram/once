@@ -160,6 +160,16 @@ function installTransientScrollbars(): void {
 
 type NavigationListeners = Map<string, Set<(event: BrowserNavigationEvent) => void>>
 
+/**
+ * Only the native surfaces have a browser engine whose data can be cleared.
+ * The e2e build shows the section anyway, like extensionSettings, so the web
+ * specs and the visual review reach it; there it has nothing to clear.
+ */
+function browsingDataHost(surface: ReturnType<typeof createInAppBrowserSurface>) {
+  const clearAll = surface.clearAllData?.bind(surface) ?? (__ONCE_MOBILE_E2E__ ? async () => {} : undefined)
+  return clearAll ? { clearAll } : undefined
+}
+
 function captureNavigationListeners(browserSurface: ReturnType<typeof createInAppBrowserSurface>) {
   const navigationListeners: NavigationListeners = new Map()
   if (__ONCE_MOBILE_E2E__) {
@@ -343,11 +353,11 @@ async function startMobileApp(): Promise<void> {
     extensionSettings: Capacitor.isNativePlatform() || __ONCE_MOBILE_E2E__,
     initialStoryLoad: __ONCE_MOBILE_E2E__ ? "disabled" : "cache",
     backgroundInitialStoryLoad: true,
-    scanPairingCode: setUpPairing()
+    scanPairingCode: setUpPairing(), browsingData: browsingDataHost(browserSurface)
   })
   const browserExtensions = createMobileBrowserExtensions()
   if (browserExtensions) bindMobileBrowserExtensionSettings(browserExtensions, url => reading.openBrowserUrl(url))
-  bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(reading),
+  bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(reading, browserSurface.clearSiteData?.bind(browserSurface)),
     () => reading.historyState(), () => { if (reading.tabs.activeId) reading.tabs.close(reading.tabs.activeId) })
   bindWebInspectorSetting()
   mountTouchNavigation(reading)

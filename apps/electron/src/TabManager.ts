@@ -632,7 +632,7 @@ export class BrowserCoordinator {
   showTabMenu(state: WindowEntry, id: string, point: ElectronPoint): void {
     const entry = this.ownership.requireOwned(state, id)
     this.validatePoint(point)
-    this.menus.showTabMenu(state, id, point, entry.hasPlayedAudio, entry.muted)
+    this.menus.showTabMenu(state, id, point, entry.hasPlayedAudio, entry.muted, entry.extensionPage ? null : entry.displayedUrl)
   }
 
   private detachedBounds(tabId: string | undefined, point: ElectronPoint): Rectangle {
