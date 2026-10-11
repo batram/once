@@ -1,6 +1,7 @@
-import type { ImageTextResult } from "./imageTextTypes"
+import type { ImageTextFit, ImageTextResult } from "./imageTextTypes"
 import { ImageTextBlocks } from "./imageTextBlocks"
-import { ImageTextHighlights } from "./imageTextHighlights"
+import { ImageTextHighlights, selectionRange } from "./imageTextHighlights"
+import { ImageTextLayer } from "./imageTextLayer"
 import { ImageTextPointer } from "./imageTextPointer"
 import { playRecognitionScan } from "./imageTextScan"
 
@@ -22,8 +23,10 @@ declare global {
  * injection bundles (Electron, Android) call this; it exposes no privileged
  * bridge: native recognition receives only the image chosen from the native
  * menu, and the result is handed back through `__onceImageText.finish`.
+ * `textLayer` (Android) selects with the engine's native touch carets over an
+ * `ImageTextLayer` instead of the overlay's own pointer model.
  */
-export function installImageTextOverlay(): void {
+export function installImageTextOverlay({ textLayer = false } = {}): void {
   window.__onceStartImageText = (src, x, y, token) => {
     window.__onceImageText?.close()
     const candidates = [...document.images].filter((image) => (image.currentSrc || image.src) === src)
@@ -33,7 +36,7 @@ export function installImageTextOverlay(): void {
     // Without a usable point (a touch menu may not report one), take the copy in view.
     const image = hit as HTMLImageElement | undefined ?? (candidates.length === 1 ? candidates[0] : candidates.find(inView))
     if (!image || !image.complete || !image.naturalWidth) return false
-    const session = createSelection(image, token)
+    const session = createSelection(image, token, textLayer)
     window.__onceImageText = session
     return true
   }
@@ -52,6 +55,8 @@ const OVERLAY_CSS = `
   /* While open, the overlay takes the image's input (see imageTextPointer.ts). */
   .clip { position: absolute; overflow: hidden; pointer-events: auto; cursor: text;
     user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  /* Over Android's text layer the clip only carries the recognition flourish. */
+  .clip.passive { pointer-events: none; }
   .words { position: absolute; transform-origin: 0 0; }
   .word { position: absolute; display: inline-block; color: transparent;
     font-family: Arial, sans-serif; white-space: pre; line-height: 1;
@@ -83,7 +88,7 @@ const OVERLAY_CSS = `
   }
 `
 
-function createSelection(image: HTMLImageElement, token: string): ImageTextSession {
+function createSelection(image: HTMLImageElement, token: string, textLayer: boolean): ImageTextSession {
   const host = document.createElement("div")
   host.dataset.onceImageText = token
   const shadow = host.attachShadow({ mode: "open" })
@@ -95,8 +100,14 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
   const words = document.createElement("div")
   words.className = "words"
   clip.append(words)
-  const highlights = new ImageTextHighlights(shadow, words)
-  const blocks = new ImageTextBlocks(shadow, words)
+  // Android's layer selects natively and paints its own selection.
+  const layer = textLayer ? new ImageTextLayer(token) : null
+  clip.classList.toggle("passive", Boolean(layer))
+  const highlights = layer ? null : new ImageTextHighlights(shadow, words)
+  const blocks = layer ? new ImageTextBlocks(layer.words, () => layer.range())
+    : new ImageTextBlocks(words, () => selectionRange(shadow))
+  const wordRects = () => layer ? layer.wordRects()
+    : [...words.querySelectorAll(".word")].map((word) => word.getBoundingClientRect())
   const bar = document.createElement("div")
   bar.className = "bar"
   bar.setAttribute("role", "region")
@@ -107,19 +118,21 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
   const done = document.createElement("button")
   done.type = "button"
   done.textContent = "Done"
-  // Touch has no copy shortcut, and an Android browsing surface may draw no
-  // selection toolbar, so the bar copies the selection (or all text) itself.
-  const touch = matchMedia("(pointer: coarse)").matches
+  // Touch has no copy shortcut, and a touch selection may draw no toolbar, so
+  // the bar copies the selection (or all text, when nothing is selected) itself.
+  const touch = Boolean(layer) || matchMedia("(pointer: coarse)").matches
   const copy = document.createElement("button")
   copy.type = "button"
   copy.textContent = "Copy"
   copy.hidden = true
   bar.append(status, copy, done)
   shadow.append(clip, bar)
-  const pointer = new ImageTextPointer(shadow, clip, words, image, (sweeping) => bar.classList.toggle("sweeping", sweeping))
+  const pointer = layer ? null
+    : new ImageTextPointer(shadow, clip, words, image, (sweeping) => bar.classList.toggle("sweeping", sweeping))
   document.documentElement.append(host)
   const originalSource = image.currentSrc || image.src
   let frame = 0
+  let rendered = 0 // words shown so far: the bar's spot depends on them
   let closed = false
   let stopScan: () => void = () => undefined
   const close = () => {
@@ -127,9 +140,10 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
     cancelAnimationFrame(frame)
     stopScan()
     document.removeEventListener("keydown", keydown, true)
-    highlights.destroy()
+    highlights?.destroy()
     blocks.destroy()
-    pointer.destroy()
+    pointer?.destroy()
+    layer?.destroy()
     host.remove()
     if (window.__onceImageText?.token === token) delete window.__onceImageText
   }
@@ -143,11 +157,18 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
     status.textContent = blocks.copyFromGesture() ? "Copied" : "Couldn’t copy the text"
     setTimeout(() => { if (!closed) status.textContent = hint }, 1600)
   }
+  const place = () => {
+    const fit = imageFit(image)
+    position(image, fit, clip, words)
+    layer?.update(fit)
+    bar.hidden = clip.hidden = !fit.visible
+    if (fit.visible) placeBar(bar, fit.visibleBox, wordRects, rendered)
+  }
   const layout = () => {
     if (!image.isConnected || (image.currentSrc || image.src) !== originalSource) { close(); return }
-    position(image, clip, words, bar)
-    highlights.update()
-    pointer.update()
+    place()
+    highlights?.update()
+    pointer?.update()
     frame = requestAnimationFrame(layout)
   }
   layout()
@@ -159,19 +180,24 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
         status.textContent = message || "No text found in this image"
         return
       }
-      renderWords(words, result, image.naturalWidth, image.naturalHeight)
-      highlights.attach(image.naturalWidth, image.naturalHeight)
+      if (layer) layer.show(result)
+      else renderWords(words, result, image.naturalWidth, image.naturalHeight)
+      highlights?.attach(image.naturalWidth, image.naturalHeight)
       blocks.attach(result)
-      stopScan = playRecognitionScan(image, clip, words)
+      rendered++
+      // Lay the words out now, so the flourish measures them.
+      place()
+      stopScan = playRecognitionScan(image, clip, wordRects)
       // Runs in the page, so the page reports the platform for the copy shortcut.
       copy.hidden = !touch
-      status.textContent = touch ? "Tap words to select"
+      status.textContent = layer ? "Long-press text to select" : touch ? "Tap words to select"
         : `Drag to select text · ${/^Mac/.test(navigator.platform) ? "⌘C" : "Ctrl+C"} to copy`
     }
   }
 }
 
-function position(image: HTMLImageElement, clip: HTMLElement, words: HTMLElement, bar: HTMLElement): void {
+/** Where the image's content box and its drawn picture are this frame. */
+function imageFit(image: HTMLImageElement): ImageTextFit {
   const rect = image.getBoundingClientRect()
   const style = getComputedStyle(image)
   const borderX = parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft)
@@ -183,9 +209,8 @@ function position(image: HTMLImageElement, clip: HTMLElement, words: HTMLElement
   const sy = rect.height / (image.offsetHeight || 1)
   const left = rect.left + borderX * sx, top = rect.top + borderY * sy
   const visibleBox = visibleImageBox(image, left, top, width * sx, height * sy)
-  Object.assign(clip.style, { left: `${left}px`, top: `${top}px`,
-    clipPath: `inset(${Math.max(0, visibleBox.top - top)}px ${Math.max(0, left + width * sx - visibleBox.right)}px ${Math.max(0, top + height * sy - visibleBox.bottom)}px ${Math.max(0, visibleBox.left - left)}px)`,
-    width: `${width * sx}px`, height: `${height * sy}px` })
+  const clipPath = `inset(${Math.max(0, visibleBox.top - top)}px ${Math.max(0, left + width * sx - visibleBox.right)}px ` +
+    `${Math.max(0, top + height * sy - visibleBox.bottom)}px ${Math.max(0, visibleBox.left - left)}px)`
   const contain = Math.min(width / image.naturalWidth, height / image.naturalHeight)
   const cover = Math.max(width / image.naturalWidth, height / image.naturalHeight)
   const fit = style.objectFit
@@ -194,12 +219,18 @@ function position(image: HTMLImageElement, clip: HTMLElement, words: HTMLElement
   const dh = fit === "fill" ? height : image.naturalHeight * scale
   const positions = style.objectPosition.split(" ")
   const offset = (value: string, remaining: number) => value.endsWith("%") ? parseFloat(value) / 100 * remaining : parseFloat(value) || 0
-  Object.assign(words.style, { left: `${offset(positions[0], width - dw) * sx}px`,
-    top: `${offset(positions[1] || "50%", height - dh) * sy}px`,
-    transform: `scale(${dw * sx / image.naturalWidth}, ${dh * sy / image.naturalHeight})` })
-  const visible = visibleBox.bottom > visibleBox.top && visibleBox.right > visibleBox.left
-  bar.hidden = clip.hidden = !visible
-  if (visible) placeBar(bar, visibleBox, words)
+  return { left, top, width: width * sx, height: height * sy, clipPath, visibleBox,
+    visible: visibleBox.bottom > visibleBox.top && visibleBox.right > visibleBox.left,
+    imageLeft: offset(positions[0], width - dw) * sx, imageTop: offset(positions[1] || "50%", height - dh) * sy,
+    imageWidth: dw * sx, imageHeight: dh * sy }
+}
+
+/** Fits the overlay's clip, and the words inside it, to the image. */
+function position(image: HTMLImageElement, fit: ImageTextFit, clip: HTMLElement, words: HTMLElement): void {
+  Object.assign(clip.style, { left: `${fit.left}px`, top: `${fit.top}px`, clipPath: fit.clipPath,
+    width: `${fit.width}px`, height: `${fit.height}px` })
+  Object.assign(words.style, { left: `${fit.imageLeft}px`, top: `${fit.imageTop}px`,
+    transform: `scale(${fit.imageWidth / image.naturalWidth}, ${fit.imageHeight / image.naturalHeight})` })
 }
 
 interface Box { left: number; top: number; right: number; bottom: number }
@@ -212,11 +243,12 @@ const barSpots = new WeakMap<HTMLElement, { key: string; left: number; top: numb
  * its content's (max-content) capped by the viewport, so placing it never
  * feeds back into its width, and it stays clear of scrollbars.
  */
-function placeBar(bar: HTMLElement, box: Box, words: HTMLElement): void {
+function placeBar(bar: HTMLElement, box: Box, wordRects: () => DOMRect[], rendered: number): void {
   const view = viewport(), gap = 8
   bar.style.setProperty("--bar-max-width", `${view.width - gap * 2}px`)
-  const w = bar.offsetWidth, h = bar.offsetHeight
-  const key = [box.left, box.top, box.right, box.bottom, w, h, view.width, view.height, words.childElementCount].map(Math.round).join()
+  // Fractional size: offsetWidth rounds down and pushes the bar past the margin.
+  const { width: w, height: h } = bar.getBoundingClientRect()
+  const key = [box.left, box.top, box.right, box.bottom, w, h, view.width, view.height, rendered].map(Math.round).join()
   let spot = barSpots.get(bar)
   if (spot?.key !== key) {
     const x = (left: number) => Math.max(gap, Math.min(left, view.width - w - gap))
@@ -224,7 +256,7 @@ function placeBar(bar: HTMLElement, box: Box, words: HTMLElement): void {
     let place = box.bottom + gap + h <= view.height - gap ? { left: x(box.right - w), top: box.bottom + gap }
       : box.top - gap - h >= gap ? { left: x(box.right - w), top: box.top - gap - h } : null
     if (!place) {
-      const rects = [...words.querySelectorAll(".word")].map((word) => word.getBoundingClientRect())
+      const rects = wordRects()
       const covered = (left: number, top: number) => rects.reduce((sum, r) => sum +
         Math.max(0, Math.min(r.right, left + w) - Math.max(r.left, left)) * Math.max(0, Math.min(r.bottom, top + h) - Math.max(r.top, top)), 0)
       place = [[box.right - w - gap, box.bottom - h - gap], [box.left + gap, box.bottom - h - gap],

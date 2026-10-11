@@ -87,8 +87,11 @@ function drawSheen(context: CanvasRenderingContext2D, progress: number, width: n
   context.fillRect(0, 0, width, height)
 }
 
-/** Starts the flourish over `clip`, the box the recognized `words` of `image` are drawn in. Returns a canceller. */
-export function playRecognitionScan(image: HTMLImageElement, clip: HTMLElement, words: HTMLElement): () => void {
+/**
+ * Starts the flourish over `clip`, the box `image`'s recognized words are drawn
+ * in; `wordRects` gives their boxes in viewport pixels. Returns a canceller.
+ */
+export function playRecognitionScan(image: HTMLImageElement, clip: HTMLElement, wordRects: () => DOMRect[]): () => void {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return () => undefined
   const canvas = document.createElement("canvas")
   canvas.className = "scan"
@@ -108,8 +111,7 @@ export function playRecognitionScan(image: HTMLImageElement, clip: HTMLElement, 
   const measure = () => {
     const base = clip.getBoundingClientRect()
     if (!base.width || !base.height) return
-    glyphs = [...words.querySelectorAll<HTMLElement>(".word")].map((word) => {
-      const r = word.getBoundingClientRect()
+    glyphs = wordRects().map((r) => {
       return { x: (r.left - base.left) / base.width, y: (r.top - base.top) / base.height,
         w: r.width / base.width, h: r.height / base.height }
     }).filter((glyph) => glyph.w > 0 && glyph.h > 0)

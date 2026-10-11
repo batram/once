@@ -51,7 +51,8 @@ export class ImageTextHighlights {
   }
 }
 
-function selectionRange(shadow: ShadowRoot): Range | null {
+/** The page's selection when it lies inside the overlay's shadow root, else null. */
+export function selectionRange(shadow: ShadowRoot): Range | null {
   const selection = window.getSelection()
   if (!selection || !selection.rangeCount) return null
   // getRangeAt can retarget user-created shadow selections to the host.

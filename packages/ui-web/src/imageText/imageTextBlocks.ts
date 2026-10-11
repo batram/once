@@ -10,9 +10,16 @@ import type { ImageTextResult } from "./imageTextTypes"
 export class ImageTextBlocks {
   private blockOfLine: number[] = []
 
-  constructor(private readonly shadow: ShadowRoot, private readonly words: HTMLElement) {
+  /**
+   * `words` holds the `.word` spans, in the page or in Android's text layer
+   * (whose own document receives its native toolbar's copy); `range` is the
+   * selection over them, or null.
+   */
+  constructor(private readonly words: HTMLElement, private readonly range: () => Range | null) {
     words.addEventListener("mousedown", this.tripleClick, true)
-    document.addEventListener("copy", this.copy, true)
+    words.ownerDocument.addEventListener("copy", this.copy, true)
+    // The bar's Copy button runs in the page, so its copy event fires there.
+    if (words.ownerDocument !== document) document.addEventListener("copy", this.copyPending, true)
   }
 
   attach(result: ImageTextResult): void {
@@ -23,7 +30,8 @@ export class ImageTextBlocks {
 
   destroy(): void {
     this.words.removeEventListener("mousedown", this.tripleClick, true)
-    document.removeEventListener("copy", this.copy, true)
+    this.words.ownerDocument.removeEventListener("copy", this.copy, true)
+    document.removeEventListener("copy", this.copyPending, true)
   }
 
   private spans(): HTMLElement[] {
@@ -41,9 +49,9 @@ export class ImageTextBlocks {
     if (block === undefined) return
     const spans = this.spans().filter((span) => this.block(span) === block)
     const first = spans[0]?.firstChild, last = spans.at(-1)?.firstChild
-    if (!(first instanceof Text) || !(last instanceof Text)) return
+    if (!isText(first) || !isText(last)) return
     event.preventDefault()
-    document.getSelection()?.setBaseAndExtent(first, 0, last, last.length)
+    this.words.ownerDocument.getSelection()?.setBaseAndExtent(first, 0, last, last.length)
   }
 
   private pending: string | null = null
@@ -62,15 +70,19 @@ export class ImageTextBlocks {
     }
   }
 
-  private readonly copy = (event: ClipboardEvent) => {
-    const text = this.pending ?? this.selectedText()
+  private readonly copy = (event: ClipboardEvent) => this.supply(event, this.pending ?? this.selectedText())
+
+  /** A copy in the page that is not the bar's is the page's own. */
+  private readonly copyPending = (event: ClipboardEvent) => this.supply(event, this.pending)
+
+  private supply(event: ClipboardEvent, text: string | null): void {
     if (text === null || !event.clipboardData) return
     event.clipboardData.setData("text/plain", text)
     event.preventDefault()
   }
 
   private allText(): string {
-    return this.join(this.spans().map((span) => ({ span, part: span.firstChild instanceof Text ? span.firstChild.data : "" })))
+    return this.join(this.spans().map((span) => ({ span, part: isText(span.firstChild) ? span.firstChild.data : "" })))
   }
 
   /** Words of one line joined by spaces, wrapped lines of one block reflowed, blocks on new lines. */
@@ -89,16 +101,11 @@ export class ImageTextBlocks {
 
   /** The selection inside the overlay as reflowed text, or null when it is not ours. */
   private selectedText(): string | null {
-    const selection = document.getSelection()
-    if (!selection || selection.isCollapsed) return null
-    const composed = selection.getComposedRanges({ shadowRoots: [this.shadow] })[0]
-    if (!composed) return null
-    const range = document.createRange()
-    range.setStart(composed.startContainer, composed.startOffset)
-    range.setEnd(composed.endContainer, composed.endOffset)
+    const range = this.range()
+    if (!range) return null
     const parts = this.spans().flatMap((span) => {
       const node = span.firstChild
-      if (!(node instanceof Text) || !range.intersectsNode(node)) return []
+      if (!isText(node) || !range.intersectsNode(node)) return []
       const start = range.comparePoint(node, 0) >= 0 ? 0 : range.startContainer === node ? range.startOffset : node.length
       const end = range.comparePoint(node, node.length) <= 0 ? node.length : range.endContainer === node ? range.endOffset : 0
       return [{ span, part: node.data.slice(start, end) }]
@@ -106,4 +113,9 @@ export class ImageTextBlocks {
     const text = this.join(parts)
     return text ? text : null
   }
+}
+
+/** A text node from any realm: Android's layer lives in an iframe, where `instanceof Text` fails. */
+function isText(node: Node | null | undefined): node is Text {
+  return node?.nodeType === Node.TEXT_NODE
 }

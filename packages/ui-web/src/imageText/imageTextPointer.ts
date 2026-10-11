@@ -6,9 +6,11 @@
  * - mouse: a drag anywhere on the image sweeps a selection, precise inside a
  *   word and snapping to the nearest word over gaps or past the image's edge;
  *   shift-click extends; double- and triple-click stay word and block;
- * - touch: Gecko's native carets hit-test whatever lies under a finger, which
- *   between words is the image or the page, so touch gets its own model: tap
- *   or long-press a word to select it, drag the two handles to extend by word.
+ * - touch (Electron's touchscreens): native carets hit-test whatever lies under
+ *   a finger, which between these sparse words is the image or the page, so
+ *   touch gets its own model: tap or long-press a word to select it, drag the
+ *   two handles to extend by word. Android selects natively instead, over the
+ *   gapless layer of imageTextLayer.ts, and does not use this class.
  * Selections are ordinary DOM selections, so highlights and copying work alike.
  */
 

@@ -467,12 +467,17 @@ it takes the image's input (`imageTextPointer.ts`), so the image's own drag,
 click-to-zoom, link and menu behaviour pause: a mouse drag anywhere on the
 image sweeps a selection (character-precise in words, snapping to the nearest
 word over gaps, autoscrolling at the viewport edge), Ctrl/Cmd+A selects all
-recognized text, and wheel input reaches the image's scroll container. Touch
-uses the overlay's own model instead of native carets, which hit-test the
-image or page between words: tap or long-press a word, then drag two handles
-by whole words. Android's pull-to-refresh only takes drags Gecko reports as
-browser-handled overscroll (`ReadingGeckoView`), never ones page content
-consumed, such as those handles. The bar sits outside the image when there is
+recognized text, and wheel input reaches the image's scroll container.
+Android selects with GeckoView's native carets, handles, magnifier and
+toolbar instead (`imageTextLayer.ts`): the words sit in an iframe over the
+image, so a selection never runs into page text, laid out gaplessly to Gecko's
+caret rules (lines as grid items in one cell, each line box reaching halfway
+to its neighbours, words stretched vertically so a long press always hits
+text). Electron's touchscreens keep the overlay's own model, since native
+carets hit-test the image or page between its sparse words: tap or long-press
+a word, then drag two handles by whole words. Android's pull-to-refresh only
+takes drags Gecko reports as browser-handled overscroll (`ReadingGeckoView`),
+never ones page content consumed, such as caret handles. The bar sits outside the image when there is
 room, else in the corner covering the fewest words. iOS needs none of this:
 WebKit's Live Text already selects text in images.
 
