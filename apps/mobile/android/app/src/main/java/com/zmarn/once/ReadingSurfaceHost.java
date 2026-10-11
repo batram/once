@@ -181,7 +181,7 @@ abstract class ReadingSurfaceHost extends Plugin {
             hiddenState = null;
             createReadingSession();
             armNavigation();
-            if (restore != null) session.restoreState(restore);
+            if (restores(restore, recoveryUrl())) session.restoreState(restore);
             else session.loadUri(recoveryUrl());
             return;
         }
@@ -308,6 +308,7 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected void requestHealthCheck() { display.requestHealthCheck(); }
 
     protected void destroySurface() {
+        display.cancelResize();
         recoveryGeneration++;
         rebuilding = false;
         pauseWatchdog();
@@ -538,7 +539,7 @@ abstract class ReadingSurfaceHost extends Plugin {
      * this as a failed page and offers to open the link in its app.
      */
     protected void offerExternal(String url) {
-        Log.i(TAG, "external redirect offered: " + url);
+        Log.i(TAG, "external redirect offered: " + LogRedaction.redact(url));
         offeredExternalUrl = url;
         // The redirecting document is empty; its blank check must not replace this.
         blankWarning = true;
@@ -571,6 +572,17 @@ abstract class ReadingSurfaceHost extends Plugin {
         Uri uri = Uri.parse(value);
         return "http".equalsIgnoreCase(uri.getScheme()) ||
             "https".equalsIgnoreCase(uri.getScheme());
+    }
+
+    /**
+     * Gecko can report a snapshot with no history entries (seen right after a
+     * restored page starts); restoring one loads only about:blank. Only a
+     * snapshot that ends at the page being recovered is restored.
+     */
+    protected boolean restores(GeckoSession.SessionState state, String url) {
+        if (state == null || url.isEmpty()) return false;
+        int index = state.getCurrentIndex();
+        return index >= 0 && index < state.size() && sameAddress(state.get(index).getUri(), url);
     }
 
     protected boolean sameAddress(String first, String second) {

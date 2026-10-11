@@ -32,6 +32,11 @@ final class ReadingDisplay {
         h.repairVerified = false;
         h.blankSince = 0;
         h.nextHealthAt = 0;
+        // A reset (the GPU process restarted, say, which Android schedules
+        // seconds after resume) needs its own repair: an already painted
+        // document reports no new first paint, and with the repair spent the
+        // blank check failed a page that was still playing underneath.
+        h.displayReattached = false;
     }
 
     void attach() {
@@ -166,19 +171,50 @@ final class ReadingDisplay {
         h.loadStatus.show(progress >= 100 ? "Displaying page…" : "Loading page… " + progress + "%");
     }
 
+    /** How long a run of shrinking bounds must pause before the surface takes the new size. */
+    static final long RESIZE_SETTLE_MS = 150;
+    private int pendingWidth = -1, pendingHeight = -1;
+    private final Runnable settledResize = this::applySize;
+
+    /**
+     * Places the surface over the shell's content rectangle. Edges are rounded,
+     * not the origin and size apart: rounding y and height separately can leave
+     * the bottom edge a pixel short of the shell's, a seam the shell shows
+     * through. Every size change makes Gecko reallocate its surface, show the
+     * old frame stretched until it redraws, and the page reflow and fire resize;
+     * a layout that changes each frame (the logs showed 1 px a frame) did that
+     * per frame. The position follows at once, growth too so no gap opens, and a
+     * shrink waits for the run to settle, overlapping the shell briefly.
+     */
     void bounds(JSObject bounds, WebView shell, float density) {
         if (h.refreshSurface == null) return;
-        int x = Math.round((float) Math.max(0, bounds.optDouble("x", 0)) * density);
-        int y = Math.round((float) Math.max(0, bounds.optDouble("y", 0)) * density);
-        int width = Math.round((float) Math.max(0, bounds.optDouble("width", 0)) * density);
-        int height = Math.round((float) Math.max(0, bounds.optDouble("height", 0)) * density);
+        double x = Math.max(0, bounds.optDouble("x", 0));
+        double y = Math.max(0, bounds.optDouble("y", 0));
+        int left = (int) Math.round(x * density);
+        int top = (int) Math.round(y * density);
+        int width = Math.max(0, (int) Math.round((x + Math.max(0, bounds.optDouble("width", 0))) * density) - left);
+        int height = Math.max(0, (int) Math.round((y + Math.max(0, bounds.optDouble("height", 0))) * density) - top);
+        h.refreshSurface.setX(Math.round(shell.getX()) + left);
+        h.refreshSurface.setY(Math.round(shell.getY()) + top);
+        pendingWidth = width;
+        pendingHeight = height;
+        h.handler.removeCallbacks(settledResize);
         ViewGroup.LayoutParams params = h.refreshSurface.getLayoutParams();
-        if (params.width != width || params.height != height) {
-            params.width = width;
-            params.height = height;
-            h.refreshSurface.setLayoutParams(params);
-        }
-        h.refreshSurface.setX(shell.getX() + x);
-        h.refreshSurface.setY(shell.getY() + y);
+        if (width >= params.width && height >= params.height) applySize();
+        else h.handler.postDelayed(settledResize, RESIZE_SETTLE_MS);
+    }
+
+    private void applySize() {
+        if (h.refreshSurface == null || pendingWidth < 0) return;
+        ViewGroup.LayoutParams params = h.refreshSurface.getLayoutParams();
+        if (params.width == pendingWidth && params.height == pendingHeight) return;
+        params.width = pendingWidth;
+        params.height = pendingHeight;
+        h.refreshSurface.setLayoutParams(params);
+    }
+
+    void cancelResize() {
+        h.handler.removeCallbacks(settledResize);
+        pendingWidth = pendingHeight = -1;
     }
 }

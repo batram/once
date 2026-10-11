@@ -10,7 +10,9 @@ final class ReadingProgressDelegate implements GeckoSession.ProgressDelegate {
 
     @Override public void onProgressChange(GeckoSession source, int progress) { h.display.progress(source, progress); }
     @Override public void onSessionStateChange(GeckoSession source, GeckoSession.SessionState state) {
-        if (source == h.session && !h.awaitingRequestedStart && !h.initialBlank) h.sessionState = state;
+        // An empty snapshot must not replace the last one that could restore the page.
+        if (source == h.session && !h.awaitingRequestedStart && !h.initialBlank && state != null && !state.isEmpty())
+            h.sessionState = state;
         if (source == h.session && state != null) h.historyListChanged(state);
     }
     @Override
@@ -51,6 +53,10 @@ final class ReadingProgressDelegate implements GeckoSession.ProgressDelegate {
         // superseded load cover the next document with an error. Real load
         // errors arrive in onLoadError; missing completion stays bounded.
         if (!success) return;
+        // A new session's own about:blank is not the requested page. Completing
+        // on it cleared the navigation deadline, so a restore that then never
+        // loaded (its process killed under memory pressure) stayed blank forever.
+        if (h.initialBlank) return;
         // Only a background tab skips verification; a selected tab hidden
         // under a dialog or panel is verified once it is shown again.
         if (!h.visible && !h.ownsForeground()) { h.documentReady(); return; }

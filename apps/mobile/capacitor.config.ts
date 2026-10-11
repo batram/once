@@ -23,7 +23,11 @@ export function createCapacitorConfig(
     webDir: "dist",
     android: {
       flavor: dev ? "development" : "production",
-      allowMixedContent: dev
+      allowMixedContent: dev,
+      // Capacitor's logging prints every plugin call and result whole, sync
+      // requests with their authorization header among them, in any
+      // debuggable build. RedactingChromeClient forwards the console instead.
+      loggingBehavior: "none"
     },
     ios: {
       scheme: dev ? "Once Dev" : "Once"
