@@ -111,6 +111,9 @@ dependencies {
     implementation "androidx.swiperefreshlayout:swiperefreshlayout:$androidxSwipeRefreshLayoutVersion"
     implementation project(':capacitor-android')
     implementation "org.mozilla.geckoview:geckoview:$geckoViewVersion"
+    implementation "androidx.exifinterface:exifinterface:$androidxExifInterfaceVersion"
+    // Bundled Latin model: on-device, no Play services or model download.
+    implementation "com.google.mlkit:text-recognition:$mlkitTextRecognitionVersion"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

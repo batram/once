@@ -309,9 +309,11 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     /** Reader's bounded document download; see DocumentDownload. */
     @PluginMethod
-    public void fetchDocument(PluginCall call) {
-        DocumentDownload.fetch(call);
-    }
+    public void fetchDocument(PluginCall call) { DocumentDownload.fetch(call); }
+
+    /** On-device OCR for the shell's text retrieval; see TextRecognition. */
+    @PluginMethod
+    public void recognizeImage(PluginCall call) { TextRecognition.recognize(call); }
 
     @PluginMethod
     public void reload(PluginCall call) {

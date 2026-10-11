@@ -220,7 +220,7 @@ export function createMobilePlatform(
     tabSource: options.tabSource,
     tabOpener: options.tabOpener,
     device: mobileDevice(options.appVersion ?? ""),
-    ...(Capacitor.getPlatform() === "ios" ? {
+    ...(["ios", "android"].includes(Capacitor.getPlatform()) ? {
       textRecognition: {
         async recognizeImage(bytes: Uint8Array) {
           let binary = ""
