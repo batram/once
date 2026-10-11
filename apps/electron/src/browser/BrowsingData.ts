@@ -40,7 +40,12 @@ export async function clearSiteData(site: string): Promise<void> {
       if (origin && hostBelongsToSite(new URL(origin).hostname, site)) origins.add(origin)
     }
   }
+  // Storage is partitioned by top-level site, and each matching mode reaches
+  // one side of it: the default takes what other sites' frames stored inside
+  // this site, origin-in-all-contexts what this site's frames stored inside
+  // other sites (browsing-data-third-party.spec.js shows both).
   await ses.clearData({ origins: [...origins] })
+  await ses.clearData({ origins: [...origins], originMatchingMode: "origin-in-all-contexts" })
 }
 
 function webOrigin(url: string): string | null {
