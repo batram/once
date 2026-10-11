@@ -55,6 +55,11 @@ export function getTouchGestureAxis(
   return gestures.get(scroller)?.axis ?? "pending"
 }
 
+/** Whether a finger is down on `scroller`, from touchstart until release. */
+export function isTouchGestureActive(scroller: HTMLElement): boolean {
+  return gestures.has(scroller)
+}
+
 export function endTouchGesture(scroller: HTMLElement): void {
   gestures.delete(scroller)
 }

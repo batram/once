@@ -189,7 +189,7 @@ test("a spin timeout folds the strip away while the refresh carries on", async (
 
 test("a refresh in flight still locks the axis for the story swipe", async () => {
   await withDom(async (window, attachPullToRefresh) => {
-    const { getTouchGestureAxis } = require(
+    const { getTouchGestureAxis, isTouchGestureActive } = require(
       "../../../packages/ui-web/dist/gesture/touchGestureLock"
     )
     const stories = document.querySelector("#stories")
@@ -207,8 +207,10 @@ test("a refresh in flight still locks the axis for the story swipe", async () =>
     const swipe = touch(window, "touchmove", 300, 110)
     stories.dispatchEvent(swipe)
     assert.equal(getTouchGestureAxis(stories), "horizontal")
+    assert.equal(isTouchGestureActive(stories), true)
     assert.equal(swipe.defaultPrevented, false)
     stories.dispatchEvent(touch(window, "touchend", 300, 110))
+    assert.equal(isTouchGestureActive(stories), false, "release lets go")
 
     finish()
     await refresh

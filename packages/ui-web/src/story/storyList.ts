@@ -6,6 +6,8 @@ import * as StorySearch from "./storySearch"
 import { URLRedirect } from "@once/core"
 import { requireElement } from "../dom"
 import { attachPullToRefresh } from "../gesture/pullToRefresh"
+import { isTouchGestureActive } from "../gesture/touchGestureLock"
+import { placeInOrder } from "./storyOrder"
 import { connectStoryListSync } from "./storyListSync"
 import { visibleStoryElements } from "./storyVisibility"
 import { getKeyboardDispatcher } from "../keyboard"
@@ -107,8 +109,11 @@ export function init(client: OnceClient, options: StoryListOptions = {}): void {
 }
 
 function add_stories(stories: Story[], bucket = "stories") {
+  // One lookup table per batch: scanning every row for every story made a
+  // source's batch cost its size times the whole list.
+  const rows = rowsByHref()
   stories.forEach((story: Story) => {
-    add(story, bucket)
+    add(story, bucket, rows)
   })
 
   sortStories(bucket)
@@ -123,12 +128,16 @@ function add_stories(stories: Story[], bucket = "stories") {
   }
 }
 
-function add(story: Story, bucket = "stories"): void {
+function add(
+  story: Story,
+  bucket: string,
+  rows: Map<string, StoryListItem[]>
+): void {
   if (!(story instanceof Story)) {
     throw new TypeError("Only Story instances can be added to the story list")
   }
 
-  const existingStories = storyElementsForHref(story.href)
+  const existingStories = rows.get(story.href) ?? []
   if (existingStories.length > 0) {
     // storiesChanged is an upsert, not an insert-only hint. This also repairs
     // a stale row if presentation and the app working set ever diverge. A row
@@ -168,6 +177,19 @@ function add(story: Story, bucket = "stories"): void {
   }
 
   stories_container.appendChild(new_story_el)
+  rows.set(story.href, [new_story_el])
+}
+
+function rowsByHref(): Map<string, StoryListItem[]> {
+  const rows = new Map<string, StoryListItem[]>()
+  document.querySelectorAll<StoryListItem>(".story[data-href]").forEach((row) => {
+    const href = row.dataset.href
+    if (href === undefined) return
+    const list = rows.get(href)
+    if (list) list.push(row)
+    else rows.set(href, [row])
+  })
+  return rows
 }
 
 function storyElementsForHref(href: string): StoryListItem[] {
@@ -247,19 +269,47 @@ export function resortSingle(elem: StoryListItem): (() => void) | null {
   }
 }
 
-export function sortStories(bucket = "stories"): void {
-  const story_con = requireElement("#" + bucket)
+// Buckets whose sort waits for the finger to lift; see sortStories.
+const sortsAwaitingRelease = new Set<string>()
 
-  const storted = Array.from(story_con.querySelectorAll<StoryListItem>(".story"))
+function sortOnRelease(bucket: string, story_con: HTMLElement): void {
+  if (sortsAwaitingRelease.has(bucket)) return
+  sortsAwaitingRelease.add(bucket)
+  const release = () => {
+    story_con.removeEventListener("touchend", release)
+    story_con.removeEventListener("touchcancel", release)
+    sortsAwaitingRelease.delete(bucket)
+    // After this turn, so the gesture's own release handler has let go.
+    setTimeout(() => sortStories(bucket), 0)
+  }
+  story_con.addEventListener("touchend", release)
+  story_con.addEventListener("touchcancel", release)
+}
+
+export function sortStories(bucket = "stories"): void {
+  const story_con = requireElement<HTMLElement>("#" + bucket)
+
+  // A reload sorting the list while a finger is on it moves rows under the
+  // touch: a tap opens a different story, a swipe judges the wrong one. The
+  // new rows are already appended at the end; they find their place once the
+  // finger lifts.
+  if (isTouchGestureActive(story_con)) {
+    sortOnRelease(bucket, story_con)
+    return
+  }
+
+  const rows = Array.from(story_con.children)
+    .filter((child): child is StoryListItem => child.classList.contains("story"))
+  const storted = rows
     .map(sortable_story)
     .sort(comparatorFor(story_con))
+  placeInOrder(story_con, storted.flatMap((x) => (x.el ? [x.el] : [])))
 
   storted.forEach((x) => {
     const el = x.el
     if (!el) {
       return
     }
-    el.parentElement?.appendChild(el)
     if (el.classList.contains("read_anim")) {
       setTimeout(() => {
         el.classList.remove("read_anim")
