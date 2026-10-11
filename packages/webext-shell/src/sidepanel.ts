@@ -19,6 +19,7 @@ import { createWebExtPlatform } from "@once/platform-webext"
 import { webextAddonConversations } from "./addonConversations"
 import { isStoryMenuActionForContext } from "./storyMenuBackground"
 import { bindPageActionsPanel } from "./pageActionsPanel"
+import { bindRedirectFailover } from "./redirectFailover"
 import {
   TOGGLE_COMMENTS_COMMAND,
   isKeyCommandMessage
@@ -113,6 +114,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     backgroundInitialStoryLoad: true
   })
   bindSentTabNotifications(browser)
+  bindRedirectFailover(browser, client)
   // A manifest command pressed while the page had focus. It arrives as a
   // message because only the background is delivered browser-level keys.
   browser.runtime.onMessage.addListener((message: {

@@ -175,6 +175,16 @@ export interface OnceClient {
   saveFilterList(filterList: string[]): Promise<void>
   getRedirectList(): Promise<Redirect[]>
   saveRedirectList(redirectList: Redirect[]): Promise<void>
+  /** Every rule in force: the user's, then the enabled add-on rules, which carry their `origin`. */
+  getEffectiveRedirects(): Promise<Redirect[]>
+  getAddonRedirects(): import("./AddonRedirects").AddonRedirectView[]
+  setAddonRedirectEnabled(key: string, enabled: boolean): Promise<void>
+  /** An add-on's manifest redirects, while it is registered; resolves to the function withdrawing them. */
+  registerAddonRedirects(addonId: string, addonName: string, rules: readonly import("@once/core").AddonRedirect[],
+    handler: import("./AddonRedirects").AddonRedirectHandler | null): Promise<() => void>
+  setAddonRedirectTarget(key: string, replacement: string): Promise<void>
+  /** A page failed to load; when an add-on rule produced it, the same page where the rule moved, else null. */
+  reportRedirectFailure(url: string, reason: string): Promise<string | null>
   getBrowserExtensionSync(): Promise<import("@once/core").BrowserExtensionSyncDocument>
   updateBrowserExtensionSync(change: (document: import("@once/core").BrowserExtensionSyncDocument) => import("@once/core").BrowserExtensionSyncDocument): Promise<void>
   saveBrowserExtensionSync(document: import("@once/core").BrowserExtensionSyncDocument): Promise<void>

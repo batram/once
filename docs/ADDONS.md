@@ -86,9 +86,10 @@ extra setup is needed. ZIP decompression uses the browser's native compression s
 
 ### Bundled with Once
 
-Some add-ons ship inside every Once package — since 0.4.0 the
+Some add-ons ship inside every Once package: since 0.4.0 the
 [What? Wait, who, why?](../examples/addons/what-wait-who-why/README.md) AI
-assistant. [`scripts/bundled-addons.js`](../scripts/bundled-addons.js) lists
+assistant, and the [Nitter](../examples/addons/nitter/README.md) collector
+and X / Twitter redirect. [`scripts/bundled-addons.js`](../scripts/bundled-addons.js) lists
 them; each app's webpack build inlines the package files (`once-addon.json`
 and its script) as the `__ONCE_BUNDLED_ADDONS__` constant, so nothing extra is
 served or fetched. On first start the UI installs a bundled package into the
@@ -126,7 +127,8 @@ usual review.
   "settings": { "type": "object", "properties": { … } }, // optional user options
   "contributions": [ … ],              // story elements and actions
   "collectors": [ … ],                 // optional
-  "panelActions": [ … ]                // optional, at most 4
+  "panelActions": [ … ],               // optional, at most 4
+  "redirects": [ … ]                   // optional, at most 4
 }
 ```
 
@@ -230,6 +232,58 @@ and scalar extras. Once checks them: `http(s)` URLs only, the collector's
 declared `type`, at most 500 stories, capped lengths, scalar extras only.
 Collectors always need a script. See [COLLECTORS.md](COLLECTORS.md) for how
 the built-ins work; the same pipeline runs yours.
+
+A collector whose site has interchangeable mirrors can choose which mirror to
+fetch. When `resolveUrl({ url, config })` returns a URL, Once fetches that URL
+instead of the source's own. The URL must be covered by a `fetch:` grant, and
+it is fetched without the source's credentials. The source URL stays the cache
+key, so switching mirrors keeps the cache. If the fetch or the parse fails,
+`failed({ url, fetchedUrl, error, config })` is called. Answering `true` means
+the script moved elsewhere, and Once resolves and fetches again, up to two more
+times, before the failure stands. The cached body is then served as an offline
+copy, as usual. To make Once try another mirror, throw from `parse` when a
+mirror answers 200 with something that is not a feed, such as a bot check. The
+[Nitter add-on](../examples/addons/nitter/README.md) works this way.
+
+### Redirects
+
+```jsonc
+{
+  "id": "x-to-nitter",
+  "title": "X / Twitter → Nitter",
+  "match": "^https?://(?:www\\.|mobile\\.)?(?:twitter|x)\\.com/(.*)$",
+  "replace": "https://nitter.example/$1",   // required unless dynamic; a fixed http(s) host before any $n
+  "dynamic": true,                           // optional: the script names the replacement
+  "enabledByDefault": true,                  // optional, default true
+  "refreshMinutes": 360                      // optional, 15 minutes to a week; how stale a dynamic pick may get
+}
+```
+
+An add-on can declare up to four rules in `redirects`. They work like the
+user's own rules: a regular expression matched against the whole URL and a
+replacement with `$1` backreferences.
+
+- **Order.** They run after the user's rules, both on story links and on
+  navigations inside Electron tabs.
+- **Settings.** They appear under Settings › Redirects › *From add-ons*, with
+  the add-on's name and the host the rule currently points at. Each has a switch
+  there. The switch is stored in the add-on's entry as `redirectToggles` and
+  syncs, and it overrides `enabledByDefault`.
+
+A `dynamic` rule gets its replacement from the script.
+
+- **Supplying it.** Register a handler with
+  `once.redirects.register(id, { target, failed? })`, or push a new value at any
+  time with `once.redirects.set(id, replacement)`.
+- **Where it is kept.** Each device keeps its own last replacement beside its
+  cached feeds and applies it at startup without starting the sandbox. Once
+  calls `target()` again only when that value is older than `refreshMinutes`.
+- **When a page fails.** A page the rule produced may fail to load: a network
+  error, or HTTP 5xx or 429 in an Electron tab, an extension tab with the panel
+  open, or the Android reading view. When that happens, Once calls
+  `failed({ url, reason })`. A new replacement moves the rule, and the tab
+  reloads the same page under the new prefix. Once moves a rule at most once
+  every 30 seconds.
 
 ### Panel actions
 
@@ -478,7 +532,8 @@ export default function activate(once) {
 | `once.onTray(fn(tray, event, story, context))` | returns a validated host-rendered tray view |
 | `once.getStoryContent(story)` | readable text for the invoked story |
 | `once.request(connectionId, request, context?)` | bounded authenticated requests to a configured connection |
-| `once.collectors.register(id, { parse, globalSearch?, domainSearch? })` | a collector declared in the manifest |
+| `once.collectors.register(id, { parse, globalSearch?, domainSearch?, resolveUrl?, failed? })` | a collector declared in the manifest; the last two pick a mirror (see Collectors) |
+| `once.redirects.register(id, { target, failed? })`, `once.redirects.set(id, replacement)` | the replacement of a `dynamic` redirect (see Redirects) |
 | `once.openUrl(story, url, target?)`, `once.copyText(story, text)`, `once.search(story, query)`, `once.notify(story, text)` | during an invocation, for the story it was about |
 | `once.setReadState(story, state)`, `once.toggleBookmark(story)`, `once.addTag(story, tag)` | mutations on that story, through undo history |
 | `once.updateBadge(story, contribution, text)` | later badge text for a story whose badge you computed |

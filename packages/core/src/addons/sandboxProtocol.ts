@@ -5,6 +5,7 @@
 import { StoryView } from "./storyView"
 import { AddonRequest, readAddonRequest } from "./connections"
 import { AddonTrayEvent, AddonTrayView, readTrayView } from "./trayProtocol"
+import { isRedirectReplacement } from "./redirects"
 
 export const SANDBOX_PROTOCOL = 1
 
@@ -15,7 +16,9 @@ export const SANDBOX_TIMEOUTS = Object.freeze({
   trayMs: 120_000,
   badgesMs: 5_000,
   parseMs: 20_000,
-  searchMs: 15_000
+  searchMs: 15_000,
+  /** Choosing a URL or a replacement may first fetch a list of where to go. */
+  resolveMs: 15_000
 })
 
 export const SANDBOX_LIMITS = Object.freeze({
@@ -49,6 +52,10 @@ export type HostToSandbox =
     config: unknown
   }
   | { type: "collector.search"; requestId: number; collector: string; kind: "global" | "domain"; needle: string }
+  | { type: "collector.resolveUrl"; requestId: number; collector: string; url: string; config: unknown }
+  | { type: "collector.failed"; requestId: number; collector: string; url: string; fetchedUrl: string; error: string; config: unknown }
+  | { type: "redirect.target"; requestId: number; redirect: string }
+  | { type: "redirect.failed"; requestId: number; redirect: string; url: string; reason: string }
   | { type: "panel.invoke"; requestId: number; action: string }
   /** The answer to an operation that asked for one (`fetch`, `storage.*`). */
   | { type: "opResult"; opId: number; ok: boolean; value?: unknown; error?: string }
@@ -68,6 +75,7 @@ export type SandboxOperation =
   | { name: "fetch"; href: ""; url: string }
   | { name: "storage.get"; href: ""; key: string }
   | { name: "storage.set"; href: ""; key: string; value: unknown }
+  | { name: "redirect.set"; href: ""; redirect: string; replacement: string }
   | { name: "openUrl"; href: string; url: string; target?: "_self" | "blank" | "middle" }
   | { name: "copyText"; href: string; text: string }
   | { name: "search"; href: string; query: string }
@@ -113,6 +121,10 @@ function readOperation(value: unknown): SandboxOperation | null {
     case "storage.set":
       return typeof value.key === "string" && STORAGE_KEY.test(value.key)
         ? { name: "storage.set", href: "", key: value.key, value: value.value }
+        : null
+    case "redirect.set":
+      return typeof value.redirect === "string" && /^[a-z0-9-]{3,40}$/.test(value.redirect) && isRedirectReplacement(value.replacement)
+        ? { name: "redirect.set", href: "", redirect: value.redirect, replacement: value.replacement }
         : null
   }
   if (!isHref(value.href)) return null

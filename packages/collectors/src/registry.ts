@@ -76,6 +76,16 @@ export declare interface StoryParser {
    */
   normalizeConfig?: (raw: unknown) => unknown
   /**
+   * Where the loader fetches a source, when the collector chooses: an add-on
+   * picking a live mirror of a site. The source's URL stays the cache key, so
+   * moving between mirrors keeps the cache. `failed` answering true means the
+   * collector moved elsewhere and the loader may resolve and fetch again.
+   */
+  fetchTarget?: {
+    resolve(context: ParseContext): Promise<string | null>
+    failed(context: ParseContext & { fetchedUrl: string; error: string }): Promise<boolean>
+  }
+  /**
    * Produces the canonical JSON-safe form stored in a typed source. Keeping
    * this beside normalization gives editors and importers one collector-owned
    * codec instead of teaching them selector shapes.

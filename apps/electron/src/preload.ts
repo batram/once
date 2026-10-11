@@ -122,6 +122,11 @@ const bridge: ElectronBridge = {
       ipcRenderer.on(ELECTRON_IPC.tabsFoundInPage, listener)
       return () => ipcRenderer.removeListener(ELECTRON_IPC.tabsFoundInPage, listener)
     },
+    onLoadFailed(handler: (id: string, url: string, reason: string) => void) {
+      const listener = (_event: Electron.IpcRendererEvent, id: string, url: string, reason: string) => handler(id, url, reason)
+      ipcRenderer.on(ELECTRON_IPC.tabsLoadFailed, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.tabsLoadFailed, listener)
+    },
     onChanged(handler: (tabs: ElectronTabState[]) => void) {
       const listener = (_event: Electron.IpcRendererEvent, tabs: ElectronTabState[]) =>
         handler(tabs)

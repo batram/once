@@ -264,6 +264,16 @@ lists the searches the script implements (`globalSearch`, `domainSearch`).
 Built-in ids and type badges stay reserved: registering a clashing badge is
 refused.
 
+An add-on collector may also choose where a source is fetched from. This is
+`StoryParser.fetchTarget`, backed by the script's `resolveUrl` and `failed`
+handlers. `SourceLoader` fetches the chosen URL without the source's
+credentials, but keeps the source URL as the cache key. After a failure it lets
+the collector move, at most twice, before it serves the stale copy. The bundled
+[Nitter add-on](../examples/addons/nitter/README.md) uses this: an
+`https://x.com/<user>` source is fetched from whichever Nitter instance
+status.d420.de lists as healthy. Nitter was a built-in collector, hardwired to
+nitter.net, until that instance shut down.
+
 ## Developing collectors
 
 A collector module exports `options` plus at least `parse(input, context)`. Its

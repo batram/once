@@ -12,7 +12,8 @@ const path = require("node:path")
 const root = path.resolve(__dirname, "..")
 
 const BUNDLED = [
-  path.join(root, "examples", "addons", "what-wait-who-why")
+  path.join(root, "examples", "addons", "what-wait-who-why"),
+  path.join(root, "examples", "addons", "nitter")
 ]
 
 function readPackage(directory) {

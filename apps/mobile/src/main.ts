@@ -270,6 +270,7 @@ async function startMobileApp(): Promise<void> {
   const reading = new MobileReadingController(browserSurface, reader, ttsControls)
   tts.onAudible((source, audible) => reading.setReaderAudible(source, audible))
   reading.onReaderClosed((closed) => tts.release((source) => closed.isReaderWindow(source)))
+  reading.runtime.followRedirectFailures((url, reason) => app.client.reportRedirectFailure(url, reason))
   installReaderMediaSession(tts, (frame) => reading.describeReader(frame))
   await reading.install()
   // A tab owns its saved story even when the feed removes it. Refresh its

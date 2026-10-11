@@ -54,6 +54,7 @@ export class ReadingSurfaceCoordinator {
   private closeRequestedHandler: (() => void) | null = null
   private mediaStateHandler: ((playing: boolean) => void) | null = null
   private finishedHandler: ((event: BrowserNavigationEvent) => void) | null = null
+  private loadFailedHandler: ((url: string, reason: string) => void) | null = null
   private publishedGestures = ""
   private readonly history: ReadingHistory | null
 
@@ -153,6 +154,8 @@ export class ReadingSurfaceCoordinator {
         this.browserReady = true
         this.session.navigationFinished(event.navigationId, event.url, event)
         this.finishedHandler?.(event)
+        const status = event.statusCode ?? 0
+        if (status >= 500 || status === 429) this.loadFailedHandler?.(event.url, `HTTP ${status}`)
       }
     )
     const failed = await this.surface.addListener("navigationFailed", (event) => {
@@ -163,6 +166,7 @@ export class ReadingSurfaceCoordinator {
       this.browserReady = false
       this.failedExternalUrl = event.externalUrl ?? null
       this.session.navigationFailed(event.navigationId, event.url, event.message)
+      this.loadFailedHandler?.(event.url, event.message)
     })
     const history = await this.surface.addListener("historyChanged", (event) => {
       if (this.disposed) return
@@ -226,6 +230,11 @@ export class ReadingSurfaceCoordinator {
   /** Only finishes this coordinator accepted, so late events of an older page never reach it. */
   onNavigationFinished(handler: (event: BrowserNavigationEvent) => void): void {
     this.finishedHandler = handler
+  }
+
+  /** A page this coordinator accepted failed: an engine error, or a server error or rate limit it rendered. */
+  onLoadFailed(handler: (url: string, reason: string) => void): void {
+    this.loadFailedHandler = handler
   }
 
   /**

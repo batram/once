@@ -18,6 +18,8 @@ export interface SourceLoadOptions {
 
 export class SourceLoader {
   private static readonly requestTimeoutMs = 30_000
+  /** Further mirrors a collector may move to before the failure stands. */
+  private static readonly failoverRetries = 2
   constructor(
     private readonly fetch: typeof globalThis.fetch,
     private readonly cache: CacheStorePort | undefined,
@@ -64,37 +66,59 @@ export class SourceLoader {
     // stale fallback, since a copy from when the token existed would hide it.
     const secret = await readSourceSecret(this.secrets, source)
     try {
-      const controller = new AbortController()
-      let timeout: ReturnType<typeof setTimeout> | undefined
-      let response: Response
-      try {
-        response = await Promise.race([
-          this.fetch(url, {
-            ...sourceRequestInit(source.auth, secret),
-            signal: controller.signal
-          }),
-          new Promise<Response>((_, reject) => {
-            timeout = setTimeout(() => {
-              controller.abort()
-              reject(new Error(`Source request timed out after ${SourceLoader.requestTimeoutMs / 1000} seconds`))
-            }, SourceLoader.requestTimeoutMs)
-          })
-        ])
-      } finally {
-        if (timeout) clearTimeout(timeout)
-      }
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      return StoryParser.parse_response(response, resolved, {
-        cacheResult: (cacheUrl, content) =>
-          this.cache?.set(cacheUrl, content) || Promise.resolve()
-      }) || []
+      return await this.fetchWithFailover(resolved, sourceRequestInit(source.auth, secret))
     } catch (error) {
       const stale = await this.serveStale(source, resolved, error)
       if (stale) return stale.stories
       throw error
     }
+  }
+
+  /**
+   * A collector that picks where to fetch (a mirror chosen by health) is told
+   * when that failed, and may name another; a fetch it chose never carries the
+   * source's credentials, since the host was not the user's to vouch for.
+   */
+  private async fetchWithFailover(resolved: StoryParser.ResolvedStorySource, init: RequestInit | undefined): Promise<Story[]> {
+    const target = resolved.collector.fetchTarget
+    const context = { url: resolved.url, config: resolved.config }
+    for (let attempt = 0; ; attempt++) {
+      const chosen = target ? await target.resolve(context) : null
+      try {
+        return await this.fetchAndParse(chosen ?? resolved.url, chosen ? { credentials: "omit" } : init, resolved)
+      } catch (error) {
+        const retry = target && attempt < SourceLoader.failoverRetries && await target.failed({
+          ...context, fetchedUrl: chosen ?? resolved.url, error: error instanceof Error ? error.message : String(error)
+        }).catch(() => false)
+        if (!retry) throw error
+      }
+    }
+  }
+
+  private async fetchAndParse(url: string, init: RequestInit | undefined, resolved: StoryParser.ResolvedStorySource): Promise<Story[]> {
+    const controller = new AbortController()
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    let response: Response
+    try {
+      response = await Promise.race([
+        this.fetch(url, { ...init, signal: controller.signal }),
+        new Promise<Response>((_, reject) => {
+          timeout = setTimeout(() => {
+            controller.abort()
+            reject(new Error(`Source request timed out after ${SourceLoader.requestTimeoutMs / 1000} seconds`))
+          }, SourceLoader.requestTimeoutMs)
+        })
+      ])
+    } finally {
+      if (timeout) clearTimeout(timeout)
+    }
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    return StoryParser.parse_response(response, resolved, {
+      cacheResult: (cacheUrl, content) =>
+        this.cache?.set(cacheUrl, content) || Promise.resolve()
+    }) || []
   }
 
   /**

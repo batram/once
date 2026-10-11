@@ -39,6 +39,7 @@ import { documentRetrievalMethods } from "./documentRetrievalMethods"
 import { commentMethods } from "./CommentLoader"
 import { searchMethods } from "./CollectorSearch"
 import { AddonSync } from "./AddonSync"
+import { AddonRedirects } from "./AddonRedirects"
 import { waitForStartupStorage } from "./startupStorage"
 import { StoryContentService } from "./storyContent"
 import { StoryChangeReconciler } from "./storyChangeReconciler"
@@ -77,6 +78,7 @@ export class AppRuntime {
   )
   private readonly settings: AppSettings
   private readonly addonSync: AddonSync
+  private readonly addonRedirects: AddonRedirects
   private readonly cacheMaintenance: CacheMaintenance
   private readonly sourceLoader: SourceLoader
   private readonly reconciler: StoryChangeReconciler
@@ -136,6 +138,9 @@ export class AppRuntime {
       emitDataChange: (path, value, previous) => this.emitDataChange(path, value, previous, null)
     })
     this.addonSync = new AddonSync(platform, this.settings, () => this.events.publish("settingsChanged", { section: "addons" }))
+    this.addonRedirects = new AddonRedirects(platform.cacheStore, () => void this.refreshRedirects(), (change) => this.settings.updateAddons(change))
+    // An add-on redirect's switch lives in the add-ons doc, which syncs.
+    this.events.subscribe("settingsChanged", ({ section }) => { if (section === "addons") void this.refreshRedirects() })
     this.client = this.createClient()
   }
 
@@ -225,7 +230,8 @@ export class AppRuntime {
       saveStorySources: (storySources, reloadStories) =>
         this.settings.saveStorySources(storySources, reloadStories),
       ...settingsClientMethods(this.settings, this.platform.secretStore),
-      ...this.addonSync.methods(),
+      ...this.addonSync.methods(), ...this.addonRedirects.methods(),
+      getEffectiveRedirects: async () => URLRedirect.dynamic_url_redirects,
       createAddonVault: async (passphrase, remember, deviceName) => {
         if (this.syncStatus.state === "syncing") await waitForActiveSync(() => this.syncStatus, this.events)
         if (this.syncStatus.state !== "up-to-date") throw new Error("Connect sync and wait until it is up to date before creating a vault")
@@ -265,7 +271,9 @@ export class AppRuntime {
   }
 
   private async refreshRedirects(): Promise<void> {
-    const redirects = await this.settings.getRedirectList()
+    const [own, addons] = await Promise.all([this.settings.getRedirectList(), this.settings.getAddons()])
+    this.addonRedirects.readToggles(addons)
+    const redirects = [...own, ...this.addonRedirects.rules()]
     URLRedirect.setRedirects(redirects)
     //setRedirects drops the rewritten -> original lookup, rebuild it
     for (const story of this.workingSet.values()) {

@@ -33,6 +33,7 @@ import { AddonConversationSurface, AddonTrays } from "./AddonTrays"
 import { pageStoryView, registerPageAction, setConversationPlacementAvailable } from "./pageAddons"
 import { addonStoryContent } from "./addonStoryContent"
 import { registerAddonCollector } from "./addonCollectors"
+import { registerAddonRedirects } from "./addonRedirects"
 import { BadgeScheduler } from "./badgeScheduler"
 import { AddonCandidate, AddonReconciler, AddonRegistration } from "./AddonReconciler"
 import { setAddonRetry, setAddonStatus } from "./addonStatus"
@@ -225,6 +226,7 @@ async function registerManifest(
     }
   }
   releases.push(renderPanelActions(manifest, sandbox))
+  if (!options.pageOnly) releases.push(registerAddonRedirects(client, manifest, sandbox))
 
   for (const contribution of manifest.contributions) {
     const id = addonContributionId(manifest.id, contribution.id)
@@ -491,6 +493,8 @@ async function performOperation(
     case "storage.get":
     case "storage.set":
       return storageOperation(client, manifest, op)
+    case "redirect.set":
+      return client.setAddonRedirectTarget(addonContributionId(manifest.id, op.redirect), op.replacement)
     case "openUrl":
       row?.read_btn.classList.add("user_interaction")
       getOnceClient().openUrl(op.url, op.target === "blank" ? "blank" : op.target === "middle" ? "middle" : "_self")

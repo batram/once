@@ -5,6 +5,7 @@
 import { validateConfig } from "./configSchema"
 import { ADDON_LIMITS, AddonManifest, AddonReport, readAddonManifest } from "./manifest"
 import { SANDBOX_LIMITS } from "./sandboxProtocol"
+import { readRedirectToggles } from "./redirects"
 
 export const ADDONS_DOCUMENT_ID = "addons"
 export const ADDONS_VERSION = 1
@@ -18,6 +19,8 @@ export interface AddonEntry {
   options?: Record<string, unknown>
   /** What the add-on's script stored through `once.storage`, size-capped. */
   storage?: Record<string, unknown>
+  /** The user's on/off choice per manifest redirect id; absent ids follow `enabledByDefault`. */
+  redirectToggles?: Record<string, boolean>
 }
 
 /** Settings values that validate against the manifest's schema; anything else is dropped. */
@@ -90,11 +93,13 @@ function withExtras(entry: AddonEntry, raw: Record<string, unknown>): AddonEntry
   const source = readSource(raw.source)
   const options = readAddonOptions(entry.manifest, raw.options)
   const storage = readAddonStorage(raw.storage)
+  const redirectToggles = readRedirectToggles(raw.redirectToggles)
   return {
     ...entry,
     ...(source ? { source } : {}),
     ...(options ? { options } : {}),
-    ...(storage ? { storage } : {})
+    ...(storage ? { storage } : {}),
+    ...(redirectToggles ? { redirectToggles } : {})
   }
 }
 
@@ -105,6 +110,7 @@ export function upsertAddon(doc: AddonsDocument, entry: AddonEntry): AddonsDocum
     ...entry,
     enabled: existing.enabled,
     ...(existing.storage ? { storage: existing.storage } : {}),
+    ...(existing.redirectToggles ? { redirectToggles: existing.redirectToggles } : {}),
     // Reject an incompatible update before replacing the installed entry.
     ...(entry.manifest.settings ? {
       options: validateConfig(entry.manifest.settings, existing.options ?? {}) as Record<string, unknown>
@@ -176,7 +182,7 @@ export function parseAddonsText(text: string): AddonsDocument {
       reports.push({ path: `[${index}]`, message: "must be a manifest object" })
       return
     }
-    const { enabled, source, options, storage, ...manifest } = entry
+    const { enabled, source, options, storage, redirectToggles, ...manifest } = entry
     const read = readAddonManifest(manifest)
     if (!read.ok) {
       reports.push(...read.reports.map((report) => ({
@@ -189,7 +195,7 @@ export function parseAddonsText(text: string): AddonsDocument {
       return
     }
     seen.add(read.manifest.id)
-    doc.addons.push(withExtras({ enabled: enabled !== false, manifest: read.manifest }, { source, options, storage }))
+    doc.addons.push(withExtras({ enabled: enabled !== false, manifest: read.manifest }, { source, options, storage, redirectToggles }))
   })
   if (reports.length > 0) {
     const first = reports[0]
@@ -202,16 +208,17 @@ export function parseAddonsText(text: string): AddonsDocument {
 /** The doc as editor text: stable key order, two-space indent. */
 export function presentAddons(doc: AddonsDocument): string {
   if (doc.addons.length === 0) return ""
-  const entries = doc.addons.map(({ enabled, manifest, source, options, storage }) => {
+  const entries = doc.addons.map(({ enabled, manifest, source, options, storage, redirectToggles }) => {
     const {
       protocol, id, name, version, author, homepage, script, contributions, collectors,
-      panelActions, capabilities, settings: schema, connections, trays
+      panelActions, capabilities, settings: schema, connections, trays, redirects
     } = manifest
     return {
       ...(enabled ? {} : { enabled: false }),
       ...(source ? { source } : {}),
       ...(options ? { options } : {}),
       ...(storage ? { storage } : {}),
+      ...(redirectToggles ? { redirectToggles } : {}),
       protocol, id, name, version,
       ...(author ? { author } : {}),
       ...(homepage ? { homepage } : {}),
@@ -222,7 +229,8 @@ export function presentAddons(doc: AddonsDocument): string {
       ...(trays?.length ? { trays } : {}),
       contributions,
       ...(collectors.length > 0 ? { collectors } : {}),
-      ...(panelActions.length > 0 ? { panelActions } : {})
+      ...(panelActions.length > 0 ? { panelActions } : {}),
+      ...(redirects?.length ? { redirects } : {})
     }
   })
   return JSON.stringify(entries, null, 2)

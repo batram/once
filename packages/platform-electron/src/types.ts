@@ -303,6 +303,8 @@ export interface ElectronBridge {
     findInPage(id: string, text: string, options?: ElectronFindOptions): Promise<number>
     stopFindInPage(id: string, action: ElectronFindStopAction): Promise<void>
     onFoundInPage(handler: (id: string, result: ElectronFindResult) => void): () => void
+    /** A tab's page failed to load: a network error, or a server error or rate limit answering it. */
+    onLoadFailed(handler: (id: string, url: string, reason: string) => void): () => void
     onChanged(handler: (tabs: ElectronTabState[]) => void): () => void
     onRegenerateReader(
       handler: (sourceUrl: string, tabId: string) => void
@@ -473,6 +475,7 @@ export const ELECTRON_IPC = {
   tabsFindInPage: "once:tabs:find-in-page",
   tabsStopFindInPage: "once:tabs:stop-find-in-page",
   tabsFoundInPage: "once:tabs:found-in-page",
+  tabsLoadFailed: "once:tabs:load-failed",
   tabsChanged: "once:tabs:changed",
   tabsRegenerateReader: "once:tabs:regenerate-reader",
   tabSyncSnapshot: "once:tabsync:snapshot",

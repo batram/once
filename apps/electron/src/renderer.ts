@@ -90,6 +90,27 @@ function exchangeExtensionSettings(client: OnceClient): void {
 // data-once-startup-error carries the failure. A rejected startup used to
 // vanish into an unhandled promise, leaving a window that looked alive to the
 // e2e harness until its timeout expired with nothing to report.
+/** Every rule in force reaches main, which applies them to tab navigations. */
+async function bindBrowserRedirects(client: OnceClient): Promise<void> {
+  const updateRedirects = async (redirects?: ElectronRedirectRule[]): Promise<void> => {
+    try {
+      await window.onceElectron.window.setRedirects(redirects || (await client.getEffectiveRedirects()))
+    } catch (error) {
+      console.error("Failed to update Electron browser redirects", error)
+    }
+  }
+  await updateRedirects()
+  client.subscribe("redirectsChanged", ({ redirects }) => {
+    void updateRedirects(redirects)
+  })
+  // A page an add-on redirect produced and that failed moves to wherever the rule moved.
+  window.onceElectron.tabs.onLoadFailed((id, url, reason) => {
+    void client.reportRedirectFailure(url, reason)
+      .then((next) => next ? window.onceElectron.tabs.navigate(id, next) : undefined)
+      .catch((error) => console.error("Redirect failover failed", error))
+  })
+}
+
 function startupStage(name: string): void {
   document.body.dataset.onceStage = name
 }
@@ -142,21 +163,7 @@ async function startRenderer(): Promise<void> {
   bindRemoteTabsPlacement(window.onceElectron, app.client)
   hostRemoteTabsPages(window.onceElectron, app.client)
   startupStage("redirects")
-  const updateRedirects = async (
-    redirects?: ElectronRedirectRule[]
-  ): Promise<void> => {
-    try {
-      await window.onceElectron.window.setRedirects(
-        redirects || (await app.client.getRedirectList())
-      )
-    } catch (error) {
-      console.error("Failed to update Electron browser redirects", error)
-    }
-  }
-  await updateRedirects()
-  app.client.subscribe("redirectsChanged", ({ redirects }) => {
-    void updateRedirects(redirects)
-  })
+  await bindBrowserRedirects(app.client)
   exchangeExtensionSettings(app.client)
   startupStage("mount-ui")
   // Test switches main put on the entry URL (ONCE_ELECTRON_DISABLE_*).

@@ -384,6 +384,8 @@ function update_redirects(): void {
     const href = story_el.dataset.href
     if (href) {
       const redirected_url = URLRedirect.redirect_url(href)
+      // Add-on views and conditions read the row's redirected URL, not the link.
+      story_el.dataset.redirected_url = redirected_url
       const title_link = story_el.querySelector("a.title") as HTMLAnchorElement
       if (title_link) {
         title_link.href = redirected_url

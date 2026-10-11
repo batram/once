@@ -20,6 +20,18 @@ export interface AddonCollectorHandlers {
   parse(body: string | Record<string, unknown>, context: { url: string; config: unknown }): unknown
   globalSearch?(needle: string): unknown
   domainSearch?(needle: string): unknown
+  /** The URL Once fetches for a source, when it is not the source's own; covered by a `fetch:` grant. */
+  resolveUrl?(context: { url: string; config: unknown }): string | null | Promise<string | null>
+  /** The fetch of `fetchedUrl` failed; true asks Once to resolve and fetch once more. */
+  failed?(context: { url: string; fetchedUrl: string; error: string; config: unknown }): boolean | Promise<boolean>
+}
+
+/** A manifest redirect marked `dynamic`: the script names its replacement. */
+export interface AddonRedirectHandlers {
+  /** The current replacement, with `$1` backreferences, or null to leave the rule off for now. */
+  target(): string | null | Promise<string | null>
+  /** A page this rule produced failed to load; the replacement to move to, or null when there is none. */
+  failed?(context: { url: string; reason: string }): string | null | Promise<string | null>
 }
 
 export interface AddonFetchResult { status: number; text: string }
@@ -28,6 +40,8 @@ export interface AddonFetchResult { status: number; text: string }
 export interface OnceAddonApi {
   readonly settings: Readonly<Record<string, unknown>>
   readonly collectors: { register(id: string, handlers: AddonCollectorHandlers): void }
+  /** `set` pushes a new replacement at any time, such as after a collector moved elsewhere. */
+  readonly redirects: { register(id: string, handlers: AddonRedirectHandlers): void; set(id: string, replacement: string): Promise<void> }
   readonly storage: { get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<void> }
   fetch(url: string): Promise<AddonFetchResult>
   /** Pass a tray context to tie cancellation to that particular invocation. */

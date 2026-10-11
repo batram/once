@@ -4,6 +4,7 @@ import {
   AddonManifest,
   Story,
   addonContributionId,
+  grantedFetchPatterns,
   readAddonStories,
   validateConfig
 } from "@once/core"
@@ -40,6 +41,26 @@ export function registerAddonCollector(
     parseBody: async (body, context) => {
       const session = await sandbox.ensure()
       return toStories(await session.collectorParse(collector.id, context.url, body, context.config))
+    }
+  }
+  // The URL a script names is fetched only within its grants, and without
+  // the source's credentials: the host is the add-on's choice, not the user's.
+  const grants = grantedFetchPatterns(manifest)
+  parser.fetchTarget = {
+    resolve: async ({ url, config }) => {
+      const session = await sandbox.ensure()
+      const target = await session.resolve((requestId) => ({ type: "collector.resolveUrl", requestId, collector: collector.id, url, config }))
+      if (target === null || target === undefined || target === url) return null
+      if (typeof target !== "string" || !/^https?:\/\//i.test(target) || !grants.matches(target)) {
+        throw new Error(`${manifest.name} named ${String(target)}, which no fetch: grant covers`)
+      }
+      return target
+    },
+    failed: async ({ url, fetchedUrl, error, config }) => {
+      const session = await sandbox.ensure()
+      return await session.resolve((requestId) => ({
+        type: "collector.failed", requestId, collector: collector.id, url, fetchedUrl, error, config
+      })) === true
     }
   }
   if (collector.config) {

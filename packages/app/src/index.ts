@@ -6,3 +6,4 @@ export * from "./OnceApp"
 export type { TabSyncView, RemoteDeviceView, SentTabView } from "./tabsync/TabSyncService"
 
 export type { RecognizedText, TextRecognitionPort } from "./textRetrieval"
+export type { AddonRedirectHandler, AddonRedirectView } from "./AddonRedirects"

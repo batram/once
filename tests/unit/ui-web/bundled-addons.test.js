@@ -11,6 +11,8 @@ const { verifiedAddonScript } = require("../../../packages/ui-web/dist/addons/ad
 
 const directory = path.resolve(__dirname, "../../../examples/addons/what-wait-who-why")
 const shipped = JSON.parse(fs.readFileSync(path.join(directory, "once-addon.json"), "utf8"))
+// The lifecycle below is about one package; the others ship the same way.
+const shippedPackages = () => bundledAddons().filter(({ files }) => JSON.parse(files["once-addon.json"]).id === shipped.id)
 
 /** A client over an in-memory document and script cache, counting writes. */
 function fakeClient(initial = { version: 1, addons: [] }, vault = "disabled") {
@@ -31,7 +33,8 @@ function fakeClient(initial = { version: 1, addons: [] }, vault = "disabled") {
 }
 
 test("the build inlines the shipped package, which reads as a bundled local package", async () => {
-  const packages = bundledAddons()
+  assert.deepEqual(bundledAddons().map(({ files }) => JSON.parse(files["once-addon.json"]).id), [shipped.id, "nitter"])
+  const packages = shippedPackages()
   assert.equal(packages.length, 1)
   assert.deepEqual(Object.keys(packages[0].files).sort(), ["main.js", "once-addon.json"])
   configureBundledAddons(packages)
@@ -46,7 +49,7 @@ test("the build inlines the shipped package, which reads as a bundled local pack
 })
 
 test("a fresh document takes the package in once; removing it keeps it out", async () => {
-  configureBundledAddons(bundledAddons())
+  configureBundledAddons(shippedPackages())
   const { client, state } = fakeClient()
   await seedBundledAddons(client)
   assert.equal(state.writes, 1)
@@ -64,13 +67,13 @@ test("a fresh document takes the package in once; removing it keeps it out", asy
 })
 
 test("a newer shipped version replaces a still-installed bundled copy but not the user's own install", async () => {
-  const older = bundledAddons().map(({ files }) => ({ files: { ...files,
+  const older = shippedPackages().map(({ files }) => ({ files: { ...files,
     "once-addon.json": JSON.stringify({ ...shipped, version: "0.9.0" }) } }))
   configureBundledAddons(older)
   const { client, state } = fakeClient()
   await seedBundledAddons(client)
   state.doc = readAddonsDocument({ ...state.doc, addons: state.doc.addons.map(entry => ({ ...entry, enabled: false, options: { provider: "anthropic" } })) })
-  configureBundledAddons(bundledAddons())
+  configureBundledAddons(shippedPackages())
   await seedBundledAddons(client)
   assert.equal(state.doc.addons[0].manifest.version, shipped.version)
   assert.equal(state.doc.addons[0].enabled, false, "the upgrade keeps the user's enabled flag")
@@ -86,7 +89,7 @@ test("a newer shipped version replaces a still-installed bundled copy but not th
   // Every client seeds on start: a newer build must not rewrite the record, or
   // two devices updated together write the same change at once and conflict.
   const writes = own.state.writes
-  configureBundledAddons(bundledAddons().map(({ files }) => ({ files: { ...files,
+  configureBundledAddons(shippedPackages().map(({ files }) => ({ files: { ...files,
     "once-addon.json": JSON.stringify({ ...shipped, version: "99.0.0" }) } })))
   await seedBundledAddons(own.client)
   assert.equal(own.state.writes, writes, "a newer build beside the user's own install writes nothing")
@@ -96,7 +99,7 @@ test("a newer shipped version replaces a still-installed bundled copy but not th
 })
 
 test("different app versions converge without downgrading packages or reviving removals", async () => {
-  const bundle = version => bundledAddons().map(({ files }) => ({ files: { ...files,
+  const bundle = version => shippedPackages().map(({ files }) => ({ files: { ...files,
     "once-addon.json": JSON.stringify({ ...shipped, version }) } }))
   const { client, state } = fakeClient()
   configureBundledAddons(bundle("1.5.0"))
@@ -120,7 +123,7 @@ test("different app versions converge without downgrading packages or reviving r
 test("bundle comparison respects numeric versions and prereleases, and leaves unknown formats alone", async () => {
   for (const [installed, bundled, expected] of [["1.9.0", "1.10.0", "1.10.0"], ["2.0.0", "2.0.0-beta.1", "2.0.0"],
     ["2.0.0-beta.2", "2.0.0-beta.10", "2.0.0-beta.10"], ["2.0.0-beta.10", "2.0.0", "2.0.0"], ["custom", "1.6.0", "custom"]]) {
-    const bundle = version => bundledAddons().map(({ files }) => ({ files: { ...files, "once-addon.json": JSON.stringify({ ...shipped, version }) } }))
+    const bundle = version => shippedPackages().map(({ files }) => ({ files: { ...files, "once-addon.json": JSON.stringify({ ...shipped, version }) } }))
     const { client, state } = fakeClient()
     configureBundledAddons(bundle(installed))
     await seedBundledAddons(client)
@@ -131,7 +134,7 @@ test("bundle comparison respects numeric versions and prereleases, and leaves un
 })
 
 test("a locked vault is left alone, and a synced bundled entry runs from the build's copy", async () => {
-  configureBundledAddons(bundledAddons())
+  configureBundledAddons(shippedPackages())
   const locked = fakeClient({ version: 1, addons: [] }, "locked")
   await seedBundledAddons(locked.client)
   assert.equal(locked.state.writes, 0)

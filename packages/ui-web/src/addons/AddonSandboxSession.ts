@@ -28,7 +28,7 @@ export interface SandboxHostOperations {
 }
 
 /** Operations governed by grants rather than by the story in hand. */
-const UNSCOPED_OPERATIONS = new Set(["fetch", "storage.get", "storage.set"])
+const UNSCOPED_OPERATIONS = new Set(["fetch", "storage.get", "storage.set", "redirect.set"])
 
 interface Pending {
   resolve(value: unknown): void
@@ -164,6 +164,13 @@ export class AddonSandboxSession {
       new Set(),
       SANDBOX_TIMEOUTS.searchMs
     )
+  }
+
+  /** Asks a collector or redirect where to go; see AddonCollectorHandlers and AddonRedirectHandlers. */
+  resolve(
+    build: (requestId: number) => Extract<HostToSandbox, { type: "collector.resolveUrl" | "collector.failed" | "redirect.target" | "redirect.failed" }>
+  ): Promise<unknown> {
+    return this.request(build, new Set(), SANDBOX_TIMEOUTS.resolveMs)
   }
 
   /** Every message from the frame lands here, already known to be from it. */

@@ -1,6 +1,8 @@
 export interface Redirect {
   match_url: string
   replace_url: string
+  /** The add-on contribution a rule came from (`addon:<addon>/<id>`); absent for the user's own. */
+  origin?: string
 }
 
 interface CompiledRedirect {

@@ -34,12 +34,20 @@ export function installStoryNavigationBackground(api: typeof browser): void {
     update(details.tabId, previous => previous?.requestId === details.requestId
       ? { ...previous, url: details.redirectUrl } : undefined)
   }, filter)
+  // The panel decides whether a failed page has somewhere else to be: an
+  // add-on redirect may move to another mirror. A closed panel has no rules
+  // running, so nothing is lost when nobody answers.
+  const failed = (tabId: number, url: string, reason: string) => {
+    if (tabId >= 0) void api.runtime.sendMessage({ onceLoadFailed: { tabId, url, reason } }).catch(() => undefined)
+  }
   api.webRequest.onHeadersReceived.addListener(details => {
+    if (details.statusCode >= 500 || details.statusCode === 429) failed(details.tabId, details.url, `HTTP ${details.statusCode}`)
     if (details.statusCode >= 300 && details.statusCode < 400) return
     update(details.tabId, previous => previous?.requestId === details.requestId
       ? { ...previous, url: details.url, statusCode: details.statusCode } : undefined)
   }, filter)
   api.webRequest.onErrorOccurred.addListener(details => {
+    if (!/ABORTED/i.test(details.error)) failed(details.tabId, details.url, details.error)
     update(details.tabId, previous => previous?.requestId === details.requestId
       ? { ...previous, failed: true } : undefined)
   }, filter)

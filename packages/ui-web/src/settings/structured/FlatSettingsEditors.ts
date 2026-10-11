@@ -10,6 +10,8 @@ import {
 import { installRowDragReorder } from "../../gesture/dragReorder"
 import { revealElement } from "../../scrollReveal"
 import { parseFilterRows } from "./filters"
+import { renderAddonRedirectCard } from "./addonRedirectRows"
+import { findOnceClient } from "../../client"
 import {
   parseRedirectRows,
   RedirectRow,
@@ -298,6 +300,8 @@ export class FlatSettingsEditors {
       rows.append(row)
     })
     root.append(card)
+    const client = findOnceClient()
+    if (client) renderAddonRedirectCard(root, client)
   }
 
   editRedirect(root: HTMLElement, index?: number): void {

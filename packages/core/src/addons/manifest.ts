@@ -9,6 +9,7 @@ import { AddonConnection, checkSuggestions, readConnections } from "./connection
 import { AddonTray } from "./trayProtocol"
 import { MatchPatternSet } from "../webext/matchPattern"
 import { isKnownPlaceholder, templatePlaceholders } from "./templates"
+import { AddonRedirect, readAddonRedirects } from "./redirects"
 
 export const ADDON_PROTOCOL = 1
 
@@ -130,6 +131,8 @@ export interface AddonManifest {
   settings?: ConfigSchema
   connections?: readonly AddonConnection[]
   trays?: readonly AddonTray[]
+  /** URL rewrites offered beside the user's redirects; see ./redirects. */
+  redirects?: readonly AddonRedirect[]
 }
 
 /** The URLs a script may fetch through the host, from its `fetch:` grants. */
@@ -382,6 +385,22 @@ class Reader {
     return { id, label, icon, run }
   }
 
+  script(value: unknown): AddonScript | undefined {
+    if (value === undefined || value === null) return undefined
+    if (!isRecord(value)) return this.fail("script", "must be an object with url and integrity")
+    const url = this.string(value.url, "script.url", ADDON_LIMITS.template)
+    // `once-addon://dev/…` is a development package the Electron host serves
+    // itself; the hash still has to match, and only that host resolves it.
+    if (url !== undefined && !/^(https?|once-addon):\/\//i.test(url)) {
+      this.fail("script.url", "must be http(s)")
+    }
+    const integrity = this.string(value.integrity, "script.integrity", 80)
+    if (integrity !== undefined && !INTEGRITY.test(integrity)) {
+      this.fail("script.integrity", "must be sha256-<base64> of the script")
+    }
+    return url !== undefined && integrity !== undefined ? { url, integrity } : undefined
+  }
+
   capabilities(value: unknown): string[] {
     if (value === undefined) return []
     const list = this.stringList(value, "capabilities")
@@ -461,24 +480,7 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
   if (value.protocol !== ADDON_PROTOCOL) {
     reader.fail("protocol", `must be ${ADDON_PROTOCOL}`)
   }
-  let script: AddonScript | undefined
-  if (value.script !== undefined && value.script !== null) {
-    if (!isRecord(value.script)) {
-      reader.fail("script", "must be an object with url and integrity")
-    } else {
-      const url = reader.string(value.script.url, "script.url", ADDON_LIMITS.template)
-      // `once-addon://dev/…` is a development package the Electron host serves
-      // itself; the hash still has to match, and only that host resolves it.
-      if (url !== undefined && !/^(https?|once-addon):\/\//i.test(url)) {
-        reader.fail("script.url", "must be http(s)")
-      }
-      const integrity = reader.string(value.script.integrity, "script.integrity", 80)
-      if (integrity !== undefined && !INTEGRITY.test(integrity)) {
-        reader.fail("script.integrity", "must be sha256-<base64> of the script")
-      }
-      if (url !== undefined && integrity !== undefined) script = { url, integrity }
-    }
-  }
+  const script = reader.script(value.script)
   const id = reader.string(value.id, "id", 40)
   if (id !== undefined && !ADDON_LIMITS.idPattern.test(id)) {
     reader.fail("id", "must be 3–40 lower-case letters, digits, or dashes")
@@ -545,10 +547,12 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
   }
   let connections: AddonConnection[] = []
   let trays: AddonTray[] = []
+  let redirects: AddonRedirect[] = []
   try {
     connections = readConnections(value.connections, settings)
     checkSuggestions(settings, connections)
     trays = readTrays(value.trays)
+    redirects = readAddonRedirects(value.redirects)
     for (const contribution of contributions) {
       if (contribution.kind === "action" && "tray" in contribution.run) {
         const id = contribution.run.tray
@@ -558,8 +562,8 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
   } catch (error) {
     reader.fail("features", error instanceof Error ? error.message : String(error))
   }
-  if (script === undefined && manifestNeedsScript(contributions, collectors, panelActions)) {
-    reader.fail("script", "is required: a contribution uses message or compute, or the add-on has collectors")
+  if (script === undefined && (manifestNeedsScript(contributions, collectors, panelActions) || redirects.some(rule => rule.dynamic))) {
+    reader.fail("script", "is required: a contribution uses message or compute, or the add-on has collectors or dynamic redirects")
   }
   if (reader.reports.length > 0 || id === undefined || name === undefined || version === undefined) {
     return { ok: false, reports: reader.reports }
@@ -570,7 +574,8 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
     manifest: {
       protocol: ADDON_PROTOCOL, id, name, ...(shortName ? { shortName } : {}), version, author, homepage, script,
       contributions, collectors, panelActions, capabilities, settings,
-      ...(connections.length ? { connections } : {}), ...(trays.length ? { trays } : {})
+      ...(connections.length ? { connections } : {}), ...(trays.length ? { trays } : {}),
+      ...(redirects.length ? { redirects } : {})
     }
   }
 }

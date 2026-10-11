@@ -37,7 +37,14 @@
       "description": { "type": "string" }, "collects": { "enum": ["dom", "json", "xml"] },
       "pattern": { "type": "array", "items": { "type": "string" } }, "config": { "type": "object" }
     } } },
-    "panelActions": { "type": "array", "maxItems": 4, "items": { "type": "object", "required": ["id", "label", "run"] } }
+    "panelActions": { "type": "array", "maxItems": 4, "items": { "type": "object", "required": ["id", "label", "run"] } },
+    "redirects": { "type": "array", "maxItems": 4, "items": { "type": "object", "required": ["id", "title", "match"], "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9-]{3,40}$" }, "title": { "type": "string", "maxLength": 60 },
+      "match": { "type": "string", "maxLength": 2048, "description": "JavaScript regular expression matched against the whole URL" },
+      "replace": { "type": "string", "maxLength": 2048, "pattern": "^https?://[^/$]+/", "description": "Required unless dynamic; $1 backreferences" },
+      "dynamic": { "type": "boolean", "description": "The script supplies the replacement through once.redirects" },
+      "enabledByDefault": { "type": "boolean" }, "refreshMinutes": { "type": "number", "minimum": 15, "maximum": 10080 }
+    } } }
   },
   "$defs": {
     "settingsSchema": { "type": "object", "properties": {

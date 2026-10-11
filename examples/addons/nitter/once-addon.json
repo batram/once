@@ -1,0 +1,49 @@
+{
+  "protocol": 1,
+  "id": "nitter",
+  "name": "Nitter",
+  "version": "1.0.0",
+  "homepage": "https://status.d420.de/about",
+  "script": "main.js",
+  "capabilities": ["fetch:https://status.d420.de/*", "fetch:https://*/*"],
+  "settings": {
+    "type": "object",
+    "properties": {
+      "preferredInstance": {
+        "type": "string",
+        "label": "Preferred instance",
+        "description": "An instance to use while it works, such as https://nitter.example. Leave empty to pick a healthy one from status.d420.de.",
+        "default": ""
+      },
+      "filterRetweets": {
+        "type": "boolean",
+        "label": "Filter retweets",
+        "description": "Mark retweets so your filters can hide them.",
+        "default": false
+      }
+    }
+  },
+  "contributions": [],
+  "collectors": [{
+    "id": "timeline",
+    "type": "tw",
+    "description": "Posts by user, through a healthy Nitter instance",
+    "pattern": ["https://x.com/*", "https://twitter.com/*", "https://nitter.net/*"],
+    "collects": "xml",
+    "colors": ["#1d9bf0", "white"],
+    "cacheMinutes": 15,
+    "config": {
+      "type": "object",
+      "properties": {
+        "replies": { "type": "boolean", "label": "Include replies", "default": false }
+      }
+    }
+  }],
+  "redirects": [{
+    "id": "x-to-nitter",
+    "title": "X / Twitter → Nitter",
+    "match": "^https?://(?:www\\.|mobile\\.)?(?:twitter|x)\\.com/(.*)$",
+    "dynamic": true,
+    "enabledByDefault": true
+  }]
+}

@@ -47,6 +47,7 @@ class TabNavigationEvents {
       if (!isMainFrame || code === -3 || this.errors.state(entry, url)) return
       if (url && !sameUrl(url, entry.displayedUrl)) return
       this.errors.handleFailure(entry, url || entry.displayedUrl, `${description} (${code})`)
+      this.reportLoadFailure(entry, url || entry.displayedUrl, `${description} (${code})`)
     })
     contents.on("did-start-navigation", (event) => {
       if (!event.isMainFrame || event.isSameDocument) return
@@ -74,6 +75,7 @@ class TabNavigationEvents {
     contents.on("did-navigate", (_event, url, statusCode) => {
       entry.storyPage = { ...entry.storyPage, statusCode }
       this.didNavigate(entry, url, changed)
+      if (statusCode >= 500 || statusCode === 429) this.reportLoadFailure(entry, url, `HTTP ${statusCode}`)
     })
     contents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
       if (isMainFrame) this.didNavigate(entry, url, changed)
@@ -106,6 +108,16 @@ class TabNavigationEvents {
         event.preventDefault()
       }
     })
+  }
+
+  /**
+   * The shell decides what a failure means: a page an add-on redirect sent
+   * here may have another mirror to try. A page the user typed is told too
+   * and simply has none.
+   */
+  private reportLoadFailure(entry: TabEntry, url: string, reason: string): void {
+    const owner = this.actions.ownerFor(entry)
+    if (owner && !owner.window.isDestroyed()) owner.window.webContents.send(ELECTRON_IPC.tabsLoadFailed, entry.id, url, reason)
   }
 
   private didNavigate(entry: TabEntry, url: string, changed: () => void): void {

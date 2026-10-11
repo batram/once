@@ -6,6 +6,7 @@
 import type {
   HostToSandbox, SandboxOperation, SandboxToHost, StoryView,
   OnceAddonApi as OnceApi, AddonCollectorHandlers as CollectorHandlers, AddonFetchResult as FetchResult,
+  AddonRedirectHandlers as RedirectHandlers,
   AddonTrayContext, AddonResponse, AddonStoryContent
 } from "@once/core"
 
@@ -22,6 +23,7 @@ class RuntimeState {
   readonly controllers = new Map<number, AbortController>()
   settings: Record<string, unknown> = {}
   readonly collectors = new Map<string, CollectorHandlers>()
+  readonly redirects = new Map<string, RedirectHandlers>()
   readonly settingsListeners: SettingsListener[] = []
   readonly awaitingOps = new Map<number, { requestId?: number; resolve(value: unknown): void; reject(error: Error): void; onChunk?(text: string): void }>()
   readonly storyRequests = new WeakMap<StoryView, number>()
@@ -53,6 +55,13 @@ function createApi(state: RuntimeState, post: (message: SandboxToHost) => void):
         if (typeof handlers?.parse !== "function") throw new Error(`Collector ${id} needs a parse function`)
         state.collectors.set(id, handlers)
       }
+    },
+    redirects: {
+      register: (id, handlers) => {
+        if (typeof handlers?.target !== "function") throw new Error(`Redirect ${id} needs a target function`)
+        state.redirects.set(id, handlers)
+      },
+      set: async (redirect, replacement) => { await ask({ name: "redirect.set", href: "", redirect, replacement }) }
     },
     storage: {
       get: (key) => ask({ name: "storage.get", href: "", key }),
@@ -152,6 +161,22 @@ function work(message: HostToSandbox, state: RuntimeState, post: (message: Sandb
         if (!search) throw new Error(`Collector ${message.collector} has no ${message.kind} search`)
         return search.call(collector, message.needle)
       }
+    // A collector or redirect without these handlers keeps the source's URL
+    // and has nowhere else to go; neither is an error.
+    case "collector.resolveUrl":
+      return () => state.collectors.get(message.collector)?.resolveUrl?.({ url: message.url, config: message.config }) ?? null
+    case "collector.failed":
+      return () => state.collectors.get(message.collector)?.failed?.({
+        url: message.url, fetchedUrl: message.fetchedUrl, error: message.error, config: message.config
+      }) ?? false
+    case "redirect.target":
+      return () => {
+        const redirect = state.redirects.get(message.redirect)
+        if (!redirect) throw new Error(`The add-on registered no redirect named ${message.redirect}`)
+        return redirect.target()
+      }
+    case "redirect.failed":
+      return () => state.redirects.get(message.redirect)?.failed?.({ url: message.url, reason: message.reason }) ?? null
     default:
       return () => undefined
   }

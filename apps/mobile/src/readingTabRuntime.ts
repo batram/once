@@ -22,6 +22,7 @@ export class ReadingTabRuntime {
   private usedInitialReader = false
   // Shell UI covering the panel; a tab created or selected under it must stay hidden too.
   private readerClosedListener: ((reader: ReaderDocumentHost) => void) | null = null
+  private loadFailedListener: ((session: ReadingSession, url: string, reason: string) => void) | null = null
   // A tab is audible while its reader speaks or its page plays media.
   private readonly audible = new Map<string, { reader: boolean; page: boolean }>()
   private readonly covers: Record<Cover, boolean> = { menu: false, overlay: false, dialog: false, extensionPage: false, thread: false }
@@ -70,6 +71,15 @@ export class ReadingTabRuntime {
   /** A reader document closing or being replaced, in any tab. */
   onReaderClosed(listener: (reader: ReaderDocumentHost) => void): void {
     this.readerClosedListener = listener
+  }
+
+  /** A page that failed in any tab goes where `report` says (an add-on redirect that moved), in that tab. */
+  followRedirectFailures(report: (url: string, reason: string) => Promise<string | null>): void {
+    this.loadFailedListener = (session, url, reason) => {
+      void report(url, reason)
+        .then((next) => { if (next) session.navigate(next) })
+        .catch((error) => console.error("Redirect failover failed", error))
+    }
   }
 
   isReaderWindow(source: unknown): boolean {
@@ -192,6 +202,7 @@ export class ReadingTabRuntime {
             this.tabs.update(tab.id, tab.generation, { title: event.title ?? tab.session.snapshot().story?.title ?? "" })
             if (tab.id !== this.tabs.activeId) this.announce(`Background tab loaded: ${tab.title || event.url}`)
           })
+          coordinator.onLoadFailed((url, reason) => this.loadFailedListener?.(tab.session, url, reason))
           void coordinator.install().then(() => {
             if (!this.tabs.tabs.includes(tab)) return
             if (tab.restored) { tab.restored = false; tab.session.retry() }
