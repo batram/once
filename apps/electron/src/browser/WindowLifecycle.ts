@@ -2,6 +2,7 @@ import { BrowserWindow } from "electron"
 import { ELECTRON_IPC, ElectronRect } from "@once/platform-electron/bridge"
 import { NativeMenus } from "./NativeMenus"
 import { TabEntry, WindowEntry } from "./BrowserState"
+import { bindWheelZoom, handleZoomKey } from "./Zoom"
 
 // Test runs otherwise put a real window on whatever virtual desktop the
 // developer is working on, and take the focus with it.
@@ -120,6 +121,10 @@ export class WindowLifecycle {
       }
     })
     window.webContents.on("focus", () => sendShellFocus(window))
+    window.webContents.on("before-input-event", (event, input) => {
+      handleZoomKey(window.webContents, event, input)
+    })
+    bindWheelZoom(window.webContents)
     // The shell is not a page: a `_blank` link or window.open from it (an
     // addon tray's link, say) belongs in a tab, not in a bare BrowserWindow
     // without the shell's chrome.

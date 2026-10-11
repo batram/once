@@ -32,6 +32,7 @@ import {
   ElectronUpdateStatus
 } from "@once/platform-electron/bridge"
 import { TabHoverCard } from "./browser/TabHoverCard"
+import { shellPoint, shellRect } from "./browser/Zoom"
 import { SecureSettings } from "./SecureSettings"
 import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
@@ -394,13 +395,13 @@ function registerTabLifecycle(coordinator: BrowserCoordinator): void {
   })
   ipcMain.handle(ELECTRON_IPC.tabsDetach, (event, id: string, point?: ElectronPoint) => {
     const current = browser(event, coordinator)
-    return coordinator.detach(current.window, id, point)
+    return coordinator.detach(current.window, id, shellPoint(event.sender, point))
   })
 }
 
 function registerTabTools(coordinator: BrowserCoordinator): void {
-  ipcMain.handle(ELECTRON_IPC.tabsShowBlockedPopups, (event, id: string, point: ElectronPoint) => {
-    const current = browser(event, coordinator)
+  ipcMain.handle(ELECTRON_IPC.tabsShowBlockedPopups, (event, id: string, shown: ElectronPoint) => {
+    const current = browser(event, coordinator), point = shellPoint(event.sender, shown)
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) throw new Error("Invalid popup position")
     return coordinator.showBlockedPopups(current.window, id, point)
   })
@@ -414,15 +415,15 @@ function registerTabTools(coordinator: BrowserCoordinator): void {
   })
   ipcMain.handle(ELECTRON_IPC.tabsShowMenu, (event, id: string, point: ElectronPoint) => {
     const current = browser(event, coordinator)
-    return coordinator.showTabMenu(current.window, id, point)
+    return coordinator.showTabMenu(current.window, id, shellPoint(event.sender, point))
   })
   ipcMain.handle(ELECTRON_IPC.tabsShowAddressMenu, (event, point: ElectronPoint) => {
     const current = browser(event, coordinator)
-    return coordinator.menus.showAddressMenu(current.window, point)
+    return coordinator.menus.showAddressMenu(current.window, shellPoint(event.sender, point))
   })
   ipcMain.handle(ELECTRON_IPC.tabsSetBounds, (event, bounds: ElectronRect) => {
     const current = browser(event, coordinator)
-    return coordinator.setBounds(current.window, bounds)
+    return coordinator.setBounds(current.window, shellRect(event.sender, bounds))
   })
   const hoverCards = new WeakMap<BrowserWindow, TabHoverCard>()
   ipcMain.handle(
@@ -441,7 +442,7 @@ function registerTabTools(coordinator: BrowserCoordinator): void {
       return card.show({
         getAll: () => coordinator.getAll(current),
         contents: (tabId) => coordinator.tabContents(current, tabId)
-      }, id, anchor, theme)
+      }, id, shellRect(event.sender, anchor), theme)
     }
   )
   ipcMain.handle(ELECTRON_IPC.tabsHideHoverCard, (event) => {
@@ -485,7 +486,7 @@ function registerStoryAndWindowHandlers(options: IpcHandlerOptions): void {
     ELECTRON_IPC.storyMenuShow,
     (event, items: ElectronStoryMenuItem[], point: ElectronPoint) => {
       const current = browser(event, coordinator)
-      return coordinator.showStoryMenu(current.window, items, point)
+      return coordinator.showStoryMenu(current.window, items, shellPoint(event.sender, point))
     }
   )
   ipcMain.handle(ELECTRON_IPC.storyMenuOpenExternal, (event, url: string) => {
@@ -567,7 +568,7 @@ function registerExtensionHandlers(options: IpcHandlerOptions): void {
       throw new Error("Invalid extensions menu request")
     }
     const infos = await extensions.extensionInfos(coordinator.activeTabContentsId(current.window))
-    return showExtensionMenu(current.window.window, anchor, infos, tools, pinned, next => {
+    return showExtensionMenu(current.window.window, shellRect(event.sender, anchor), infos, tools, pinned, next => {
       if (!event.sender.isDestroyed()) event.sender.send(ELECTRON_IPC.extensionsPinsChanged, next)
     })
   })
@@ -579,7 +580,7 @@ function registerExtensionHandlers(options: IpcHandlerOptions): void {
         ![anchor.x, anchor.y, anchor.width, anchor.height].every(Number.isFinite)) {
         throw new Error("Invalid popup request")
       }
-      extensions.openPopup(current.window.window, host, anchor)
+      extensions.openPopup(current.window.window, host, shellRect(event.sender, anchor))
     }
   )
   ipcMain.handle(

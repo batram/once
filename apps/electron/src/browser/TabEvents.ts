@@ -8,6 +8,7 @@ import { TabEntry, WindowEntry } from "./BrowserState"
 import { TabPopups } from "./TabPopups"
 import { markActivity, markNavigated } from "./TabSyncTimes"
 import { PopupWindowOptions } from "./TabView"
+import { bindWheelZoom, handleZoomKey } from "./Zoom"
 
 interface TabOwnerAccess {
   ownerFor(entry: TabEntry): WindowEntry | undefined
@@ -218,6 +219,8 @@ class TabWindowInteractionEvents {
     // One listener only: browser-ownership.test.js asserts the count, and a
     // second registration would double-handle every key.
     contents.on("before-input-event", (event, input) => {
+      // Before the repeat check: holding Ctrl and + keeps zooming.
+      if (handleZoomKey(contents, event, input)) return
       if (input.type !== "keyDown" || input.isAutoRepeat) return
       const owner = this.actions.ownerFor(entry)
       if (!owner) return
@@ -225,6 +228,7 @@ class TabWindowInteractionEvents {
       this.forwardShellChord(event, input, owner)
       this.popups.keyDown(entry, event, input)
     })
+    bindWheelZoom(contents)
     this.popups.bind(entry)
     contents.on("context-menu", (_event, params) => {
       const owner = this.actions.ownerFor(entry)

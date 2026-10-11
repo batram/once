@@ -4,6 +4,7 @@ import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "../TabManager"
 import { WindowEntry } from "./BrowserState"
 import { adoptPanelPage } from "./ExtensionTabHooks"
 import { createTabView } from "./TabView"
+import { bindWheelZoom, handleZoomKey, shellRect } from "./Zoom"
 
 function webUrl(value: unknown): string {
   const url = new URL(String(value))
@@ -57,6 +58,8 @@ class PanelPage {
     contents.on("did-navigate", (_event, url) => this.report(url))
     contents.on("did-navigate-in-page", (_event, url, isMainFrame) => { if (isMainFrame) this.report(url) })
     contents.on("render-process-gone", () => this.close())
+    contents.on("before-input-event", (event, input) => handleZoomKey(contents, event, input))
+    bindWheelZoom(contents)
     owner.window.once("closed", this.onWindowClosed)
     // A reloaded shell forgets its panel; the page must not linger over it.
     owner.window.webContents.once("did-navigate", this.onShellNavigated)
@@ -123,7 +126,7 @@ export function registerPanelPageHandlers(coordinator: BrowserCoordinator): void
   ipcMain.handle(ELECTRON_IPC.panelPageShow, (event, url: string, bounds: ElectronRect | null) => {
     const owner = coordinator.requireWindow(event)
     const target = webUrl(url)
-    const rect = readRect(bounds)
+    const rect = readRect(shellRect(event.sender, bounds))
     let page = pages.get(owner.id)
     if (!page) {
       page = new PanelPage(owner, coordinator, () => pages.delete(owner.id))
@@ -134,7 +137,7 @@ export function registerPanelPageHandlers(coordinator: BrowserCoordinator): void
   })
   ipcMain.handle(ELECTRON_IPC.panelPageSetBounds, (event, bounds: ElectronRect | null) => {
     const owner = coordinator.requireWindow(event)
-    pages.get(owner.id)?.setBounds(readRect(bounds))
+    pages.get(owner.id)?.setBounds(readRect(shellRect(event.sender, bounds)))
   })
   ipcMain.handle(ELECTRON_IPC.panelPageClose, (event) => {
     const owner = coordinator.requireWindow(event)

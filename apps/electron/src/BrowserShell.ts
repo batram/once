@@ -666,12 +666,14 @@ export class BrowserShell {
 
   private reportBounds(): void {
     requestAnimationFrame(() => {
+      // Unrounded: main scales by the shell's zoom first, and rounding here
+      // would grow into a pixel seam at the bottom or right edge.
       const rect = this.tabContent.getBoundingClientRect()
       void this.bridge.tabs.setBounds({
-        x: Math.round(rect.left),
-        y: Math.round(rect.top),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height)
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height
       })
     })
   }
