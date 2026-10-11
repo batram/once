@@ -1,5 +1,6 @@
 import type { ImageTextResult } from "./browser/imageTextTypes"
 import { ImageTextHighlights } from "./imageTextHighlights"
+import { playRecognitionScan } from "./imageTextScan"
 
 interface ImageTextSession {
   token: string
@@ -44,6 +45,7 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
       user-select: text; -webkit-user-select: text; }
     .word::selection, .word *::selection { color: transparent; background: transparent; }
     .separator { font-size: 0; }
+    .scan { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
     .highlights { position: absolute; inset: 0; width: 100%; height: 100%;
       pointer-events: none; user-select: none; fill: #3984ff; fill-opacity: .36; }
     .bar { position: absolute; display: flex; align-items: center; gap: 12px;
@@ -81,9 +83,11 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
   const originalSource = image.currentSrc || image.src
   let frame = 0
   let closed = false
+  let stopScan: () => void = () => undefined
   const close = () => {
     closed = true
     cancelAnimationFrame(frame)
+    stopScan()
     document.removeEventListener("keydown", keydown, true)
     highlights.destroy()
     host.remove()
@@ -111,6 +115,7 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
       }
       renderWords(words, result, image.naturalWidth, image.naturalHeight)
       highlights.attach(image.naturalWidth, image.naturalHeight)
+      stopScan = playRecognitionScan(image, clip, words)
       // Runs in the page, so the page reports the platform for the copy shortcut.
       status.textContent = `Drag to select text · ${/^Mac/.test(navigator.platform) ? "⌘C" : "Ctrl+C"} to copy`
     }

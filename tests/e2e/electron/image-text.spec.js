@@ -94,6 +94,10 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     await window.locator("#urlfield").press("Enter")
     await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
     await startRecognition(app)
+    // The reading flourish plays once over the found words, then removes itself.
+    const scanning = "Boolean(document.querySelector('[data-once-image-text]').shadowRoot.querySelector('canvas.scan'))"
+    await expect.poll(() => inPage(app, scanning)).toBe(true)
+    await expect.poll(() => inPage(app, scanning), { timeout: 8_000 }).toBe(false)
     expect(await selectAndCopy(app)).toBe("Select these words")
     await expect.poll(async () => (await geometry(app)).highlight?.match(/M/g)?.length).toBe(1)
     const initial = await geometry(app)
