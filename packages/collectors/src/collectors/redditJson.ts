@@ -12,6 +12,7 @@ export const options = {
 }
 
 import { Story } from "@once/core"
+import type { SearchIO } from "./searchIO"
 
 interface RedditJSONData {
   kind: "Listing"
@@ -82,19 +83,25 @@ function parse_listing(json: RedditJSONData, filter: boolean): Story[] {
   }
 }
 
-export function domain_search(domain: string): Promise<Story[]> {
-  return global_search("site:" + domain)
+export function domain_search(domain: string, io: SearchIO): Promise<Story[]> {
+  return global_search("site:" + domain, io)
 }
 
-export async function global_search(needle: string): Promise<Story[]> {
+export async function global_search(needle: string, io: SearchIO): Promise<Story[]> {
   const search_url = "https://old.reddit.com/search.json?q="
 
-  const res = await fetch(search_url + encodeURIComponent(needle))
-  if (res.ok) {
-    const json_response = await res.json()
-    // Search results are what the user asked for by name, so the subreddit
-    // score threshold does not apply to them.
-    return parse_listing(json_response, false)
+  // Reddit answers anonymous JSON requests with its "Welcome to Reddit" page,
+  // so search carries the user's session, as reading comments does.
+  const res = await io.fetch(search_url + encodeURIComponent(needle), { credentials: "include" })
+  if (!res.ok) return []
+  let json_response: RedditJSONData
+  try {
+    json_response = JSON.parse(await res.text())
+  } catch {
+    console.warn("Reddit search answered with a page, not JSON; is the browser signed in?")
+    return []
   }
-  return []
+  // Search results are what the user asked for by name, so the subreddit
+  // score threshold does not apply to them.
+  return parse_listing(json_response, false)
 }

@@ -1,4 +1,5 @@
 export * from "./collectors/comments/commentsIO"
+export * from "./collectors/searchIO"
 export * from "./parser"
 export * from "./registry"
 export * from "./resolveSource"

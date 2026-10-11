@@ -1,10 +1,6 @@
 import { Story } from "@once/core"
 import * as StoryList from "./storyList"
 import { StoryListItem } from "./StoryListItem"
-import {
-  domain_search_providers,
-  global_search_providers
-} from "@once/collectors"
 import { applyStoryFilters } from "@once/core"
 import { getOnceClient } from "../client"
 import { getKeyboardDispatcher } from "../keyboard"
@@ -109,8 +105,8 @@ const extra_search_providers: Record<
     func: async (needle: string) => {
       const search_scope = requireElement<HTMLInputElement>("#search_scope")
       search_scope.value = "global"
-      domain_search_providers().forEach((dsp) => {
-        dsp.domain_search(needle).then((res: Story[]) => {
+      getOnceClient().searchCollectors("domain", needle).forEach((search) => {
+        search.then((res: Story[]) => {
           add_global_search_results(res)
         })
       })
@@ -173,8 +169,8 @@ export async function searchStories(needle: string): Promise<void> {
     global_search_results.classList.add("search-visible")
     story_container.classList.add("search-hidden")
     global_search_results.innerHTML = ""
-    global_search_providers().forEach((gsp) => {
-      gsp.global_search(needle).then((results: Story[]) => {
+    getOnceClient().searchCollectors("global", needle).forEach((search) => {
+      search.then((results: Story[]) => {
         add_global_search_results(results)
       })
     })

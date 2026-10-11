@@ -22,6 +22,7 @@ const user_url = "https://news.ycombinator.com/submitted?id="
 
 import { Story } from "@once/core"
 import { parseHumanTime } from "@once/core"
+import type { SearchIO } from "./searchIO"
 
 export function parse(doc: Document): Story[] {
   const curl = item_url
@@ -80,24 +81,24 @@ export function parse(doc: Document): Story[] {
   })
 }
 
-export function domain_search(needle: string): Promise<Story[]> {
+export function domain_search(needle: string, io: SearchIO): Promise<Story[]> {
   const domain_search_url =
     "https://hn.algolia.com/api/v1/search_by_date?tags=story&restrictSearchableAttributes=url&typoTolerance=false&query="
-  return hn_search(needle, domain_search_url)
+  return hn_search(needle, io, domain_search_url)
 }
 
-export function global_search(needle: string): Promise<Story[]> {
-  return hn_search(needle)
+export function global_search(needle: string, io: SearchIO): Promise<Story[]> {
+  return hn_search(needle, io)
 }
 
-async function hn_search(needle: string, alt_url?: string): Promise<Story[]> {
+async function hn_search(needle: string, io: SearchIO, alt_url?: string): Promise<Story[]> {
   let search_url =
     "https://hn.algolia.com/api/v1/search_by_date?tags=story&restrictSearchableAttributes=url,title&typoTolerance=false&query="
   if (alt_url) {
     search_url = alt_url
   }
 
-  const res = await fetch(search_url + encodeURIComponent(needle))
+  const res = await io.fetch(search_url + encodeURIComponent(needle))
 
   if (res.ok) {
     const json_response = await res.json()

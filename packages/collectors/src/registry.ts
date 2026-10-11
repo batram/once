@@ -10,6 +10,7 @@ import * as hackerNewsComments from "./collectors/comments/hackerNewsComments"
 import * as lobstersComments from "./collectors/comments/lobstersComments"
 import * as redditComments from "./collectors/comments/redditComments"
 import { CommentsCapability } from "./collectors/comments/commentsIO"
+import { SearchIO } from "./collectors/searchIO"
 
 /** Everything a collector needs to know about the source being parsed. */
 export interface ParseContext {
@@ -80,8 +81,8 @@ export declare interface StoryParser {
    * codec instead of teaching them selector shapes.
    */
   serializeConfig?: (config: unknown) => unknown
-  global_search?: (needle: string) => Promise<Story[]>
-  domain_search?: (needle: string) => Promise<Story[]>
+  global_search?: (needle: string, io: SearchIO) => Promise<Story[]>
+  domain_search?: (needle: string, io: SearchIO) => Promise<Story[]>
   /**
    * Reads the discussion behind a comment URL, for collectors whose site has
    * one worth showing natively. Optional: without it the comment page is

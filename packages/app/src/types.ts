@@ -294,6 +294,8 @@ export interface OnceClient {
    * site. Recent threads come from memory unless `refresh` asks again.
    */
   loadComments(url: string, options?: { refresh?: boolean }): Promise<import("@once/core").CommentThread>
+  /** One search per collector that offers it, each settling on its own so results arrive as they come. */
+  searchCollectors(scope: "global" | "domain", needle: string): Promise<Story[]>[]
   /**
    * Add-on code kept on this device only, keyed by its integrity hash, so an
    * add-on synced from elsewhere still runs offline once it was fetched here.

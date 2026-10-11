@@ -37,6 +37,7 @@ import { SourceLoader } from "./SourceLoader"
 import { DiagnosticLog, errorDetails } from "./DiagnosticLog"
 import { documentRetrievalMethods } from "./documentRetrievalMethods"
 import { commentMethods } from "./CommentLoader"
+import { searchMethods } from "./CollectorSearch"
 import { AddonSync } from "./AddonSync"
 import { waitForStartupStorage } from "./startupStorage"
 import { StoryContentService } from "./storyContent"
@@ -246,7 +247,7 @@ export class AppRuntime {
       getStoryContent: (href) => this.content.get(href),
       saveStoryContent: (href, html, meta) => this.content.save(href, html, meta),
       ...documentRetrievalMethods(this.platform),
-      ...commentMethods(this.platform),
+      ...commentMethods(this.platform), ...searchMethods(this.platform),
       openUrl: (url, target) => {
         if (url.startsWith("search:")) {
           this.events.publish("searchRequested", {

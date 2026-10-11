@@ -11,6 +11,7 @@ export const options = {
 }
 
 import { Story } from "@once/core"
+import type { SearchIO } from "./searchIO"
 
 export function parse(doc: Document): Story[] {
   const base_url = "https://lobste.rs"
@@ -84,9 +85,9 @@ export function parse(doc: Document): Story[] {
     .filter((x) => x != null)
 }
 
-export async function domain_search(domain: string): Promise<Story[]> {
+export async function domain_search(domain: string, io: SearchIO): Promise<Story[]> {
   const search_url = "https://lobste.rs/domain/"
-  const res = await fetch(search_url + domain)
+  const res = await io.fetch(search_url + domain)
   if (res.ok) {
     const content = await res.text()
     const dom_parser = new DOMParser()
@@ -97,10 +98,10 @@ export async function domain_search(domain: string): Promise<Story[]> {
   }
 }
 
-export async function global_search(needle: string): Promise<Story[]> {
+export async function global_search(needle: string, io: SearchIO): Promise<Story[]> {
   const search_url = "https://lobste.rs/search?what=stories&order=relevance&q="
 
-  const res = await fetch(search_url + encodeURIComponent(needle))
+  const res = await io.fetch(search_url + encodeURIComponent(needle))
   if (res.ok) {
     const content = await res.text()
     const dom_parser = new DOMParser()
