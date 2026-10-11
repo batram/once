@@ -46,8 +46,9 @@ export async function clearSiteData(site: string): Promise<void> {
   const ses = browsingSession()
   const origins = new Set<string>()
   const addHost = (host: string) => {
-    origins.add(`https://${host}`)
-    origins.add(`http://${host}`)
+    const name = host.includes(":") ? `[${host}]` : host
+    origins.add(`https://${name}`)
+    origins.add(`http://${name}`)
   }
   addHost(site)
   if (site.includes(".") && !/^[\d.]+$|:/.test(site)) addHost(`www.${site}`)

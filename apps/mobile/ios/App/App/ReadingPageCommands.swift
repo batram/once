@@ -145,8 +145,11 @@ extension InAppBrowserSurfacePlugin {
 
     // The tabs, the extension pages and the Capacitor shell all share the
     // default website data store, so nothing here clears by date: records are
-    // fetched and chosen one by one. WebKit names each record after its
-    // registrable domain, the unit Once clears a site by.
+    // fetched and chosen one by one. WebKit lists records for web origins only,
+    // each named after its registrable domain (private suffixes included, like
+    // siteForUrl), so the shell's capacitor://localhost and the extensions'
+    // webkit-extension:// storage never appear among them. A page on
+    // http://localhost is a record of its own; removing it leaves the shell's.
 
     /// Asks first, then clears one site; resolves `{ cleared }`.
     @objc func clearSiteData(_ call: CAPPluginCall) {
@@ -172,12 +175,10 @@ extension InAppBrowserSurfacePlugin {
         }
     }
 
-    /// The shell already asked. Keeps every record that is not a web site:
-    /// the shell's own `localhost` (Once's database) and the extensions, whose
-    /// records carry no dotted name.
+    /// The shell already asked. Every record is a web site's (see above).
     @objc func clearAllData(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            Self.removeWebsiteData(where: { $0 != "localhost" && $0.contains(".") }) { call.resolve() }
+            Self.removeWebsiteData(where: { _ in true }) { call.resolve() }
         }
     }
 

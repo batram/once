@@ -9,6 +9,12 @@ test("a page's site is its registrable domain", () => {
   assert.equal(siteForUrl("https://example.com"), "example.com")
 })
 
+test("a private suffix makes each of its subdomains a site, as WebKit and GeckoView count them", () => {
+  assert.equal(siteForUrl("https://mdn.github.io/dom-examples/"), "mdn.github.io")
+  assert.equal(siteForUrl("https://a.b.blogspot.com/"), "b.blogspot.com")
+  assert.equal(siteForUrl("https://github.io/"), "github.io")
+})
+
 test("hosts without a public suffix are their own site", () => {
   assert.equal(siteForUrl("http://localhost:3211/x"), "localhost")
   assert.equal(siteForUrl("http://127.0.0.1:8080/"), "127.0.0.1")
