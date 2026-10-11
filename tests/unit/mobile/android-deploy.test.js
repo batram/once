@@ -3,7 +3,7 @@ const fs = require("node:fs")
 const path = require("node:path")
 const vm = require("node:vm")
 const test = require("node:test")
-const { deploymentSettings, selectDeploymentAbis, installApk } = require("../../../apps/mobile/scripts/android-deploy")
+const { deploymentSettings, selectDeploymentAbis, installApk, compileInstalledApp } = require("../../../apps/mobile/scripts/android-deploy")
 
 test("deployment selects the device ABI and rejects incompatible overrides", () => {
   assert.deepEqual(selectDeploymentAbis("auto", "arm64-v8a,armeabi-v7a\r\n"), ["arm64-v8a"])
@@ -38,6 +38,13 @@ test("failed patch installs retry a full install without uninstalling or clearin
   assert.throws(() => installApk("adb", "phone", "app.apk", "fastdeploy", {}, () => ({ error: new Error("spawn failed") })), /spawn failed/)
 })
 
+test("a failed compile warns and leaves the installed app in place", () => {
+  const calls = []
+  compileInstalledApp("adb", "phone", "com.example", {}, (_command, args) => { calls.push(args); return { status: 1 } })
+  assert.deepEqual(calls, [["-s", "phone", "shell", "cmd", "package", "compile", "-m", "verify", "-f", "com.example"]])
+  compileInstalledApp("adb", "phone", "com.example", {}, () => ({ error: new Error("spawn failed") }))
+})
+
 // Execute the actual CLI with a fake device/process boundary. In particular,
 // exercise .env loading even when mDNS succeeds, before the SDK is resolved.
 function deploy({ local = "", exported = {}, mdns = "phone _adb-tls-connect._tcp 192.0.2.1:1234", target = [], missing = "", directory = "", calls = [] } = {}) {
@@ -68,7 +75,8 @@ function deploy({ local = "", exported = {}, mdns = "phone _adb-tls-connect._tcp
       if (name === "child_process") return { spawnSync: execute }
       if (name === "./android-deploy") return {
         deploymentSettings, selectDeploymentAbis,
-        installApk: (...args) => installApk(...args, execute)
+        installApk: (...args) => installApk(...args, execute),
+        compileInstalledApp: (...args) => compileInstalledApp(...args, execute)
       }
       return require(name)
     }
@@ -91,6 +99,11 @@ test("local tuning is read with working discovery; its stale wireless address st
   const install = calls.find(call => call.args.includes("install"))
   assert.equal(install.args[1], "192.0.2.1:1234")
   assert.ok(install.args.includes("--streaming"))
+  // The installed app is compiled on the same device, after the install.
+  const compile = calls.findIndex(call => call.args.includes("compile"))
+  assert.ok(compile > calls.indexOf(install))
+  assert.deepEqual(calls[compile].args.slice(0, 2), ["-s", "192.0.2.1:1234"])
+  assert.equal(calls[compile].args.at(-1), "com.zmarn.once")
 })
 
 test("exported settings override local tuning and local address works without discovery", () => {

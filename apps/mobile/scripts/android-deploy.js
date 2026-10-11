@@ -49,4 +49,16 @@ function installApk(adb, serial, apk, mode, env, execute = spawnSync) {
   }
 }
 
-module.exports = { deploymentSettings, selectDeploymentAbis, installApk }
+// adb leaves a debuggable install uncompiled, so every app process (Gecko's
+// helpers too) inflates its own copy of the compressed dex: ~40 MB each.
+// Verifying writes it once to a vdex that all of them map from storage.
+function compileInstalledApp(adb, serial, packageName, env, execute = spawnSync) {
+  const result = execute(adb, ["-s", serial, "shell", "cmd", "package", "compile", "-m", "verify", "-f", packageName], {
+    env, stdio: "inherit", shell: false
+  })
+  if (result.error || result.status !== 0) {
+    console.warn(`mobile: could not compile ${packageName} (${result.error?.message || result.signal || result.status}); it runs from the APK`)
+  }
+}
+
+module.exports = { deploymentSettings, selectDeploymentAbis, installApk, compileInstalledApp }

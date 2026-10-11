@@ -1,7 +1,7 @@
 const fs = require("fs")
 const path = require("path")
 const { spawn, spawnSync } = require("child_process")
-const { deploymentSettings, selectDeploymentAbis, installApk } = require("./android-deploy")
+const { deploymentSettings, selectDeploymentAbis, installApk, compileInstalledApp } = require("./android-deploy")
 
 const root = path.resolve(__dirname, "../../..")
 const appRoot = path.join(root, "apps", "mobile")
@@ -453,6 +453,7 @@ else if (command === "run") {
   if (!fs.existsSync(apk)) fail(`built APK not found at ${apk}`)
   console.log(`mobile: APK ${(fs.statSync(apk).size / 1024 / 1024).toFixed(1)} MiB`)
   try { installApk(installAdb, address, apk, settings.installMode, android.env) } catch (error) { fail(error.message) }
+  compileInstalledApp(installAdb, address, "com.zmarn.once", android.env)
   console.log(`mobile: deployment completed in ${((performance.now() - started) / 1000).toFixed(1)}s`)
 } else if (command === "package") {
   // E2E runners pass the target device's ABI; GeckoView's native libraries
