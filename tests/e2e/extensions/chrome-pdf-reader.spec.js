@@ -20,9 +20,18 @@ for (const scanned of [false,true]) {
       const panel=await context.newPage()
       await panel.goto(`chrome-extension://${id}/static/sidepanel.html?once-e2e=1`)
       await expect(panel.locator("body")).toHaveAttribute("data-once-ready","true")
-      const created=context.waitForEvent("page")
       await panel.evaluate(url=>globalThis.chrome.runtime.sendMessage({onceCommand:"openReader",url,theme:"dark"}),`http://127.0.0.1:${server.address().port}/document`)
-      const reader=await created
+      // The source tab shows the browser's PDF viewer before the extension swaps
+      // in its reader; Playwright sometimes loses that tab across the swap (no
+      // page event, a navigation that never finishes). The tabs API says where
+      // the tab went, and a page of the test's own opens that reader.
+      let readerUrl
+      await expect.poll(async()=>{
+        readerUrl=await worker.evaluate(async()=>(await globalThis.chrome.tabs.query({})).map(tab=>tab.pendingUrl||tab.url).find(url=>url?.includes("/static/reader.html?")))
+        return readerUrl
+      }).toContain("pdf=1")
+      const reader=await context.newPage()
+      await reader.goto(readerUrl)
       // PDF.js parses on the sandbox frame's own thread; a cold first run outlasts the local 5 s expect budget.
       const extracted={timeout:20_000}
       if (scanned) {
