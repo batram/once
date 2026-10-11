@@ -80,6 +80,47 @@ test("preserves newer synchronized state when saving a stale story snapshot", as
   assert.equal(saved._rev, "8-merged")
 })
 
+test("retries a new story whose document replication delivered mid-save", async (t) => {
+  t.mock.method(console, "log", () => {})
+  // Both devices ingest the same feed item; the other device's copy arrives
+  // between the 404 and the create, so the create conflicts.
+  const remote = new Story("rss", "https://example.com/story", "A story")
+  remote._id = `sto_${remote.href}`
+  remote._rev = "1-remote"
+  remote.read_state = "read"
+  remote.sync_updated_at = { read_state: 200 }
+  remote.ingested_at = 100
+  let stored = null
+  const puts = []
+  const store = new PouchStoryStore(
+    {
+      get: async () => {
+        if (!stored) throw { status: 404 }
+        return structuredClone(stored)
+      },
+      put: async (doc) => {
+        puts.push(doc)
+        if (!doc._rev) {
+          stored = remote.to_obj()
+          throw { status: 409, name: "conflict", message: "Document update conflict" }
+        }
+        return { rev: "2-merged" }
+      }
+    },
+    Story.from_obj.bind(Story)
+  )
+  const incoming = new Story("rss", remote.href, "A story")
+  incoming.tags = [{ class: "group", text: "*new", href: "search:*new" }]
+
+  const saved = await store.saveStory(incoming)
+
+  assert.equal(puts.length, 2)
+  assert.equal(puts[1]._rev, "1-remote")
+  assert.equal(puts[1].read_state, "read", "the replicated state survives")
+  assert.equal(puts[1].ingested_at, 100, "the losing create's ingestion time is dropped")
+  assert.equal(saved._rev, "2-merged")
+})
+
 test("does not create a revision when the reconciled story is unchanged", async () => {
   const stored = new Story("rss", "https://example.com/story", "A story")
   stored._id = `sto_${stored.href}`

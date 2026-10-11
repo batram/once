@@ -159,50 +159,22 @@ export class PouchStoryStore<TStory extends Story> {
    */
   async saveStory(story: TStory): Promise<TStory> {
     const pendingContent = story.pendingContent()
+    // Every write below can lose a race with replication. The create path is
+    // the common one: both devices ingest the same feed item, and the other
+    // device's copy arrives between the 404 and the put. It used to throw from
+    // inside the catch, so it never reached the retry and surfaced as
+    // "Document update conflict"; a retry now reads that copy and merges.
     const trySave = async (retryCount = 0): Promise<{ rev?: string }> => {
       try {
-        const doc = await this.db.get(this.storyId(story.href))
-        const reconciled = mergeStorySyncState(
-          this.storyFromDocument(doc),
-          story
-        )
-        story.read_state = reconciled.read_state
-        story.stared = reconciled.stared
-        story.filter = reconciled.filter
-        story.sync_updated_at = reconciled.sync_updated_at
-        story._id = doc._id as string
-        story._rev = doc._rev as string
-        if (story["ingested_at"] === undefined && doc.ingested_at !== undefined) {
-          ;(story as Record<string, unknown>)["ingested_at"] = doc.ingested_at
-        }
-        const nextDocument = storedAttachments(story.to_obj(), doc)
-        const contentChanged = pendingContent !== undefined &&
-          !sameStoredContent(doc, nextDocument)
-        if (!contentChanged) {
-          // Whatever html rode along is already stored; keep the stubs only.
-          story._attachments = nextDocument._attachments as TStory["_attachments"]
-          if (sameStoredStory(doc, nextDocument)) return { rev: story._rev }
-          return await this.db.put(nextDocument)
-        }
-        const response = await this.db.put(nextDocument)
-        return await this.writeContent(story, response.rev, pendingContent)
+        return await this.writeStory(story, pendingContent)
       } catch (err) {
-        const status = (err as { status?: number }).status
-        if (status === 404) {
-          story._id = this.storyId(story.href)
-          ;(story as Record<string, unknown>)["ingested_at"] = Date.now()
-          const response = await this.db.put(storedAttachments(story.to_obj()))
-          return pendingContent === undefined
-            ? response
-            : await this.writeContent(story, response.rev, pendingContent)
-        } else if (status === 409 && retryCount < 3) {
+        if ((err as { status?: number }).status === 409 && retryCount < 3) {
           console.log(
             `Conflict on story ${story.href}, retrying... (${retryCount + 1}/3)`
           )
           return await trySave(retryCount + 1)
-        } else {
-          throw err
         }
+        throw err
       }
     }
 
@@ -211,6 +183,52 @@ export class PouchStoryStore<TStory extends Story> {
       story._rev = resp.rev
     }
     return story
+  }
+
+  private async writeStory(
+    story: TStory,
+    pendingContent: string | undefined
+  ): Promise<{ rev?: string }> {
+    const id = this.storyId(story.href)
+    let doc: Record<string, unknown>
+    try {
+      doc = await this.db.get(id)
+    } catch (err) {
+      if ((err as { status?: number }).status !== 404) throw err
+      // Stamped on the story only once the put lands: a create that loses the
+      // race must not carry this device's ingestion time over the winner's.
+      const ingestedAt = Date.now()
+      const response = await this.db.put(
+        storedAttachments({ ...story.to_obj(), _id: id, ingested_at: ingestedAt })
+      )
+      story._id = id
+      ;(story as Record<string, unknown>)["ingested_at"] = ingestedAt
+      return pendingContent === undefined
+        ? response
+        : await this.writeContent(story, response.rev, pendingContent)
+    }
+
+    const reconciled = mergeStorySyncState(this.storyFromDocument(doc), story)
+    story.read_state = reconciled.read_state
+    story.stared = reconciled.stared
+    story.filter = reconciled.filter
+    story.sync_updated_at = reconciled.sync_updated_at
+    story._id = doc._id as string
+    story._rev = doc._rev as string
+    if (story["ingested_at"] === undefined && doc.ingested_at !== undefined) {
+      ;(story as Record<string, unknown>)["ingested_at"] = doc.ingested_at
+    }
+    const nextDocument = storedAttachments(story.to_obj(), doc)
+    const contentChanged = pendingContent !== undefined &&
+      !sameStoredContent(doc, nextDocument)
+    if (!contentChanged) {
+      // Whatever html rode along is already stored; keep the stubs only.
+      story._attachments = nextDocument._attachments as TStory["_attachments"]
+      if (sameStoredStory(doc, nextDocument)) return { rev: story._rev }
+      return await this.db.put(nextDocument)
+    }
+    const response = await this.db.put(nextDocument)
+    return await this.writeContent(story, response.rev, pendingContent)
   }
 
   private async writeContent(
