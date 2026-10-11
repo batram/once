@@ -59,6 +59,7 @@ export class Instances {
     this.hosts = []
     this.fetchedAt = 0
     this.storedAt = 0
+    this.storedHosts = ""
     this.bad = new Map()
     this.loading = null
     this.triedStorage = false
@@ -119,8 +120,14 @@ export class Instances {
     }
     this.hosts = hosts
     this.fetchedAt = this.now()
-    if (this.fetchedAt - this.storedAt >= STORED_EVERY_MS) {
+    // An unchanged list is not written again just to move its time: every
+    // write is a new synced vault version, and two devices refreshing at once
+    // used to leave a conflict for the reader. A cold start after the stored
+    // copy is an hour old asks the status page once instead.
+    const listed = JSON.stringify(hosts)
+    if (this.fetchedAt - this.storedAt >= STORED_EVERY_MS && listed !== this.storedHosts) {
       this.storedAt = this.fetchedAt
+      this.storedHosts = listed
       await this.once.storage.set("instances", { at: this.fetchedAt, hosts }).catch(() => undefined)
     }
   }
@@ -129,9 +136,12 @@ export class Instances {
   async restore() {
     const stored = await Promise.resolve(this.once.storage.get("instances")).catch(() => undefined)
     if (!stored || typeof stored.at !== "number" || !Array.isArray(stored.hosts)) return
-    if (this.now() - stored.at >= LIST_MAX_AGE_MS) return
-    this.hosts = stored.hosts.filter(host => typeof host?.url === "string" && originOf(host.url) === host.url)
+    const hosts = stored.hosts.filter(host => typeof host?.url === "string" && originOf(host.url) === host.url)
       .map(host => ({ url: host.url, rss: host.rss === true }))
+    // Even a copy too old to use says what is already stored.
+    this.storedHosts = JSON.stringify(hosts)
+    if (this.now() - stored.at >= LIST_MAX_AGE_MS) return
+    this.hosts = hosts
     this.fetchedAt = stored.at
     this.storedAt = stored.at
   }

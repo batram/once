@@ -2,7 +2,7 @@
   "protocol": 1,
   "id": "nitter",
   "name": "Nitter",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "homepage": "https://status.d420.de/about",
   "script": "main.js",
   "capabilities": ["fetch:https://status.d420.de/*", "fetch:https://*/*"],

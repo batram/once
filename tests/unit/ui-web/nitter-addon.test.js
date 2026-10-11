@@ -88,6 +88,31 @@ test("a recent stored list spares the status page on a cold start", async () => 
   assert.equal(log.status, 0)
 })
 
+test("the synced copy is written when the list changes, never just to move its time", async () => {
+  const { handlers, log, clock } = await addon()
+  await handlers.redirect.target()
+  assert.equal(log.stored.length, 1, "the first list is stored")
+  clock.value += 61 * 60_000
+  await handlers.redirect.target()
+  assert.equal(log.status, 2)
+  assert.equal(log.stored.length, 1, "an unchanged list is not written again")
+  STATUS.hosts[1].rss = true
+  try {
+    clock.value += 61 * 60_000
+    await handlers.redirect.target()
+  } finally { STATUS.hosts[1].rss = false }
+  assert.equal(log.stored.length, 2, "a changed list is")
+})
+
+test("a stored copy too old to use still spares rewriting the same list", async () => {
+  const { rankInstances } = await modulePromise
+  const stored = { at: 10_000_000 - 2 * 60 * 60_000, hosts: rankInstances(STATUS) }
+  const { handlers, log } = await addon({ stored })
+  await handlers.redirect.target()
+  assert.equal(log.status, 1, "the old copy is not used")
+  assert.equal(log.stored.length, 0)
+})
+
 test("a failed instance is skipped, the redirect follows, and a missing account moves nothing", async () => {
   const { handlers, log } = await addon()
   await handlers.collector.resolveUrl({ url: "https://x.com/jack", config: {} })

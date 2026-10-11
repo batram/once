@@ -31,10 +31,13 @@ export async function renderAddonVaultReview(client: OnceClient, review: HTMLEle
     time.dateTime = choice.updatedAt
     time.textContent = new Date(choice.updatedAt).toLocaleString()
     head.append(author, time)
+    // The versions were saved independently, so none follows another; only the
+    // devices' clocks order them, and the badge says no more than that.
     if (choices.length > 1 && Date.parse(choice.updatedAt) === newest) {
       const badge = document.createElement("span")
       badge.className = "addon_vault_choice_badge"
-      badge.textContent = "Newest"
+      badge.textContent = "Saved last"
+      badge.title = "By each device's clock. These versions were saved independently; neither replaces the other."
       head.append(badge)
     }
     const details = document.createElement("dl")

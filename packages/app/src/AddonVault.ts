@@ -37,6 +37,30 @@ function withOffers(doc: AddonsDocument, offers: Record<string, string> | undefi
   return offers ? { ...rest, bundled: offers } : rest
 }
 
+/**
+ * Each add-on's `once.storage` from the branch that saved last. Add-ons write
+ * it themselves (caches, timestamps), so no reader can choose between two
+ * copies; the clock decides, and the commit breaks a tie the same way on
+ * every device.
+ */
+function latestStorage(versions: VaultData[]): Map<string, Record<string, unknown> | undefined> {
+  const order = [...versions].sort((a, b) => a.updatedAt === b.updatedAt
+    ? (a.commit < b.commit ? -1 : 1) : (a.updatedAt < b.updatedAt ? -1 : 1))
+  const storage = new Map<string, Record<string, unknown> | undefined>()
+  for (const data of order) for (const entry of data.document.addons) storage.set(entry.manifest.id, entry.storage)
+  return storage
+}
+
+/** The doc with this storage per add-on, in the entry field order the reader produces. */
+function withStorage(doc: AddonsDocument, storage: Map<string, Record<string, unknown> | undefined>): AddonsDocument {
+  return { ...doc, addons: doc.addons.map(entry => {
+    if (!storage.has(entry.manifest.id)) return entry
+    const { storage: _storage, redirectToggles, ...rest } = entry
+    const chosen = storage.get(entry.manifest.id)
+    return { ...rest, ...(chosen ? { storage: chosen } : {}), ...(redirectToggles ? { redirectToggles } : {}) }
+  }) }
+}
+
 /** One encrypted snapshot is also the authenticated approval for its packages and settings. */
 export class AddonVault {
   private rawKey = ""
@@ -131,7 +155,9 @@ export class AddonVault {
    * settling the same parents use the same commit: their duplicate successors
    * can then be dropped without another write or invalidating a device's pin.
    * Branches that differ only in bundled offers combine those records, newest
-   * version first, in that successor. Anything else, a passphrase change, or branches
+   * version first, in that successor; add-on storage, which add-ons write on
+   * their own (a refreshed cache on two devices at once), comes from the branch
+   * saved last. Anything else, a passphrase change, or branches
    * older than this device has seen, waits for review.
    */
   private async settleConcurrent(records: VaultRevision[]): Promise<VaultData | null> {
@@ -145,7 +171,8 @@ export class AddonVault {
       const generation = Math.max(...branches.map(branch => branch.data.generation))
       if (this.pin && generation < this.pin.generation) return null
       const offers = mergeBundledOffers(branches.map(branch => branch.data.document.bundled))
-      const offered = (data: VaultData): VaultData => ({ ...data, document: withOffers(data.document, offers) })
+      const storage = latestStorage(branches.map(branch => branch.data))
+      const offered = (data: VaultData): VaultData => ({ ...data, document: withStorage(withOffers(data.document, offers), storage) })
       const merged = offered(winner.data)
       if (branches.some(branch => !sameVaultContents(merged, offered(branch.data)))) return null
       if (branches.every(branch => branch.data.commit === winner.data.commit &&

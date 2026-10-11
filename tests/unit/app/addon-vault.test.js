@@ -179,6 +179,35 @@ test("branches that differ only in bundled offers combine them, newest version k
   assert.equal(await second.client.hasAddonSecret(manifest.id, "token", "https://provider.test/messages"), true)
 })
 
+test("branches that differ only in add-on storage keep the copy saved last", async () => {
+  const { first } = await setup()
+  const second = device(first.state.records)
+  await second.client.unlockAddonVault(passphrase, false, true, "Phone")
+  // Both devices refresh an add-on's own cache at once, as Nitter does with its instance list.
+  const cache = at => doc => ({ ...doc, addons: doc.addons.map(entry => ({ ...entry, storage: { instances: { at, hosts: ["https://a.test"] } } })) })
+  await first.client.updateAddons(cache(2))
+  await new Promise(resolve => setTimeout(resolve, 5)) // the phone saves last
+  await second.client.updateAddons(cache(1))
+  first.state.records.push(second.state.records[0])
+  assert.equal((await first.client.getAddonVaultStatus()).state, "ready")
+  assert.equal(first.state.records.length, 1, "one successor replaces both branches")
+  assert.deepEqual((await first.client.getAddons()).addons[0].storage, { instances: { at: 1, hosts: ["https://a.test"] } })
+  second.state.records = structuredClone(first.state.records)
+  assert.equal((await second.client.getAddonVaultStatus()).state, "ready", "the other device accepts the settled snapshot")
+})
+
+test("a storage difference beside a setting difference still waits for review", async () => {
+  const { first } = await setup()
+  const second = device(first.state.records)
+  await second.client.unlockAddonVault(passphrase, false, true, "Phone")
+  await first.client.updateAddons(doc => ({ ...doc, addons: doc.addons.map(entry => ({ ...entry, storage: { at: 1 } })) }))
+  await second.client.updateAddons(doc => ({ ...doc, addons: doc.addons.map(entry => ({ ...entry, enabled: false })) }))
+  first.state.records.push(second.state.records[0])
+  assert.equal((await first.client.getAddonVaultStatus()).state, "conflict")
+  const [choice] = await first.client.getAddonVaultChoices()
+  assert.deepEqual(choice.differences.sort(), ["Vault example: on or off", "Vault example: stored data"])
+})
+
 test("an offer difference beside any other difference still waits for review", async () => {
   const { first } = await setup()
   const second = device(first.state.records)
