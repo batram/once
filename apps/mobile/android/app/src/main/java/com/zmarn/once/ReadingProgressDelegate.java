@@ -18,7 +18,7 @@ final class ReadingProgressDelegate implements GeckoSession.ProgressDelegate {
     @Override
     public void onPageStart(GeckoSession ignored, String url) {
         if (ignored != h.session) return;
-        if (h.awaitingRequestedStart && !h.sameAddress(h.requestedUrl, url)) return;
+        if (h.awaitingRequestedStart && !ReadingAddress.same(h.requestedUrl, url)) return;
         h.awaitingRequestedStart = false;
         h.offeredExternalUrl = null;
         h.painted = false;
@@ -40,7 +40,7 @@ final class ReadingProgressDelegate implements GeckoSession.ProgressDelegate {
         h.pageTitle = "";
         h.documentSourceUrl = h.currentUrl;
         h.documentStatus = 0;
-        if (!h.initialBlank && h.isSurfaceUrl(h.currentUrl)) { h.requestedUrl = h.currentUrl; h.armNavigation(); }
+        if (!h.initialBlank && ReadingAddress.surface(h.currentUrl)) { h.requestedUrl = h.currentUrl; h.armNavigation(); }
         if (!h.initialBlank) h.traceLoad("started");
         h.event("navigationStarted", h.activeNavigation, h.currentUrl);
     }
@@ -60,11 +60,11 @@ final class ReadingProgressDelegate implements GeckoSession.ProgressDelegate {
         // Only a background tab skips verification; a selected tab hidden
         // under a dialog or panel is verified once it is shown again.
         if (!h.visible && !h.ownsForeground()) { h.documentReady(); return; }
-        if (!h.isEmbeddable(h.currentUrl)) h.navigationDeadline = 0;
+        if (!ReadingAddress.embeddable(h.currentUrl)) h.navigationDeadline = 0;
         // A successful network stop does not mean a visible, responsive
         // document. The matching content-port health reply completes web
         // navigation, including BFCache restores and stalled subresources.
-        if (!h.isEmbeddable(h.currentUrl)) h.documentReady();
+        if (!ReadingAddress.embeddable(h.currentUrl)) h.documentReady();
         else if (!h.navigationCompleted) completeIfPdfViewer();
         h.nextHealthAt = 0;
         if (!h.initialBlank) {

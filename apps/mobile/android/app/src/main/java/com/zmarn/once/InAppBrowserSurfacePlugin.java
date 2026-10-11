@@ -138,7 +138,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @Override
     protected GeckoSession createWindow(String url) {
-        if (!isEmbeddable(url)) { openExternal(url); return null; }
+        if (!ReadingAddress.embeddable(url)) { openExternal(url); return null; }
         InAppBrowserSurfacePlugin root = owner == null ? this : owner;
         InAppBrowserSurfacePlugin tab = new InAppBrowserSurfacePlugin();
         tab.owner = root;
@@ -267,7 +267,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     public void open(PluginCall call) {
         if (!route(call, Missing.CREATE, tab -> tab.open(call))) return;
         String url = call.getString("url");
-        if (!isEmbeddable(url)) {
+        if (!ReadingAddress.embeddable(url)) {
             call.reject("Embedded browsing only supports http and https URLs");
             return;
         }
@@ -292,7 +292,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     public void navigate(PluginCall call) {
         if (!route(call, Missing.CREATE, tab -> tab.navigate(call))) return;
         String url = call.getString("url");
-        if (!isEmbeddable(url)) {
+        if (!ReadingAddress.embeddable(url)) {
             call.reject("Embedded browsing only supports http and https URLs");
             return;
         }
@@ -683,7 +683,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
                 if (reply.optLong("id", -1) != healthId || healthSentAt == 0) return;
                 healthSentAt = 0;
                 nextHealthAt = SystemClock.elapsedRealtime() + (navigationCompleted ? 5000 : 250);
-                if (!awaitingRequestedStart && sameAddress(currentUrl, reply.optString("url"))) {
+                if (!awaitingRequestedStart && ReadingAddress.same(currentUrl, reply.optString("url"))) {
                     JSONObject context = reply.optJSONObject("context");
                     if (context != null) {
                         documentSourceUrl = context.optString("sourceUrl", documentSourceUrl);

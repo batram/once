@@ -155,7 +155,7 @@ final class ReadingDisplay {
             h.recoverPage("The page did not become ready in time", true);
             return;
         }
-        if (h.bridgePort != null && h.healthSentAt == 0 && now >= h.nextHealthAt && h.isEmbeddable(h.currentUrl)) {
+        if (h.bridgePort != null && h.healthSentAt == 0 && now >= h.nextHealthAt && ReadingAddress.embeddable(h.currentUrl)) {
             try {
                 h.healthId++;
                 h.healthSentAt = now;

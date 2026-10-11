@@ -182,7 +182,7 @@ abstract class ReadingSurfaceHost extends Plugin {
             hiddenState = null;
             createReadingSession();
             armNavigation();
-            if (restores(restore, recoveryUrl())) session.restoreState(restore);
+            if (ReadingAddress.restores(restore, recoveryUrl())) session.restoreState(restore);
             else session.loadUri(recoveryUrl());
             return;
         }
@@ -193,7 +193,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         if (!session.isOpen()) {
             reopenSession();
             extensions.foregroundChanged();
-            if (pageRequested && isSurfaceUrl(recoveryUrl())) {
+            if (pageRequested && ReadingAddress.surface(recoveryUrl())) {
                 armNavigation(); session.loadUri(recoveryUrl());
             }
         } else { armNavigation(); session.reload(); }
@@ -505,7 +505,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         healthSentAt = 0;
         killedWhileHidden = false;
         finishRefresh();
-        boolean exhausted = recoveryAttempts++ >= 1 || !isSurfaceUrl(target);
+        boolean exhausted = recoveryAttempts++ >= 1 || !ReadingAddress.surface(target);
         long requestAtRecovery = requestedSequence.get();
         rebuilding = true;
         long generation = ++recoveryGeneration;
@@ -573,41 +573,6 @@ abstract class ReadingSurfaceHost extends Plugin {
         return intent;
     }
 
-    protected boolean isEmbeddable(String value) {
-        if (value == null) return false;
-        Uri uri = Uri.parse(value);
-        return "http".equalsIgnoreCase(uri.getScheme()) ||
-            "https".equalsIgnoreCase(uri.getScheme());
-    }
-
-    /**
-     * Gecko can report a snapshot with no history entries (seen right after a
-     * restored page starts); restoring one loads only about:blank. Only a
-     * snapshot that ends at the page being recovered is restored.
-     */
-    protected boolean restores(GeckoSession.SessionState state, String url) {
-        if (state == null || url.isEmpty()) return false;
-        int index = state.getCurrentIndex();
-        return index >= 0 && index < state.size() && sameAddress(state.get(index).getUri(), url);
-    }
-
-    protected boolean sameAddress(String first, String second) {
-        if (java.util.Objects.equals(first, second)) return true;
-        if (!isEmbeddable(first) || !isEmbeddable(second)) return false;
-        Uri a = Uri.parse(first), b = Uri.parse(second);
-        String ap = a.getEncodedPath(), bp = b.getEncodedPath();
-        if (ap == null || ap.isEmpty()) ap = "/";
-        if (bp == null || bp.isEmpty()) bp = "/";
-        return a.getScheme().equalsIgnoreCase(b.getScheme()) && java.util.Objects.equals(a.getHost(), b.getHost())
-            && a.getPort() == b.getPort() && ap.equals(bp) && java.util.Objects.equals(a.getEncodedQuery(), b.getEncodedQuery());
-    }
-
-    /** What the surface itself may show: web pages and the extensions' own pages. */
-    protected boolean isSurfaceUrl(String value) {
-        if (value == null) return false;
-        if (isEmbeddable(value) || "about:blank".equals(value)) return true;
-        return "moz-extension".equalsIgnoreCase(Uri.parse(value).getScheme());
-    }
 
     protected abstract GeckoSession createWindow(String url);
     protected abstract boolean ownsForeground();

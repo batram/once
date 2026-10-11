@@ -20,7 +20,7 @@ final class ReadingNavigationDelegate implements GeckoSession.NavigationDelegate
     ) {
         if (ignored != h.session || h.awaitingRequestedStart) return;
         h.currentUrl = url == null ? "" : url;
-        if (h.isSurfaceUrl(url)) h.requestedUrl = h.currentUrl;
+        if (ReadingAddress.surface(url)) h.requestedUrl = h.currentUrl;
         h.locationChanged(h.currentUrl);
         h.committedNavigation = h.activeNavigation;
         h.event("navigationCommitted", h.activeNavigation, h.currentUrl);
@@ -45,11 +45,11 @@ final class ReadingNavigationDelegate implements GeckoSession.NavigationDelegate
     public GeckoResult<AllowOrDeny> onLoadRequest(GeckoSession ignored, LoadRequest request) {
         if (ignored != h.session) return GeckoResult.deny();
         if (h.awaitingRequestedStart) {
-            if (h.sameAddress(request.uri, h.requestedUrl)) h.requestedLoadAccepted = true;
+            if (ReadingAddress.same(request.uri, h.requestedUrl)) h.requestedLoadAccepted = true;
             else if (request.isRedirect && h.requestedLoadAccepted) h.requestedUrl = request.uri;
             else if (request.isDirectNavigation) return GeckoResult.deny();
         }
-        if (h.isSurfaceUrl(request.uri)) return GeckoResult.fromValue(AllowOrDeny.ALLOW);
+        if (ReadingAddress.surface(request.uri)) return GeckoResult.fromValue(AllowOrDeny.ALLOW);
         // A tapped link may leave for its app; a redirect or script may not
         // without asking, and must not leave a loading page blank.
         if (request.hasUserGesture && !request.isRedirect) h.openExternal(request.uri);

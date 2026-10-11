@@ -11,6 +11,19 @@ enum UserscriptInjection {
         return result
     }
 
+    /// The page script for one enabled userscript entry, or nil when it is off or incomplete.
+    static func script(_ entry: JSObject) -> WKUserScript? {
+        guard entry["enabled"] as? Bool != false,
+              let id = entry["id"] as? String,
+              let body = entry["body"] as? String else { return nil }
+        let runAt = entry["runAt"] as? String
+        return WKUserScript(
+            source: source(id: id, body: body, metadata: entry),
+            injectionTime: runAt == "document-start" ? .atDocumentStart : .atDocumentEnd,
+            forMainFrameOnly: entry["noFrames"] as? Bool ?? false
+        )
+    }
+
     static func source(id: String, body: String, metadata: JSObject) -> String {
         let matches = metadata["matches"] as? [String] ?? []
         let includes = metadata["includes"] as? [String] ?? []

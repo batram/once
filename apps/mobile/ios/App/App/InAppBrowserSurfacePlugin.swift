@@ -617,16 +617,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         if let controller { installMediaObserver(controller) }
         extensionUserScripts = []
         for entry in document["scripts"] as? [JSObject] ?? [] {
-            guard entry["enabled"] as? Bool != false,
-                  let id = entry["id"] as? String,
-                  let body = entry["body"] as? String else { continue }
-            let source = UserscriptInjection.source(id: id, body: body, metadata: entry)
-            let runAt = entry["runAt"] as? String
-            let script = WKUserScript(
-                source: source,
-                injectionTime: runAt == "document-start" ? .atDocumentStart : .atDocumentEnd,
-                forMainFrameOnly: entry["noFrames"] as? Bool ?? false
-            )
+            guard let script = UserscriptInjection.script(entry) else { continue }
             extensionUserScripts.append(script)
             controller?.addUserScript(script)
         }
