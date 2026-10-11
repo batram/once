@@ -41,6 +41,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     // Only identities still likely to receive late calls need remembering.
     private final java.util.Set<String> retiredTabs = new java.util.LinkedHashSet<>();
     private static final int RETIRED_TAB_LIMIT = 256;
+    private final TabRecency recency = new TabRecency();
 
     /** What a call for a tab that has no runtime does: loads and menus create one. */
     private enum Missing { CREATE, RESOLVE, REJECT }
@@ -82,12 +83,18 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
             previous.destroyed = true;
             getActivity().runOnUiThread(previous::destroySurface);
         }
-        tab = new InAppBrowserSurfacePlugin();
+        return newTab(id, generation);
+    }
+
+    /** A tab runtime of this root plugin, registered under its identity. */
+    private InAppBrowserSurfacePlugin newTab(String id, String generation) {
+        InAppBrowserSurfacePlugin tab = new InAppBrowserSurfacePlugin();
         tab.owner = this;
         tab.tabId = id;
         tab.tabGeneration = generation;
         tab.setBridge(getBridge());
         tab.backgroundMedia = new BackgroundMedia(getContext());
+        recency.used(tab);
         tabs.put(id, tab);
         return tab;
     }
@@ -124,6 +131,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
                 if (engine != null && session != null && session.isOpen()) engine.runtime.getWebExtensionController().setTabActive(session, false);
             }
             if (extensions != null) extensions.foregroundChanged();
+            recency.selected(tabs.values(), selectedTab == null ? null : tabs.get(selectedTab));
             call.resolve();
         });
     }
@@ -140,14 +148,8 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     protected GeckoSession createWindow(String url) {
         if (!ReadingAddress.embeddable(url)) { openExternal(url); return null; }
         InAppBrowserSurfacePlugin root = owner == null ? this : owner;
-        InAppBrowserSurfacePlugin tab = new InAppBrowserSurfacePlugin();
-        tab.owner = root;
-        tab.tabId = java.util.UUID.randomUUID().toString();
-        tab.tabGeneration = java.util.UUID.randomUUID().toString();
-        tab.setBridge(getBridge());
-        tab.backgroundMedia = new BackgroundMedia(getContext());
+        InAppBrowserSurfacePlugin tab = root.newTab(java.util.UUID.randomUUID().toString(), java.util.UUID.randomUUID().toString());
         tab.ensureEngine();
-        root.tabs.put(tab.tabId, tab);
         tab.navigationReady = true;
         tab.adoptedWindow = true;
         tab.openedByPage = true;

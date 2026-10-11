@@ -163,11 +163,19 @@ abstract class ReadingSurfaceHost extends Plugin {
             level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL || level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND;
         if (!pressure) return;
         if (extensions != null) extensions.pages.trimHidden();
-        if (session == null || visible && resumed || backgroundMedia.keepsPlaying()) return;
+        if (releaseHiddenSession()) Log.i(TAG, "Released hidden reading session under memory pressure");
+    }
+
+    /**
+     * Closes a hidden page's session, keeping its state to restore when it is
+     * shown again. Playing media keeps its page. True when a session was released.
+     */
+    protected boolean releaseHiddenSession() {
+        if (session == null || visible && resumed || backgroundMedia.keepsPlaying()) return false;
         hiddenState = sessionState;
         releaseReadingSession();
         killedWhileHidden = true;
-        Log.i(TAG, "Released hidden reading session under memory pressure");
+        return true;
     }
 
     @Override
