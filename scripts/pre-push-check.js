@@ -94,7 +94,12 @@ function checkInWorktree(sha) {
 
 if (pushed.length === 0) process.exit(0)
 const head = git(["rev-parse", "HEAD"])
-const clean = git(["status", "--porcelain"]) === ""
+// Files hidden only by .git/info/exclude (local scratch folders) leave
+// `git status` clean, yet linters walking the checkout still see them; with
+// any of them present the checks run in a worktree that holds just the commit.
+const locallyExcluded = git(["ls-files", "--others", "--exclude-standard"]) !==
+  git(["ls-files", "--others", "--exclude-per-directory=.gitignore"])
+const clean = git(["status", "--porcelain"]) === "" && !locallyExcluded
 let failed = []
 for (const sha of pushed) {
   console.log(`pre-push: static checks on ${sha.slice(0, 8)}${sha === head && clean ? "" : " (clean worktree)"}`)
