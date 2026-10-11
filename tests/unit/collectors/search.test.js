@@ -2,6 +2,7 @@ require("../../helpers/dom").installDomGlobals()
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const reddit = require("../../../packages/collectors/dist/collectors/redditJson")
+const collectors = require("../../../packages/collectors/dist")
 
 const listing = {
   kind: "Listing",
@@ -43,6 +44,15 @@ test("Reddit's signed-out page instead of JSON yields no results rather than a t
   } finally {
     console.warn = warn
   }
+})
+
+test("Lobsters offers its own search page instead of fetched results", () => {
+  const ids = provider => provider.options.id
+  assert.ok(!collectors.global_search_providers().map(ids).includes("lobsters"))
+  assert.ok(collectors.domain_search_providers().map(ids).includes("lobsters"))
+  const [lobsters] = collectors.site_search_providers().filter(p => p.options.id === "lobsters")
+  assert.equal(lobsters.site_search.label, "lobsters")
+  assert.equal(lobsters.site_search.url("rust & go"), "https://lobste.rs/search?what=stories&order=relevance&q=rust%20%26%20go")
 })
 
 test("Reddit domain search is a site: search with the same session", async () => {

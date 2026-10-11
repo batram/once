@@ -46,6 +46,8 @@
   --panel-titlebar-block-padding: 5px;
   --search-titlebar-inline-start: 15px;
   --search-scope-inline-size: 70px;
+  /* The scope menu's rendered width; storySearch sets it on .search_query. */
+  --search-scope-measured-size: 0px;
   --search-field-inline-overhang: 8px;
   --source-badge-font-size: 6.9pt;
 

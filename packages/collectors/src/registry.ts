@@ -84,6 +84,13 @@ export declare interface StoryParser {
   global_search?: (needle: string, io: SearchIO) => Promise<Story[]>
   domain_search?: (needle: string, io: SearchIO) => Promise<Story[]>
   /**
+   * The site's own search, offered as an entry of its own in the search scope
+   * menu: Enter opens the search page in a tab with the query filled in. For
+   * sites whose search a fetch cannot use (Lobsters puts it behind a bot
+   * check), so the person searches there, the way the site intends.
+   */
+  site_search?: { label: string; url: (needle: string) => string }
+  /**
    * Reads the discussion behind a comment URL, for collectors whose site has
    * one worth showing natively. Optional: without it the comment page is
    * simply shown as a page.
@@ -95,6 +102,8 @@ export type GlobalSearchProvider = StoryParser &
   Required<Pick<StoryParser, "global_search">>
 export type DomainSearchProvider = StoryParser &
   Required<Pick<StoryParser, "domain_search">>
+export type SiteSearchProvider = StoryParser &
+  Required<Pick<StoryParser, "site_search">>
 export type CommentsProvider = StoryParser &
   Required<Pick<StoryParser, "comments">>
 
@@ -152,7 +161,7 @@ function builtinCollectors(): StoryParser[] {
       options: lobstersHtml.options,
       parse: lobstersHtml.parse,
       domain_search: lobstersHtml.domain_search,
-      global_search: lobstersHtml.global_search,
+      site_search: lobstersHtml.site_search,
       comments: lobstersComments.comments
     },
     {
@@ -194,6 +203,12 @@ export function global_search_providers(): GlobalSearchProvider[] {
 export function domain_search_providers(): DomainSearchProvider[] {
   return get_active().filter((parser): parser is DomainSearchProvider => {
     return parser.domain_search !== undefined
+  })
+}
+
+export function site_search_providers(): SiteSearchProvider[] {
+  return get_active().filter((parser): parser is SiteSearchProvider => {
+    return parser.site_search !== undefined
   })
 }
 

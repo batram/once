@@ -38,7 +38,12 @@
   width: auto;
   height: 100%;
   margin: 0;
-  padding-left: var(--search-scope-inline-size);
+  /* A site's own search can have a longer name than "global"; the text then
+     starts after the scope menu, as storySearch measures it. */
+  padding-left: max(
+    var(--search-scope-inline-size),
+    calc(var(--search-scope-measured-size) + var(--search-field-inline-overhang) + var(--sp-1))
+  );
   padding-right: var(--toolbar-control-size);
 }
 

@@ -2,6 +2,7 @@ import { Story } from "@once/core"
 import * as StoryList from "./storyList"
 import { StoryListItem } from "./StoryListItem"
 import { applyStoryFilters } from "@once/core"
+import { site_search_providers } from "@once/collectors"
 import { getOnceClient } from "../client"
 import { getKeyboardDispatcher } from "../keyboard"
 import { requireElement } from "../dom"
@@ -22,6 +23,8 @@ export function init(): void {
     searchfield.select()
   })
 
+  addSiteSearchScopes(search_scope)
+
   searchfield.addEventListener("input", () => {
     if (search_scope.value == "local") {
       searchStories(searchfield.value)
@@ -29,6 +32,7 @@ export function init(): void {
   })
 
   search_scope.addEventListener("change", () => {
+    syncPlaceholder(searchfield, search_scope.value)
     if (searchfield.value != "") {
       searchStories(searchfield.value)
     }
@@ -51,7 +55,9 @@ export function init(): void {
       searchStories(searchfield.value)
     } else if (e.keyCode === 13) {
       //ENTER
-      searchStories(searchfield.value)
+      if (!openSiteSearch(search_scope.value, searchfield.value)) {
+        searchStories(searchfield.value)
+      }
     }
   })
 
@@ -59,6 +65,49 @@ export function init(): void {
     searchfield.value = ""
     searchStories("")
   }
+}
+
+const SITE_SCOPE = "site:"
+
+/** One entry per collector with a search of its site's own, after local and global. */
+function addSiteSearchScopes(search_scope: HTMLInputElement): void {
+  site_search_providers().forEach((provider) => {
+    const option = document.createElement("option")
+    option.value = SITE_SCOPE + provider.options.id
+    option.textContent = provider.site_search.label
+    search_scope.append(option)
+  })
+  // The menu is as wide as its longest entry, and the search text has to start
+  // after it; search.css reads the width from here.
+  if (typeof ResizeObserver === "undefined") return
+  new ResizeObserver(() => {
+    const width = Math.ceil(search_scope.getBoundingClientRect().width)
+    search_scope.parentElement?.style.setProperty("--search-scope-measured-size", `${width}px`)
+  }).observe(search_scope)
+}
+
+let default_placeholder: string | null = null
+
+/** A site's own search says that Enter is what leaves for the site. */
+function syncPlaceholder(searchfield: HTMLInputElement, scope: string): void {
+  default_placeholder ??= searchfield.placeholder
+  const provider = scope.startsWith(SITE_SCOPE)
+    ? site_search_providers().find((p) => SITE_SCOPE + p.options.id === scope)
+    : undefined
+  searchfield.placeholder = provider
+    ? `Enter opens the ${provider.site_search.label} search page`
+    : default_placeholder
+}
+
+/** Opens the site's search page when a site scope is selected; false otherwise. */
+function openSiteSearch(scope: string, needle: string): boolean {
+  if (!scope.startsWith(SITE_SCOPE)) return false
+  const id = scope.substring(SITE_SCOPE.length)
+  const provider = site_search_providers().find((p) => p.options.id === id)
+  if (provider && needle.trim() != "") {
+    getOnceClient().openUrl(provider.site_search.url(needle.trim()), "_self")
+  }
+  return true
 }
 
 const specialk: Record<string, () => void> = {
@@ -105,6 +154,7 @@ const extra_search_providers: Record<
     func: async (needle: string) => {
       const search_scope = requireElement<HTMLInputElement>("#search_scope")
       search_scope.value = "global"
+      syncPlaceholder(requireElement<HTMLInputElement>("#searchfield"), search_scope.value)
       getOnceClient().searchCollectors("domain", needle).forEach((search) => {
         search.then((res: Story[]) => {
           add_global_search_results(res)
@@ -127,6 +177,8 @@ export async function searchStories(needle: string): Promise<void> {
     requireElement<HTMLInputElement>("#search_scope")
 
   searchfield.value = needle
+  // Other code sets the scope without a change event (the sidebar's filters).
+  syncPlaceholder(searchfield, search_scope.value)
 
   story_container.classList.remove("show_filtered")
   story_container.classList.remove("search-hidden")
@@ -162,6 +214,14 @@ export async function searchStories(needle: string): Promise<void> {
       extra_search_providers[proto].func(needle)
       return
     }
+  }
+
+  // A site's own search is a query for the site, not for this list, which
+  // stays whole until Enter opens the site.
+  if (search_scope.value.startsWith(SITE_SCOPE)) {
+    story_container.classList.remove("show_stored_star")
+    local_search("")
+    return
   }
 
   if (needle != "" && search_scope.value == "global") {

@@ -98,15 +98,10 @@ export async function domain_search(domain: string, io: SearchIO): Promise<Story
   }
 }
 
-export async function global_search(needle: string, io: SearchIO): Promise<Story[]> {
-  const search_url = "https://lobste.rs/search?what=stories&order=relevance&q="
-
-  const res = await io.fetch(search_url + encodeURIComponent(needle))
-  if (res.ok) {
-    const content = await res.text()
-    const dom_parser = new DOMParser()
-    const doc = dom_parser.parseFromString(content, "text/html")
-    return parse(doc)
-  }
-  return []
+// Lobsters answers a fetched search with its Anubis bot check, so search is
+// offered as the site's own page, opened in a tab, rather than as results.
+export const site_search = {
+  label: "lobsters",
+  url: (needle: string): string =>
+    "https://lobste.rs/search?what=stories&order=relevance&q=" + encodeURIComponent(needle)
 }
