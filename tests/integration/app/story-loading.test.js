@@ -128,7 +128,10 @@ test("includes stared stories outside the bounded working set", async () => {
   assert.equal(stories.some((story) => story.href === stored[500].href), true)
 })
 
-test("includes stored stared stories when a source fills the visible list", async () => {
+// Starred stories announce themselves once, when startup restores them. A
+// source batch used to repeat every one of them, and the list redrew those
+// rows once per source on every reload.
+test("presents stored stared stories once, not with every source", async () => {
   const sourceUrl = "https://old.reddit.com/r/netsec/.json"
   const stared = new Story(
     "rss",
@@ -149,12 +152,14 @@ test("includes stored stared stories when a source fills the visible list", asyn
   app.client.subscribe("storiesChanged", ({ stories }) => batches.push(stories))
 
   await app.start()
+  const atStartup = batches.length
   await app.client.reloadStories("network-only")
 
-  assert.equal(
-    batches.at(-1).some((story) => story.href === stared.href),
-    true
-  )
+  const carrying = (list) => list.filter((stories) =>
+    stories.some((story) => story.href === stared.href))
+  assert.equal(carrying(batches.slice(0, atStartup)).length, 1)
+  assert.ok(batches.length > atStartup, "the source delivered its own batch")
+  assert.deepEqual(carrying(batches.slice(atStartup)), [])
 })
 
 test("loads a saved source once when PouchDB echoes the local setting change", async () => {

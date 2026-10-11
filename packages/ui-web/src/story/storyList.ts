@@ -131,8 +131,14 @@ function add(story: Story, bucket = "stories"): void {
   const existingStories = storyElementsForHref(story.href)
   if (existingStories.length > 0) {
     // storiesChanged is an upsert, not an insert-only hint. This also repairs
-    // a stale row if presentation and the app working set ever diverge.
+    // a stale row if presentation and the app working set ever diverge. A row
+    // that already shows the story only takes the new instance: redrawing it
+    // would pull the element out from under a finger mid-swipe or mid-tap.
     existingStories.forEach((existing) => {
+      if (existing.shows(story)) {
+        existing.story = story
+        return
+      }
       existing.dispatchEvent(
         new DataChangeEvent("data_change", {
           story,

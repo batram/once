@@ -122,8 +122,12 @@ export function attachPullToRefresh(
     }
   }
 
+  // The axis lock is shared with the story swipe, which only moves a row once
+  // this records "horizontal". So the gesture is tracked even mid-refresh;
+  // only the pull itself is refused. Skipping it left every swipe dead until
+  // the slowest source had loaded, long after the strip had folded away.
   const onStart = (event: TouchEvent): void => {
-    if (refreshing || event.touches.length !== 1) {
+    if (event.touches.length !== 1) {
       return
     }
     const touch = event.touches[0]
@@ -133,15 +137,12 @@ export function attachPullToRefresh(
     startY = touch.clientY
     startX = touch.clientX
     beginTouchGesture(scroller, startX, startY)
-    armed = scroller.scrollTop <= 0
+    armed = !refreshing && scroller.scrollTop <= 0
     pulling = false
     pull = 0
   }
 
   const onMove = (event: TouchEvent): void => {
-    if (refreshing) {
-      return
-    }
     const touch = event.touches[0]
     if (!touch) {
       return

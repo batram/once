@@ -22,6 +22,7 @@ import {
 } from "./storyRowMarkup"
 import { renderSubstories } from "./storyRowSubstories"
 import { attachStorySwipe, SwipePreview } from "./swipe/gesture"
+import { storyRowFingerprint } from "./storyRowFingerprint"
 
 export class StoryListItem extends HTMLElement {
   static devToolsEnabled = false
@@ -37,6 +38,8 @@ export class StoryListItem extends HTMLElement {
   substories_el!: HTMLElement
   menu_btn!: HTMLElement
   private cancelReadAnimation?: () => void
+  // The story as the row currently shows it; see storyRowFingerprint.
+  private shownFingerprint = ""
   /** Set only on the swipe settings sample row; see SwipePreview. */
   swipePreview?: SwipePreview
 
@@ -103,6 +106,7 @@ export class StoryListItem extends HTMLElement {
     this.add_menu_button()
     applyStoryElements(this)
     this.button_events()
+    this.shownFingerprint = storyRowFingerprint(this.story)
 
     if (add_listeners) {
       attachStorySwipe(this)
@@ -192,6 +196,12 @@ export class StoryListItem extends HTMLElement {
     } else {
       this.update_complete_story_el()
     }
+    this.shownFingerprint = storyRowFingerprint(this.story)
+  }
+
+  /** Whether drawing `story` would leave this row exactly as it is. */
+  shows(story: Story): boolean {
+    return this.shownFingerprint === storyRowFingerprint(story)
   }
 
   update_complete_story_el(): void {

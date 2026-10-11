@@ -375,7 +375,6 @@ export class AppRuntime {
         if (story.contentSource() !== "page") this.requestStoryContent(story.href)
       }
     }
-    this.getAllStared().forEach((story) => mappedStories.push(story))
     this.events.publish("storiesChanged", {
       stories: mappedStories,
       bucket: "stories"
@@ -423,10 +422,6 @@ export class AppRuntime {
     return Promise.all(
       stories.map((story) => this.addStory(story, "stories", stored.get(story.href)))
     )
-  }
-
-  private getAllStared(): Story[] {
-    return this.workingSet.snapshot().filter((story) => story.stared)
   }
 
   private addStory(
