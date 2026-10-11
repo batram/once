@@ -81,6 +81,8 @@
         // The extensions menu window: a Forge entry with its own preload.
         "src/extensions/extensionMenuRenderer.ts",
         "src/extensions/extensionMenuPreload.ts",
+        "src/menus/browserMenuRenderer.ts",
+        "src/menus/browserMenuPreload.ts",
         // The addon conversation page: a Forge entry in a browser tab, with the preload that relays to the shell.
         "src/addonConversation.ts",
         "src/addonConversationPreload.ts",

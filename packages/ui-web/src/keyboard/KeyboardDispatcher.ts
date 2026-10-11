@@ -76,6 +76,11 @@ export class KeyboardDispatcher {
     return true
   }
 
+  /** The chords bound to a command, for menus that show its shortcut. */
+  chordsForCommand(id: KeyCommandId): string[] {
+    return [...this.bindings].filter(([, ids]) => ids.includes(id)).map(([chord]) => chord)
+  }
+
   /** Chords worth forwarding from a focused web page in the Electron shell. */
   boundChords(): string[] {
     return [...this.bindings.keys()]

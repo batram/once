@@ -295,6 +295,8 @@ const bridge: ElectronBridge = {
   window: {
     setFullscreen: (fullscreen) =>
       ipcRenderer.invoke(ELECTRON_IPC.windowSetFullscreen, fullscreen),
+    showBrowserMenu: (anchor, shortcuts) =>
+      ipcRenderer.invoke(ELECTRON_IPC.windowShowBrowserMenu, anchor, shortcuts),
     create: () => ipcRenderer.invoke(ELECTRON_IPC.windowCreate),
     focusShell: () => ipcRenderer.invoke(ELECTRON_IPC.windowFocusShell),
     setForwardedKeys: (chords: string[]) =>

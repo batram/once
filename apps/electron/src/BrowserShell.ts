@@ -41,7 +41,6 @@ export class BrowserShell {
   private readonly forwardButton: HTMLButtonElement
   private readonly reloadButton: HTMLButtonElement
   private readonly readerButton: HTMLButtonElement
-  private readonly closeButton: HTMLButtonElement
   private readonly splitter: HTMLElement
   private draggingTabId: string | null = null
   private dropHandled = false
@@ -98,7 +97,6 @@ export class BrowserShell {
     this.forwardButton = required<HTMLButtonElement>("#browser_forward")
     this.reloadButton = required<HTMLButtonElement>("#browser_reload")
     this.readerButton = required<HTMLButtonElement>("#browser_reader")
-    this.closeButton = required<HTMLButtonElement>("#browser_close")
     this.pageAddonActions = new PageAddonActions(this.bridge, required<HTMLElement>("#page_addon_actions"))
 
     this.bindStoryPosition()
@@ -185,7 +183,6 @@ export class BrowserShell {
       if (!isReadableUrl(active.url)) return
       this.readerRequests.start(active.id, active.url)
     }
-    this.closeButton.onclick = () => this.withActive((tab) => this.bridge.tabs.close(tab.id))
   }
 
   private bindTabs(): void {
@@ -513,7 +510,6 @@ export class BrowserShell {
         ? "Preparing reader mode…"
         : readerActive ? "Exit reader mode" : "Reader mode"
       this.readerButton.setAttribute("aria-label", this.readerButton.title)
-      this.closeButton.disabled = false
     } else {
       this.renderedAddressTabId = null
       this.renderedAddressUrl = ""
@@ -523,7 +519,6 @@ export class BrowserShell {
       this.readerButton.disabled = true
       this.readerButton.classList.remove("active", "pending")
       this.readerButton.removeAttribute("aria-busy")
-      this.closeButton.disabled = true
     }
     this.reportBounds()
   }

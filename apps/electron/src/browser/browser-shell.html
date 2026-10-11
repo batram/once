@@ -24,8 +24,10 @@
     </button>
     <div id="page_addon_actions" role="toolbar" aria-label="Add-on actions"></div>
     <div id="extension_actions" role="toolbar" aria-label="Browser Extensions"></div>
-    <button type="button" id="browser_close" class="browser-button image-button" title="Close tab" aria-label="Close tab">
-      <span class="icon icon--chrome icon--x" aria-hidden="true"></span>
+    <button type="button" id="browser_menu" class="browser-button image-button" title="Browser menu"
+      aria-label="Browser menu" aria-haspopup="menu" aria-expanded="false" data-testid="browser-menu">
+      <!-- The mobile reading toolbar's burger: three wide bars, not the story rows' ⋮. -->
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h14" /></svg>
     </button>
   </div>
   <div id="url_error" role="alert" aria-live="polite"></div>

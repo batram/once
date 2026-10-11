@@ -428,6 +428,12 @@ export interface ElectronBridge {
   }
   window: {
     setFullscreen(fullscreen: boolean): Promise<void>
+    /**
+     * The burger menu under `anchor`, listing `shortcuts` beside its commands.
+     * Resolves with the command the shell should run: "new-tab", "new-window",
+     * "close-tab" or "fullscreen"; null when the menu closed without one.
+     */
+    showBrowserMenu(anchor: ElectronRect, shortcuts: Record<string, string>): Promise<string | null>
     create(): Promise<void>
     focusShell(): Promise<void>
     /** Chords the main process should steal from a focused page and forward. */
@@ -503,6 +509,7 @@ export const ELECTRON_IPC = {
   tabSyncDeselected: "once:tabsync:deselected",
   tabSyncSendTargets: "once:tabsync:send-targets",
   tabSyncSendTab: "once:tabsync:send-tab",
+  windowShowBrowserMenu: "once:window:show-browser-menu",
   zoomGetInterface: "once:zoom:get-interface",
   zoomSetInterface: "once:zoom:set-interface",
   zoomResetPages: "once:zoom:reset-pages",

@@ -39,20 +39,15 @@ function harness(pageActions) {
   menus.pageActions.set(owner, pageActions)
   const contents = { isDestroyed: () => false, getTitle: () => "Page title" }
   const params = { x: 1, y: 1, isEditable: false, selectionText: "", linkURL: "", linkText: "", pageURL: "https://a.test/page", editFlags: {} }
-  // A web page's menu always ends with clearing its site's data.
-  const CLEAR = ["separator", "Clear Data for a.test…"]
-  const labels = () => {
-    const all = menu.map(item => item.label ?? item.type)
-    return all.at(-1)?.startsWith("Clear Data for ") ? all.slice(0, -2) : all
-  }
+  const labels = () => menu.map(item => item.label ?? item.type)
   const click = label => menu.find(item => item.label === label).click()
-  return { menus, owner, shell, contents, params, ran, labels, click, CLEAR, menu: () => menu }
+  return { menus, owner, shell, contents, params, ran, labels, click, menu: () => menu }
 }
 
 test("a page's menu offers each add-on action for the page and, under a link, for the link", () => {
   const h = harness([{ id: "addon:what-wait-who-why/explain", label: "Explain" }])
   h.menus.showContentsMenu(h.owner, h.contents, h.params)
-  assert.deepEqual(h.menu().map(item => item.label ?? item.type), ["Inspect", "separator", "Explain", ...h.CLEAR])
+  assert.deepEqual(h.menu().map(item => item.label ?? item.type), ["Inspect", "separator", "Explain"])
   h.click("Explain")
   assert.deepEqual(h.ran, [{ channel: "once:addons:page-action-run", id: "addon:what-wait-who-why/explain", page: { href: "https://a.test/page", title: "Page title" } }])
 
@@ -62,17 +57,19 @@ test("a page's menu offers each add-on action for the page and, under a link, fo
   assert.deepEqual(h.ran.at(-1), { channel: "once:addons:page-action-run", id: "addon:what-wait-who-why/explain", page: { href: "https://a.test/link", title: "The link" } })
 })
 
-test("a web page's menu clears its whole site, a reader view its source's, and nothing else offers it", () => {
+// Clearing a site lives in the browser menu and the tab's menu, not under the cursor on the page.
+test("a tab's menu clears its whole site, a reader view its source's; the page menu never offers it", () => {
   const h = harness([])
+  const clears = () => h.menu().some(item => item.label?.startsWith("Clear Data"))
   h.menus.showContentsMenu(h.owner, h.contents, { ...h.params, pageURL: "https://news.example.co.uk/story" })
+  assert.ok(!clears(), "the page's own menu")
+  h.menus.showTabMenu(h.owner, "tab", { x: 1, y: 1 }, false, false, "https://news.example.co.uk/story")
   h.click("Clear Data for example.co.uk…")
   assert.deepEqual(h.ran.at(-1), { cleared: "example.co.uk" })
-  h.menus.showContentsMenu(h.owner, h.contents, { ...h.params, pageURL: "once-reader://https/www.example.com/article" })
-  assert.equal(h.menu().at(-1).label, "Clear Data for example.com…")
-  h.menus.showContentsMenu(h.owner, h.shell, h.params)
-  assert.ok(!h.menu().some(item => item.label?.startsWith("Clear Data")), "the shell's own window")
-  h.menus.showContentsMenu(h.owner, h.contents, { ...h.params, pageURL: "about:blank" })
-  assert.ok(!h.menu().some(item => item.label?.startsWith("Clear Data")), "a page off the web")
+  h.menus.showTabMenu(h.owner, "tab", { x: 1, y: 1 }, false, false, "once-reader://https/www.example.com/article")
+  assert.ok(h.menu().some(item => item.label === "Clear Data for example.com…"))
+  h.menus.showTabMenu(h.owner, "tab", { x: 1, y: 1 }, false, false, "about:blank")
+  assert.ok(!clears(), "a page off the web")
 })
 
 test("conditions filter the page and link independently, including reader source URLs", () => {

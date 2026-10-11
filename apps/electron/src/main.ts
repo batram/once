@@ -19,6 +19,7 @@ import { SecureSettings } from "./SecureSettings"
 import { registerIpcHandlers } from "./IpcHandlers"
 import { registerPanelPageHandlers } from "./browser/PanelPages"
 import { loadShellZoom, registerZoomSettingHandlers, shellZoomFactor } from "./browser/ZoomSettings"
+import { registerBrowserMenuHandlers } from "./browser/BrowserMenu"
 import { recordBrowsingOrigins, registerBrowsingDataHandlers } from "./browser/BrowsingData"
 import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { OFFSCREEN_TEST_POSITION, isBackgroundMode } from "./browser/WindowLifecycle"
@@ -363,6 +364,7 @@ app
     })
     registerPanelPageHandlers(browserCoordinator)
     registerZoomSettingHandlers(browserCoordinator, secureSettings)
+    registerBrowserMenuHandlers(browserCoordinator)
     registerBrowsingDataHandlers(browserCoordinator)
     new RemoteTabsRelay(browserCoordinator).register()
     extensions.manager.onSyncChanged = document => {

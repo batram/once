@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src data:; connect-src 'none'">
+    <title>Browser menu</title>
+  </head>
+  <body>
+    <div id="menu" role="menu" aria-label="Browser menu">
+      <button type="button" role="menuitem" data-action="new-tab"><span>New tab</span><kbd data-shortcut="new-tab"></kbd></button>
+      <button type="button" role="menuitem" data-action="new-window"><span>New window</span><kbd data-shortcut="new-window"></kbd></button>
+      <hr>
+      <div class="zoom-row" role="group" aria-labelledby="zoom-label">
+        <span id="zoom-label">Zoom</span>
+        <button type="button" class="icon-button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out (Ctrl+-)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button>
+        <button type="button" class="zoom-value" id="zoom-value" data-action="zoom-reset" aria-label="Reset zoom" title="Reset to 100% (Ctrl+0)">100%</button>
+        <button type="button" class="icon-button" data-action="zoom-in" aria-label="Zoom in" title="Zoom in (Ctrl++)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12M12 6v12"/></svg></button>
+        <button type="button" class="icon-button" id="fullscreen" data-action="fullscreen" aria-label="Full screen" title="Full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
+      </div>
+      <hr id="site-divider">
+      <button type="button" role="menuitem" id="clear-site" data-action="clear-site"><span id="clear-site-label">Clear site data…</span></button>
+      <hr>
+      <button type="button" role="menuitem" data-action="close-tab"><span>Close tab</span><kbd data-shortcut="close-tab"></kbd></button>
+    </div>
+    <p id="error" role="alert" hidden></p>
+  </body>
+</html>

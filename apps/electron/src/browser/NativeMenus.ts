@@ -211,7 +211,6 @@ export class NativeMenus {
         click: () => this.pageActions.run(owner, action.id, { href: link as string, title: params.linkText })
       })
     }
-    template.push(...clearSiteItems(owner, page))
 
     Menu.buildFromTemplate(template).popup({ window: owner.window })
   }

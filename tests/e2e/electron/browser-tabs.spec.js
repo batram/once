@@ -69,7 +69,7 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
         "browser_forward",
         "urlfield",
         "browser_reload",
-        "browser_close"
+        "browser_menu"
       ].map((id) => {
         const rect = document.getElementById(id).getBoundingClientRect()
         return { top: Math.round(rect.top), height: Math.round(rect.height) }
@@ -83,12 +83,9 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
       "width",
       "16px"
     )
-    await expect(window.locator("#browser_close .icon")).toHaveCSS(
-      "width",
-      "9px"
-    )
+    await expect(window.locator("#browser_menu svg")).toHaveCSS("width", "16px")
     for (const icon of await window.locator(
-      "#browser_reload .icon, #browser_close .icon"
+      "#browser_reload .icon, #browser_menu svg"
     ).all()) {
       await expect(icon).toHaveCSS("opacity", "0.75")
     }

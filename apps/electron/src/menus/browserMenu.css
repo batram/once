@@ -1,0 +1,101 @@
+@layer platform {
+:root {
+  /* Standalone popup, like the extensions panel: the shell's token
+     stylesheet is not loaded in this document. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --fs-dense: 13px;
+  --radius-lg: 6px;
+  color-scheme: light dark;
+  font: var(--fs-dense) system-ui, sans-serif;
+  color: light-dark(#202124, #e8eaed);
+  background: light-dark(#fff, #292a2d);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: var(--sp-1);
+  border: 1px solid light-dark(#dadce0, #55565a);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  border-radius: var(--radius-lg);
+}
+
+button:hover:not(:disabled) { background: light-dark(#f1f3f4, #3c4043); }
+button:focus-visible { outline: 2px solid light-dark(#1a73e8, #8ab4f8); outline-offset: -2px; }
+button:disabled { opacity: 0.5; cursor: default; }
+[hidden] { display: none !important; }
+
+[role="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  width: 100%;
+  min-height: 32px;
+  padding: var(--sp-1) var(--sp-3);
+  text-align: left;
+}
+
+[role="menuitem"] > span { flex: 1; }
+
+kbd {
+  font: inherit;
+  opacity: 0.7;
+}
+
+hr {
+  margin: var(--sp-1) var(--sp-2);
+  border: 0;
+  border-top: 1px solid light-dark(#dadce0, #55565a);
+}
+
+.zoom-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 36px;
+  padding: 0 var(--sp-1) 0 var(--sp-3);
+}
+
+#zoom-label { flex: 1; }
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.icon-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.zoom-value {
+  min-width: 48px;
+  height: 30px;
+  font-variant-numeric: tabular-nums;
+}
+
+#fullscreen {
+  margin-left: var(--sp-2);
+}
+
+#error { margin: var(--sp-1) var(--sp-3); color: light-dark(#b3261e, #f2b8b5); }
+}

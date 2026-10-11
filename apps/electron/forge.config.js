@@ -108,6 +108,12 @@ module.exports = {
         config: "./webpack.renderer.config.js",
         entryPoints: [
           {
+            html: "./src/menus/browser-menu.html",
+            js: "./src/menus/browserMenuRenderer.ts",
+            name: "browser_menu",
+            preload: { js: "./src/menus/browserMenuPreload.ts" }
+          },
+          {
             html: "./src/extensions/extension-menu.html",
             js: "./src/extensions/extensionMenuRenderer.ts",
             name: "extension_menu",
