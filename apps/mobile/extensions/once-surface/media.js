@@ -5,6 +5,24 @@ globalThis.installOnceMediaBridge = function (port) {
   let enabled = false
   let lastSent = 0
   let selected = null
+  let pictureInPicture = false
+  const restoreWindow = []
+  // Mobile YouTube guesses PiP from outer-window area, then exits fullscreen
+  // and pauses. Native PiP owns that transition; preserve the reported outer
+  // screen bounds while leaving the actual video viewport responsive.
+  if (youtube && typeof window !== "undefined" && window.wrappedJSObject && typeof exportFunction === "function") {
+    const page = window.wrappedJSObject
+    for (const [key, dimension] of [["outerWidth", "width"], ["outerHeight", "height"]]) {
+      const original = Object.getOwnPropertyDescriptor(page, key)
+      if (!original?.configurable) continue
+      const getter = exportFunction(() => pictureInPicture ? window.screen[dimension] :
+        original.get ? Reflect.apply(original.get, page, []) : original.value, page)
+      Object.defineProperty(page, key, { configurable: true, enumerable: original.enumerable, get: getter, set: original.set })
+      restoreWindow.push(() => {
+        if (Object.getOwnPropertyDescriptor(page, key)?.get === getter) Object.defineProperty(page, key, original)
+      })
+    }
+  }
   const video = () => selected?.isConnected ? selected :
     (youtube && document.querySelector("video.html5-main-video")) || document.querySelector("video, audio")
   const seekable = media => Number.isFinite(media.duration) && media.duration > 0 &&
@@ -36,6 +54,7 @@ globalThis.installOnceMediaBridge = function (port) {
   port.onMessage.addListener(message => {
     if (message?.type === "media-observe") {
       enabled = message.enabled === true
+      pictureInPicture = message.pictureInPicture === true
       send(true)
     } else if (enabled && message?.type === "media-command" && message.url === location.href) {
       const media = video()
@@ -47,6 +66,8 @@ globalThis.installOnceMediaBridge = function (port) {
   })
   const cleanup = () => {
     enabled = false
+    pictureInPicture = false
+    for (const restore of restoreWindow) restore()
     for (const name of ["play", "pause", "seeked", "durationchange", "loadedmetadata", "ratechange", "yt-navigate-finish"]) {
       document.removeEventListener(name, changed, true)
     }

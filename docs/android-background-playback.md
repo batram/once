@@ -89,7 +89,10 @@ in portrait and landscape, against light and dark page backgrounds, with hardwar
 and gesture Back. It saves screenshots in the test app's
 external files directory. `BackgroundMediaTest#youtubeFullscreenEntersPip` is an
 opt-in live YouTube smoke (`-e youtubeLive true`) that requires a playable network
-stream. Run these only on an explicitly selected local emulator in Once Dev.
+stream. Run the fullscreen fixture on an explicitly selected local emulator in
+Once Dev, or in `com.zmarn.once.geckotest.dev` on a physical phone. The isolated
+test application keeps the user's Once profiles separate. The live YouTube
+instrumentation smoke remains emulator-only.
 
 The fullscreen/PiP test passed on the Android 16 emulator, including DOM/native
 geometry and playback controls with background playback disabled. The existing
@@ -98,8 +101,49 @@ cycle), including hidden-tab playback, backgrounding, screen-off resume, seeking
 and cleanup. The live
 YouTube PiP smoke remains unverified: the latest runs stopped before fullscreen
 because the video stream stayed at `readyState = 0`. An earlier run loaded and
-played the stream, but did not complete the fullscreen/PiP round trip. Physical
-Android devices and the Android 8–11 PiP entry path still need validation.
+played the stream, but did not complete the fullscreen/PiP round trip.
+Other Android devices and the Android 8–11 PiP entry path still need validation.
+
+Physical Samsung Galaxy S20 FE (SM-G780G, Android 13) testing exposed a
+second failure that clock-only assertions missed: audio kept advancing after
+Android killed Gecko's cached GPU process, while video displayed a corrupt-file
+error. Both a generated WebM and a fixed H.264/AAC clip reproduced it. PiP now
+holds a balanced Gecko foreground reference while visible; opted-in background
+media holds one while playing. Each releases its reference when its ownership
+ends. This prevents GeckoRuntime's activity-pause notification from demoting the
+GPU service while playback still needs its decoder surfaces. This uses
+GeckoThread's reference-counted pause/resume integration and must be rechecked
+when upgrading GeckoView.
+
+The device regression uses a fixed H.264/AAC fixture and checks decoder errors
+and visible video-frame progression as well as the media clock. It also covers
+portrait/landscape, light/dark backgrounds, PiP Pause/Play, return, Back and
+paused-video exclusion. A paused fullscreen -> Home -> resume -> PiP regression
+explicitly clears media-session dimensions: `ReadingVideo` retains the current
+presentation's last dimensions until fullscreen exits.
+
+The mobile YouTube player also infers PiP from the outer-window/screen area
+ratio, then calls `document.exitFullscreen()` and repeatedly pauses playback.
+During native PiP only, the built-in media bridge reports the outer screen bounds
+to YouTube's page world. The real inner viewport still resizes to the PiP window;
+normal outer-window getters are restored on PiP exit or bridge disconnection.
+Other sites are unchanged. The bridge version is bumped so existing profiles
+receive this compatibility update.
+
+The packaged build passed live mobile and desktop-site YouTube fullscreen ->
+Home -> PiP -> return checks on that Samsung. Mobile YouTube was checked with
+background playback disabled; desktop-site YouTube was checked with it enabled.
+Both continued rendering frames with no decoder error. The strengthened native
+fullscreen fixture passed its portrait, landscape, controls and paused/resume
+cases on the same device. The separate background/screen-off regression verified
+playback in the hidden tab, background app and screen-off states, but its full
+round trip remains incomplete: the physical phone did not give the test activity
+window focus after automatic wake/relaunch. Do not count that regression as
+passing.
+
+Android PiP currently uses Once's main activity. Reopening Once expands that
+activity into its fullscreen player; it does not keep a floating player above
+the Stories view.
 
 On the connected iPhone 16 Pro Max, YouTube PiP played continuously with
 background playback disabled, survived switching between Reading and Stories,

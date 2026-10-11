@@ -16,6 +16,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.JSObject;
 import org.mozilla.geckoview.MediaSession;
+import org.mozilla.gecko.GeckoThread;
 
 /** Presents Gecko fullscreen content above the shell; Android PiP keeps that same player. */
 final class ReadingVideo {
@@ -31,6 +32,7 @@ final class ReadingVideo {
     private OnBackPressedCallback back;
     private JSObject bounds;
     private boolean pip;
+    private MediaSession.ElementMetadata videoMetadata;
 
     ReadingVideo(ReadingSurfaceHost host) { this.host = host; }
     private MainActivity activity() { return (MainActivity) host.getActivity(); }
@@ -96,6 +98,7 @@ final class ReadingVideo {
             host.refreshSurface.setKeepScreenOn(false);
             ((ViewGroup) overlay.getParent()).removeView(overlay);
             overlay = null;
+            videoMetadata = null;
             host.refreshSurface.removeOnLayoutChangeListener(resized);
             layout.width = width; layout.height = height;
             host.refreshSurface.setLayoutParams(layout);
@@ -130,7 +133,7 @@ final class ReadingVideo {
     }
 
     boolean canPip() {
-        MediaSession.ElementMetadata video = host.backgroundMedia.fullscreenVideo;
+        MediaSession.ElementMetadata video = metadata();
         return isFullscreen() && host.visible && host.ownsForeground() && host.session != null && host.session.isOpen()
             && host.backgroundMedia.state.playing && video != null && video.width > 0 && video.height > 0
             && activity().getPackageManager().hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE);
@@ -138,7 +141,7 @@ final class ReadingVideo {
 
     private PictureInPictureParams params(boolean enabled) {
         PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder();
-        MediaSession.ElementMetadata video = host.backgroundMedia.fullscreenVideo;
+        MediaSession.ElementMetadata video = metadata();
         if (video != null && video.width > 0 && video.height > 0) {
             // Android accepts ratios between 1:2.39 and 2.39:1, including portrait video.
             int width = (int) Math.max(4185, Math.min(23900, Math.round((double) video.width / video.height * 10000)));
@@ -151,6 +154,10 @@ final class ReadingVideo {
     }
 
     void update() {
+        // Gecko can deactivate its media session while a paused video stays
+        // in DOM fullscreen. Its presentation still owns these dimensions;
+        // keep them until fullscreen exits so resuming can enter PiP again.
+        if (isFullscreen() && host.backgroundMedia.fullscreenVideo != null) videoMetadata = host.backgroundMedia.fullscreenVideo;
         if (isFullscreen()) host.refreshSurface.setKeepScreenOn(host.backgroundMedia.state.playing);
         if (activity().readingVideo != this) return;
         if (activity().getPackageManager().hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
@@ -160,6 +167,7 @@ final class ReadingVideo {
     }
 
     void leave() {
+        Log.d("OnceVideo", "Leaving fullscreen: PiP eligible=" + canPip() + " playing=" + host.backgroundMedia.state.playing);
         // Android 12+ auto-entry handles gesture navigation and button navigation.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S || !canPip()) return;
         try { activity().enterPictureInPictureMode(params(true)); }
@@ -167,9 +175,21 @@ final class ReadingVideo {
     }
 
     void pipChanged(boolean enabled) {
+        if (pip == enabled) return;
+        Log.d("OnceVideo", "PiP mode=" + enabled);
         pip = enabled;
+        // GeckoRuntime pauses on ProcessLifecycleOwner.ON_PAUSE, including
+        // visible Android PiP. Balance that pause for this presentation so its
+        // GPU service is not demoted to cached and killed during playback.
+        // Gecko's native pause counter permits overlapping visibility owners.
+        if (enabled) GeckoThread.onResume();
+        else GeckoThread.onPause();
         host.backgroundMedia.setPictureInPicture(enabled);
         if (host.session != null) host.session.getCompositorController().onPipModeChanged(enabled);
         if (!enabled) update();
+    }
+
+    private MediaSession.ElementMetadata metadata() {
+        return host.backgroundMedia.fullscreenVideo != null ? host.backgroundMedia.fullscreenVideo : videoMetadata;
     }
 }

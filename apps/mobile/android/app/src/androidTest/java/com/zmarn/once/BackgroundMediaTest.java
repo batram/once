@@ -44,7 +44,9 @@ public class BackgroundMediaTest {
 
     @Test public void fullscreenVideoEntersPipWithoutBackgroundOptIn() throws Exception {
         GeckoTestSupport support = new GeckoTestSupport();
-        assertEquals("Use the local emulator", "ranchu", android.os.Build.HARDWARE);
+        assertTrue("Use the emulator or the isolated Gecko test app on a physical device",
+            "ranchu".equals(android.os.Build.HARDWARE) ||
+            instrumentation.getTargetContext().getPackageName().equals("com.zmarn.once.geckotest.dev"));
         support.start();
         activity = support.activity; plugin = support.plugin;
         boolean original = media().isEnabled();
@@ -108,6 +110,9 @@ public class BackgroundMediaTest {
                 capture("fullscreen-" + (target.equals("#player") ? "light" : "dark") + ".png");
                 shell("input keyevent KEYCODE_HOME");
                 support.until("Home enters Android PiP", activity::isInPictureInPictureMode, 10);
+                support.ui(() -> android.util.Log.i("OnceMediaTest", "PiP policy=" + GeckoTestSupport.field(media(), "inPictureInPicture")
+                    + " playing=" + media().state.playing + " active=" + GeckoTestSupport.field(media(), "active")
+                    + " metadata=" + (media().fullscreenVideo == null ? "null" : media().fullscreenVideo.width + "x" + media().fullscreenVideo.height)));
                 assertPlaying("picture in picture without background opt-in");
                 assertService(true);
                 controller().getTransportControls().pause();
@@ -122,7 +127,7 @@ public class BackgroundMediaTest {
                 assertService(false);
                 assertPlaying("returned from PiP");
                 dismissFullscreenHelp();
-                if (target.equals("#player")) shell("input keyevent KEYCODE_BACK");
+                if (target.equals("#player") || !"ranchu".equals(android.os.Build.HARDWARE)) shell("input keyevent KEYCODE_BACK");
                 else {
                     int mid = activity.getWindow().getDecorView().getHeight() / 2;
                     shell("input swipe 0 " + mid + " 350 " + mid + " 300");
@@ -137,13 +142,27 @@ public class BackgroundMediaTest {
                 assertEquals("Back exits DOM fullscreen", "true", evaluate("document.fullscreenElement === null"));
                 assertFalse(media().isEnabled());
             }
-            evaluate("document.querySelector('#media').pause(); true");
             tapElement("#fullscreen");
-            support.until("Paused video can still enter fullscreen", () -> plugin.video.isFullscreen(), 10);
+            support.until("Playing fullscreen has video dimensions", () -> plugin.video.canPip(), 10);
+            evaluate("document.querySelector('#media').pause(); true");
+            support.until("Fullscreen video pauses", () -> !media().state.playing, 10);
             support.ui(() -> assertFalse("Paused video must not auto-enter PiP", plugin.video.canPip()));
+            // Gecko may clear media-session metadata while DOM fullscreen
+            // remains open. A resumed player still needs the last dimensions.
+            support.ui(() -> media().onFullscreen(session(),
+                (org.mozilla.geckoview.MediaSession) GeckoTestSupport.field(media(), "playing"), false, null));
             shell("input keyevent KEYCODE_HOME");
             assertFalse("Paused fullscreen stays out of PiP", activity.isInPictureInPictureMode());
             shell("am start -W -n " + activity.getPackageName() + "/com.zmarn.once.MainActivity");
+            support.until("Paused fullscreen returns to the foreground", activity::hasWindowFocus, 10);
+            evaluate("document.querySelector('#media').play(); true");
+            assertPlaying("resumed fullscreen video");
+            support.until("Resumed fullscreen regains PiP eligibility", () -> plugin.video.canPip(), 10);
+            shell("input keyevent KEYCODE_HOME");
+            support.until("Resumed fullscreen enters PiP again", activity::isInPictureInPictureMode, 10);
+            assertPlaying("resumed fullscreen in PiP");
+            shell("am start -W -n " + activity.getPackageName() + "/com.zmarn.once.MainActivity");
+            support.until("Resumed PiP returns to the foreground", () -> !activity.isInPictureInPictureMode() && activity.hasWindowFocus(), 10);
             // Selecting another tab must release native fullscreen ownership.
             call(plugin::setVisible, new JSObject().put("visible", false));
             support.ui(() -> assertNull(activity.readingVideo));
@@ -165,6 +184,7 @@ public class BackgroundMediaTest {
         shell("wm dismiss-keyguard");
         Intent launch = new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         activity = (MainActivity) instrumentation.startActivitySync(launch);
+        instrumentation.runOnMainSync(() -> activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON));
         plugin = (InAppBrowserSurfacePlugin) activity.getBridge().getPlugin("InAppBrowserSurface").getInstance();
         boolean original = context.getSharedPreferences("reading-media", Context.MODE_PRIVATE).getBoolean("background-playback", false);
         try (ServerSocket server = new ServerSocket(0)) {
@@ -197,6 +217,9 @@ public class BackgroundMediaTest {
                 shell("input keyevent KEYCODE_WAKEUP");
                 shell("wm dismiss-keyguard");
                 shell("am start -W -n " + context.getPackageName() + "/com.zmarn.once.MainActivity");
+                long foregroundDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                while (!activity.hasWindowFocus() && System.nanoTime() < foregroundDeadline) Thread.sleep(100);
+                assertTrue("Waking returns the test activity to the foreground", activity.hasWindowFocus());
                 // Turning it off while the reading tab is hidden must suspend current media.
                 toggleFromMenu(false);
                 Thread.sleep(700);
@@ -468,12 +491,22 @@ public class BackgroundMediaTest {
 
     private void assertPlaying(String state) throws Exception {
         Thread.sleep(500);
+        // Decoder startup on a busy physical phone is asynchronous. Measure
+        // steady playback only after it has actually started producing media.
+        long startDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (time() < 0.5 && System.nanoTime() < startDeadline) Thread.sleep(100);
+        boolean visibleVideo = "true".equals(evaluate("document.querySelector('#media').tagName === 'VIDEO' && document.visibilityState === 'visible'"));
+        double frames = visibleVideo ? Double.parseDouble(evaluate("document.querySelector('#media').getVideoPlaybackQuality().totalVideoFrames")) : 0;
         double before = time();
         Thread.sleep(1600);
         double after = time();
         double duration = Double.parseDouble(evaluate("document.querySelector('#media').duration"));
         double elapsed = (after - before + duration) % duration;
-        assertTrue(state + ": media clock did not advance (" + before + " -> " + after + ")",
+        assertEquals(state + ": decoder error", "null", evaluate("document.querySelector('#media').error?.message || null"));
+        if (visibleVideo) assertTrue(state + ": video frames did not advance",
+            Double.parseDouble(evaluate("document.querySelector('#media').getVideoPlaybackQuality().totalVideoFrames")) > frames);
+        String detail = elapsed > 0.7 && elapsed < 3.5 ? "" : evaluate("(() => {const v=document.querySelector('#media');return {paused:v.paused,ended:v.ended,ready:v.readyState,error:v.error?.message,loop:v.loop,visibility:document.visibilityState,fullscreen:!!document.fullscreenElement}})()");
+        assertTrue(state + ": media clock did not advance (" + before + " -> " + after + "): " + detail,
             elapsed > 0.7 && elapsed < 3.5);
         android.util.Log.i("OnceMediaTest", state + ": " + before + " -> " + after);
     }
@@ -481,34 +514,22 @@ public class BackgroundMediaTest {
     private double time() throws Exception { return Double.parseDouble(evaluate("document.querySelector('#media').currentTime")); }
 
     private void createVideo() throws Exception {
-        // Generate real VP8/Opus media locally, without external downloads or codec tools.
-        evaluate("""
-            (async () => {
-              const canvas = document.createElement('canvas'); canvas.width = 160; canvas.height = 90;
-              document.body.append(canvas);
-              const paint = canvas.getContext('2d'); let frame = 0;
-              const draw = setInterval(() => { paint.fillStyle = ++frame % 2 ? 'blue' : 'green'; paint.fillRect(0, 0, 160, 90); }, 100);
-              const stream = canvas.captureStream(10);
-              const source = document.querySelector('#media'); await source.play();
-              const captured = source.captureStream ? source.captureStream() : source.mozCaptureStream();
-              stream.addTrack(captured.getAudioTracks()[0]);
-              const recorder = new MediaRecorder(stream, {mimeType: 'video/webm;codecs=vp8,opus'});
-              const chunks = []; recorder.ondataavailable = event => chunks.push(event.data);
-              recorder.onstop = () => {
-                clearInterval(draw); stream.getTracks().forEach(track => track.stop()); source.pause();
-                const video = document.createElement('video'); video.id = 'media'; video.controls = true; video.loop = true;
-                video.src = URL.createObjectURL(new Blob(chunks, {type: recorder.mimeType}));
-                document.querySelector('#media').replaceWith(video); canvas.remove();
-                document.body.dataset.videoReady = 'true';
-              };
-              recorder.onerror = event => document.body.dataset.videoError = String(event.error);
-              recorder.start(); setTimeout(() => recorder.stop(), 6000);
-            })().catch(error => document.body.dataset.videoError = String(error)); true
-            """);
+        // A fixed H.264/AAC clip avoids device-dependent MediaRecorder output.
+        byte[] clip;
+        try (java.io.InputStream input = instrumentation.getContext().getAssets().open("playback.mp4")) {
+            java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+            clip = output.toByteArray();
+        }
+        String source = "data:video/mp4;base64," + android.util.Base64.encodeToString(clip, android.util.Base64.NO_WRAP);
+        evaluate("const video=document.createElement('video'); video.id='media'; video.controls=true; video.loop=true;"
+            + "video.src='" + source + "'; document.querySelector('#media').replaceWith(video); true");
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
         do {
-            if ("true".equals(evaluate("document.body.dataset.videoReady === 'true'"))) return;
-            assertEquals("Video fixture generation", "null", evaluate("document.body.dataset.videoError || null"));
+            if ("true".equals(evaluate("document.querySelector('#media').readyState >= 2"))) return;
+            assertEquals("Video fixture decoding", "null", evaluate("document.querySelector('#media').error?.message || null"));
             Thread.sleep(200);
         } while (System.nanoTime() < deadline);
         fail("Video fixture did not reach readiness");

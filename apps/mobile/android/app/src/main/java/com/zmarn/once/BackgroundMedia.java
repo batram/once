@@ -69,6 +69,7 @@ final class BackgroundMedia implements MediaSession.Delegate, BackgroundMediaSer
     }
 
     private void updateService() {
+        updateRuntimeVisibility();
         if (!allowsBackground() || playing == null) {
             BackgroundMediaService.release(context, this);
             return;
@@ -121,10 +122,23 @@ final class BackgroundMedia implements MediaSession.Delegate, BackgroundMediaSer
     }
 
     private void reportPlaying() {
+        updateRuntimeVisibility();
         if (presentationChanged != null) presentationChanged.run();
         if (reportedPlaying == state.playing) return;
         reportedPlaying = state.playing;
         if (playingChanged != null) playingChanged.accept(reportedPlaying);
+    }
+
+    private boolean runtimeVisible;
+
+    private void updateRuntimeVisibility() {
+        boolean visible = playing != null && state.playing && allowsBackground();
+        if (runtimeVisible == visible) return;
+        runtimeVisible = visible;
+        // Active background media still owns decoder surfaces in Gecko's GPU
+        // process. Keep that service out of Android's cached process bucket.
+        if (visible) org.mozilla.gecko.GeckoThread.onResume();
+        else org.mozilla.gecko.GeckoThread.onPause();
     }
 
     @Override public void onFullscreen(GeckoSession source, MediaSession media, boolean enabled, MediaSession.ElementMetadata metadata) {
@@ -150,7 +164,8 @@ final class BackgroundMedia implements MediaSession.Delegate, BackgroundMediaSer
 
     private void observePage() {
         if (port == null) return;
-        try { port.postMessage(new JSONObject().put("type", "media-observe").put("enabled", allowsBackground())); }
+        try { port.postMessage(new JSONObject().put("type", "media-observe").put("enabled", allowsBackground())
+            .put("pictureInPicture", inPictureInPicture)); }
         catch (Exception error) { Log.w("OnceMedia", "Media page bridge disconnected", error); }
     }
 
