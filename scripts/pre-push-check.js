@@ -66,7 +66,7 @@ function mirrorNodeModules(worktree) {
   // Nested node_modules hold packages whose versions differ from the root's.
   for (const nested of git(["ls-files", "--others", "--ignored", "--exclude-standard", "--directory"]).split("\n")) {
     if (!/^(apps|packages)\/[^/]+\/node_modules\/$/.test(nested)) continue
-    link(path.join(root, nested), path.join(worktree, nested))
+    link(path.resolve(root, nested), path.resolve(worktree, nested))
   }
   return links
 }
