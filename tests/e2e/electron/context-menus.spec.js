@@ -75,7 +75,8 @@ test("restores native tab and page menus with Inspect in packaged builds", async
     await expect.poll(() => electronApp.evaluate(() =>
       globalThis.__onceLastMenuTemplate.map((item) => item.label || item.role || item.type)
     )).toEqual([
-      "Inspect", "separator", "Duplicate Tab", "Move Tab to New Window", "Close Tab"
+      "Inspect", "separator", "Duplicate Tab", "Move Tab to New Window", "Close Tab",
+      "separator", "Clear Data for 127.0.0.1…"
     ])
 
     await electronApp.evaluate(({ webContents }, expectedUrl) => {

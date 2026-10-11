@@ -220,11 +220,11 @@ test("a tray add-on runs on a page that is no story: from the toolbar, and from 
       })
     }, [pageTab.url, linked])
     const labels = await electronApp.evaluate(() => globalThis.__onceLastMenuTemplate.map((item) => item.label || item.type))
-    expect(labels.slice(-3)).toEqual(["separator", LABEL, `${LABEL} for Link`])
-    await electronApp.evaluate(({ Menu }) => {
-      globalThis.__onceLastMenuTemplate.at(-1).click()
+    expect(labels.slice(-5)).toEqual(["separator", LABEL, `${LABEL} for Link`, "separator", "Clear Data for 127.0.0.1…"])
+    await electronApp.evaluate(({ Menu }, label) => {
+      globalThis.__onceLastMenuTemplate.find((item) => item.label === label).click()
       Menu.buildFromTemplate = globalThis.__onceOriginalBuildFromTemplate
-    })
+    }, `${LABEL} for Link`)
     await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()))
       .toContainEqual(expect.objectContaining({
         url: `once-addon://conversation/index.html?addon=what-wait-who-why&tray=assistant&story=${encodeURIComponent(linked)}`, active: true

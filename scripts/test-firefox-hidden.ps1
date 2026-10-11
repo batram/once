@@ -8,7 +8,7 @@ $logDirectory = Join-Path $repoRoot 'test-results/firefox-logs'
 $runLog = Join-Path $logDirectory 'hidden-desktop.log'
 
 if ($Child) {
-    & node --test --test-concurrency=1 tests/e2e/extensions/firefox.test.js tests/e2e/extensions/firefox-stories.test.js tests/e2e/extensions/firefox-addons.test.js tests/e2e/extensions/geny-firefox.test.js *> $runLog
+    & node --test --test-concurrency=1 tests/e2e/extensions/firefox.test.js tests/e2e/extensions/firefox-stories.test.js tests/e2e/extensions/firefox-addons.test.js tests/e2e/extensions/firefox-pdf-reader.test.js tests/e2e/extensions/geny-firefox.test.js *> $runLog
     exit $LASTEXITCODE
 }
 

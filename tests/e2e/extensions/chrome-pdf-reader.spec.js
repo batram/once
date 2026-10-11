@@ -8,7 +8,7 @@ const { textPdf, imagePdf } = require("../shared/pdf-text-fixture")
 
 for (const scanned of [false,true]) {
   test(`Chrome extension PDF Reader ${scanned ? "reports missing OCR for a scan" : "reads embedded text"}`, async () => {
-    const extensionPath = path.resolve(__dirname,"../../../apps/chrome-extension/dist/dev")
+    const extensionPath = path.resolve(__dirname,"../../../apps/chrome-extension/dist/release")
     const profile = await fs.mkdtemp(path.join(os.tmpdir(),"once-pdf-extension-"))
     const pdf = scanned ? imagePdf() : textPdf()
     const server = http.createServer((_,response)=>{response.writeHead(200,{"content-type":"application/pdf","content-length":pdf.length});response.end(pdf)})
@@ -23,12 +23,14 @@ for (const scanned of [false,true]) {
       const created=context.waitForEvent("page")
       await panel.evaluate(url=>globalThis.chrome.runtime.sendMessage({onceCommand:"openReader",url,theme:"dark"}),`http://127.0.0.1:${server.address().port}/document`)
       const reader=await created
+      // PDF.js parses on the sandbox frame's own thread; a cold first run outlasts the local 5 s expect budget.
+      const extracted={timeout:20_000}
       if (scanned) {
-        await expect(reader.locator("body")).toContainText("PDF page 1 has no embedded text")
+        await expect(reader.locator("body")).toContainText("PDF page 1 has no embedded text",extracted)
         await expect(reader.locator("body")).toContainText("OCR is not available on this platform")
         return
       }
-      await expect(reader.locator("article")).toContainText("Readable PDF text across platforms.")
+      await expect(reader.locator("article")).toContainText("Readable PDF text across platforms.",extracted)
       await expect(reader.locator("html")).toHaveAttribute("data-theme","dark")
       expect(new URL(reader.url()).searchParams.get("pdf")).toBe("1")
       const geometry=await reader.locator("article").evaluate(article=>({width:article.getBoundingClientRect().width,overflow:document.documentElement.scrollWidth>innerWidth}))
