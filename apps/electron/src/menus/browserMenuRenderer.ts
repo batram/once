@@ -46,8 +46,13 @@ async function act(action: BrowserMenuAction): Promise<void> {
 for (const button of document.querySelectorAll<HTMLButtonElement>("button[data-action]")) {
   button.onclick = () => void act(button.dataset.action as BrowserMenuAction)
 }
+bridge.onStateChanged(render)
+// The menu holds the keyboard while open, so the zoom keys act on the tab from here.
+const ZOOM_KEYS: Record<string, BrowserMenuAction> = { "+": "zoom-in", "=": "zoom-in", "-": "zoom-out", "0": "zoom-reset" }
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") { event.preventDefault(); void act("close"); return }
+  const zoom = (event.ctrlKey || event.metaKey) && !event.altKey ? ZOOM_KEYS[event.key] : undefined
+  if (zoom) { event.preventDefault(); void act(zoom); return }
   const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"))
     .filter((button) => button.offsetParent !== null)
   const current = buttons.indexOf(document.activeElement as HTMLButtonElement)

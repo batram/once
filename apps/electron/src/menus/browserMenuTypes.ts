@@ -25,4 +25,6 @@ export interface BrowserMenuBridge {
   action(action: BrowserMenuAction): Promise<BrowserMenuState>
   /** The rendered height, so the window fits its rows. */
   ready(height: number): Promise<void>
+  /** The tab changed under the open menu, such as Ctrl+wheel zoom over the page. */
+  onStateChanged(handler: (state: BrowserMenuState) => void): void
 }

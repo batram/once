@@ -103,6 +103,13 @@ export function showBrowserMenu(
     return state()
   })
   const close = () => { if (!panel.isDestroyed()) panel.close() }
+  // Ctrl+wheel over the page still zooms it while the menu is open; the zoom
+  // row follows. Sent on the next turn, after Zoom.ts has applied the step.
+  const tab = activeTab()
+  const zoomed = () => setImmediate(() => {
+    if (!panel.isDestroyed()) panel.webContents.send("browser-menu:state-changed", state())
+  })
+  tab?.on("zoom-changed", zoomed)
   panel.on("blur", () => setImmediate(close))
   window.on("move", close)
   window.on("resize", close)
@@ -114,6 +121,7 @@ export function showBrowserMenu(
       window.removeListener("move", close)
       window.removeListener("resize", close)
       window.removeListener("closed", close)
+      if (tab && !tab.isDestroyed()) tab.removeListener("zoom-changed", zoomed)
       resolve(result)
     })
     void panel.loadURL(BROWSER_MENU_WEBPACK_ENTRY).then(() => {
