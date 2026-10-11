@@ -96,8 +96,7 @@ export class StoryListItem extends HTMLElement {
     this.add_read_button()
     this.add_star_button()
 
-    this.filter_btn = buildFilterButton(this)
-    this.button_group.appendChild(this.filter_btn)
+    this.filter_btn = buildFilterButton(this, this.button_group)
 
     if (StoryListItem.devToolsEnabled) {
       this.button_group.appendChild(buildPurgeButton(this))

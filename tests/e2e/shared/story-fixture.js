@@ -24,6 +24,7 @@ const SELECTORS = {
   readBtn: ".read_btn",
   starBtn: ".star_btn",
   filterBtn: ".filter_btn",
+  filterEditor: ".filter_editor",
   outlineBtn: ".outline_btn",
   selected: "#selected_container story-item.selected"
 }

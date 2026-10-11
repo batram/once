@@ -390,7 +390,7 @@ test("a full swipe left keeps the filter editor open after release", async () =>
     const delta = storyItem(page, source.urls.delta)
     await swipeStory(page, delta, "left", { stage: 2 })
     await expect(
-      delta.locator(`${storyFixture.SELECTORS.filterBtn} input`)
+      delta.locator(storyFixture.SELECTORS.filterEditor)
     ).toHaveValue("127.0.0.1")
     expectCleanHarness(harness)
   } finally {
@@ -454,7 +454,7 @@ test("adds and removes a story filter", async () => {
 
     const delta = storyItem(page, source.urls.delta)
     await delta.locator(storyFixture.SELECTORS.filterBtn).click()
-    let input = delta.locator(`${storyFixture.SELECTORS.filterBtn} input`)
+    let input = delta.locator(storyFixture.SELECTORS.filterEditor)
     await expect(input).toHaveValue("127.0.0.1")
     await input.fill(storyFixture.FILTER_TOKEN)
     await input.press("Enter")
@@ -470,7 +470,7 @@ test("adds and removes a story filter", async () => {
     await page.locator("#theme_select").selectOption("light")
     await openStories(page)
     await delta.locator(storyFixture.SELECTORS.filterBtn).click()
-    input = delta.locator(`${storyFixture.SELECTORS.filterBtn} input`)
+    input = delta.locator(storyFixture.SELECTORS.filterEditor)
     await input.fill(storyFixture.FILTER_TOKEN)
     await input.press("Enter")
     await expect(dialog).toHaveCSS("background-color", "rgb(246, 246, 239)")

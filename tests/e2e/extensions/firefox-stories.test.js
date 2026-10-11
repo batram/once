@@ -195,7 +195,7 @@ test(
         )
         .click()
       const filterInput = await driver.findElement(
-        By.css(`${deltaSelector} ${storyFixture.SELECTORS.filterBtn} input`)
+        By.css(`${deltaSelector} ${storyFixture.SELECTORS.filterEditor}`)
       )
       await driver.executeScript(
         `arguments[0].value = arguments[1]

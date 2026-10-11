@@ -504,11 +504,15 @@ story-item.story:focus {
   order: 1;
 }
 
-.filter_btn input {
+/* The filter's field sits just before its button and shares its order slot. */
+.filter_field {
   height: 16px;
   margin: 0;
   align-self: center;
   order: 1;
+}
+
+.filter_input {
   cursor: pointer;
 }
 

@@ -2,6 +2,9 @@ import { Story } from "@once/core"
 import { requireElement } from "../dom"
 import { showConfirmDialog, showTextInputDialog } from "../confirmDialog"
 
+/** The inline filter editor: one is open at a time, beside its row's filter button. */
+let openEditor: { input: HTMLInputElement; close: () => void } | null = null
+
 export function show_filter_dialog(
   event: MouseEvent,
   filter_btn: HTMLElement,
@@ -11,67 +14,61 @@ export function show_filter_dialog(
   event.stopPropagation()
   event.preventDefault()
 
-  let inp = filter_btn.querySelector("input")
-
-  //cancel other open inputs
-  document
-    .querySelectorAll(".story:not(.filtered) .filter_btn input")
-    .forEach((x) => {
-      if (inp != x) {
-        x.outerHTML = ""
-      }
-    })
-
-  if (inp) {
-    if (event.target != inp) {
-      confirm_add_story(inp, callback)
-    }
+  // The button again while its editor is open asks to add what it holds.
+  if (openEditor && openEditor.input.nextElementSibling === filter_btn) {
+    confirm_add_story(openEditor.input, callback)
     return
   }
+  openEditor?.close()
 
-  inp = document.createElement("input")
+  const inp = document.createElement("input")
   inp.type = "text"
+  inp.className = "filter_field filter_editor"
   inp.setAttribute("draggable", "false")
+  inp.setAttribute("aria-label", "Filter stories matching")
   inp.value = new URL(story.href).hostname
-  filter_btn.prepend(inp)
+  // Beside the button rather than inside it: a field in a button is invalid
+  // markup, and Chromium activated the button on every Space typed into it.
+  filter_btn.before(inp)
   inp.focus()
 
+  const close = () => {
+    inp.remove()
+    document.removeEventListener("click", dismissOnOutsideClick)
+    if (openEditor?.input === inp) openEditor = null
+  }
+  const dismissOnOutsideClick = (clickEvent: MouseEvent) => {
+    const target = clickEvent.target
+    if (target === inp || (target instanceof Node && filter_btn.contains(target))) return
+    close()
+  }
+  openEditor = { input: inp, close }
   // A swipe commits on pointerup, after which Chromium emits its corresponding
   // click. Installing the outside-click handler synchronously would see that
   // same click and immediately remove the input that the swipe just opened.
-  // Wait until the opening event sequence is over, and treat every descendant
-  // of the filter button as inside the editor.
-  const dismissOnOutsideClick = (clickEvent: MouseEvent) => {
-    const target = clickEvent.target
-    if (target instanceof Node && filter_btn.contains(target)) return
-    document
-      .querySelectorAll(".story:not(.filtered) .filter_btn input")
-      .forEach((x) => {
-        x.remove()
-      })
-    document.removeEventListener("click", dismissOnOutsideClick)
-  }
   setTimeout(() => {
-    document.addEventListener("click", dismissOnOutsideClick)
+    if (openEditor?.input === inp) document.addEventListener("click", dismissOnOutsideClick)
   })
 
+  inp.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return
+    e.preventDefault()
+    close()
+    if (!filter_btn.hidden) filter_btn.focus()
+  })
+  // Enter on keyup, not keydown: the confirm dialog focuses its primary
+  // button at once, and the keypress that follows a keydown would press it.
   inp.addEventListener("keyup", (e) => {
-    if (e.keyCode === 27) {
-      //ESC
-      inp.innerText = "filter"
-    } else if (e.keyCode === 13) {
-      //ENTER
-      confirm_add_story(inp, callback)
-    }
+    if (e.key === "Enter" && !e.isComposing) confirm_add_story(inp, callback)
   })
 }
 
-/** Drops the inline filter input from the list rows of `href`, if one is open. */
+/** Closes the inline filter editor if it is open on a list row of `href`. */
 export function close_filter_inputs(href: string): void {
-  document.querySelectorAll<HTMLElement>(".story").forEach((row) => {
-    if (row.dataset.href !== href || row.closest("#selected_container")) return
-    row.querySelector(".filter_btn input")?.remove()
-  })
+  const row = openEditor?.input.closest<HTMLElement>(".story")
+  if (row?.dataset.href === href && !row.closest("#selected_container")) {
+    openEditor?.close()
+  }
 }
 
 export function show_mobile_filter_dialog(
@@ -103,6 +100,7 @@ function confirm_add_story(
   }).then((confirmed) => {
     if (!confirmed) return
     callback(value)
-    inp.remove()
+    if (openEditor?.input === inp) openEditor.close()
+    else inp.remove()
   })
 }

@@ -122,27 +122,33 @@ export function buildTitleLine(
 
 /**
  * A filtered row shows the rule that hid it, as a read-only field that jumps
- * to the rule in settings rather than an editable input.
+ * to the rule in settings rather than an editable input. Both go into `group`,
+ * the field just before the button: never inside it, where a field is invalid
+ * markup that the button's own keyboard activation fights with.
  */
-export function buildFilterButton(row: StoryListItem): HTMLElement {
+export function buildFilterButton(row: StoryListItem, group: HTMLElement): HTMLElement {
   const filter_btn = createIconButton("filter", "filter_btn", "filter")
-  if (!row.story.filter) return filter_btn
+  if (!row.story.filter) {
+    group.appendChild(filter_btn)
+    return filter_btn
+  }
 
   filter_btn.title = "filtered"
   row.classList.add("filtered")
   const dinp = document.createElement("input")
-  dinp.classList.add("filter_input")
+  dinp.className = "filter_field filter_input"
   dinp.type = "text"
   dinp.value = row.story.filter
   dinp.readOnly = true
+  dinp.setAttribute("aria-label", "Filter that hides this story")
   dinp.addEventListener("click", (event) => {
     event.stopPropagation()
     if (SettingsPanel.instance) {
       SettingsPanel.instance.highlight_filter(row.story.filter, true)
     }
   })
-  filter_btn.prepend(dinp)
   filter_btn.classList.add("filter_btn--active")
+  group.append(dinp, filter_btn)
   return filter_btn
 }
 

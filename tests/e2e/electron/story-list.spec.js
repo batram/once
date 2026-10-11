@@ -376,7 +376,31 @@ test("a full swipe left keeps the filter editor open after release", async () =>
     const delta = storyItem(window, urls.delta)
 
     await swipeStory(window, delta, "left", 2)
-    await expect(delta.locator(".filter_btn input")).toHaveValue("127.0.0.1")
+    await expect(delta.locator(".filter_editor")).toHaveValue("127.0.0.1")
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("the filter editor takes spaces as text and closes on Escape", async () => {
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
+    const delta = storyItem(window, urls.delta)
+
+    await delta.locator(".filter_btn").click()
+    const editor = delta.locator(".filter_editor")
+    await editor.fill("")
+    // A Space used to activate the button the field sat in, which opened the
+    // add-filter confirmation and took the keyboard away mid-word.
+    await editor.pressSequentially("one two")
+    await expect(editor).toHaveValue("one two")
+    await expect(editor).toBeFocused()
+    await expect(window.getByTestId("confirm-dialog")).toHaveCount(0)
+
+    await editor.press("Escape")
+    await expect(editor).toHaveCount(0)
+    await expect(delta.locator(".filter_btn")).toBeFocused()
   } finally {
     await closeApp(electronApp, userData)
   }
@@ -440,7 +464,7 @@ test("filters a story from the story list and removes the filter again", async (
     const delta = storyItem(window, urls.delta)
 
     await delta.locator(".filter_btn").click()
-    const filterInput = delta.locator(".filter_btn input")
+    const filterInput = delta.locator(".filter_editor")
     await expect(filterInput).toHaveValue("127.0.0.1")
     await filterInput.fill(storyFixture.FILTER_TOKEN)
     await filterInput.press("Enter")
