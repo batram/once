@@ -109,7 +109,13 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     for (const index of [0, 1, 3, 4, 6, 7, 8]) {
       expect(initial.words[index].right).toBeLessThanOrEqual(initial.words[index + 1].left + 1)
     }
-    expect(initial.bar.bottom).toBeLessThanOrEqual(initial.image.bottom)
+    // The bar never covers recognized text: here it fits below the image.
+    for (const word of initial.words) {
+      const overlaps = initial.bar.left < word.right && word.left < initial.bar.right &&
+        initial.bar.top < word.bottom && word.top < initial.bar.bottom
+      expect(overlaps, `bar covers "${word.text.trim()}"`).toBe(false)
+    }
+    expect(initial.bar.top).toBeGreaterThanOrEqual(initial.image.bottom)
     await inPage(app, "scrollBy(0,80)")
     await expect.poll(async () => (await geometry(app)).words[0].top).toBeCloseTo(initial.words[0].top - 80, 0)
     await inPage(app, "scrollTo(0,document.body.scrollHeight)")
@@ -207,6 +213,69 @@ test("triple-click selects a reflowed paragraph and copy joins its wrapped lines
       } finally { clipboard.writeText(previous) }
     }, `${server.origin}/`)
     expect(copied).toBe(paragraph)
+    // The context menu's Copy runs the page's copy command, so the reflow applies there too.
+    const menuCopied = await app.evaluate(async ({ webContents, clipboard, Menu }, url) => {
+      const page = webContents.getAllWebContents().find(c => c.getURL() === url)
+      const previous = await clipboard.readText()
+      clipboard.writeText("")
+      const original = Menu.buildFromTemplate
+      let copyItem
+      Menu.buildFromTemplate = template => {
+        copyItem = template.find(item => item.label === "Copy")
+        return { popup() {} }
+      }
+      try {
+        page.emit("context-menu", {}, { x: 10, y: 10, frame: page.mainFrame, pageURL: url, linkURL: "", editFlags: {},
+          isEditable: false, hasImageContents: false, misspelledWord: "", dictionarySuggestions: [],
+          selectionText: "The first paragraph wraps onto\na second line of text." })
+      } finally { Menu.buildFromTemplate = original }
+      if (!copyItem) throw new Error("Missing Copy item")
+      try {
+        copyItem.click()
+        for (let attempt = 0; attempt < 40 && !(await clipboard.readText()); attempt++) await new Promise(resolve => setTimeout(resolve, 25))
+        return await clipboard.readText()
+      } finally { clipboard.writeText(previous) }
+    }, `${server.origin}/`)
+    expect(menuCopied).toBe(paragraph)
+  } finally { await closeApp(app, userData) }
+})
+
+test("dragging across the image sweeps text instead of dragging, zooming or following its link", async () => {
+  const { electronApp: app, userData, window } = await launchApp()
+  try {
+    await window.locator("#urlfield").fill(`${server.origin}/`)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
+    await startRecognition(app)
+    const words = (await geometry(app)).words
+    const first = words[0], last = words.find(word => word.text.trim() === "and")
+    // From the image's empty margin left of the first line to the middle of the third.
+    const from = { x: Math.round(first.left - 12), y: Math.round(first.top + first.height / 2) }
+    const to = { x: Math.round(last.left + last.width / 2), y: Math.round(last.top + last.height / 2) }
+    await app.evaluate(async ({ webContents }, { url, from, to }) => {
+      const page = webContents.getAllWebContents().find(c => c.getURL() === url)
+      page.focus()
+      page.sendInputEvent({ type: "mouseDown", ...from, button: "left", clickCount: 1 })
+      for (let step = 1; step <= 8; step++) {
+        page.sendInputEvent({ type: "mouseMove", x: Math.round(from.x + (to.x - from.x) * step / 8),
+          y: Math.round(from.y + (to.y - from.y) * step / 8), button: "left", modifiers: ["leftButtonDown"] })
+        await new Promise(resolve => setTimeout(resolve, 16))
+      }
+      page.sendInputEvent({ type: "mouseUp", ...to, button: "left", clickCount: 1 })
+    }, { url: `${server.origin}/`, from, to })
+    await expect.poll(() => inPage(app, "getSelection().toString().replace(/\\s+/g,' ').trim()"))
+      .toMatch(/^Select these words Native Apple Vision Copy 12345 an?$/)
+    // The press landed on the linked image's area: no navigation, the overlay stays.
+    expect(await window.evaluate(async () => (await window.onceElectron.tabs.getAll()).find(t => t.active)?.url)).toBe(`${server.origin}/`)
+    expect(await inPage(app, "Boolean(document.querySelector('[data-once-image-text]'))")).toBe(true)
+    // Ctrl+A selects all recognized text while the overlay holds the selection.
+    await app.evaluate(({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(c => c.getURL() === url)
+      page.sendInputEvent({ type: "keyDown", keyCode: "A", modifiers: ["control"] })
+      page.sendInputEvent({ type: "keyUp", keyCode: "A", modifiers: ["control"] })
+    }, `${server.origin}/`)
+    await expect.poll(() => inPage(app, "getSelection().toString().replace(/\\s+/g,' ').trim()"))
+      .toBe("Select these words Native Apple Vision Copy 12345 and punctuation.")
   } finally { await closeApp(app, userData) }
 })
 

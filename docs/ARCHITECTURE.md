@@ -462,9 +462,19 @@ has Gecko fetch the image with the page's cookies and referrer (as Copy image
 does) and ML Kit adds word corners (`recognizeImage({ url, referrer })`). The
 overlay lays transparent words over the image, groups them with the Reader's
 OCR reflow (`ocrParagraphLines`) so a triple-click selects a paragraph and
-copying joins wrapped lines, and on touch offers a Copy button beside the
-platform's own selection toolbar. iOS needs none of this: WebKit's Live Text
-already selects text in images.
+copying joins wrapped lines, and on touch offers a Copy button. While open
+it takes the image's input (`imageTextPointer.ts`), so the image's own drag,
+click-to-zoom, link and menu behaviour pause: a mouse drag anywhere on the
+image sweeps a selection (character-precise in words, snapping to the nearest
+word over gaps, autoscrolling at the viewport edge), Ctrl/Cmd+A selects all
+recognized text, and wheel input reaches the image's scroll container. Touch
+uses the overlay's own model instead of native carets, which hit-test the
+image or page between words: tap or long-press a word, then drag two handles
+by whole words. Android's pull-to-refresh only takes drags Gecko reports as
+browser-handled overscroll (`ReadingGeckoView`), never ones page content
+consumed, such as those handles. The bar sits outside the image when there is
+room, else in the corner covering the fewest words. iOS needs none of this:
+WebKit's Live Text already selects text in images.
 
 The existing `fetchDocument` method adapts this result for Reader, offline
 story storage and addon `getStoryContent()`. For recognized text its `html`

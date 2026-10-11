@@ -82,7 +82,7 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected static final long RESPONSE_TIMEOUT_MS = 12000;
     protected final Map<PluginCall, Runnable> waiting = new HashMap<>();
 
-    protected GeckoView surface;
+    protected ReadingGeckoView surface;
     protected GeckoSession session;
     protected SwipeRefreshLayout refreshSurface;
     protected LinearLayout recoveryView;
@@ -237,7 +237,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         }
         if (session == null || !session.isOpen()) createReadingSession();
 
-        surface = new GeckoView(getContext());
+        surface = new ReadingGeckoView(getContext());
         // The extension bootstrap needs a session, not a 1x1 display. Attach
         // only after the shell's real viewport has been laid out and exposed.
         surface.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> attachDisplay());
@@ -266,7 +266,8 @@ abstract class ReadingSurfaceHost extends Plugin {
         refreshSurface = new SwipeRefreshLayout(getContext());
         refreshSurface.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
         refreshSurface.addView(content, new ViewGroup.LayoutParams(-1, -1));
-        refreshSurface.setOnChildScrollUpCallback((parent, child) -> scrollY > 0);
+        // Only a drag the browser would overscroll pulls to refresh; see ReadingGeckoView.
+        refreshSurface.setOnChildScrollUpCallback((parent, child) -> scrollY > 0 || surface == null || !surface.allowsPullToRefresh());
         refreshSurface.setOnRefreshListener(this::reloadSession);
         WebView shell = getBridge().getWebView();
         ViewGroup parent = (ViewGroup) shell.getParent();

@@ -159,7 +159,9 @@ export class NativeMenus {
       const selection = params.selectionText
       template.push(
         { type: "separator" },
-        { label: "Copy", click: () => clipboard.writeText(selection) },
+        // The page's copy command, as Chrome does: copy handlers apply, such as
+        // image text selection reflowing wrapped lines.
+        { label: "Copy", click: () => { if (!contents.isDestroyed()) contents.copy() } },
         {
           label: "Search the Web",
           click: () => void this.actions.createTab(

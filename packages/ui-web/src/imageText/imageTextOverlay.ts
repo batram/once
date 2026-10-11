@@ -1,6 +1,7 @@
 import type { ImageTextResult } from "./imageTextTypes"
 import { ImageTextBlocks } from "./imageTextBlocks"
 import { ImageTextHighlights } from "./imageTextHighlights"
+import { ImageTextPointer } from "./imageTextPointer"
 import { playRecognitionScan } from "./imageTextScan"
 
 interface ImageTextSession {
@@ -43,38 +44,51 @@ function inView(image: HTMLImageElement): boolean {
   return rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth
 }
 
+/** The overlay's styles, inside its shadow root. */
+const OVERLAY_CSS = `
+  :host { all: initial; position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  /* While open, the overlay takes the image's input (see imageTextPointer.ts). */
+  .clip { position: absolute; overflow: hidden; pointer-events: auto; cursor: text;
+    user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  .words { position: absolute; transform-origin: 0 0; }
+  .word { position: absolute; display: inline-block; color: transparent;
+    font-family: Arial, sans-serif; white-space: pre; line-height: 1;
+    transform-origin: 0 0; cursor: text; pointer-events: auto;
+    user-select: text; -webkit-user-select: text; -webkit-user-drag: none; }
+  /* Touch selects through the overlay's own model; native carets would leave it. */
+  @media (pointer: coarse) { .word { user-select: none; -webkit-user-select: none; } }
+  .handle { position: absolute; width: 20px; height: 20px; margin: 2px 0 0 -10px; border-radius: 50%;
+    background: #3984ff; pointer-events: auto; touch-action: none; }
+  .handle::before { content: ""; position: absolute; left: 9px; top: -14px; width: 2px; height: 14px; background: #3984ff; }
+  .word::selection, .word *::selection { color: transparent; background: transparent; }
+  .separator { font-size: 0; }
+  .scan { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .highlights { position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; user-select: none; fill: #3984ff; fill-opacity: .36; }
+  .bar { position: absolute; display: flex; align-items: center; gap: 12px;
+    width: max-content; max-width: var(--bar-max-width, calc(100vw - 16px));
+    padding: 8px 10px; border: 1px solid #b8bec7;
+    border-radius: 8px; box-shadow: 0 2px 10px #0003; color: #20242b;
+    background: #fff; font: 13px/1.4 system-ui; pointer-events: auto; user-select: none;
+    transition: opacity .15s; }
+  /* Out of the way while a sweep passes under it. */
+  .bar.sweeping { opacity: .15; pointer-events: none; }
+  button { font: inherit; color: inherit; background: transparent; cursor: pointer;
+    border: 1px solid #8893a3; border-radius: 5px; padding: 3px 9px; }
+  button:focus-visible { outline: 2px solid #3984ff; outline-offset: 2px; }
+  @media (prefers-color-scheme: dark) {
+    .bar { color: #f1f3f6; background: #252930; border-color: #6f7783; }
+  }
+`
+
 function createSelection(image: HTMLImageElement, token: string): ImageTextSession {
   const host = document.createElement("div")
   host.dataset.onceImageText = token
   const shadow = host.attachShadow({ mode: "open" })
   const sheet = new CSSStyleSheet()
-  sheet.replaceSync(`
-    :host { all: initial; position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; }
-    * { box-sizing: border-box; }
-    [hidden] { display: none !important; }
-    .clip { position: absolute; overflow: hidden; }
-    .words { position: absolute; transform-origin: 0 0; }
-    .word { position: absolute; display: inline-block; color: transparent;
-      font-family: Arial, sans-serif; white-space: pre; line-height: 1;
-      transform-origin: 0 0; cursor: text; pointer-events: auto;
-      user-select: text; -webkit-user-select: text; }
-    .word::selection, .word *::selection { color: transparent; background: transparent; }
-    .separator { font-size: 0; }
-    .scan { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-    .highlights { position: absolute; inset: 0; width: 100%; height: 100%;
-      pointer-events: none; user-select: none; fill: #3984ff; fill-opacity: .36; }
-    .bar { position: absolute; display: flex; align-items: center; gap: 12px;
-      width: max-content; max-width: var(--bar-max-width, calc(100vw - 16px));
-      padding: 8px 10px; border: 1px solid #b8bec7;
-      border-radius: 8px; box-shadow: 0 2px 10px #0003; color: #20242b;
-      background: #fff; font: 13px/1.4 system-ui; pointer-events: auto; user-select: none; }
-    button { font: inherit; color: inherit; background: transparent; cursor: pointer;
-      border: 1px solid #8893a3; border-radius: 5px; padding: 3px 9px; }
-    button:focus-visible { outline: 2px solid #3984ff; outline-offset: 2px; }
-    @media (prefers-color-scheme: dark) {
-      .bar { color: #f1f3f6; background: #252930; border-color: #6f7783; }
-    }
-  `)
+  sheet.replaceSync(OVERLAY_CSS)
   shadow.adoptedStyleSheets = [sheet]
   const clip = document.createElement("div")
   clip.className = "clip"
@@ -102,6 +116,7 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
   copy.hidden = true
   bar.append(status, copy, done)
   shadow.append(clip, bar)
+  const pointer = new ImageTextPointer(shadow, clip, words, image, (sweeping) => bar.classList.toggle("sweeping", sweeping))
   document.documentElement.append(host)
   const originalSource = image.currentSrc || image.src
   let frame = 0
@@ -114,6 +129,7 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
     document.removeEventListener("keydown", keydown, true)
     highlights.destroy()
     blocks.destroy()
+    pointer.destroy()
     host.remove()
     if (window.__onceImageText?.token === token) delete window.__onceImageText
   }
@@ -123,12 +139,15 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
   document.addEventListener("keydown", keydown, true)
   done.onclick = close
   copy.onclick = () => {
+    const hint = status.textContent
     status.textContent = blocks.copyFromGesture() ? "Copied" : "Couldn’t copy the text"
+    setTimeout(() => { if (!closed) status.textContent = hint }, 1600)
   }
   const layout = () => {
     if (!image.isConnected || (image.currentSrc || image.src) !== originalSource) { close(); return }
     position(image, clip, words, bar)
     highlights.update()
+    pointer.update()
     frame = requestAnimationFrame(layout)
   }
   layout()
@@ -146,7 +165,7 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
       stopScan = playRecognitionScan(image, clip, words)
       // Runs in the page, so the page reports the platform for the copy shortcut.
       copy.hidden = !touch
-      status.textContent = touch ? "Long-press to select text"
+      status.textContent = touch ? "Tap words to select"
         : `Drag to select text · ${/^Mac/.test(navigator.platform) ? "⌘C" : "Ctrl+C"} to copy`
     }
   }
@@ -180,12 +199,44 @@ function position(image: HTMLImageElement, clip: HTMLElement, words: HTMLElement
     transform: `scale(${dw * sx / image.naturalWidth}, ${dh * sy / image.naturalHeight})` })
   const visible = visibleBox.bottom > visibleBox.top && visibleBox.right > visibleBox.left
   bar.hidden = clip.hidden = !visible
-  // The bar's width is its content's (max-content), capped by the viewport, so
-  // placing it never feeds back into its width; it stays clear of scrollbars.
-  const view = viewport()
-  bar.style.setProperty("--bar-max-width", `${view.width - 16}px`)
-  bar.style.left = `${Math.max(8, Math.min(rect.right, view.width) - bar.offsetWidth - 8)}px`
-  bar.style.top = `${Math.max(8, Math.min(rect.bottom, view.height) - bar.offsetHeight - 8)}px`
+  if (visible) placeBar(bar, visibleBox, words)
+}
+
+interface Box { left: number; top: number; right: number; bottom: number }
+const barSpots = new WeakMap<HTMLElement, { key: string; left: number; top: number }>()
+
+/**
+ * The bar never hides text where it can help it: it sits just below the
+ * image's visible part, or above it, and only on an image filling the viewport
+ * takes the inside corner covering the fewest recognized words. Its width is
+ * its content's (max-content) capped by the viewport, so placing it never
+ * feeds back into its width, and it stays clear of scrollbars.
+ */
+function placeBar(bar: HTMLElement, box: Box, words: HTMLElement): void {
+  const view = viewport(), gap = 8
+  bar.style.setProperty("--bar-max-width", `${view.width - gap * 2}px`)
+  const w = bar.offsetWidth, h = bar.offsetHeight
+  const key = [box.left, box.top, box.right, box.bottom, w, h, view.width, view.height, words.childElementCount].map(Math.round).join()
+  let spot = barSpots.get(bar)
+  if (spot?.key !== key) {
+    const x = (left: number) => Math.max(gap, Math.min(left, view.width - w - gap))
+    const y = (top: number) => Math.max(gap, Math.min(top, view.height - h - gap))
+    let place = box.bottom + gap + h <= view.height - gap ? { left: x(box.right - w), top: box.bottom + gap }
+      : box.top - gap - h >= gap ? { left: x(box.right - w), top: box.top - gap - h } : null
+    if (!place) {
+      const rects = [...words.querySelectorAll(".word")].map((word) => word.getBoundingClientRect())
+      const covered = (left: number, top: number) => rects.reduce((sum, r) => sum +
+        Math.max(0, Math.min(r.right, left + w) - Math.max(r.left, left)) * Math.max(0, Math.min(r.bottom, top + h) - Math.max(r.top, top)), 0)
+      place = [[box.right - w - gap, box.bottom - h - gap], [box.left + gap, box.bottom - h - gap],
+        [box.right - w - gap, box.top + gap], [box.left + gap, box.top + gap]]
+        .map(([left, top]) => ({ left: x(left), top: y(top) }))
+        .reduce((best, corner) => covered(corner.left, corner.top) < covered(best.left, best.top) ? corner : best)
+    }
+    spot = { key, ...place }
+    barSpots.set(bar, spot)
+  }
+  bar.style.left = `${spot.left}px`
+  bar.style.top = `${spot.top}px`
 }
 
 /**
