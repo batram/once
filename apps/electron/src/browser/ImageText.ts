@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
 import { nativeTextRecognitionAvailable, recognize } from "./NativeTextRecognition"
-import type { ImageTextResult } from "./imageTextTypes"
+import type { ImageTextResult } from "@once/ui-web/imageText/imageTextTypes"
 
 const MAX_BYTES = 32 * 1024 * 1024
 const active = new WeakMap<WebContents, AbortController>()

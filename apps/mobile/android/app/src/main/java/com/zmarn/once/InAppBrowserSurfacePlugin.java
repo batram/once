@@ -318,7 +318,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     /** On-device OCR for the shell's text retrieval; see TextRecognition. */
     @PluginMethod
-    public void recognizeImage(PluginCall call) { TextRecognition.recognize(call); }
+    public void recognizeImage(PluginCall call) { TextRecognition.recognize(call, engine.runtime); }
 
     @PluginMethod
     public void reload(PluginCall call) {
@@ -467,7 +467,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         LinkContextMenu.show(getActivity(), engine.runtime, target, items,
             (url, background) -> notifyListeners("openLinkRequested", new JSObject().put("url", url).put("background", background)),
             id -> notifyListeners("contextMenuAction", new JSObject().put("id", id)
-                .put("link", target.link).put("linkText", target.linkText)));
+                .put("link", target.link).put("linkText", target.linkText).put("image", target.media).put("referrer", target.referrer)));
     }
 
     /** With Reader-mode entries in its history, the shell owns Back and Forward. */

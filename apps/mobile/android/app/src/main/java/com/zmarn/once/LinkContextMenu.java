@@ -59,14 +59,18 @@ final class LinkContextMenu {
         }
     }
 
+    /** The shell item id of "Select text in image"; the shell runs the overlay and recognition. */
+    static final String IMAGE_TEXT = "once:image-text";
+
     static void show(Activity activity, GeckoRuntime runtime, Target target,
                      BiConsumer<String, Boolean> openInTab) {
-        show(activity, runtime, target, java.util.Collections.emptyList(), openInTab, id -> {});
+        show(activity, runtime, target, java.util.Collections.emptyList(), openInTab, null);
     }
 
     /**
      * openInTab receives the URL and whether the new tab stays in the
-     * background; runItem the id of a chosen shell item.
+     * background; runItem the id of a chosen shell item, or is null where no
+     * shell handles items (then shell-run entries such as IMAGE_TEXT are left out).
      */
     static void show(Activity activity, GeckoRuntime runtime, Target target, List<Item> items,
                      BiConsumer<String, Boolean> openInTab, java.util.function.Consumer<String> runItem) {
@@ -103,6 +107,11 @@ final class LinkContextMenu {
                 actions.add(() -> openInTab.accept(media, false));
             }
             if (target.mediaType == ContextElement.TYPE_IMAGE) {
+                // GeckoView has no Live Text; on-device OCR selects the image's text in place.
+                if (runItem != null && (isWebUrl(media) || media.startsWith("data:image/"))) {
+                    labels.add("Select text in image");
+                    actions.add(() -> runItem.accept(IMAGE_TEXT));
+                }
                 labels.add("Copy image");
                 actions.add(() -> ImageShare.copy(activity, runtime, media, target.referrer));
                 labels.add("Share image");

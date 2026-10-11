@@ -86,6 +86,7 @@ const entry = {
   mobile: path.join(__dirname, "src", "main.ts"),
   "reader-runtime": path.join(__dirname, "src", "readerRuntime.ts"),
   "picker-injection": path.join(__dirname, "src", "pickerInjection.ts"),
+  "image-text-injection": path.join(__dirname, "src", "imageTextInjection.ts"),
   "page-find": path.join(__dirname, "src", "pageFindRuntime.ts"),
   "addon-sandbox": path.join(__dirname, "src", "addonSandbox.ts"),
   "pdf-sandbox": path.join(__dirname, "src", "pdfSandbox.ts")

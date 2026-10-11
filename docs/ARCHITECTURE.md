@@ -451,6 +451,21 @@ image OCR until they supply a backend. Recognition runs on device, with a
 32 MiB image limit, an 80-megapixel dimension limit, EXIF orientation applied,
 and downsampling to a 4096 px longest side.
 
+Image text selection ("Select Text in Image" in Electron's context menu on
+macOS and Windows, "Select text in image" in Android's long-press menu) is one
+shared overlay, `packages/ui-web/src/imageText/`, which each app bundles as an
+`image-text-injection` script and evaluates in the image's document: Electron's
+main process from its frame, Android's shell (`apps/mobile/src/mobileImageText.ts`)
+through the surface's content-script bridge. Recognition stays native and only
+the chosen image is recognized: Electron sends its bytes to the helper, Android
+has Gecko fetch the image with the page's cookies and referrer (as Copy image
+does) and ML Kit adds word corners (`recognizeImage({ url, referrer })`). The
+overlay lays transparent words over the image, groups them with the Reader's
+OCR reflow (`ocrParagraphLines`) so a triple-click selects a paragraph and
+copying joins wrapped lines, and on touch offers a Copy button beside the
+platform's own selection toolbar. iOS needs none of this: WebKit's Live Text
+already selects text in images.
+
 The existing `fetchDocument` method adapts this result for Reader, offline
 story storage and addon `getStoryContent()`. For recognized text its `html`
 field contains escaped paragraphs and its `mediaType` is `text/plain`, marking

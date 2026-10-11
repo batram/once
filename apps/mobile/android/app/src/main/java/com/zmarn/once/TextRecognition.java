@@ -3,6 +3,7 @@ package com.zmarn.once;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
+import android.graphics.Point;
 import android.graphics.Rect;
 import android.util.Base64;
 import androidx.exifinterface.media.ExifInterface;
@@ -17,6 +18,7 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.mozilla.geckoview.GeckoRuntime;
 
 /** On-device ML Kit text recognition with the bundled Latin model (no Play services,
  * no model download). Limits and messages match iOS's TextRecognition.swift.
@@ -35,7 +37,33 @@ final class TextRecognition {
 
     private TextRecognition() {}
 
-    static void recognize(PluginCall call) {
+    /**
+     * Recognizes `{ base64 }` (the shell's text retrieval) or `{ url, referrer }`, an image of
+     * the open page that Gecko fetches like Copy image does (the long-press "Select text in
+     * image"). `lines` and `lineBounds` answer the retrieval port; `words` adds each word's
+     * corners, normalized with a top-left origin, for the selection overlay.
+     */
+    static void recognize(PluginCall call, GeckoRuntime runtime) {
+        String url = call.getString("url");
+        if (url != null) {
+            if (!url.startsWith("https://") && !url.startsWith("http://") && !url.startsWith("data:image/")) {
+                call.reject("Invalid image");
+                return;
+            }
+            String referrer = call.getString("referrer");
+            worker.execute(() -> {
+                byte[] fetched;
+                try {
+                    fetched = ImageShare.bytes(runtime, url, referrer);
+                } catch (Throwable error) {
+                    call.reject("Image unavailable");
+                    return;
+                }
+                if (fetched.length == 0 || fetched.length > MAX_BYTES) call.reject("Invalid image size");
+                else run(call, fetched);
+            });
+            return;
+        }
         String encoded = call.getString("base64");
         byte[] data = null;
         if (encoded != null && encoded.length() <= MAX_BASE64_CHARS) {
@@ -50,38 +78,66 @@ final class TextRecognition {
             return;
         }
         byte[] bytes = data;
-        worker.execute(() -> {
-            Bitmap image;
-            try {
-                image = decode(bytes);
-            } catch (OutOfMemoryError | RuntimeException error) {
-                image = null;
-            }
-            if (image == null) {
-                call.reject("Invalid image");
-                return;
-            }
-            try {
-                Text text = Tasks.await(client().process(InputImage.fromBitmap(image, 0)));
-                JSArray lines = new JSArray();
-                JSArray bounds = new JSArray();
-                for (Text.TextBlock block : text.getTextBlocks()) {
-                    for (Text.Line line : block.getLines()) {
-                        Rect box = line.getBoundingBox();
-                        if (box == null) box = new Rect();
-                        lines.put(line.getText());
-                        bounds.put(new JSObject()
-                            .put("x", box.left).put("y", box.top)
-                            .put("width", box.width()).put("height", box.height()));
-                    }
+        worker.execute(() -> run(call, bytes));
+    }
+
+    /** Decodes and recognizes on the worker thread, then answers the call. */
+    private static void run(PluginCall call, byte[] bytes) {
+        Bitmap image;
+        try {
+            image = decode(bytes);
+        } catch (OutOfMemoryError | RuntimeException error) {
+            image = null;
+        }
+        if (image == null) {
+            call.reject("Invalid image");
+            return;
+        }
+        try {
+            Text text = Tasks.await(client().process(InputImage.fromBitmap(image, 0)));
+            JSArray lines = new JSArray();
+            JSArray bounds = new JSArray();
+            JSArray words = new JSArray();
+            for (Text.TextBlock block : text.getTextBlocks()) {
+                for (Text.Line line : block.getLines()) {
+                    Rect box = line.getBoundingBox();
+                    if (box == null) box = new Rect();
+                    lines.put(line.getText());
+                    bounds.put(new JSObject()
+                        .put("x", box.left).put("y", box.top)
+                        .put("width", box.width()).put("height", box.height()));
+                    words.put(words(line, image.getWidth(), image.getHeight()));
                 }
-                call.resolve(new JSObject().put("lines", lines).put("lineBounds", bounds));
-            } catch (Exception | OutOfMemoryError error) {
-                call.reject("Image text recognition failed", error instanceof Exception ? (Exception) error : null);
-            } finally {
-                image.recycle();
             }
-        });
+            call.resolve(new JSObject().put("lines", lines).put("lineBounds", bounds).put("words", words));
+        } catch (Exception | OutOfMemoryError error) {
+            call.reject("Image text recognition failed", error instanceof Exception ? (Exception) error : null);
+        } finally {
+            image.recycle();
+        }
+    }
+
+    /** A line's words with their corners as fractions of the recognized image, top-left origin. */
+    private static JSArray words(Text.Line line, int width, int height) {
+        JSArray words = new JSArray();
+        for (Text.Element element : line.getElements()) {
+            // ML Kit lists corners clockwise from the top left.
+            Point[] corners = element.getCornerPoints();
+            Rect box = element.getBoundingBox();
+            if ((corners == null || corners.length < 4) && box == null) continue;
+            if (corners == null || corners.length < 4) corners = new Point[] {
+                new Point(box.left, box.top), new Point(box.right, box.top),
+                new Point(box.right, box.bottom), new Point(box.left, box.bottom) };
+            words.put(new JSObject().put("text", element.getText())
+                .put("topLeft", corner(corners[0], width, height))
+                .put("topRight", corner(corners[1], width, height))
+                .put("bottomLeft", corner(corners[3], width, height)));
+        }
+        return words;
+    }
+
+    private static JSObject corner(Point point, int width, int height) {
+        return new JSObject().put("x", point.x / (double) width).put("y", point.y / (double) height);
     }
 
     private static synchronized TextRecognizer client() {

@@ -2,7 +2,7 @@ import { ELECTRON_IPC } from "@once/platform-electron/bridge"
 import { app, ipcMain, type IpcMainInvokeEvent } from "electron"
 import { spawn } from "node:child_process"
 import path from "node:path"
-import type { ImageTextResult } from "./imageTextTypes"
+import type { ImageTextResult } from "@once/ui-web/imageText/imageTextTypes"
 
 const MAX_BYTES = 32 * 1024 * 1024
 

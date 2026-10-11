@@ -135,6 +135,11 @@ final class ImageShare {
         Fetched(byte[] bytes, String mime) { this.bytes = bytes; this.mime = mime; }
     }
 
+    /** The image's bytes, fetched by Gecko like Copy/Save image; blocks, so never on the UI thread. */
+    static byte[] bytes(GeckoRuntime runtime, String src, String referrer) throws Throwable {
+        return (src.startsWith("data:") ? decode(src) : fetch(runtime, src, referrer)).bytes;
+    }
+
     private static Fetched fetch(GeckoRuntime runtime, String src, String referrer) throws Throwable {
         WebRequest.Builder request = new WebRequest.Builder(src).header("Accept", "image/*");
         if (referrer != null) request.referrer(referrer);

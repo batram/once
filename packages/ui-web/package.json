@@ -11,6 +11,8 @@
       "reader/readerTts": ["dist/reader/readerTts.d.ts"],
       "reader/readerPageRuntime": ["dist/reader/readerPageRuntime.d.ts"],
       "picker/sourcePicker": ["dist/picker/sourcePicker.d.ts"],
+      "imageText/imageTextOverlay": ["dist/imageText/imageTextOverlay.d.ts"],
+      "imageText/imageTextTypes": ["dist/imageText/imageTextTypes.d.ts"],
       "gesture/touchGestureLock": ["dist/gesture/touchGestureLock.d.ts"],
       "addons/conversationPage": ["dist/addons/conversationPage.d.ts"],
       "addons/pageActionHost": ["dist/addons/pageActionHost.d.ts"],
@@ -26,6 +28,14 @@
     "./tabsync/RemoteTabsView": {
       "types": "./dist/tabsync/RemoteTabsView.d.ts",
       "default": "./dist/tabsync/RemoteTabsView.js"
+    },
+    "./imageText/imageTextOverlay": {
+      "types": "./dist/imageText/imageTextOverlay.d.ts",
+      "default": "./dist/imageText/imageTextOverlay.js"
+    },
+    "./imageText/imageTextTypes": {
+      "types": "./dist/imageText/imageTextTypes.d.ts",
+      "default": "./dist/imageText/imageTextTypes.js"
     },
     "./reader/readerDocument": {
       "types": "./dist/reader/readerDocument.d.ts",

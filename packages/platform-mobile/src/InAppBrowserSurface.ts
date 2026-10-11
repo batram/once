@@ -135,6 +135,19 @@ export interface ContextMenuActionEvent {
   id: string
   link?: string
   linkText?: string
+  /** The long-pressed image and its page, for IMAGE_TEXT_MENU_ITEM (Android). */
+  image?: string
+  referrer?: string
+}
+
+/** The native long-press entry "Select text in image"; the shell runs overlay and recognition. */
+export const IMAGE_TEXT_MENU_ITEM = "once:image-text"
+
+/** On-device OCR of an image: lines with bounds, plus each line's words with normalized corners. */
+export interface NativeImageText {
+  lines: string[]
+  lineBounds: { x: number; y: number; width: number; height: number }[]
+  words: { text: string; topLeft: { x: number; y: number }; topRight: { x: number; y: number }; bottomLeft: { x: number; y: number } }[][]
 }
 
 /**
@@ -264,6 +277,8 @@ export interface InAppBrowserSurface {
   /** Clears every site's data; add-on storage and the shell's own data stay. */
   clearAllData?(): Promise<void>
   evaluateJavaScript(script: string): Promise<string | null>
+  /** Recognizes an image of this page, fetched natively with its cookies and referrer (Android). */
+  recognizeImageUrl?(url: string, referrer?: string): Promise<NativeImageText>
   /**
    * Selects the next (or previous) occurrence of `query` in the open page and
    * says how many there are. Null when the surface cannot search.
@@ -312,6 +327,7 @@ interface NativeInAppBrowserPlugin {
   clearSiteData(options: { site: string }): Promise<{ cleared?: boolean }>
   clearAllData(): Promise<void>
   evaluateJavaScript(options: { script: string }): Promise<{ value?: string }>
+  recognizeImage(options: { url: string; referrer?: string }): Promise<NativeImageText>
   findInPage(options: { query: string; forward: boolean }): Promise<PageFindResult>
   clearFind(): Promise<void>
   presentFind(): Promise<{ presented?: boolean }>
@@ -462,6 +478,7 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
       const result = await plugin.evaluateJavaScript({ script })
       return result?.value ?? null
     },
+    recognizeImageUrl: (url, referrer) => plugin.recognizeImage({ url, referrer }),
     async findInPage(query, options) {
       const result = await plugin.findInPage({
         query,

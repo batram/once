@@ -32,6 +32,7 @@ import { installReaderMediaSession, nativeReaderSpeechEngine } from "./readerMed
 import { installReaderLinkHost, installReaderLinkMenuHost } from "./readerLinks"
 import { installReaderEdgeSwipeHost } from "./readerEdgeSwipe"
 import { MobileReadingController } from "./readingController"
+import { installMobileImageText } from "./mobileImageText"
 import { setUpPairing } from "./pairing"
 import { mountTabSyncInTabView, readingTabOpener, readingTabSource } from "./readingTabSync"
 import { linkAddonItems, readingPageActions } from "./readingPageActions"
@@ -293,6 +294,7 @@ async function startMobileApp(): Promise<void> {
   reading.runtime.followRedirectFailures((url, reason) => app.client.reportRedirectFailure(url, reason))
   installReaderMediaSession(tts, (frame) => reading.describeReader(frame))
   await reading.install()
+  await installMobileImageText(browserSurface)
   bindTabStories(reading, app.client)
   // Web links leave the reader for the browser surface; mail goes to the system.
   installReaderLinkHost((source) => reading.reader.isReaderWindow(source), (url) => {

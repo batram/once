@@ -1,5 +1,5 @@
 import { joinBlockLines, ocrParagraphLines } from "@once/app/ocrParagraphs"
-import type { ImageTextResult } from "./browser/imageTextTypes"
+import type { ImageTextResult } from "./imageTextTypes"
 
 /**
  * Structure-aware selection over recognized image text, using the reflow
@@ -46,11 +46,45 @@ export class ImageTextBlocks {
     document.getSelection()?.setBaseAndExtent(first, 0, last, last.length)
   }
 
+  private pending: string | null = null
+
+  /**
+   * Copies the selection inside the overlay, or all recognized text when
+   * nothing there is selected, from a click handler (a user gesture). The copy
+   * event below supplies the text, so no secure context is needed.
+   */
+  copyFromGesture(): boolean {
+    this.pending = this.selectedText() ?? this.allText()
+    try {
+      return document.execCommand("copy")
+    } finally {
+      this.pending = null
+    }
+  }
+
   private readonly copy = (event: ClipboardEvent) => {
-    const text = this.selectedText()
+    const text = this.pending ?? this.selectedText()
     if (text === null || !event.clipboardData) return
     event.clipboardData.setData("text/plain", text)
     event.preventDefault()
+  }
+
+  private allText(): string {
+    return this.join(this.spans().map((span) => ({ span, part: span.firstChild instanceof Text ? span.firstChild.data : "" })))
+  }
+
+  /** Words of one line joined by spaces, wrapped lines of one block reflowed, blocks on new lines. */
+  private join(parts: { span: HTMLElement; part: string }[]): string {
+    let text = "", previous: HTMLElement | null = null
+    for (const { span, part } of parts) {
+      if (!part) continue
+      if (!previous) text = part
+      else if (previous.dataset.line === span.dataset.line) text += ` ${part}`
+      else if (this.block(previous) === this.block(span)) text = joinBlockLines(text, part)
+      else text += `\n${part}`
+      previous = span
+    }
+    return text
   }
 
   /** The selection inside the overlay as reflowed text, or null when it is not ours. */
@@ -62,20 +96,14 @@ export class ImageTextBlocks {
     const range = document.createRange()
     range.setStart(composed.startContainer, composed.startOffset)
     range.setEnd(composed.endContainer, composed.endOffset)
-    let text = "", previous: HTMLElement | null = null
-    for (const span of this.spans()) {
+    const parts = this.spans().flatMap((span) => {
       const node = span.firstChild
-      if (!(node instanceof Text) || !range.intersectsNode(node)) continue
+      if (!(node instanceof Text) || !range.intersectsNode(node)) return []
       const start = range.comparePoint(node, 0) >= 0 ? 0 : range.startContainer === node ? range.startOffset : node.length
       const end = range.comparePoint(node, node.length) <= 0 ? node.length : range.endContainer === node ? range.endOffset : 0
-      const part = node.data.slice(start, end)
-      if (!part) continue
-      if (!previous) text = part
-      else if (previous.dataset.line === span.dataset.line) text += ` ${part}`
-      else if (this.block(previous) === this.block(span)) text = joinBlockLines(text, part)
-      else text += `\n${part}`
-      previous = span
-    }
-    return previous ? text : null
+      return [{ span, part: node.data.slice(start, end) }]
+    })
+    const text = this.join(parts)
+    return text ? text : null
   }
 }
