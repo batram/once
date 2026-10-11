@@ -16,6 +16,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(WebInspectorPlugin.class);
         super.onCreate(savedInstanceState);
         getBridge().getWebView().setWebChromeClient(new RedactingChromeClient(getBridge()));
+        getBridge().addWebViewListener(new ShellRenderRecovery(this));
     }
 
     @Override public boolean dispatchTouchEvent(MotionEvent event) {

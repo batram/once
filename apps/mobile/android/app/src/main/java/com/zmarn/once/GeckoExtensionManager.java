@@ -39,7 +39,7 @@ final class GeckoExtensionManager implements WebExtension.ActionDelegate, WebExt
     private PluginCall operation;
     private boolean declined;
 
-    GeckoExtensionManager(Activity activity, android.webkit.WebView shell, GeckoEngine engine, Supplier<GeckoSession> reading,
+    GeckoExtensionManager(Activity activity, Supplier<android.webkit.WebView> shell, GeckoEngine engine, Supplier<GeckoSession> reading,
                           Supplier<Iterable<GeckoSession>> readingSessions, Runnable changed, java.util.function.Consumer<JSObject> pageState) {
         this.activity = activity;
         this.engine = engine;

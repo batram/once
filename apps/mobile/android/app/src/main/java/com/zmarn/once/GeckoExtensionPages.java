@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.mozilla.geckoview.AllowOrDeny;
 import org.mozilla.geckoview.GeckoResult;
 import org.mozilla.geckoview.GeckoSession;
@@ -29,13 +30,14 @@ final class GeckoExtensionPages {
     private final GeckoEngine engine;
     private final GeckoExtensionManager manager;
     private final Consumer<JSObject> state;
-    private final WebView shell;
+    /** The current shell view; a lost renderer replaces it. */
+    private final Supplier<WebView> shell;
     private final Map<GeckoSession, Page> pages = new LinkedHashMap<>();
     private FrameLayout host;
     private Page visible;
     private boolean resumed = true;
 
-    GeckoExtensionPages(Activity activity, WebView shell, GeckoEngine engine, GeckoExtensionManager manager, Consumer<JSObject> state) {
+    GeckoExtensionPages(Activity activity, Supplier<WebView> shell, GeckoEngine engine, GeckoExtensionManager manager, Consumer<JSObject> state) {
         this.shell = shell;
         this.activity = activity;
         this.engine = engine;
@@ -101,8 +103,8 @@ final class GeckoExtensionPages {
         params.width = Math.round((float) Math.max(0, bounds.optDouble("width", 0)) * density);
         params.height = Math.round((float) Math.max(0, bounds.optDouble("height", 0)) * density);
         container.setLayoutParams(params);
-        container.setX(shell.getX() + Math.round((float) Math.max(0, bounds.optDouble("x", 0)) * density));
-        container.setY(shell.getY() + Math.round((float) Math.max(0, bounds.optDouble("y", 0)) * density));
+        container.setX(shell.get().getX() + Math.round((float) Math.max(0, bounds.optDouble("x", 0)) * density));
+        container.setY(shell.get().getY() + Math.round((float) Math.max(0, bounds.optDouble("y", 0)) * density));
     }
 
     void closeVisible() { if (visible != null) close(visible.session); }
@@ -194,7 +196,7 @@ final class GeckoExtensionPages {
         if (host != null) return host;
         host = new FrameLayout(activity);
         host.setVisibility(View.GONE);
-        ViewGroup parent = (ViewGroup) shell.getParent();
+        ViewGroup parent = (ViewGroup) shell.get().getParent();
         // Until the shell reports a frame the host stays a dot; it is still shown so a
         // page opened before the first layout is not lost, only not yet visible.
         parent.addView(host, new ViewGroup.LayoutParams(1, 1));

@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.content.Intent;
-import android.net.Uri;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -196,6 +195,12 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         for (InAppBrowserSurfacePlugin tab : tabs.values()) tab.trimMemory(level);
     }
 
+    /**
+     * The shell page restarted in a new renderer and remembers nothing it had
+     * shown. Pages are hidden, sessions kept, until it opens its tabs again.
+     */
+    void shellRestarted() { for (InAppBrowserSurfacePlugin tab : tabs.values()) tab.setSurfaceVisible(false); setSurfaceVisible(false); if (extensions != null) extensions.pages.closeVisible(); }
+
     @Override
     protected void handleOnDestroy() {
         for (InAppBrowserSurfacePlugin tab : new ArrayList<>(tabs.values())) {
@@ -226,7 +231,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
             return;
         }
         engine = GeckoEngine.get(getContext());
-        extensions = new GeckoExtensionManager(getActivity(), getBridge().getWebView(), engine, () -> {
+        extensions = new GeckoExtensionManager(getActivity(), () -> getBridge().getWebView(), engine, () -> {
             // The root's session is the reading page only while no tab is selected.
             if (selectedTab == null) return session;
             InAppBrowserSurfacePlugin tab = tabs.get(selectedTab);
@@ -256,7 +261,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
             call.resolve(new JSObject().put("cancelled", true));
             return;
         }
-        Uri uri = result.getData().getData();
+        android.net.Uri uri = result.getData().getData();
         new Thread(() -> {
             try {
                 java.io.File file = GeckoExtensionFiles.copy(getContext(), uri);
