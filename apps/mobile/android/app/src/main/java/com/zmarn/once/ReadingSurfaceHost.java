@@ -318,6 +318,16 @@ abstract class ReadingSurfaceHost extends Plugin {
 
     protected final ReadingDisplay display = new ReadingDisplay(this);
     protected void attachDisplay() { display.attach(); }
+    protected void attachMediaPort(WebExtension.Port port) {
+        backgroundMedia.attachPort(port);
+        video.api.connect(port);
+    }
+    protected boolean handleMediaMessage(org.json.JSONObject message) {
+        if ("media-snapshot".equals(message.optString("type"))) backgroundMedia.pageSnapshot(message);
+        else if ("pip-request".equals(message.optString("type"))) video.api.receive(message);
+        else return false;
+        return true;
+    }
     protected void repairDisplay() { display.repair(); }
     protected void traceLoad(String stage) { display.trace(stage); }
     protected void requestHealthCheck() { display.requestHealthCheck(); }

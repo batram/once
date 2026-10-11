@@ -14,6 +14,7 @@ test("cached documents reconnect native messaging and release old media listener
     window, location: { href: "https://example.test/", hostname: "example.test" },
     document: { readyState: "complete" }, setTimeout, clearTimeout,
     installOnceMediaBridge: () => () => { mediaCleanups++ },
+    installOncePictureInPicture: () => () => {},
     browser: { runtime: { async sendMessage() { return { sourceUrl: "https://example.test/original", statusCode: 200 } }, connectNative() {
       const messages = []
       const port = {

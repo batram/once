@@ -26,7 +26,7 @@ final class ReadingProgressDelegate implements GeckoSession.ProgressDelegate {
         h.repairVerified = false;
         h.displayReattached = false;
         h.backgroundMedia.reset();
-        h.backgroundMedia.attachPort(null);
+        h.attachMediaPort(null);
         // A new session loads about:blank on its own before the first
         // requested page; the shell never asked for that one.
         h.failPendingEvaluations("The page navigated away");

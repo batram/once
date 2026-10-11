@@ -1,4 +1,4 @@
-/* global browser, installOnceMediaBridge */
+/* global browser, installOnceMediaBridge, installOncePictureInPicture */
 // GeckoView has no evaluateJavascript, so the app's browsing surface runs
 // scripts through this content script instead: the native side posts
 // `{ id, code }` over a native-messaging port and gets `{ id, value }` back,
@@ -9,6 +9,7 @@ if (window === window.top) {
   const documentContext = browser.runtime.sendMessage({ type: "once-document-context" }).catch(() => null)
   let port = null
   let cleanupMedia = null
+  let cleanupPip = null
   let suspended = false
   let restored = false
   let retry = null
@@ -18,6 +19,8 @@ if (window === window.top) {
     retry = null
     cleanupMedia?.()
     cleanupMedia = null
+    cleanupPip?.()
+    cleanupPip = null
     const previous = port
     port = null
     previous?.disconnect()
@@ -27,10 +30,13 @@ if (window === window.top) {
     const connected = browser.runtime.connectNative("once_surface")
     port = connected
     cleanupMedia = installOnceMediaBridge(connected)
+    cleanupPip = installOncePictureInPicture(connected)
     connected.onDisconnect.addListener(() => {
       if (port !== connected) return
       cleanupMedia?.()
       cleanupMedia = null
+      cleanupPip?.()
+      cleanupPip = null
       port = null
       if (!suspended && attempts++ < 5) retry = setTimeout(() => { retry = null; connect() }, 500)
     })

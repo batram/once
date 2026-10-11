@@ -664,7 +664,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
                 healthSentAt = 0;
                 nextHealthAt = 0;
                 port.setDelegate(new BridgePort());
-                backgroundMedia.attachPort(port);
+                attachMediaPort(port);
                 requestHealthCheck();
             }
         }
@@ -714,7 +714,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
                 }
                 return;
             }
-            if ("media-snapshot".equals(reply.optString("type"))) { backgroundMedia.pageSnapshot(reply); return; }
+            if (handleMediaMessage(reply)) return;
             scripts.settle(reply);
         }
 
@@ -723,7 +723,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
             if (bridgePort != port) return;
             bridgePort = null;
             healthSentAt = 0;
-            backgroundMedia.attachPort(null);
+            attachMediaPort(null);
             failPendingEvaluations("The page navigated away");
             if (session != null && session.isOpen() && !recoveryFailed && navigationDeadline == 0) armNavigation();
         }

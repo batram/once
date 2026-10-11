@@ -33,8 +33,9 @@ final class ReadingVideo {
     private JSObject bounds;
     private boolean pip;
     private MediaSession.ElementMetadata videoMetadata;
+    final ReadingPip api;
 
-    ReadingVideo(ReadingSurfaceHost host) { this.host = host; }
+    ReadingVideo(ReadingSurfaceHost host) { this.host = host; api = new ReadingPip(this, host); }
     private MainActivity activity() { return (MainActivity) host.getActivity(); }
     boolean isFullscreen() { return overlay != null; }
 
@@ -49,6 +50,8 @@ final class ReadingVideo {
     }
 
     void fullscreen(boolean enabled) {
+        // A site exiting DOM fullscreen must not dismantle native API PiP.
+        if (!enabled && pip && api.direct) return;
         if (enabled == isFullscreen()) return;
         if (enabled) {
             if (!host.visible || !host.ownsForeground() || host.refreshSurface == null) {
@@ -120,7 +123,11 @@ final class ReadingVideo {
         update();
     }
 
-    private final android.view.View.OnLayoutChangeListener resized = (view, l, t, r, b, ol, ot, or, ob) -> update();
+    private final android.view.View.OnLayoutChangeListener resized = (view, l, t, r, b, ol, ot, or, ob) -> {
+        surfaceResized();
+    };
+
+    private void surfaceResized() { update(); api.resized(pip); }
 
     void exit() {
         if (host.session != null && host.session.isOpen()) host.session.exitFullScreen();
@@ -128,6 +135,8 @@ final class ReadingVideo {
     }
 
     void reset() {
+        api.cancel();
+        api.direct = false;
         if (isFullscreen()) exit();
         bounds = null;
     }
@@ -142,7 +151,9 @@ final class ReadingVideo {
     private PictureInPictureParams params(boolean enabled) {
         PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder();
         MediaSession.ElementMetadata video = metadata();
-        if (video != null && video.width > 0 && video.height > 0) {
+        if (api.direct && api.width > 0 && api.height > 0) {
+            builder.setAspectRatio(ratio(api.width, api.height));
+        } else if (video != null && video.width > 0 && video.height > 0) {
             // Android accepts ratios between 1:2.39 and 2.39:1, including portrait video.
             int width = (int) Math.max(4185, Math.min(23900, Math.round((double) video.width / video.height * 10000)));
             builder.setAspectRatio(new Rational(width, 10000));
@@ -150,7 +161,21 @@ final class ReadingVideo {
         Rect rect = new Rect();
         if (host.surface != null && host.surface.getGlobalVisibleRect(rect)) builder.setSourceRectHint(rect);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setAutoEnterEnabled(enabled);
+        // Gecko's SurfaceView replaces its buffers when the window resizes;
+        // Android's cross-fade covers that handoff instead of exposing black.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setSeamlessResizeEnabled(false);
         return builder.build();
+    }
+
+    private Rational ratio(int width, int height) {
+        return new Rational((int) Math.max(4185, Math.min(23900, Math.round((double) width / height * 10000))), 10000);
+    }
+
+    boolean enterPip(Rect source) {
+        PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder().setAspectRatio(ratio(api.width, api.height));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setSeamlessResizeEnabled(false);
+        if (source != null) builder.setSourceRectHint(source);
+        return activity().enterPictureInPictureMode(builder.build());
     }
 
     void update() {
@@ -176,6 +201,7 @@ final class ReadingVideo {
 
     void pipChanged(boolean enabled) {
         if (pip == enabled) return;
+        if (enabled && api.direct) fullscreen(true);
         Log.d("OnceVideo", "PiP mode=" + enabled);
         pip = enabled;
         // GeckoRuntime pauses on ProcessLifecycleOwner.ON_PAUSE, including
@@ -186,6 +212,11 @@ final class ReadingVideo {
         else GeckoThread.onPause();
         host.backgroundMedia.setPictureInPicture(enabled);
         if (host.session != null) host.session.getCompositorController().onPipModeChanged(enabled);
+        api.state(enabled);
+        if (!enabled && api.direct) {
+            api.direct = false;
+            exit();
+        }
         if (!enabled) update();
     }
 

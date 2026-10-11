@@ -6,6 +6,21 @@ Use the website player's fullscreen button to watch above Once's browser and
 tab controls. Android Back exits fullscreen and restores the reading viewport.
 Fullscreen disables pull to refresh; rotating the device resizes the player.
 
+Android reading pages also expose `video.requestPictureInPicture()`,
+`document.exitPictureInPicture()`, `document.pictureInPictureEnabled` and
+`document.pictureInPictureElement`. A player or userscript can request native PiP
+directly from a click, without entering DOM fullscreen first. The request returns
+a promise for a window with width, height and resize events; the video receives
+enter/leave events. A ready video and user activation are required, and Android
+permission failures reject the promise. The original video stays attached and
+keeps its playback position. Returning to Once restores the inline page.
+
+GeckoView 155 deliberately disables its unfinished Android web PiP API. Once
+supplies a compatibility bridge to Android's native PiP rather than enabling that
+preference. The bridge currently covers top-level reading documents. Videos in
+cross-origin iframes still use the existing native fullscreen/Home path; this is
+not a complete browser implementation of PiP CSS or every WebIDL interface.
+
 While a fullscreen video is playing, go Home to enter Android picture in picture
 (PiP). Expand the PiP window to return to the fullscreen player. Paused videos,
 audio-only playback and fullscreen pages without video do not auto-enter PiP.
@@ -142,8 +157,28 @@ window focus after automatic wake/relaunch. Do not count that regression as
 passing.
 
 Android PiP currently uses Once's main activity. Reopening Once expands that
-activity into its fullscreen player; it does not keep a floating player above
-the Stories view.
+activity, returning to the inline player for direct JavaScript PiP and to
+fullscreen for fullscreen/Home PiP. It does not keep a floating player above the
+Stories view.
+
+`StandardPipTest#standardVideoPipFromInline` exercises the JavaScript API with a
+real H.264/AAC video on the isolated Samsung test app. It passed two light/dark
+round trips, checking native PiP, a null DOM fullscreen element, correct video
+geometry, ongoing decoded frames, Pause/Play, JavaScript exit, native return and
+restoration of the inline player. The production build also passed live mobile
+and desktop-site YouTube tests through Violentmonkey with the
+`youtube-pip-button.user.js` 1.1 script. Both entered directly from its button and
+kept decoding frames without a playback error. Desktop-site PiP was checked with
+background playback disabled and entry from landscape. JavaScript exit and
+reopening Once restored the inline player and cleared the button's active state.
+The userscript retries feature detection after the native capability handshake;
+the remaining userscripts and the background-playback preference are preserved.
+Frame-by-frame inspection of the production entry recording still shows a brief
+black frame while Gecko's SurfaceView changes size. Preparing the video before
+native entry prevents the whole browser page being presented as the final PiP
+content, but Android's cross-fade does not completely cover this renderer handoff.
+Treat one-tap entry and continuous playback as verified; the animation still has
+this visual limitation.
 
 On the connected iPhone 16 Pro Max, YouTube PiP played continuously with
 background playback disabled, survived switching between Reading and Stories,
