@@ -47,7 +47,8 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
     .highlights { position: absolute; inset: 0; width: 100%; height: 100%;
       pointer-events: none; user-select: none; fill: #3984ff; fill-opacity: .36; }
     .bar { position: absolute; display: flex; align-items: center; gap: 12px;
-      max-width: calc(100vw - 16px); padding: 8px 10px; border: 1px solid #b8bec7;
+      width: max-content; max-width: var(--bar-max-width, calc(100vw - 16px));
+      padding: 8px 10px; border: 1px solid #b8bec7;
       border-radius: 8px; box-shadow: 0 2px 10px #0003; color: #20242b;
       background: #fff; font: 13px/1.4 system-ui; pointer-events: auto; user-select: none; }
     button { font: inherit; color: inherit; background: transparent; cursor: pointer;
@@ -110,7 +111,8 @@ function createSelection(image: HTMLImageElement, token: string): ImageTextSessi
       }
       renderWords(words, result, image.naturalWidth, image.naturalHeight)
       highlights.attach(image.naturalWidth, image.naturalHeight)
-      status.textContent = "Drag to select text · ⌘C to copy"
+      // Runs in the page, so the page reports the platform for the copy shortcut.
+      status.textContent = `Drag to select text · ${/^Mac/.test(navigator.platform) ? "⌘C" : "Ctrl+C"} to copy`
     }
   }
 }
@@ -143,14 +145,29 @@ function position(image: HTMLImageElement, clip: HTMLElement, words: HTMLElement
     transform: `scale(${dw * sx / image.naturalWidth}, ${dh * sy / image.naturalHeight})` })
   const visible = visibleBox.bottom > visibleBox.top && visibleBox.right > visibleBox.left
   bar.hidden = clip.hidden = !visible
-  bar.style.left = `${Math.max(8, Math.min(rect.right - bar.offsetWidth - 8, innerWidth - bar.offsetWidth - 8))}px`
-  bar.style.top = `${Math.max(8, Math.min(rect.bottom, innerHeight) - bar.offsetHeight - 8)}px`
+  // The bar's width is its content's (max-content), capped by the viewport, so
+  // placing it never feeds back into its width; it stays clear of scrollbars.
+  const view = viewport()
+  bar.style.setProperty("--bar-max-width", `${view.width - 16}px`)
+  bar.style.left = `${Math.max(8, Math.min(rect.right, view.width) - bar.offsetWidth - 8)}px`
+  bar.style.top = `${Math.max(8, Math.min(rect.bottom, view.height) - bar.offsetHeight - 8)}px`
+}
+
+/**
+ * The viewport without scrollbars (innerWidth/innerHeight include them). The
+ * scrolling element reports it in standards and quirks mode alike; a
+ * standalone image document is a quirks-mode page.
+ */
+function viewport() {
+  const root = document.scrollingElement ?? document.documentElement
+  return { width: root.clientWidth || innerWidth, height: root.clientHeight || innerHeight }
 }
 
 /** A fixed overlay must obey the image's scrolling/clipping ancestors too. */
 function visibleImageBox(image: HTMLElement, left: number, top: number, width: number, height: number) {
+  const view = viewport()
   const box = { left: Math.max(0, left), top: Math.max(0, top),
-    right: Math.min(innerWidth, left + width), bottom: Math.min(innerHeight, top + height) }
+    right: Math.min(view.width, left + width), bottom: Math.min(view.height, top + height) }
   for (let parent = image.parentElement; parent; parent = parent.parentElement) {
     const style = getComputedStyle(parent), rect = parent.getBoundingClientRect()
     if (/(hidden|clip|scroll|auto)/.test(style.overflowX)) {

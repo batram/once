@@ -36,7 +36,7 @@ async function startRecognition(app) {
     action.click()
   }, `${server.origin}/`)
   await expect.poll(() => inPage(app, "document.querySelector('[data-once-image-text]')?.shadowRoot.querySelector('[role=status]').textContent"))
-    .toContain("Drag to select text")
+    .toContain(`Drag to select text · ${process.platform === "darwin" ? "⌘C" : "Ctrl+C"} to copy`)
 }
 
 async function geometry(app) {
@@ -48,7 +48,8 @@ async function geometry(app) {
     const highlight=shadow.querySelector('.highlights path');
     return {image:r.toJSON(), words, bar:bar.getBoundingClientRect().toJSON(), hidden:getComputedStyle(bar).display==='none',
       highlight:highlight?.getAttribute('d'), highlightBox:highlight?.getBoundingClientRect().toJSON(),
-      background:getComputedStyle(bar).backgroundColor, viewport:{width:innerWidth,height:innerHeight}};
+      background:getComputedStyle(bar).backgroundColor,
+      viewport:{width:innerWidth,height:innerHeight,clientWidth:document.scrollingElement.clientWidth}};
   })()`)
 }
 
@@ -109,6 +110,13 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     await expect.poll(async () => (await geometry(app)).words[0].top).toBeCloseTo(initial.words[0].top - 80, 0)
     await inPage(app, "scrollTo(0,document.body.scrollHeight)")
     await expect.poll(async () => (await geometry(app)).hidden).toBe(true)
+    // An image wider than the viewport: the bar keeps its one-line width instead
+    // of shrinking against the right edge, and stays clear of the scrollbar.
+    await inPage(app, "scrollTo(0,0); document.querySelector('img').style.width='1600px'")
+    await expect.poll(async () => {
+      const g = await geometry(app)
+      return g.bar.height < 60 && g.bar.right <= g.viewport.clientWidth - 8
+    }).toBe(true)
     await inPage(app, "scrollTo(0,0); document.querySelector('img').style.width='350px'")
     await expect.poll(async () => (await geometry(app)).image.width).toBeCloseTo(354, 0)
     await expect.poll(async () => {
