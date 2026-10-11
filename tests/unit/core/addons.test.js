@@ -246,6 +246,23 @@ test("a manifest installed from a URL resolves its script, remembers its source,
   assert.deepEqual(readAddonsDocument(JSON.parse(JSON.stringify(doc))), doc)
 })
 
+// The editor text names each manifest field, so a field it forgets is lost on
+// the next save; the shipped add-ons between them use every kind there is.
+test("the shipped add-ons survive the text editor unchanged, shortName included", () => {
+  const fs = require("node:fs")
+  const path = require("node:path")
+  const script = { url: "https://addons.example/main.js", integrity: "sha256-" + "A".repeat(43) + "=" }
+  const addons = ["what-wait-who-why", "nitter"].map((id) => {
+    const raw = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../../examples/addons", id, "once-addon.json"), "utf8"))
+    const read = readAddonManifest({ ...raw, script })
+    assert.equal(read.ok, true, JSON.stringify(read.reports))
+    return { enabled: true, manifest: read.manifest }
+  })
+  assert.equal(addons[0].manifest.shortName, "What4")
+  const doc = readAddonsDocument({ version: 1, addons })
+  assert.deepEqual(parseAddonsText(presentAddons(doc)), doc)
+})
+
 test("capabilities, settings schemas, panel actions, options, and storage validate and round-trip", () => {
   const { grantedFetchPatterns, readSandboxMessage } = require("../../../packages/core/dist/addons")
   const capable = manifest()

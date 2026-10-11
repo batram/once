@@ -210,7 +210,7 @@ export function presentAddons(doc: AddonsDocument): string {
   if (doc.addons.length === 0) return ""
   const entries = doc.addons.map(({ enabled, manifest, source, options, storage, redirectToggles }) => {
     const {
-      protocol, id, name, version, author, homepage, script, contributions, collectors,
+      protocol, id, name, shortName, version, author, homepage, script, contributions, collectors,
       panelActions, capabilities, settings: schema, connections, trays, redirects
     } = manifest
     return {
@@ -219,7 +219,9 @@ export function presentAddons(doc: AddonsDocument): string {
       ...(options ? { options } : {}),
       ...(storage ? { storage } : {}),
       ...(redirectToggles ? { redirectToggles } : {}),
-      protocol, id, name, version,
+      protocol, id, name,
+      ...(shortName ? { shortName } : {}),
+      version,
       ...(author ? { author } : {}),
       ...(homepage ? { homepage } : {}),
       ...(script ? { script } : {}),
