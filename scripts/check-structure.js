@@ -40,6 +40,12 @@ function isIgnored(fileName) {
   return ignored.some((rule) => rule.test(fileName))
 }
 
+function isChecked(fileName) {
+  return roots.some((directory) => fileName.startsWith(`${directory}/`)) &&
+    sourceExtensions.has(path.extname(fileName)) &&
+    !isIgnored(fileName)
+}
+
 // Comments are prose, not code, so they must not count against a file's budget.
 // Line comments and `/* */` runs are removed before counting; quoted text is
 // preserved so a "/*" inside a string cannot swallow the rest of the file.
@@ -197,9 +203,7 @@ function main() {
   const violations = []
   for (const file of roots.flatMap((directory) => filesBelow(path.join(root, directory)))) {
     const fileName = relative(file)
-    if (!sourceExtensions.has(path.extname(file)) || isIgnored(fileName)) {
-      continue
-    }
+    if (!isChecked(fileName)) continue
     violations.push(...fileViolations(fileName, fs.readFileSync(file, "utf8"), config))
   }
   if (violations.length) {
@@ -213,4 +217,4 @@ function main() {
 
 if (require.main === module) main()
 
-module.exports = { logicalLines, functionEntries, fileViolations, isIgnored }
+module.exports = { logicalLines, functionEntries, fileViolations, isIgnored, isChecked }

@@ -26,6 +26,12 @@ function relative(file) {
   return path.relative(root, file).split(path.sep).join("/")
 }
 
+function isScanned(fileName) {
+  return scannedRoots.some((directory) => fileName.startsWith(`${directory}/`)) &&
+    textExtensions.has(path.extname(fileName)) &&
+    !ignored.some((pattern) => pattern.test(fileName))
+}
+
 function semanticControlViolations(fileName, source) {
   const violations = []
   const extension = path.extname(fileName)
@@ -79,10 +85,7 @@ function main() {
   const files = scannedRoots.flatMap((directory) => filesBelow(path.join(root, directory)))
   for (const file of files) {
     const fileName = relative(file)
-    if (
-      !textExtensions.has(path.extname(file)) ||
-      ignored.some((pattern) => pattern.test(fileName))
-    ) continue
+    if (!isScanned(fileName)) continue
     violations.push(...semanticControlViolations(fileName, fs.readFileSync(file, "utf8")))
   }
   if (violations.length) {
@@ -96,4 +99,4 @@ function main() {
 
 if (require.main === module) main()
 
-module.exports = { semanticControlViolations }
+module.exports = { semanticControlViolations, isScanned }

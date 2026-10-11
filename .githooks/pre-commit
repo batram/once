@@ -1,0 +1,3 @@
+#!/bin/sh
+# Per-file static checks on the staged changes; see scripts/pre-commit-check.js.
+exec node scripts/pre-commit-check.js
