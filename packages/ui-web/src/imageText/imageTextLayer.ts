@@ -19,7 +19,8 @@ import type { ImageTextFit, ImageTextResult, ImageTextWord } from "./imageTextTy
  */
 
 const FRAME_CSS = `
-  :host { all: initial; }
+  /* Anchored at the page's origin; below the overlay's bar, which shares the topmost z-index. */
+  :host { all: initial; position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 2147483646; }
   iframe { all: initial; position: absolute; display: block; border: 0; margin: 0; padding: 0;
     background: transparent; color-scheme: normal; }
   iframe[hidden] { display: none; }
@@ -57,8 +58,6 @@ export class ImageTextLayer {
 
   constructor(token: string) {
     this.host.dataset.onceImageTextLayer = token
-    // Below the overlay's bar, which shares the topmost z-index.
-    this.host.style.cssText = "all: initial; position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 2147483646;"
     const shadow = this.host.attachShadow({ mode: "open" })
     const sheet = new CSSStyleSheet()
     sheet.replaceSync(FRAME_CSS)
