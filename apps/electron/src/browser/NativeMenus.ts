@@ -107,9 +107,30 @@ export class NativeMenus {
     params: ContextMenuParams
   ): void {
     if (owner.window.isDestroyed() || contents.isDestroyed()) return
-    const template: MenuItemConstructorOptions[] = [
-      { label: "Inspect", click: () => this.inspect(contents, params.x, params.y) }
-    ]
+    const template: MenuItemConstructorOptions[] = []
+
+    // Spelling fixes lead the menu, as in Chrome. The spell checker reports a
+    // misspelled word only inside editable fields.
+    const misspelled = params.misspelledWord
+    if (misspelled) {
+      for (const suggestion of params.dictionarySuggestions) {
+        template.push({
+          label: suggestion,
+          click: () => { if (!contents.isDestroyed()) contents.replaceMisspelling(suggestion) }
+        })
+      }
+      if (!params.dictionarySuggestions.length) template.push({ label: "No Spelling Suggestions", enabled: false })
+      template.push(
+        { type: "separator" },
+        {
+          label: "Add to Dictionary",
+          click: () => { if (!contents.isDestroyed()) contents.session.addWordToSpellCheckerDictionary(misspelled) }
+        },
+        { type: "separator" }
+      )
+    }
+
+    template.push({ label: "Inspect", click: () => this.inspect(contents, params.x, params.y) })
 
     if (params.isEditable) {
       template.push(
