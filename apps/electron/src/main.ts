@@ -18,7 +18,7 @@ import {
 import { SecureSettings } from "./SecureSettings"
 import { registerIpcHandlers } from "./IpcHandlers"
 import { registerPanelPageHandlers } from "./browser/PanelPages"
-import { registerBrowsingDataHandlers } from "./browser/BrowsingData"
+import { recordBrowsingOrigins, registerBrowsingDataHandlers } from "./browser/BrowsingData"
 import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { OFFSCREEN_TEST_POSITION, isBackgroundMode } from "./browser/WindowLifecycle"
 import {
@@ -303,6 +303,7 @@ app
     const secureSettings = new SecureSettings()
     await configureAccessibility(secureSettings)
     const browserSession = configureBrowserSession()
+    recordBrowsingOrigins(path.join(app.getPath("userData"), "browsing-origins.json"))
     // The shell window runs in the default session; its add-on sandbox frames
     // load their page from this scheme. `ONCE_ADDONS` adds development add-on
     // directories in unpackaged builds only, like `ONCE_ELECTRON_EXTENSIONS`.

@@ -1,7 +1,8 @@
-import { BrowserWindow, dialog, ipcMain, session, Session, webContents } from "electron"
+import { app, BrowserWindow, dialog, ipcMain, session, Session, webContents } from "electron"
 import { hostBelongsToSite, siteForUrl } from "@once/app/browsingSite"
 import { ELECTRON_IPC } from "@once/platform-electron/bridge"
 import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "../TabManager"
+import { OriginRecord, webOrigin } from "./OriginRecord"
 
 // Clears what websites stored in the browsing partition. Nothing else is
 // touched: the shell and its database live in the default session, and each
@@ -9,13 +10,37 @@ import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "../TabManager"
 
 const browsingSession = (): Session => session.fromPartition(BROWSER_SESSION_PARTITION)
 
+let originRecord: OriginRecord | null = null
+
+/**
+ * Starts recording every origin a frame of the browsing partition shows, main
+ * frames and iframes alike, in tabs, panel pages and popups. The session's
+ * webRequest events belong to the extension router (Electron allows one
+ * listener each), so the record listens to frame navigations instead. Call it
+ * before the first window opens.
+ */
+export function recordBrowsingOrigins(file: string): void {
+  const record = originRecord = new OriginRecord(file)
+  app.on("web-contents-created", (_event, contents) => {
+    if (contents.session !== browsingSession()) return
+    contents.on("did-frame-navigate", (_navigation, url) => record.record(url))
+  })
+  app.once("will-quit", () => {
+    try {
+      record.flush()
+    } catch (error) {
+      console.warn(`Could not save the origin record: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  })
+}
+
 /**
  * Everything one site stored, its subdomains included. Chromium clears storage
  * per exact origin (scheme, host and port) and cannot list the origins it holds
  * data for, so they are gathered from what can name them: the site's usual
- * hosts, the hosts its cookies were set for, and every page in the history of
- * the open tabs. Storage of an origin on an unusual port that no open tab ever
- * visited is out of reach; its cookies are not, since those ignore ports.
+ * hosts, the hosts its cookies were set for, every page in the history of the
+ * open tabs, and every origin the record saw, closed tabs and iframes too.
+ * Cookies ignore ports, so all of the site's go regardless.
  */
 export async function clearSiteData(site: string): Promise<void> {
   const ses = browsingSession()
@@ -40,21 +65,14 @@ export async function clearSiteData(site: string): Promise<void> {
       if (origin && hostBelongsToSite(new URL(origin).hostname, site)) origins.add(origin)
     }
   }
+  for (const origin of originRecord?.originsFor(site) ?? []) origins.add(origin)
   // Storage is partitioned by top-level site, and each matching mode reaches
   // one side of it: the default takes what other sites' frames stored inside
   // this site, origin-in-all-contexts what this site's frames stored inside
   // other sites (browsing-data-third-party.spec.js shows both).
   await ses.clearData({ origins: [...origins] })
   await ses.clearData({ origins: [...origins], originMatchingMode: "origin-in-all-contexts" })
-}
-
-function webOrigin(url: string): string | null {
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.origin : null
-  } catch {
-    return null
-  }
+  originRecord?.forget(site)
 }
 
 export async function clearAllBrowsingData(): Promise<void> {
@@ -62,6 +80,7 @@ export async function clearAllBrowsingData(): Promise<void> {
   await ses.clearData()
   await ses.clearAuthCache()
   await ses.clearHostResolverCache()
+  originRecord?.clear()
 }
 
 /** The shell's settings call these after asking the user themselves. */
