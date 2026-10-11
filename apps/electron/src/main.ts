@@ -18,6 +18,7 @@ import {
 import { SecureSettings } from "./SecureSettings"
 import { registerIpcHandlers } from "./IpcHandlers"
 import { registerPanelPageHandlers } from "./browser/PanelPages"
+import { loadShellZoom, registerZoomSettingHandlers, shellZoomFactor } from "./browser/ZoomSettings"
 import { recordBrowsingOrigins, registerBrowsingDataHandlers } from "./browser/BrowsingData"
 import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { OFFSCREEN_TEST_POSITION, isBackgroundMode } from "./browser/WindowLifecycle"
@@ -262,7 +263,8 @@ function createShellWindow(bounds?: Rectangle): BrowserWindow {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      webSecurity: true
+      webSecurity: true,
+      zoomFactor: shellZoomFactor()
     }
   })
 }
@@ -302,6 +304,7 @@ app
   .then(async () => {
     const secureSettings = new SecureSettings()
     await configureAccessibility(secureSettings)
+    await loadShellZoom(secureSettings)
     const browserSession = configureBrowserSession()
     recordBrowsingOrigins(path.join(app.getPath("userData"), "browsing-origins.json"))
     // The shell window runs in the default session; its add-on sandbox frames
@@ -359,6 +362,7 @@ app
       })
     })
     registerPanelPageHandlers(browserCoordinator)
+    registerZoomSettingHandlers(browserCoordinator, secureSettings)
     registerBrowsingDataHandlers(browserCoordinator)
     new RemoteTabsRelay(browserCoordinator).register()
     extensions.manager.onSyncChanged = document => {

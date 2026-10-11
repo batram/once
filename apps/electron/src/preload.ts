@@ -287,6 +287,11 @@ const bridge: ElectronBridge = {
       return () => ipcRenderer.removeListener(ELECTRON_IPC.panelPageChanged, listener)
     }
   },
+  zoom: {
+    getInterface: () => ipcRenderer.invoke(ELECTRON_IPC.zoomGetInterface),
+    setInterface: (factor) => ipcRenderer.invoke(ELECTRON_IPC.zoomSetInterface, factor),
+    resetPages: () => ipcRenderer.invoke(ELECTRON_IPC.zoomResetPages)
+  },
   window: {
     setFullscreen: (fullscreen) =>
       ipcRenderer.invoke(ELECTRON_IPC.windowSetFullscreen, fullscreen),

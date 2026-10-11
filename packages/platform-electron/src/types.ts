@@ -417,6 +417,15 @@ export interface ElectronBridge {
     /** The page's address after each navigation, or null once it closed. */
     onChanged(handler: (url: string | null) => void): () => void
   }
+  /** The Appearance settings' zoom rows; keys and Ctrl+wheel are handled in main. */
+  zoom: {
+    /** The shell's zoom factor, 1 for 100%. */
+    getInterface(): Promise<number>
+    /** Zooms every shell window and remembers it for the next start. */
+    setInterface(factor: number): Promise<void>
+    /** Every open page back to 100%. */
+    resetPages(): Promise<void>
+  }
   window: {
     setFullscreen(fullscreen: boolean): Promise<void>
     create(): Promise<void>
@@ -494,6 +503,9 @@ export const ELECTRON_IPC = {
   tabSyncDeselected: "once:tabsync:deselected",
   tabSyncSendTargets: "once:tabsync:send-targets",
   tabSyncSendTab: "once:tabsync:send-tab",
+  zoomGetInterface: "once:zoom:get-interface",
+  zoomSetInterface: "once:zoom:set-interface",
+  zoomResetPages: "once:zoom:reset-pages",
   panelPageShow: "once:panel-page:show",
   panelPageSetBounds: "once:panel-page:set-bounds",
   panelPageClose: "once:panel-page:close",

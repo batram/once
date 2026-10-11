@@ -12,6 +12,12 @@ const ZOOM_FACTORS = [0.25, 1 / 3, 0.5, 2 / 3, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5
 
 export type ZoomStep = "in" | "out" | "reset"
 
+/** Within the range the keys step through; Chromium itself goes no further. */
+export function isZoomFactor(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) &&
+    value >= ZOOM_FACTORS[0] && value <= ZOOM_FACTORS[ZOOM_FACTORS.length - 1]
+}
+
 /** The zoom step a key press asks for, or null when it is not a zoom key. */
 export function zoomStepFor(input: Electron.Input): ZoomStep | null {
   if (input.type !== "keyDown" || input.alt) return null

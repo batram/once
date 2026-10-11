@@ -2,6 +2,7 @@ import { app, safeStorage } from "electron"
 import { DEFAULT_CACHE_MINUTES } from "@once/core"
 import { promises as fs } from "fs"
 import * as path from "path"
+import { isZoomFactor } from "./browser/Zoom"
 
 interface StoredSettings {
   encryptedSyncUrl?: string
@@ -10,6 +11,8 @@ interface StoredSettings {
   encryptedSecrets?: Record<string, string>
   /** Full accessibility tree for screen readers; see main.ts. */
   accessibility?: boolean
+  /** The shell's zoom factor; see ZoomSettings.ts. */
+  interfaceZoom?: number
   /** Fallbacks written while OS encryption was unavailable; see `Cipher`. */
   plainSyncUrl?: string
   plainSecrets?: Record<string, string>
@@ -120,6 +123,16 @@ export class SecureSettings {
       throw new Error("Accessibility must be a boolean")
     }
     return this.update((settings) => { settings.accessibility = enabled })
+  }
+
+  async getInterfaceZoom(): Promise<number> {
+    const zoom = (await this.read()).interfaceZoom
+    return isZoomFactor(zoom) ? zoom : 1
+  }
+
+  async setInterfaceZoom(factor: number): Promise<void> {
+    if (!isZoomFactor(factor)) throw new Error("Invalid zoom factor")
+    return this.update((settings) => { settings.interfaceZoom = factor })
   }
 
   /** An encrypted value wins; a plain one stands in until it is re-saved. */

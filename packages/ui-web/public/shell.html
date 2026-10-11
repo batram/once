@@ -696,6 +696,56 @@
                       </select>
                     </div>
                   </section>
+                  <section
+                    class="settings_rows"
+                    id="electron_zoom_settings"
+                    data-platform-only="electron"
+                    hidden
+                  >
+                    <h4 class="settings_subheading">Zoom</h4>
+                    <div class="settings_row">
+                      <label class="settings_row_name" for="electron_interface_zoom">Interface zoom</label>
+                      <p class="settings_row_hint" id="electron_interface_zoom_hint" data-help>
+                        The story list, tab bar and settings. Ctrl and + or −, or Ctrl and the mouse
+                        wheel, zoom whatever has the keyboard; Ctrl+0 resets it. Remembered on this
+                        device.
+                      </p>
+                      <select
+                        id="electron_interface_zoom"
+                        data-testid="electron-interface-zoom"
+                        aria-describedby="electron_interface_zoom_hint"
+                      >
+                        <option value="0.5">50%</option>
+                        <option value="0.67">67%</option>
+                        <option value="0.75">75%</option>
+                        <option value="0.8">80%</option>
+                        <option value="0.9">90%</option>
+                        <option value="1">100%</option>
+                        <option value="1.1">110%</option>
+                        <option value="1.25">125%</option>
+                        <option value="1.5">150%</option>
+                        <option value="1.75">175%</option>
+                        <option value="2">200%</option>
+                        <option value="2.5">250%</option>
+                        <option value="3">300%</option>
+                      </select>
+                    </div>
+                    <div class="settings_row">
+                      <p class="settings_row_name">Page zoom</p>
+                      <p class="settings_row_hint" id="electron_page_zoom_hint" data-help>
+                        Pages keep their zoom per site until Once restarts.
+                      </p>
+                      <button
+                        type="button"
+                        class="button"
+                        id="electron_reset_page_zoom"
+                        data-testid="electron-reset-page-zoom"
+                        aria-describedby="electron_page_zoom_hint"
+                      >
+                        Reset all pages to 100%
+                      </button>
+                    </div>
+                  </section>
                   <section class="settings_rows" data-platform-only="mobile" hidden>
                     <h4 class="settings_subheading">Domain names</h4>
                     <div class="settings_row settings_row_inline">
