@@ -66,7 +66,10 @@ test("clearing one site leaves the others, clearing all leaves Once's own data",
     await expect(window.evaluate(() => window.onceElectron.browsingData.clearSite("sub.example.com")))
       .rejects.toThrow(/Invalid site/)
 
-    // Clear everything from Settings, through its confirmation.
+    // Clear everything from Settings, through its confirmation. The shell opens
+    // some stores lazily (the network cache on its first fetch), so its
+    // databases are taken just before, and none of them may go.
+    const shellDatabasesBeforeClear = await shellDatabases()
     await openSettingsSection(window, "browsing-data", "#clear_browsing_data")
     await window.locator("#clear_browsing_data").click()
     await window.getByTestId("confirm-accept").click()
@@ -74,7 +77,7 @@ test("clearing one site leaves the others, clearing all leaves Once's own data",
     await expectStorage(pages[0], empty)
 
     expect(await window.evaluate(() => localStorage.getItem("once-browsing-data-e2e"))).toBe("kept")
-    expect(await shellDatabases()).toEqual(databasesBefore)
+    expect(await shellDatabases()).toEqual(expect.arrayContaining(shellDatabasesBeforeClear))
   } finally {
     await closeApp(electronApp, userData)
     server.close()
