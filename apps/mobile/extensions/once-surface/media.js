@@ -1,3 +1,4 @@
+/* global exportFunction */
 // Small HTML-media fallback; YouTube adds title/channel selectors. Native Gecko data wins.
 globalThis.installOnceMediaBridge = function (port) {
   const host = location.hostname

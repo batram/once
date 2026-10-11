@@ -231,6 +231,15 @@ async function livePageHtml(reading: MobileReadingController, url: string): Prom
   return html ? { html, url: state.currentUrl } : null
 }
 
+// A saved tab keeps its story even when the feed removes it; refresh metadata
+// whenever the working set changes.
+function bindTabStories(reading: MobileReadingController, client: ReturnType<typeof createOnceApp>["client"]): void {
+  const refresh = () => reading.tabs.refreshStories(client.getStorySnapshot())
+  client.subscribe("storiesChanged", refresh)
+  client.subscribe("storyChanged", refresh)
+  refresh()
+}
+
 async function startMobileApp(): Promise<void> {
   document.body.dataset.platform = "mobile"
   document.body.dataset.buildChannel = __ONCE_BUILD_CHANNEL__
@@ -274,12 +283,7 @@ async function startMobileApp(): Promise<void> {
   reading.runtime.followRedirectFailures((url, reason) => app.client.reportRedirectFailure(url, reason))
   installReaderMediaSession(tts, (frame) => reading.describeReader(frame))
   await reading.install()
-  // A tab owns its saved story even when the feed removes it. Refresh its
-  // metadata from the working set whenever new evidence becomes available.
-  const refreshTabStories = () => reading.tabs.refreshStories(app.client.getStorySnapshot())
-  app.client.subscribe("storiesChanged", refreshTabStories)
-  app.client.subscribe("storyChanged", refreshTabStories)
-  refreshTabStories()
+  bindTabStories(reading, app.client)
   // Web links leave the reader for the browser surface; mail goes to the system.
   installReaderLinkHost((source) => reading.reader.isReaderWindow(source), (url) => {
     if (url.startsWith("mailto:")) void nativeBridge.openExternal(url)
