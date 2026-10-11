@@ -206,6 +206,44 @@ test("the open story's mirror row shares the conversation but opens its tray on 
   } finally { trays.dispose(); global.document = previous; global.CustomEvent = previousCustomEvent }
 })
 
+test("a story the reader skipped closes its list tray, keeping the mirror's and the conversation", async () => {
+  const previous = global.document
+  const previousCustomEvent = global.CustomEvent
+  const { document, CustomEvent } = parseHTML('<html><body><div id="selected_container"></div><div id="stories"></div></body></html>')
+  global.document = document
+  global.CustomEvent = CustomEvent
+  const { AddonTrays } = require("../../../packages/ui-web/dist/addons/AddonTrays")
+  const { STORY_ROW_DISMISSED } = require("../../../packages/ui-web/dist/story/storyElements")
+  let calls = 0
+  const trays = new AddonTrays({ id: "example", trays: [{ id: "assistant", title: "Assistant" }] }, {
+    ensure: async () => ({ tray: async () => { calls++; return { messages: [{ role: "assistant", text: "Kept answer" }] } } })
+  })
+  const makeRow = (host, href = "https://story.test/") => {
+    const row = document.createElement("story-item")
+    row.story = { href, title: "Title", type: "HN" }
+    host.append(row)
+    return row
+  }
+  const listed = makeRow(document.querySelector("#stories"))
+  const mirrored = makeRow(document.querySelector("#selected_container"))
+  const other = makeRow(document.querySelector("#stories"), "https://other.test/")
+  try {
+    trays.toggle(listed, "assistant")
+    trays.toggle(mirrored, "assistant")
+    trays.toggle(other, "assistant")
+    await new Promise(resolve => setImmediate(resolve))
+    document.dispatchEvent(new CustomEvent(STORY_ROW_DISMISSED, { detail: "https://story.test/" }))
+    assert.equal(listed.querySelectorAll(".addon_tray").length, 0)
+    assert.equal(trays.expanded(listed, "assistant"), false)
+    assert.equal(mirrored.querySelectorAll(".addon_tray").length, 1)
+    assert.equal(other.querySelectorAll(".addon_tray").length, 1)
+    // Reopening finds the conversation where it was: no second request.
+    trays.toggle(listed, "assistant")
+    assert.match(listed.querySelector(".addon_tray_message").textContent, /Kept answer/)
+    assert.equal(calls, 2)
+  } finally { trays.dispose(); global.document = previous; global.CustomEvent = previousCustomEvent }
+})
+
 test("the list and each page view open a story's tray on their own, and a moving continue carries it over", async () => {
   const previous = global.document
   const previousCustomEvent = global.CustomEvent

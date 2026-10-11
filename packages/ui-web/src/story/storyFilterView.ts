@@ -66,6 +66,14 @@ export function show_filter_dialog(
   })
 }
 
+/** Drops the inline filter input from the list rows of `href`, if one is open. */
+export function close_filter_inputs(href: string): void {
+  document.querySelectorAll<HTMLElement>(".story").forEach((row) => {
+    if (row.dataset.href !== href || row.closest("#selected_container")) return
+    row.querySelector(".filter_btn input")?.remove()
+  })
+}
+
 export function show_mobile_filter_dialog(
   story: Story,
   callback: (filter: string) => unknown

@@ -3,7 +3,7 @@ import {
   addonContributionId, projectStoryView, readTrayView
 } from "@once/core"
 import type { StoryListItem } from "../story/StoryListItem"
-import { registerStoryElement, STORY_TRAYS_CHANGED } from "../story/storyElements"
+import { registerStoryElement, STORY_ROW_DISMISSED, STORY_TRAYS_CHANGED } from "../story/storyElements"
 import { getOnceClient } from "../client"
 import { AddonSandbox } from "./AddonSandbox"
 import { AddonPage, currentPageTrayScope, pageStoryRow, pageStoryView, registerPageTray } from "./pageAddons"
@@ -76,6 +76,16 @@ export class AddonTrays {
       const id = addonContributionId(manifest.id, `tray-${tray.id}`)
       this.releases.push(registerStoryElement({ id, slot: "tray", render: row => this.render(row, tray.id) }))
       this.releases.push(registerPageTray(id, href => this.renderPage(href, tray.id)))
+    }
+    const dismissed = (event: Event) => this.closeListed((event as CustomEvent<string>).detail)
+    document.addEventListener(STORY_ROW_DISMISSED, dismissed)
+    this.releases.push(() => document.removeEventListener(STORY_ROW_DISMISSED, dismissed))
+  }
+
+  /** The list lets go of a story the reader skipped or read; the mirror and page trays stay as they are. */
+  private closeListed(href: string): void {
+    for (const { id } of this.manifest.trays ?? []) {
+      if (this.states.get(this.key(href, id))?.open.delete("list")) this.refresh(href, id)
     }
   }
 

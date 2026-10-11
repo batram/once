@@ -2,7 +2,7 @@ import * as StoryFilterView from "./storyFilterView"
 import { Story } from "@once/core"
 // Registers the built-in outline button; imported for that side effect.
 import "../presenters/registry"
-import { applyStoryElements, refreshRowElements } from "./storyElements"
+import { applyStoryElements, refreshRowElements, STORY_ROW_DISMISSED } from "./storyElements"
 import { DataChangeEvent, resortSingle } from "./storyList"
 import { URLRedirect } from "@once/core"
 import { StoryHistory } from "./StoryHistory"
@@ -176,6 +176,13 @@ export class StoryListItem extends HTMLElement {
     if (event.detail.path.length == 2) {
       switch (event.detail.path[1]) {
         case "read_state":
+          // Before update_read, whose animation consumes the marker.
+          if (
+            this.story.read_state !== "unread" &&
+            this.read_btn.classList.contains("user_interaction")
+          ) {
+            dismissListRow(this.story.href)
+          }
           this.update_read()
           break
         case "substories":
@@ -462,6 +469,18 @@ export class StoryListItem extends HTMLElement {
 
     this.label_star()
   }
+}
+
+/**
+ * A story the reader skipped or read here leaves the unread run, so its list
+ * row lets go of what it had open: the inline filter input and add-on trays
+ * (the conversation itself stays, as Close leaves it). Only the reader's own
+ * action does this. A reload re-sorting the list, or a read state replicated
+ * from another device, moves rows too, but the reader may be typing there.
+ */
+function dismissListRow(href: string): void {
+  StoryFilterView.close_filter_inputs(href)
+  document.dispatchEvent(new CustomEvent(STORY_ROW_DISMISSED, { detail: href }))
 }
 
 if (window.customElements && !window.customElements.get("story-item")) {

@@ -70,6 +70,13 @@ export function refreshStoryElements(): void {
 /** Reading surfaces can display the same stateful trays as the story list. */
 export const STORY_TRAYS_CHANGED = "once-story-trays-changed"
 
+/**
+ * Dispatched on `document` with a story href when the reader skipped or read
+ * that story here: its list row is on its way out of the unread run, and what
+ * the row had open for it closes with it.
+ */
+export const STORY_ROW_DISMISSED = "once-story-row-dismissed"
+
 export function renderStoryTrays(row: StoryListItem, host: HTMLElement): void {
   host.replaceChildren()
   for (const contribution of registered.values()) {
