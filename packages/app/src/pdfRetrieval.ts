@@ -11,7 +11,12 @@ export interface PdfTextPort {
 
 export async function retrievePdf(response: Response, url: string, pdf: PdfTextPort | undefined, recognition?: TextRecognitionPort): Promise<RetrievedDocument> {
   if (!pdf) throw new Error("PDF text extraction is not available on this platform")
-  const bytes = await readResponseBytes(response, MAX_DOCUMENT_BYTES, "PDF")
+  return extractPdf(await readResponseBytes(response, MAX_DOCUMENT_BYTES, "PDF"), url, pdf, recognition)
+}
+
+/** The same, for bytes already read (a generic download whose content turned out to be a PDF). */
+export async function extractPdf(bytes: Uint8Array, url: string, pdf: PdfTextPort | undefined, recognition?: TextRecognitionPort): Promise<RetrievedDocument> {
+  if (!pdf) throw new Error("PDF text extraction is not available on this platform")
   const result = await pdf.extract(bytes, recognition)
   const paragraphs = result.pages.flatMap(page => ocrParagraphs(page))
   const lines = result.pages.flatMap(page => page.lines)

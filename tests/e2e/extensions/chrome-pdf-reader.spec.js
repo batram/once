@@ -6,12 +6,20 @@ const path = require("node:path")
 const http = require("node:http")
 const { textPdf, imagePdf } = require("../shared/pdf-text-fixture")
 
-for (const scanned of [false,true]) {
-  test(`Chrome extension PDF Reader ${scanned ? "reports missing OCR for a scan" : "reads embedded text"}`, async () => {
+// Many servers label PDFs as a generic download; Chrome then downloads rather
+// than shows them, and only the `.pdf` name says what the file is.
+const cases = [
+  { title: "reads embedded text", scanned: false, type: "application/pdf", file: "document" },
+  { title: "reports missing OCR for a scan", scanned: true, type: "application/pdf", file: "document" },
+  { title: "reads a PDF served as application/octet-stream", scanned: false, type: "application/octet-stream", file: "paper.pdf" }
+]
+
+for (const { title, scanned, type, file } of cases) {
+  test(`Chrome extension PDF Reader ${title}`, async () => {
     const extensionPath = path.resolve(__dirname,"../../../apps/chrome-extension/dist/release")
     const profile = await fs.mkdtemp(path.join(os.tmpdir(),"once-pdf-extension-"))
     const pdf = scanned ? imagePdf() : textPdf()
-    const server = http.createServer((_,response)=>{response.writeHead(200,{"content-type":"application/pdf","content-length":pdf.length});response.end(pdf)})
+    const server = http.createServer((_,response)=>{response.writeHead(200,{"content-type":type,"content-length":pdf.length});response.end(pdf)})
     await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve))
     const context = await chromium.launchPersistentContext(profile, {channel:"chromium",args:[`--disable-extensions-except=${extensionPath}`,`--load-extension=${extensionPath}`]})
     try {
@@ -20,7 +28,7 @@ for (const scanned of [false,true]) {
       const panel=await context.newPage()
       await panel.goto(`chrome-extension://${id}/static/sidepanel.html?once-e2e=1`)
       await expect(panel.locator("body")).toHaveAttribute("data-once-ready","true")
-      await panel.evaluate(url=>globalThis.chrome.runtime.sendMessage({onceCommand:"openReader",url,theme:"dark"}),`http://127.0.0.1:${server.address().port}/document`)
+      await panel.evaluate(url=>globalThis.chrome.runtime.sendMessage({onceCommand:"openReader",url,theme:"dark"}),`http://127.0.0.1:${server.address().port}/${file}`)
       // The source tab shows the browser's PDF viewer before the extension swaps
       // in its reader; Playwright sometimes loses that tab across the swap (no
       // page event, a navigation that never finishes). The tabs API says where

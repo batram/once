@@ -13,13 +13,15 @@ const { openExtensionPanel, systemAccessService, budget, logBrowserVersion } = r
 test("Firefox reads a PDF source in its own reader page through the PDF sandbox", { timeout: budget(120_000) }, async () => {
   const expectedAddonId = "once_sidepanel_f@zmarn.com"
   const extensionUuid = "00000000-0000-4000-8000-000000000003"
-  const documents = { "/document": textPdf(), "/scan": imagePdf() }
+  // `/paper.pdf` is labelled as a generic download, as many servers do; only its name says PDF.
+  const documents = { "/document": textPdf(), "/scan": imagePdf(), "/paper.pdf": textPdf() }
   const requests = []
   const server = http.createServer((request, response) => {
     requests.push(`${request.method} ${request.url}`)
     const pdf = documents[request.url]
     if (!pdf) { response.writeHead(404); response.end(); return }
-    response.writeHead(200, { "content-type": "application/pdf", "content-length": pdf.length })
+    const type = request.url === "/paper.pdf" ? "application/octet-stream" : "application/pdf"
+    response.writeHead(200, { "content-type": type, "content-length": pdf.length })
     response.end(pdf)
   })
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve))
@@ -63,6 +65,8 @@ test("Firefox reads a PDF source in its own reader page through the PDF sandbox"
     assert.equal(requests.some(line => line.startsWith("HEAD")), false, requests.join(", "))
     const scan = await readerText(`${origin}/scan`, "PDF page 1 has no embedded text")
     assert.ok(scan.includes("OCR is not available on this platform"))
+    const download = await readerText(`${origin}/paper.pdf`, "Readable PDF text across platforms.")
+    assert.ok(download.includes("Readable PDF text across platforms."))
   } finally {
     await driver.quit()
     await new Promise(resolve => server.close(resolve))

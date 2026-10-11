@@ -48,6 +48,7 @@ function createBrowser({ responseHeaders } = {}) {
           return { id: 7, status: "complete" }
         },
         async update(tabId, options) { calls.push(["update", tabId, options]) },
+        async remove(tabId) { calls.push(["removeTab", tabId]) },
         async get() { return { id: 7, status: "complete" } },
         async sendMessage(tabId, message) { calls.push(["sendMessage", tabId, message]) }
       },
@@ -167,6 +168,20 @@ test("a PDF response moves the tab to the extension reader without injecting int
   assert.equal(url.searchParams.get("theme"), "dark")
   assert.equal(fake.calls.filter(([kind]) => kind === "script" || kind === "css").length, 0)
   assert.equal(probe.mock.callCount(), 0)
+})
+
+test("a PDF served as a download opens the reader in a tab of its own", async () => {
+  const fake = createBrowser({ responseHeaders: [{ name: "Content-Type", value: "application/octet-stream" }] })
+  installReaderBackground(fake.api)
+  await fake.onMessage.listeners[0]({ onceCommand: "openReader", url: "https://example.test/paper.pdf", active: true, theme: "dark" }, panelSender)
+  const creates = fake.calls.filter(([kind]) => kind === "create").map(([, options]) => options)
+  assert.equal(creates.length, 2)
+  const reader = new URL(creates[1].url)
+  assert.equal(reader.pathname, "/static/reader.html")
+  assert.equal(reader.searchParams.get("sourceUrl"), "https://example.test/paper.pdf")
+  assert.equal(creates[1].active, true)
+  assert.deepEqual(fake.calls.find(([kind]) => kind === "removeTab"), ["removeTab", 7])
+  assert.equal(fake.calls.some(([kind]) => kind === "update"), false)
 })
 
 test("a PDF the browser served without reporting headers is still found by the fallback probe", async context => {

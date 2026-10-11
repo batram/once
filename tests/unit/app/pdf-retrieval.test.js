@@ -24,6 +24,22 @@ test("PDF retrieval preserves ordered pages, paragraphs and embedded/OCR provena
   assert.equal(result.url, "https://example.test/document")
 })
 
+test("a PDF served as a generic download is read by its name or, without one, by its signature", async () => {
+  const pdf = { async extract(bytes) { return { pages: [{ lines: [`${bytes.length} bytes`], method: "embedded" }] } } }
+  const respond = (body, headers) => async () => new Response(body, { headers })
+  const named = await retrieveDocument(respond(new Uint8Array([1,2]), { "content-type": "application/octet-stream" }), "https://example.test/paper.pdf", undefined, pdf)
+  assert.equal(named.mediaType, "application/pdf")
+  const attached = await retrieveDocument(respond(new Uint8Array([1,2]), { "content-type": "binary/octet-stream", "content-disposition": 'attachment; filename="paper.pdf"' }), "https://example.test/get?id=1", undefined, pdf)
+  assert.equal(attached.mediaType, "application/pdf")
+  // The signature may follow a little junk, as PDF readers allow.
+  const signed = await retrieveDocument(respond(new Uint8Array([10,13,37,80,68,70,45,49]), { "content-type": "application/octet-stream" }), "https://example.test/get?id=2", undefined, pdf)
+  assert.deepEqual(signed.paragraphs, ["8 bytes"])
+  await assert.rejects(retrieveDocument(respond(new Uint8Array([80,75,3,4]), { "content-type": "application/octet-stream" }), "https://example.test/get?id=3", undefined, pdf), /cannot display application\/octet-stream/)
+  // A declared type still wins over the name.
+  const page = await retrieveDocument(respond("<p>html</p>", { "content-type": "text/html" }), "https://example.test/page.pdf", undefined, pdf)
+  assert.equal(page.kind, "html")
+})
+
 test("PDF adaptation escapes text and metadata for Reader and addons", async () => {
   const pdf = { async extract() { return { title: "<script>Title</script>", pages: [{ lines: ["<b>Untrusted PDF text</b>"], method: "embedded" }] } } }
   const result = await fetchDocument(fetchPdf,"https://example.test/a.pdf",undefined,pdf)

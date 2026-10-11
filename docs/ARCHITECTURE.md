@@ -464,8 +464,11 @@ it does not reconstruct tables, typography or arbitrary multi-column layouts.
 `OncePlatformPorts.pdfText` is an optional local PDF extraction port. Its
 `extract(bytes, recognition?)` method returns ordered pages with recognized lines,
 optional line bounds, and per-page `embedded` or `ocr` provenance. The shared
-retrieval API recognizes `application/pdf` by MIME type, bounds decoder input to
-64 MiB, and reconstructs each page's paragraphs independently. First-line and hanging
+retrieval API recognizes `application/pdf` by MIME type; a missing or generic
+download type (`application/octet-stream` and the like) counts as a PDF when the
+URL or the `Content-Disposition` file name ends in `.pdf`, or when the body starts
+with the `%PDF-` signature (`@once/app` `pdfMediaType.ts`, which the extensions'
+navigation probe shares). It bounds decoder input to 64 MiB, and reconstructs each page's paragraphs independently. First-line and hanging
 indents are treated as line wrapping when spacing and overlap agree; a new indent
 after a completed sentence preserves a paragraph boundary. `method` on the
 combined result is `embedded`, `ocr`, or `mixed`; PDF metadata can supply the

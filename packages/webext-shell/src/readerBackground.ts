@@ -119,7 +119,15 @@ export async function openReaderTab(
     if (await watch.isPdf(tab.id, loaded)) {
       // The browser's PDF viewer is privileged; extraction happens in our own page.
       const search = new URLSearchParams({ pdf: "1", sourceUrl: parsed.toString(), theme })
-      await browserApi.tabs.update(tab.id, { url: browserApi.runtime.getURL(`static/reader.html?${search}`) })
+      const readerUrl = browserApi.runtime.getURL(`static/reader.html?${search}`)
+      if (watch.isDownload(tab.id)) {
+        // The browser saves a download and closes the tab it opened for it, so
+        // the reader gets a tab of its own; the source tab goes if it remains.
+        await browserApi.tabs.create({ url: readerUrl, active })
+        await browserApi.tabs.remove(tab.id).catch(() => undefined)
+        return
+      }
+      await browserApi.tabs.update(tab.id, { url: readerUrl })
       return
     }
     await loaded

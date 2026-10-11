@@ -1,4 +1,8 @@
-import { PdfTextPort, retrievePdf } from "./pdfRetrieval"
+import { extractPdf, PdfTextPort, retrievePdf } from "./pdfRetrieval"
+import { hasPdfSignature, isGenericBinaryType, isPdfByHeaders, mediaTypeOf } from "./pdfMediaType"
+import { MAX_DOCUMENT_BYTES, readResponseBytes } from "./responseBytes"
+
+export { isDownloadByHeaders, isPdfByHeaders } from "./pdfMediaType"
 import { documentHtml, recognizeResponse, recognizedDocument, RetrievedDocument, TextRecognitionPort } from "./textRetrieval"
 
 /**
@@ -34,8 +38,15 @@ export async function retrieveDocument(
     )
   }
   const contentType = response.headers.get("content-type") || ""
-  const mediaType = contentType.split(";")[0].trim().toLowerCase()
-  if (mediaType === "application/pdf") return retrievePdf(response, response.url || parsed.toString(), pdf, recognition)
+  const mediaType = mediaTypeOf(contentType)
+  const finalUrl = response.url || parsed.toString()
+  if (isPdfByHeaders(finalUrl, contentType, response.headers.get("content-disposition"))) return retrievePdf(response, finalUrl, pdf, recognition)
+  if (isGenericBinaryType(mediaType)) {
+    // A download type without a telling name: the bytes say whether it is a PDF.
+    const bytes = response.body ? await readResponseBytes(response, MAX_DOCUMENT_BYTES, "Document") : new Uint8Array()
+    if (hasPdfSignature(bytes)) return extractPdf(bytes, finalUrl, pdf, recognition)
+    throw new Error(`Reader mode cannot display ${contentType || "this content type"}`)
+  }
   if (mediaType.startsWith("image/")) {
     const result = await recognizeResponse(response, recognition)
     return recognizedDocument(result, response.url || parsed.toString(), mediaType)

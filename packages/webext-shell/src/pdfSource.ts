@@ -1,9 +1,9 @@
 import type browser from "webextension-polyfill"
+import { isDownloadByHeaders, isPdfByHeaders } from "@once/app/documents"
 
-/** Decides from a response's Content-Type (or, without one, the URL suffix) whether a source is a PDF. */
-export function pdfResponse(url: string, contentType: string | null | undefined): boolean {
-  const type = contentType?.split(";")[0].trim().toLowerCase()
-  return type === "application/pdf" || (!type && /\.pdf$/i.test(new URL(url).pathname))
+/** Decides from a response's headers whether a source is a PDF; a generic download type defers to the `.pdf` name. */
+export function pdfResponse(url: string, contentType: string | null | undefined, disposition?: string | null): boolean {
+  return isPdfByHeaders(url, contentType, disposition)
 }
 
 export interface PdfSourceWatch {
@@ -16,6 +16,8 @@ export interface PdfSourceWatch {
    * even started, so it is only the last resort.
    */
   isPdf(tabId: number, loaded: Promise<void>): Promise<boolean>
+  /** Whether the tab's PDF arrived as a download, which the browser saves and closes the tab it opened for. */
+  isDownload(tabId: number): boolean
   stop(): void
 }
 
@@ -32,15 +34,17 @@ type CompletedDetails = Parameters<Parameters<CompletedEvent["addListener"]>[0]>
  */
 export function watchPdfSources(browserApi: Pick<typeof browser, "webRequest" | "webNavigation">, url: string): PdfSourceWatch {
   const seen = new Map<number, boolean>()
+  const downloads = new Set<number>()
   const completed = new Set<number>()
   const waiting = new Map<number, (pdf: boolean) => void>()
   const headers: HeadersEvent | undefined = browserApi.webRequest?.onHeadersReceived
   const navigation: CompletedEvent | undefined = browserApi.webNavigation?.onCompleted
   const onHeaders = (details: HeadersDetails) => {
     if (details.statusCode >= 300 && details.statusCode < 400) return
-    const header = details.responseHeaders?.find(candidate => candidate.name.toLowerCase() === "content-type")
-    const pdf = pdfResponse(details.url, header?.value)
+    const header = (name: string) => details.responseHeaders?.find(candidate => candidate.name.toLowerCase() === name)?.value
+    const pdf = pdfResponse(details.url, header("content-type"), header("content-disposition"))
     seen.set(details.tabId, pdf)
+    if (pdf && isDownloadByHeaders(header("content-type"), header("content-disposition"))) downloads.add(details.tabId)
     waiting.get(details.tabId)?.(pdf)
   }
   const onCompleted = (details: CompletedDetails) => {
@@ -61,6 +65,7 @@ export function watchPdfSources(browserApi: Pick<typeof browser, "webRequest" | 
         if (!navigation) loaded.then(() => resolve(seen.get(tabId) ?? isPdfSource(url)), () => resolve(false))
       })
     },
+    isDownload: tabId => downloads.has(tabId),
     stop() {
       headers?.removeListener(onHeaders)
       navigation?.removeListener(onCompleted)
@@ -77,7 +82,8 @@ export async function isPdfSource(url: string): Promise<boolean> {
       response = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(5000) })
     }
     const type = response.headers.get("content-type")
+    const disposition = response.headers.get("content-disposition")
     await response.body?.cancel()
-    return pdfResponse(url, type)
+    return pdfResponse(response.url || url, type, disposition)
   } catch { return /\.pdf$/i.test(new URL(url).pathname) }
 }

@@ -11,11 +11,36 @@ function event() {
   }
 }
 
-test("a response is a PDF by MIME type, or by suffix only when no type was given", () => {
+test("a response is a PDF by MIME type, or by name when the type is missing or a generic download", () => {
   assert.equal(pdfResponse("https://example.test/download", "application/pdf; version=1.7"), true)
   assert.equal(pdfResponse("https://example.test/looks-like.pdf", "text/html"), false)
   assert.equal(pdfResponse("https://example.test/paper.PDF", null), true)
   assert.equal(pdfResponse("https://example.test/page", undefined), false)
+  assert.equal(pdfResponse("https://example.test/paper.pdf", "application/octet-stream"), true)
+  assert.equal(pdfResponse("https://example.test/paper.pdf", "binary/octet-stream"), true)
+  assert.equal(pdfResponse("https://example.test/archive.zip", "application/octet-stream"), false)
+  assert.equal(pdfResponse("https://example.test/get?id=3", "application/octet-stream", 'attachment; filename="Report 2026.pdf"'), true)
+  assert.equal(pdfResponse("https://example.test/get?id=3", "application/force-download", "attachment; filename*=UTF-8''Bericht%20%C3%BCber.PDF"), true)
+  assert.equal(pdfResponse("https://example.test/get?id=3", "application/octet-stream", "attachment; filename=data.csv"), false)
+  assert.equal(pdfResponse("https://example.test/get?id=3", "text/html", 'inline; filename="page.pdf"'), false)
+})
+
+test("the navigation's Content-Disposition reaches the decision", () => {
+  const headers = event()
+  const watch = watchPdfSources({ webRequest: { onHeadersReceived: headers }, webNavigation: { onCompleted: event() } }, "https://example.test/get?id=3")
+  headers.listeners[0].listener({ tabId: 4, statusCode: 200, url: "https://example.test/get?id=3", responseHeaders: [
+    { name: "Content-Type", value: "application/octet-stream" },
+    { name: "Content-Disposition", value: 'attachment; filename="slides.pdf"' }
+  ] })
+  return watch.isPdf(4, new Promise(() => {})).then(pdf => { assert.equal(pdf, true); assert.equal(watch.isDownload(4), true); watch.stop() })
+})
+
+test("only an attachment or a non-PDF type makes the browser download a PDF", () => {
+  const { isDownloadByHeaders } = require("../../../packages/app/dist/fetchDocument")
+  assert.equal(isDownloadByHeaders("application/pdf", null), false)
+  assert.equal(isDownloadByHeaders("application/pdf", 'attachment; filename="a.pdf"'), true)
+  assert.equal(isDownloadByHeaders("application/octet-stream", null), true)
+  assert.equal(isDownloadByHeaders(null, 'inline; filename="a.pdf"'), false)
 })
 
 test("the navigation's own main-frame headers decide, without an extra request", async context => {
