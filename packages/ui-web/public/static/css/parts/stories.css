@@ -499,25 +499,41 @@ story-item.story:focus {
   display: flex;
 }
 
-/* Toolbar Buttons Ordering */
-.filter_btn {
+/* Toolbar Buttons Ordering. The filter button and its field share one
+   control, so the group's gap stays outside the pair; the group stretches to
+   the row's height, and the control keeps to its top edge like the buttons. */
+.filter_control {
+  display: inline-flex;
+  align-self: flex-start;
   order: 1;
 }
 
-/* The filter's field sits just before its button and shares its order slot. */
+.filter_control[hidden] {
+  display: none;
+}
+
 .filter_field {
-  height: 16px;
+  box-sizing: border-box;
+  height: 22px;
   margin: 0;
-  align-self: center;
-  order: 1;
+  border-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .filter_input {
   cursor: pointer;
 }
 
-.filter_btn--active {
+.filter_btn--active,
+.filter_btn--active + .filter_field {
   border-color: red;
+}
+
+/* Button and field share the seam's border. */
+.story .filter_control > .filter_btn:has(+ .filter_field) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 .star_btn {

@@ -106,7 +106,7 @@ test("story buttons default to the menu and have independent persistent platform
     const data = row.querySelector(".data").getBoundingClientRect()
     const group = row.querySelector(".button_group").getBoundingClientRect()
     return { textWidth: data.width, actionsTop: group.top, textBottom: data.bottom,
-      boxes: [...row.querySelectorAll(".button_group > button:not([hidden])")].map(button => {
+      boxes: [...row.querySelectorAll(".button_group > button:not([hidden]), .button_group > .filter_control:not([hidden]) > button")].map(button => {
         const rect = button.getBoundingClientRect()
         return { width: rect.width, height: rect.height, right: rect.right }
       }) }

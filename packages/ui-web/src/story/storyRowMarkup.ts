@@ -122,16 +122,19 @@ export function buildTitleLine(
 
 /**
  * A filtered row shows the rule that hid it, as a read-only field that jumps
- * to the rule in settings rather than an editable input. Both go into `group`,
- * the field just before the button: never inside it, where a field is invalid
+ * to the rule in settings rather than an editable input. The button and its
+ * field (that rule, or the editor storyFilterView opens) share a
+ * `.filter_control` in `group`: one control to the eye and to the button
+ * preferences. The field is never inside the button, where it is invalid
  * markup that the button's own keyboard activation fights with.
  */
 export function buildFilterButton(row: StoryListItem, group: HTMLElement): HTMLElement {
   const filter_btn = createIconButton("filter", "filter_btn", "filter")
-  if (!row.story.filter) {
-    group.appendChild(filter_btn)
-    return filter_btn
-  }
+  const control = document.createElement("span")
+  control.className = "filter_control"
+  control.appendChild(filter_btn)
+  group.appendChild(control)
+  if (!row.story.filter) return filter_btn
 
   filter_btn.title = "filtered"
   row.classList.add("filtered")
@@ -148,7 +151,7 @@ export function buildFilterButton(row: StoryListItem, group: HTMLElement): HTMLE
     }
   })
   filter_btn.classList.add("filter_btn--active")
-  group.append(dinp, filter_btn)
+  control.appendChild(dinp)
   return filter_btn
 }
 

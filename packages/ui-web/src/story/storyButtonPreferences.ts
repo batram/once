@@ -41,17 +41,15 @@ export function positionStoryButtons(row: HTMLElement): void {
 export function applyStoryButtonPreferences(row: HTMLElement): void {
   positionStoryButtons(row)
   const platform = document.body.dataset.platform === "mobile" ? "mobile" : "desktop"
-  for (const button of row.querySelectorAll<HTMLElement>(".button_group > :not(.menu_btn):not(.filter_field)")) {
+  for (const button of row.querySelectorAll<HTMLElement>(".button_group > :not(.menu_btn)")) {
     const id = button.dataset.storyElement ?? (
       button.classList.contains("read_btn") ? "read" :
         button.classList.contains("star_btn") ? "bookmark" :
-          button.classList.contains("filter_btn") ? "filter" : "purge")
-    button.hidden = !shown(id, platform)
+          button.classList.contains("filter_control") ? "filter" : "purge")
+    // An open filter editor keeps its control shown: it was asked for, from
+    // the button, the menu or a swipe.
+    button.hidden = !shown(id, platform) && !button.querySelector(".filter_editor")
   }
-  // A filtered row's rule sits beside the filter button and goes with it. An
-  // open editor stays: it was asked for, from the button, the menu or a swipe.
-  const rule = row.querySelector<HTMLElement>(".button_group > .filter_input")
-  if (rule) rule.hidden = !shown("filter", platform)
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(

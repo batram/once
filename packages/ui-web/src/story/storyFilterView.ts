@@ -15,7 +15,7 @@ export function show_filter_dialog(
   event.preventDefault()
 
   // The button again while its editor is open asks to add what it holds.
-  if (openEditor && openEditor.input.nextElementSibling === filter_btn) {
+  if (openEditor && openEditor.input.previousElementSibling === filter_btn) {
     confirm_add_story(openEditor.input, callback)
     return
   }
@@ -29,11 +29,17 @@ export function show_filter_dialog(
   inp.value = new URL(story.href).hostname
   // Beside the button rather than inside it: a field in a button is invalid
   // markup, and Chromium activated the button on every Space typed into it.
-  filter_btn.before(inp)
+  filter_btn.after(inp)
+  // The menu and a swipe open the editor even where the button preference
+  // hides the control; it shows while the editor is open.
+  const control = filter_btn.closest<HTMLElement>(".filter_control")
+  const wasHidden = control?.hidden ?? false
+  if (control) control.hidden = false
   inp.focus()
 
   const close = () => {
     inp.remove()
+    if (control && wasHidden) control.hidden = true
     document.removeEventListener("click", dismissOnOutsideClick)
     if (openEditor?.input === inp) openEditor = null
   }
@@ -54,7 +60,7 @@ export function show_filter_dialog(
     if (e.key !== "Escape") return
     e.preventDefault()
     close()
-    if (!filter_btn.hidden) filter_btn.focus()
+    if (!control?.hidden) filter_btn.focus()
   })
   // Enter on keyup, not keydown: the confirm dialog focuses its primary
   // button at once, and the keypress that follows a keydown would press it.

@@ -421,7 +421,8 @@
   }
 
   .story .menu_btn,
-  .story .button_group > .button {
+  .story .button_group > .button,
+  .story .filter_control > .button {
     display: grid;
     place-items: center;
     position: relative;

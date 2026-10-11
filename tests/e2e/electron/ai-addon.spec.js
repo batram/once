@@ -149,7 +149,7 @@ test("AI addon uses authenticated requests, host trays, article text and session
       // reported by name and box so a failure says which button went where.
       await expect.poll(() => row.evaluate(element => {
         const rowBox = element.getBoundingClientRect()
-        return [...element.querySelectorAll(".button_group > button:not([hidden]):not(.menu_btn)")].map(button => {
+        return [...element.querySelectorAll(".button_group > button:not([hidden]):not(.menu_btn), .button_group > .filter_control:not([hidden]) > button")].map(button => {
           const box = button.getBoundingClientRect()
           return { button: button.className, left: box.left, right: box.right, width: box.width, height: box.height, row: [rowBox.left, rowBox.right] }
         }).filter(box => !(box.width > 0 && box.height > 0 && box.left >= box.row[0] && box.right <= box.row[1]))
