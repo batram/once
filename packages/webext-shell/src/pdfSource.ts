@@ -16,8 +16,8 @@ export interface PdfSourceWatch {
    * even started, so it is only the last resort.
    */
   isPdf(tabId: number, loaded: Promise<void>): Promise<boolean>
-  /** Whether the tab's PDF arrived as a download, which the browser saves and closes the tab it opened for. */
-  isDownload(tabId: number): boolean
+  /** The URL the tab's PDF arrived from as a download, which the browser saves and closes the tab it opened for. */
+  downloadUrl(tabId: number): string | undefined
   stop(): void
 }
 
@@ -34,7 +34,7 @@ type CompletedDetails = Parameters<Parameters<CompletedEvent["addListener"]>[0]>
  */
 export function watchPdfSources(browserApi: Pick<typeof browser, "webRequest" | "webNavigation">, url: string): PdfSourceWatch {
   const seen = new Map<number, boolean>()
-  const downloads = new Set<number>()
+  const downloads = new Map<number, string>()
   const completed = new Set<number>()
   const waiting = new Map<number, (pdf: boolean) => void>()
   const headers: HeadersEvent | undefined = browserApi.webRequest?.onHeadersReceived
@@ -44,7 +44,7 @@ export function watchPdfSources(browserApi: Pick<typeof browser, "webRequest" | 
     const header = (name: string) => details.responseHeaders?.find(candidate => candidate.name.toLowerCase() === name)?.value
     const pdf = pdfResponse(details.url, header("content-type"), header("content-disposition"))
     seen.set(details.tabId, pdf)
-    if (pdf && isDownloadByHeaders(header("content-type"), header("content-disposition"))) downloads.add(details.tabId)
+    if (pdf && isDownloadByHeaders(header("content-type"), header("content-disposition"))) downloads.set(details.tabId, details.url)
     waiting.get(details.tabId)?.(pdf)
   }
   const onCompleted = (details: CompletedDetails) => {
@@ -65,7 +65,7 @@ export function watchPdfSources(browserApi: Pick<typeof browser, "webRequest" | 
         if (!navigation) loaded.then(() => resolve(seen.get(tabId) ?? isPdfSource(url)), () => resolve(false))
       })
     },
-    isDownload: tabId => downloads.has(tabId),
+    downloadUrl: tabId => downloads.get(tabId),
     stop() {
       headers?.removeListener(onHeaders)
       navigation?.removeListener(onCompleted)

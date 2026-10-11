@@ -32,7 +32,7 @@ test("the navigation's Content-Disposition reaches the decision", () => {
     { name: "Content-Type", value: "application/octet-stream" },
     { name: "Content-Disposition", value: 'attachment; filename="slides.pdf"' }
   ] })
-  return watch.isPdf(4, new Promise(() => {})).then(pdf => { assert.equal(pdf, true); assert.equal(watch.isDownload(4), true); watch.stop() })
+  return watch.isPdf(4, new Promise(() => {})).then(pdf => { assert.equal(pdf, true); assert.equal(watch.downloadUrl(4), "https://example.test/get?id=3"); watch.stop() })
 })
 
 test("only an attachment or a non-PDF type makes the browser download a PDF", () => {

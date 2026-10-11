@@ -38,6 +38,7 @@
     "history",
     "unlimitedStorage",
     "tabs",
+    "downloads",
     "declarativeNetRequestWithHostAccess",
     "<all_urls>"
   ],

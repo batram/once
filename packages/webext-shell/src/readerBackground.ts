@@ -1,4 +1,5 @@
 import { watchPdfSources } from "./pdfSource"
+import { cancelSourceDownload } from "./sourceDownload"
 import {
   isReaderTtsRate,
   normalizeReaderTtsPreferences
@@ -109,6 +110,7 @@ export async function openReaderTab(
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error("Reader source must use HTTP or HTTPS")
   }
+  const requestedAt = new Date()
   const watch = watchPdfSources(browserApi, parsed.toString())
   let tab: browser.tabs.Tab
   try {
@@ -120,9 +122,12 @@ export async function openReaderTab(
       // The browser's PDF viewer is privileged; extraction happens in our own page.
       const search = new URLSearchParams({ pdf: "1", sourceUrl: parsed.toString(), theme })
       const readerUrl = browserApi.runtime.getURL(`static/reader.html?${search}`)
-      if (watch.isDownload(tab.id)) {
+      const downloadUrl = watch.downloadUrl(tab.id)
+      if (downloadUrl) {
         // The browser saves a download and closes the tab it opened for it, so
-        // the reader gets a tab of its own; the source tab goes if it remains.
+        // the reader gets a tab of its own; the source tab goes if it remains,
+        // and so does the browser's copy of the file.
+        cancelSourceDownload(browserApi, downloadUrl, requestedAt)
         await browserApi.tabs.create({ url: readerUrl, active })
         await browserApi.tabs.remove(tab.id).catch(() => undefined)
         return

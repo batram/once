@@ -20,6 +20,7 @@
     "clipboardWrite",
     "unlimitedStorage",
     "tabs",
+    "downloads",
     "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": ["<all_urls>"],

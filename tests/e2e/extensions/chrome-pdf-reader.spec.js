@@ -25,6 +25,7 @@ for (const { title, scanned, type, file } of cases) {
     try {
       const worker=await waitForExtensionWorker(context)
       const id=new URL(worker.url()).host
+      await worker.evaluate(()=>{globalThis.onceE2eDownloads=[];globalThis.chrome.downloads.onCreated.addListener(item=>globalThis.onceE2eDownloads.push(item.url))})
       const panel=await context.newPage()
       await panel.goto(`chrome-extension://${id}/static/sidepanel.html?once-e2e=1`)
       await expect(panel.locator("body")).toHaveAttribute("data-once-ready","true")
@@ -52,6 +53,9 @@ for (const { title, scanned, type, file } of cases) {
       expect(new URL(reader.url()).searchParams.get("pdf")).toBe("1")
       const geometry=await reader.locator("article").evaluate(article=>({width:article.getBoundingClientRect().width,overflow:document.documentElement.scrollWidth>innerWidth}))
       expect(geometry.width).toBeGreaterThan(200);expect(geometry.overflow).toBe(false)
+      // Chrome downloaded the generic-type source; reading it must not leave that copy behind.
+      expect(await worker.evaluate(()=>globalThis.onceE2eDownloads.length)).toBe(type==="application/pdf"?0:1)
+      await expect.poll(()=>worker.evaluate(async()=>(await globalThis.chrome.downloads.search({})).map(item=>`${item.state} ${item.url}`))).toEqual([])
     } finally {await context.close();await new Promise(resolve=>server.close(resolve));await fs.rm(profile,{recursive:true,force:true})}
   })
 }

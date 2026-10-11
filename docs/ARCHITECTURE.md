@@ -468,7 +468,10 @@ retrieval API recognizes `application/pdf` by MIME type; a missing or generic
 download type (`application/octet-stream` and the like) counts as a PDF when the
 URL or the `Content-Disposition` file name ends in `.pdf`, or when the body starts
 with the `%PDF-` signature (`@once/app` `pdfMediaType.ts`, which the extensions'
-navigation probe shares). It bounds decoder input to 64 MiB, and reconstructs each page's paragraphs independently. First-line and hanging
+navigation probe shares). A browser saves such a response as a download and
+closes the tab it opened for it, so the extensions open the reader in a tab of
+its own and cancel and erase that download (the `downloads` permission), only
+ever one that started after the reader was asked for. It bounds decoder input to 64 MiB, and reconstructs each page's paragraphs independently. First-line and hanging
 indents are treated as line wrapping when spacing and overlap agree; a new indent
 after a completed sentence preserves a paragraph boundary. `method` on the
 combined result is `embedded`, `ocr`, or `mixed`; PDF metadata can supply the

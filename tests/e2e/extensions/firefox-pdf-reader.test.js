@@ -67,6 +67,10 @@ test("Firefox reads a PDF source in its own reader page through the PDF sandbox"
     assert.ok(scan.includes("OCR is not available on this platform"))
     const download = await readerText(`${origin}/paper.pdf`, "Readable PDF text across platforms.")
     assert.ok(download.includes("Readable PDF text across platforms."))
+    // Reading the generic-type source must not leave a download of it behind.
+    // Firefox (157) starts none at all, the source tab being closed first; the
+    // list is checked anyway, since Chrome does start one (see the Chrome spec).
+    await driver.wait(async () => (await driver.executeAsyncScript("browser.downloads.search({}).then(items => arguments[0](items.length), () => arguments[0](-1))")) === 0, budget(10_000), "the source's download remained")
   } finally {
     await driver.quit()
     await new Promise(resolve => server.close(resolve))
