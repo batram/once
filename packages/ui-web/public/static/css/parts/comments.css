@@ -6,6 +6,8 @@
 .comment_thread {
   --comment-indent: 14px;
   --comment-rail-size: 14px;
+  /* Text lines up with the author: past the toggle and the header's gap. */
+  --comment-text-inset: calc(var(--sp-4) + var(--sp-2));
   box-sizing: border-box;
   padding: 0 var(--sp-2) var(--sp-6);
   /* The reader's body color: --text-color is a mid grey in both themes and reads as disabled. */
@@ -84,7 +86,7 @@
 
 /* Each top-level thread is its own block, set off by a hairline. */
 .comment_list > .comment {
-  padding-block: 10px;
+  padding-block: var(--sp-2);
   border-block-end: var(--bw) solid var(--divider-color);
 }
 
@@ -126,7 +128,6 @@
   place-items: center;
   inline-size: var(--sp-4);
   block-size: var(--sp-4);
-  margin-inline-start: calc(var(--sp-0-5) * -1);
   padding: 0;
   border: 0;
   border-radius: var(--radius-md);
@@ -170,7 +171,7 @@
 }
 
 .comment_op {
-  padding: 0 5px;
+  padding: 0 var(--sp-1);
   border-radius: var(--radius-sm);
   background: var(--cursor-color);
   color: white;
@@ -202,10 +203,9 @@
   opacity: 1;
 }
 
-/* Indented to line up with the author, past the toggle. */
 .comment_body {
-  margin-block-start: 3px;
-  padding-inline-start: 22px;
+  margin-block-start: var(--sp-0-5);
+  padding-inline-start: var(--comment-text-inset);
   overflow-wrap: anywhere;
 }
 
@@ -260,7 +260,7 @@
 .comment_more {
   display: inline-block;
   margin-block-start: var(--sp-1);
-  margin-inline-start: 22px;
+  margin-inline-start: var(--comment-text-inset);
   color: var(--text-muted-color);
   font-size: var(--fs-caption);
 }
@@ -268,7 +268,8 @@
 .comment_replies {
   position: relative;
   margin-block-start: var(--sp-0-5);
-  margin-inline-start: 15px;
+  /* Puts the rail under the toggle's center: the main's padding plus half the toggle. */
+  margin-inline-start: var(--sp-4);
   padding-inline-start: var(--sp-3);
 }
 
@@ -300,7 +301,7 @@
   inset-block: var(--sp-0-5);
   inset-inline-start: var(--sp-1-5);
   inline-size: 2px;
-  border-radius: 1px;
+  border-radius: var(--radius-sm);
   background: var(--comment-rail-color);
 }
 
