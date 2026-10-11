@@ -2,7 +2,7 @@ const fs = require("node:fs/promises")
 const { test, expect, launchApp, closeApp } = require("./electron-harness")
 const { startImageTextServer } = require("../shared/image-text-fixture")
 
-test.skip(process.platform !== "darwin", "Apple Vision is a macOS platform capability")
+test.skip(!["darwin", "win32"].includes(process.platform), "Native OCR uses Apple Vision (macOS) or Windows.Media.Ocr (Windows)")
 let server
 test.beforeAll(async () => { server = await startImageTextServer() })
 test.afterAll(async () => { await server?.close() })
@@ -174,7 +174,8 @@ test("smooth selection respects partial words, reverse dragging, and line breaks
       page.sendInputEvent({ type: "mouseDown", ...point, button: "left", clickCount: 2 })
       page.sendInputEvent({ type: "mouseUp", ...point, button: "left", clickCount: 2 })
     }, `${server.origin}/`)
-    await expect.poll(() => inPage(app, "getSelection().toString()")).toBe("Select")
+    // Chromium on Windows extends a double-click word selection over the trailing space.
+    await expect.poll(() => inPage(app, "getSelection().toString().trimEnd()")).toBe("Select")
     await expect.poll(async () => (await geometry(app)).highlight?.match(/M/g)?.length).toBe(1)
     const selected = await inPage(app, `(() => {
       const words=document.querySelector('[data-once-image-text]').shadowRoot.querySelectorAll('.word');

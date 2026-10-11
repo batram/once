@@ -6,15 +6,19 @@ import type { ImageTextResult } from "./imageTextTypes"
 
 const MAX_BYTES = 32 * 1024 * 1024
 
-/** Shared Apple Vision backend for image selection and document retrieval. */
+/** Platforms with a native helper: Apple Vision (macOS) and Windows.Media.Ocr (Windows). */
+export const nativeTextRecognitionAvailable = process.platform === "darwin" || process.platform === "win32"
+
+/** Shared native OCR backend for image selection and document retrieval. */
 export function recognize(bytes: Buffer, signal: AbortSignal): Promise<ImageTextResult> {
-  if (process.platform !== "darwin") return Promise.reject(new Error("Image text recognition is not available on this platform yet"))
+  if (!nativeTextRecognitionAvailable) return Promise.reject(new Error("Image text recognition is not available on this platform yet"))
   if (!bytes.length || bytes.length > MAX_BYTES) return Promise.reject(new Error("Invalid image size"))
+  const name = process.platform === "win32" ? "once-image-text.exe" : "once-image-text"
   const executable = app.isPackaged
-    ? path.join(process.resourcesPath, "once-image-text")
-    : path.resolve(__dirname, "../../../.native/once-image-text")
+    ? path.join(process.resourcesPath, name)
+    : path.resolve(__dirname, "../../../.native", name)
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, [], { stdio: ["pipe", "pipe", "pipe"], signal })
+    const child = spawn(executable, [], { stdio: ["pipe", "pipe", "pipe"], signal, windowsHide: true })
     const timer = setTimeout(() => { child.kill(); reject(new Error("Recognition timed out")) }, 20_000)
     let output = ""
     child.stdout.setEncoding("utf8").on("data", (chunk: string) => {

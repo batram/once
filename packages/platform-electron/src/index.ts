@@ -121,7 +121,10 @@ export function createElectronPlatform(
       defaultName: `Once on ${OS_NAMES[buildInfo?.platform ?? ""] ?? "desktop"}`,
       appVersion: buildInfo?.version ?? ""
     },
-    textRecognition: buildInfo?.platform === "darwin" ? { recognizeImage: bytes => bridge.recognizeImage(bytes) } : undefined,
+    // Native helpers: Apple Vision on macOS, Windows.Media.Ocr on Windows.
+    textRecognition: buildInfo?.platform === "darwin" || buildInfo?.platform === "win32"
+      ? { recognizeImage: bytes => bridge.recognizeImage(bytes) }
+      : undefined,
     ...(options.pdfSandboxUrl ? { pdfText: createPdfTextPort({ sandboxUrl: options.pdfSandboxUrl }) } : {}),
     fetch: fetchThroughMain,
     // Document bodies stream from main so retrieval can stop at its byte cap;

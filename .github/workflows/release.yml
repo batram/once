@@ -69,6 +69,17 @@ jobs:
       - run: npm ci
       - run: npm run verify:release-version -- "$env:RELEASE_TAG"
       - run: npm run test:electron
+      # Windows.Media.Ocr backs image text and scanned-PDF OCR; server images can
+      # ship without any OCR language. Windows PowerShell: pwsh cannot load WinRT.
+      - name: Install Windows OCR language
+        shell: powershell
+        run: |
+          $name = "Language.OCR~~~en-US~0.0.1.0"
+          if ((Get-WindowsCapability -Online -Name $name).State -ne "Installed") { Add-WindowsCapability -Online -Name $name | Out-Null }
+          $null = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]
+          $languages = @([Windows.Media.Ocr.OcrEngine]::AvailableRecognizerLanguages | ForEach-Object LanguageTag)
+          if (!$languages.Count) { throw "Windows.Media.Ocr has no recognizer language after installing $name" }
+          "OCR languages: $($languages -join ', ')"
       - run: npm run test:electron:e2e
       - run: npm run test:electron:rendering:run
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

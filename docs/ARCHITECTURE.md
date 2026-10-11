@@ -442,10 +442,14 @@ for both axes). macOS shares its Apple Vision helper with native image
 text selection; iOS uses Vision through the trusted Capacitor shell bridge.
 Android uses Google ML Kit text recognition (proprietary but free) with its
 bundled Latin model, through the same bridge method, so no Play services or
-model download is involved. Windows, Linux and browser extensions report
-unavailable image OCR until they supply a backend. Recognition runs on device,
-with a 32 MiB image limit, an 80-megapixel dimension limit, EXIF orientation
-applied, and downsampling to a 4096 px longest side.
+model download is involved. Windows has the macOS arrangement with
+Windows.Media.Ocr: a C++/WinRT helper (`apps/electron/native/ImageText.cpp`,
+built by `scripts/build-image-text.js` with MSVC and shipped beside the asar)
+takes bytes on stdin and answers the Swift helper's JSON, so image text
+selection works there too. Linux and browser extensions report unavailable
+image OCR until they supply a backend. Recognition runs on device, with a
+32 MiB image limit, an 80-megapixel dimension limit, EXIF orientation applied,
+and downsampling to a 4096 px longest side.
 
 The existing `fetchDocument` method adapts this result for Reader, offline
 story storage and addon `getStoryContent()`. For recognized text its `html`
@@ -521,9 +525,10 @@ own native method (`fetchDocument` on the surface plugin, URLSession on iOS and
 HttpURLConnection on Android) which stops reading at the cap as bytes arrive, so
 a misreported or absent Content-Length cannot fill memory.
 
-macOS/iOS OCR scanned pages with Apple Vision and Android with ML Kit. Windows,
-Linux and extensions can extract embedded text now; scanned pages need a future
-image-recognition implementation. The PDF port also permits native
+macOS/iOS OCR scanned pages with Apple Vision, Android with ML Kit and Windows
+with Windows.Media.Ocr. Linux and extensions can extract embedded text now;
+scanned pages need a future image-recognition implementation. The PDF port
+also permits native
 backends such as PDFKit without changing Reader or addon consumers. Android's
 native text API requires API 35, so PDF.js keeps older devices on the same text
 retrieval path.

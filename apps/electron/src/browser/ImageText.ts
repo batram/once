@@ -2,7 +2,7 @@ import { type ContextMenuParams, type WebContents } from "electron"
 import { readFileSync } from "node:fs"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
-import { recognize } from "./NativeTextRecognition"
+import { nativeTextRecognitionAvailable, recognize } from "./NativeTextRecognition"
 import type { ImageTextResult } from "./imageTextTypes"
 
 const MAX_BYTES = 32 * 1024 * 1024
@@ -12,7 +12,7 @@ let injection: string | undefined
 /** User-initiated, on-device recognition; no bridge is exposed to remote pages. */
 export async function selectImageText(contents: WebContents, params: ContextMenuParams): Promise<void> {
   const frame = params.frame
-  if (process.platform !== "darwin" || !frame || !params.hasImageContents) return
+  if (!nativeTextRecognitionAvailable || !frame || !params.hasImageContents) return
   active.get(contents)?.abort()
   const controller = new AbortController()
   active.set(contents, controller)

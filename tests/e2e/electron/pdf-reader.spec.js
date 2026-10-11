@@ -4,7 +4,7 @@ const { test, expect, launchApp, closeApp } = require("./electron-harness")
 
 for (const scanned of [false, true]) {
   test(`PDF Reader uses ${scanned ? "embedded text and scan OCR in page order" : "embedded text"}`, async () => {
-    test.skip(scanned && process.platform !== "darwin", "Scan OCR currently requires Apple Vision")
+    test.skip(scanned && !["darwin", "win32"].includes(process.platform), "Scan OCR needs Apple Vision or Windows.Media.Ocr")
     const { electronApp: app, userData, window } = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
     let server
     try {

@@ -12,6 +12,7 @@ import { WindowEntry } from "./BrowserState"
 import { PageActions } from "./PageActions"
 import { sourceUrlFromReaderUrl } from "./reader-url"
 import { selectImageText } from "./ImageText"
+import { nativeTextRecognitionAvailable } from "./NativeTextRecognition"
 import { siteForUrl } from "@once/app/browsingSite"
 import { confirmClearSiteData } from "./BrowsingData"
 
@@ -170,7 +171,7 @@ export class NativeMenus {
       )
     }
 
-    if (process.platform === "darwin" && params.hasImageContents) {
+    if (nativeTextRecognitionAvailable && params.hasImageContents) {
       template.push({ type: "separator" }, {
         label: "Select Text in Image",
         click: () => void selectImageText(contents, params)
