@@ -75,7 +75,8 @@ export class ReadingCommentThread {
         openUrl: (href, target) => getOnceClient().openUrl(href, target === "middle" ? "blank" : "current"),
         reload: () => void this.load(true),
         togglePage: () => this.toggle(url),
-        pageButton: true
+        pageButton: true,
+        foldDepth: true
       })
       this.element.replaceChildren(this.view.root)
       this.view.activate()

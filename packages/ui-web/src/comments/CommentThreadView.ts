@@ -6,6 +6,7 @@
 import { CommentNode, CommentThread, humanTime } from "@once/core"
 import { sanitizedFragmentDocument } from "../reader/sanitizeHtml"
 import { collapseStep, expandStep, NavComment, nextIndex, previousIndex } from "./commentNavigation"
+import { attachCommentFolding, CommentFolding, scrollerOf } from "./commentFolding"
 import { attachCommentSwipe } from "./commentSwipe"
 
 export interface CommentThreadViewOptions {
@@ -15,6 +16,8 @@ export interface CommentThreadViewOptions {
   togglePage?(): void
   /** Puts a "show the page" button in the thread's header, where no toolbar offers one. */
   pageButton?: boolean
+  /** A swipe right on an open comment shows only it and its replies, for a narrow screen. */
+  foldDepth?: boolean
 }
 
 interface Entry {
@@ -57,6 +60,7 @@ export class CommentThreadView {
   private current = -1
   private frame = 0
   private disposeSwipe: () => void = () => {}
+  private folding: CommentFolding | null = null
   private clicks: ClickChain | null = null
 
   constructor(private readonly thread: CommentThread, private readonly options: CommentThreadViewOptions) {
@@ -77,9 +81,10 @@ export class CommentThreadView {
       swipe: (index, direction) => {
         this.select(index, false)
         if (direction < 0) this.collapse()
-        else this.expand()
+        else if (!this.focus(index)) this.expand()
       }
     })
+    if (options.foldDepth) this.folding = attachCommentFolding(this.root)
     this.renderFrom(0)
   }
 
@@ -99,6 +104,7 @@ export class CommentThreadView {
     this.deactivate()
     cancelAnimationFrame(this.frame)
     this.disposeSwipe()
+    this.folding?.dispose()
     this.root.remove()
   }
 
@@ -106,6 +112,8 @@ export class CommentThreadView {
   previous(): void { this.select(previousIndex(this.navItems(), this.current)) }
 
   collapse(): void {
+    // Done with a focused comment: back to the thread around it, where it collapses in place.
+    if (this.folding?.focused && this.folding.focused === this.entries[this.current]?.element) this.folding.back()
     const step = collapseStep(this.navItems(), this.current)
     if (step.collapse) this.setCollapsed(this.current, true)
     if (step.target >= 0) this.select(step.target)
@@ -158,12 +166,21 @@ export class CommentThreadView {
     if (top < view.top || top > view.bottom) main.scrollIntoView({ block: "start" })
   }
 
+  /** Focuses an open comment, where the view folds; false when it does not. */
+  private focus(index: number): boolean {
+    const entry = this.entries[index]
+    if (!this.folding || !entry || entry.collapsed) return false
+    this.folding.focus(entry.element)
+    return true
+  }
+
   private navItems(): NavComment[] {
     // Reading order makes "hidden" one pass: everything deeper than the most
     // recent collapsed comment, until the list climbs back to its depth.
     let collapsedAt = -1
+    const focused = this.folding?.focused
     return this.entries.map(entry => {
-      const hidden = collapsedAt >= 0 && entry.depth > collapsedAt
+      const hidden = (collapsedAt >= 0 && entry.depth > collapsedAt) || (!!focused && !focused.contains(entry.element))
       if (!hidden) collapsedAt = entry.collapsed ? entry.depth : -1
       return { depth: entry.depth, collapsed: entry.collapsed, hidden }
     })
@@ -384,13 +401,6 @@ export class CommentThreadView {
 }
 
 const points = (score: number) => `${score} ${Math.abs(score) === 1 ? "point" : "points"}`
-
-function scrollerOf(element: HTMLElement): HTMLElement | null {
-  for (let node = element.parentElement; node; node = node.parentElement) {
-    if (/(auto|scroll)/.test(getComputedStyle(node).overflowY)) return node
-  }
-  return null
-}
 
 function countAll(nodes: readonly CommentNode[]): number {
   return nodes.reduce((total, node) => total + 1 + countAll(node.children), 0)

@@ -414,3 +414,83 @@
 .comment.is-removed > .comment_main .comment_head {
   font-style: italic;
 }
+
+/* Focus (commentFolding.ts): only the focused comment and its replies show.
+   Its ancestors stay in the tree to hold it, but draw nothing and indent
+   nothing, so it starts at the left edge. */
+.comment_thread.is-focusing > .comment_thread_head,
+.comment_thread.is-focusing > .comment_more,
+.comment_thread.is-focusing .comment:not(.is-focused, :has(.comment.is-focused), .is-focused .comment),
+.comment_thread.is-focusing .comment:has(.comment.is-focused) > :is(.comment_main, .comment_rail) {
+  display: none;
+}
+
+.comment_thread.is-focusing .comment:has(.comment.is-focused) {
+  padding-block: 0;
+  border-block-end: 0;
+}
+
+.comment_thread.is-focusing .comment:has(.comment.is-focused)::before {
+  content: none;
+}
+
+.comment_thread.is-focusing .comment:has(.comment.is-focused) > .comment_replies {
+  margin: 0;
+  padding: 0;
+}
+
+/* The way back, pinned to the top while a comment is focused: the comment it replied to. */
+.comment_context {
+  position: sticky;
+  z-index: 2;
+  inset-block-start: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 44px;
+  margin-block-end: var(--sp-1);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-block-end: var(--bw) solid var(--divider-color);
+  background: var(--main-bg-color);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 6%);
+  color: var(--text-muted-color);
+  font: inherit;
+  font-size: var(--fs-caption);
+  text-align: start;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.comment_context[hidden] {
+  display: none;
+}
+
+/* A comment brought into view lands below the bar, not under it. */
+.comment_thread.is-focusing .comment_main {
+  scroll-margin-block-start: 48px;
+}
+
+/* A back chevron, drawn like the comment toggle's. */
+.comment_context::before {
+  content: "";
+  flex: none;
+  inline-size: 6px;
+  block-size: 6px;
+  border: solid currentColor;
+  border-width: 0 0 1.5px 1.5px;
+  transform: translateX(1px) rotate(45deg);
+}
+
+.comment_context_author {
+  flex: none;
+  color: var(--text-high-color);
+  font-weight: bold;
+}
+
+.comment_context_text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -1,5 +1,6 @@
 // Touch: a horizontal swipe on a comment selects it and acts like the arrow
-// keys. Swipe left closes (collapses), swipe right opens (expands). The
+// keys. Swipe left closes (collapses), swipe right opens (expands), or on an
+// open comment where the view folds, folds the indent above it. The
 // comment follows the finger a little and snaps back on release. Thresholds
 // are the Hacker News navigator userscript's, which feel right on a phone.
 
