@@ -73,6 +73,31 @@ test("the newest URL wins even when it is the one that misses", async () => {
   assert.equal(selectedHref(), null, "a stale hit must not select a story the browser has already left")
 })
 
+test("leaving a story's page hides its row before a slow miss settles", async () => {
+  const { Story, updateSelectedStory } = loadModule()
+  const alpha = new Story("fixture", STORY_URL, "Alpha", STORY_URL)
+  let releaseMiss
+  const client = {
+    findStoryByUrl: (url) => url === STORY_URL
+      ? Promise.resolve(alpha)
+      : new Promise((resolve) => { releaseMiss = () => resolve(null) })
+  }
+  const container = document.querySelector("#selected_container")
+
+  await updateSelectedStory(client, STORY_URL)
+  assert.equal(container.hidden, false)
+  const pending = updateSelectedStory(client, "https://example.com/elsewhere")
+  // Electron places the tab's view below the mirror, so the old height must go now.
+  assert.equal(container.hidden, true, "the row is hidden synchronously, not when the lookup settles")
+  // Coming straight back before the miss settles shows the same row again.
+  await updateSelectedStory(client, STORY_URL)
+  assert.equal(container.hidden, false)
+  assert.equal(selectedHref(), STORY_URL)
+  releaseMiss()
+  await pending
+  assert.equal(selectedHref(), STORY_URL)
+})
+
 test("a contributed element that depends on where the row lives sees the mirror, not a detached row", async () => {
   const { Story, updateSelectedStory } = loadModule()
   const { registerStoryElement } = require("../../../packages/ui-web/dist/story/storyElements")

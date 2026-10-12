@@ -269,7 +269,9 @@ export class BrowserShell {
       this.reportBounds()
     })
 
-    const observer = new ResizeObserver(() => this.reportBounds())
+    // Observers run after layout, so the rect is already final: sending it now
+    // moves the page's view in this frame instead of the next one.
+    const observer = new ResizeObserver(() => this.sendBounds())
     observer.observe(this.tabContent)
     const tabStripObserver = new ResizeObserver(() => {
       this.layoutTabs()
@@ -660,16 +662,18 @@ export class BrowserShell {
   }
 
   private reportBounds(): void {
-    requestAnimationFrame(() => {
-      // Unrounded: main scales by the shell's zoom first, and rounding here
-      // would grow into a pixel seam at the bottom or right edge.
-      const rect = this.tabContent.getBoundingClientRect()
-      void this.bridge.tabs.setBounds({
-        x: rect.left,
-        y: rect.top,
-        width: rect.width,
-        height: rect.height
-      })
+    requestAnimationFrame(() => this.sendBounds())
+  }
+
+  private sendBounds(): void {
+    // Unrounded: main scales by the shell's zoom first, and rounding here
+    // would grow into a pixel seam at the bottom or right edge.
+    const rect = this.tabContent.getBoundingClientRect()
+    void this.bridge.tabs.setBounds({
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height
     })
   }
 }

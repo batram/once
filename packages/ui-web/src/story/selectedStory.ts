@@ -31,12 +31,21 @@ export async function updateSelectedStory(
     if (readerUrl) href = decodeURIComponent(readerUrl)
   }
 
-  const selectedContainer = document.querySelector("#selected_container")
+  const selectedContainer = document.querySelector<HTMLElement>("#selected_container")
   if (!selectedContainer) return
 
   const candidates = storyPageUrls(href, context)
   const selectedStory = selectedContainer.querySelector<StoryListItem>("story-item")
-  if (selectedStory && candidates.some(url => selectedStory.story.matches_url(url))) return
+  if (selectedStory && candidates.some(url => selectedStory.story.matches_url(url))) {
+    selectedContainer.hidden = false
+    return
+  }
+  // The row belongs to the page just left, so it goes now rather than when the
+  // lookup settles: a miss takes tens of milliseconds, and where the mirror sits
+  // above the browser (Electron) its height places the tab's view, which would
+  // show those frames at the old offset and then jump. A hit settles within
+  // the same task, so a story-to-story switch never paints the gap.
+  selectedContainer.hidden = true
 
   let story = null
   for (const url of candidates) {
@@ -46,6 +55,7 @@ export async function updateSelectedStory(
   }
   if (request !== latestRequest) return
   selectedContainer.innerHTML = ""
+  selectedContainer.hidden = false
 
   if (story) {
     const storyElement = new StoryListItem(story)
