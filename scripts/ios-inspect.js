@@ -142,12 +142,16 @@ async function startBridge(kind) {
   bridge.unref()
   fs.writeFileSync(pidFile, String(bridge.pid))
   fs.writeFileSync(transportFile, kind)
-  // A new bridge answers before it has found the phone's pages.
+  // A new bridge answers before it has found the phone's pages, and finds
+  // them one app at a time: wait until the list stops growing.
   let targets = null
-  for (let attempt = 0; attempt < 60 && !targets?.length && !exited; attempt++) {
+  let stable = 0
+  for (let attempt = 0; attempt < 60 && stable < 3 && !exited; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 500))
-    targets = await listTargets() ?? targets
-    if (targets && attempt >= 20) break
+    const listed = await listTargets()
+    stable = listed?.length && listed.length === targets?.length ? stable + 1 : 0
+    targets = listed ?? targets
+    if (targets && !targets.length && attempt >= 20) break
   }
   if (targets) return { targets }
   stopBridge()
