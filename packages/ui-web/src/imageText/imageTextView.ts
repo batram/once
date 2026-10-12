@@ -77,6 +77,12 @@ export function startImageTextWordsView(bridge: ImageTextViewBridge): void {
       highlights.attach(layout.naturalWidth, layout.naturalHeight)
       blocks.attach(result)
       place()
+      // The app keeps the bar off the words, wherever the picture moves.
+      const picture = words.getBoundingClientRect()
+      bridge.send({ type: "words", boxes: wordRects().map((rect) => ({
+        left: (rect.left - picture.left) / picture.width, top: (rect.top - picture.top) / picture.height,
+        right: (rect.right - picture.left) / picture.width, bottom: (rect.bottom - picture.top) / picture.height
+      })) })
       stopScan()
       stopScan = playRecognitionScan(image, clip, wordRects)
       bridge.send({ type: "status", text: `Drag to select text · ${/^Mac/.test(navigator.platform) ? "⌘C" : "Ctrl+C"} to copy` })

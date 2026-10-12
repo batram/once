@@ -498,3 +498,30 @@ test("an image in a cross-site iframe gets the overlay, placed through the frame
     await expect.poll(() => overlayOpen(app)).toBe(false)
   } finally { await closeApp(app, userData) }
 })
+
+test("on an image filling the page the bar takes the corner covering the fewest words", async () => {
+  const { electronApp: app, userData, window } = await launchApp()
+  try {
+    await window.locator("#urlfield").fill(`${server.origin}/`)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
+    // Text down the image's right side only; the image fills the viewport, so
+    // the bar has no room above or below it.
+    await inPage(app, `new Promise(resolve => {
+      const canvas=document.createElement('canvas'); canvas.width=1000; canvas.height=1000;
+      const c=canvas.getContext('2d'); c.fillStyle='#fff'; c.fillRect(0,0,1000,1000);
+      c.fillStyle='#14253d'; c.font='44px Arial';
+      c.fillText('Top right words',600,80); c.fillText('Bottom right words',560,950);
+      const image=document.querySelector('img'); image.style.height='100vh'; image.style.objectFit='fill';
+      image.onload=()=>{ image.scrollIntoView(); resolve(true) }; image.src=canvas.toDataURL('image/png');
+    })`)
+    await startRecognition(app)
+    await expect.poll(async () => {
+      const g = await geometry(app)
+      if (!g.bar || g.words.length < 6) return "waiting"
+      const overlaps = g.words.some(word => g.bar.left < word.right && word.left < g.bar.right && g.bar.top < word.bottom && word.top < g.bar.bottom)
+      const inside = g.bar.top >= g.image.top && g.bar.bottom <= g.image.bottom
+      return overlaps ? "covers words" : inside && g.bar.right < g.image.left + g.image.width / 2 ? "left corner" : "elsewhere"
+    }).toBe("left corner")
+  } finally { await closeApp(app, userData) }
+})

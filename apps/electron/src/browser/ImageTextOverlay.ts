@@ -28,6 +28,8 @@ export class ImageTextOverlay {
   private readonly bar = createView()
   private readonly ready: Promise<unknown>
   private barSize = { width: 0, height: 0 }
+  /** Recognized words, as fractions of the drawn picture, for keeping the bar off them. */
+  private wordBoxes: { left: number; top: number; right: number; bottom: number }[] = []
   private lastWords = ""
   private lastBar = ""
   private shown = false
@@ -152,26 +154,41 @@ export class ImageTextOverlay {
       this.words.setBounds(words)
       void this.send(this.words, { type: "layout", layout })
     }
-    this.placeBar(words, { x: tab.x, y: tab.y, width: fit.viewportWidth * zoom, height: fit.viewportHeight * zoom })
+    const picture = { x: left + layout.left, y: top + layout.top, width: layout.width, height: layout.height }
+    this.placeBar(words, picture, { x: tab.x, y: tab.y, width: fit.viewportWidth * zoom, height: fit.viewportHeight * zoom })
     this.show(true)
   }
 
   /**
-   * Below the image's visible part, else above it, else in its bottom corner;
-   * kept inside the page's viewport, clear of its scrollbars.
+   * The bar never hides text where it can help it: it sits just below the
+   * image's visible part, or above it, and only on an image filling the page
+   * takes the inside corner covering the fewest recognized words. It stays
+   * inside the page's viewport, clear of its scrollbars.
    */
-  private placeBar(image: Rectangle, page: Rectangle): void {
+  private placeBar(image: Rectangle, picture: Rectangle, page: Rectangle): void {
     const { width, height } = this.barSize
     if (!width || !height) return
     // The view holds the bar and its shadow; place the bar itself.
     const w = width - BAR_INSET * 2, h = height - BAR_INSET * 2
-    const x = Math.max(page.x + GAP, Math.min(image.x + image.width - w, page.x + page.width - w - GAP))
+    const x = (left: number) => Math.max(page.x + GAP, Math.min(left, page.x + page.width - w - GAP))
+    const y = (top: number) => Math.max(page.y + GAP, Math.min(top, page.y + page.height - h - GAP))
     const below = image.y + image.height + GAP
     const above = image.y - GAP - h
-    const y = below + h <= page.y + page.height - GAP ? below
-      : above >= page.y + GAP ? above
-        : Math.max(page.y + GAP, image.y + image.height - h - GAP)
-    const bounds = { x: Math.round(x - BAR_INSET), y: Math.round(y - BAR_INSET), width, height }
+    let place = below + h <= page.y + page.height - GAP ? { left: x(image.x + image.width - w), top: below }
+      : above >= page.y + GAP ? { left: x(image.x + image.width - w), top: above } : null
+    if (!place) {
+      const words = this.wordBoxes.map((box) => ({ left: picture.x + box.left * picture.width, top: picture.y + box.top * picture.height,
+        right: picture.x + box.right * picture.width, bottom: picture.y + box.bottom * picture.height }))
+      const covered = (spot: { left: number; top: number }) => words.reduce((sum, word) =>
+        sum + Math.max(0, Math.min(word.right, spot.left + w) - Math.max(word.left, spot.left)) *
+          Math.max(0, Math.min(word.bottom, spot.top + h) - Math.max(word.top, spot.top)), 0)
+      const right = image.x + image.width - w - GAP, left = image.x + GAP
+      const bottom = image.y + image.height - h - GAP, top = image.y + GAP
+      place = [[right, bottom], [left, bottom], [right, top], [left, top]]
+        .map(([spotLeft, spotTop]) => ({ left: x(spotLeft), top: y(spotTop) }))
+        .reduce((best, spot) => covered(spot) < covered(best) ? spot : best)
+    }
+    const bounds = { x: Math.round(place.left - BAR_INSET), y: Math.round(place.top - BAR_INSET), width, height }
     const key = JSON.stringify(bounds)
     if (key !== this.lastBar) {
       this.lastBar = key
@@ -201,7 +218,12 @@ export class ImageTextOverlay {
       this.lastBar = ""
       this.apply(this.fit)
     } else if (message.type === "wheel" && fromWords) this.wheel(message)
-    else if (message.type === "scroll" && fromWords) this.scroll(Number(message.deltaY) || 0)
+    else if (message.type === "words" && fromWords && Array.isArray(message.boxes)) {
+      this.wordBoxes = message.boxes.slice(0, 5000).map((box) => ({ left: Number(box.left) || 0, top: Number(box.top) || 0,
+        right: Number(box.right) || 0, bottom: Number(box.bottom) || 0 }))
+      this.lastBar = ""
+      this.apply(this.fit)
+    } else if (message.type === "scroll" && fromWords) this.scroll(Number(message.deltaY) || 0)
   }
 
   /** A sweep held at the page's edge scrolls whatever scrolls the image, as a wheel over it would. */

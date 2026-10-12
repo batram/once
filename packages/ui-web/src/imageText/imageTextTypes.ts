@@ -50,6 +50,8 @@ export type ImageTextViewEvent =
   | { type: "close" }
   | { type: "wheel"; x: number; y: number; deltaX: number; deltaY: number }
   | { type: "scroll"; deltaY: number }
+  /** The recognized words' boxes as fractions of the drawn picture. */
+  | { type: "words"; boxes: { left: number; top: number; right: number; bottom: number }[] }
   | { type: "sweeping"; sweeping: boolean }
   | { type: "status"; text: string }
   | { type: "size"; width: number; height: number }
