@@ -2,6 +2,7 @@ import { OnceClient } from "@once/app"
 import { AiSelection, AiSettings } from "@once/core"
 import { completeSettingsPage, openSettingsPage, SettingsPage } from "./SettingsNavigation"
 import { actions, button, card, feedback, field, input, select, pageTitle, editorReturn } from "./aiForm"
+import { modelCombo } from "./aiModelCombo"
 
 const drafts = new WeakMap<HTMLElement, Map<string, SettingsPage>>()
 
@@ -30,8 +31,8 @@ export function openModelPicker(root: HTMLElement, client: OnceClient, settings:
   connection.dataset.testid = "ai-model-connection"
   const model = input("text", initial?.model ?? ""); model.placeholder = "Choose or enter a model ID"
   model.dataset.testid = "ai-model-id"
-  const list = document.createElement("datalist"); list.id = `models-${crypto.randomUUID()}`; model.setAttribute("list", list.id)
-  field(custom, "Connection", connection); field(custom, "Model", model); custom.append(list)
+  field(custom, "Connection", connection); field(custom, "Model", model)
+  const list = modelCombo(model)
   group.append(custom)
   // Discovery results and the refresh that reruns it share one strip at the foot of the card.
   const strip = document.createElement("div"); strip.className = "ai_card_bar"; group.append(strip)
@@ -48,11 +49,11 @@ export function openModelPicker(root: HTMLElement, client: OnceClient, settings:
       const models = !force && cache.has(id) ? cache.get(id) ?? [] : await client.listAiModels(id)
       cache.set(id, models)
       if (current !== revision || connection.value !== id) return
-      list.replaceChildren(...models.map(item => { const option = document.createElement("option"); option.value = item.id; option.label = item.name; return option }))
+      list.setModels(models)
       status.textContent = `${models.length} models available. You can also enter a model ID.`
     } catch (error) { if (current === revision) status.textContent = `${error instanceof Error ? error.message : error} You can enter a model ID manually.` }
   }
-  connection.onchange = () => { list.replaceChildren(); model.value = ""; void discover() }
+  connection.onchange = () => { list.setModels([]); model.value = ""; void discover() }
   mode.onchange = display
   strip.append(refresh)
   const save = button("Save", () => void (async () => {

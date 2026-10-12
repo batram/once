@@ -250,7 +250,7 @@
 #settings_panel .ai_card .settings_row_name { align-self: center; color: light-dark(black, #eef0f5); }
 
 #settings_panel .ai_card .settings_row > :is(input, select),
-#settings_panel .ai_token_control > input {
+#settings_panel :is(.ai_token_control, .ai_combo) > input {
   box-sizing: border-box;
   width: 100%;
   max-width: none;
@@ -290,6 +290,73 @@
 .ai_token_view { display: flex; flex: 1 1 auto; align-items: center; gap: var(--sp-2); min-width: 0; height: 36px; color: var(--text-muted-color); font-size: var(--fs-meta); }
 .ai_token_dots { color: var(--text-high-color); letter-spacing: 2px; }
 .ai_token_removing .ai_token_view { color: var(--warning-color); }
+
+/* The model list hangs below its field and over the rows after it, so the card
+   that holds it must not clip. */
+.ai_card:has(.ai_combo) { overflow: visible; }
+.ai_combo { position: relative; grid-area: control; min-width: 0; }
+#settings_panel .ai_combo > input { padding-right: var(--sp-6); }
+
+#settings_panel .ai_combo_toggle {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  width: var(--sp-6);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%239297a3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
+  cursor: pointer;
+}
+
+.ai_combo_list {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + var(--sp-1));
+  right: 0;
+  left: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: var(--sp-1) 0;
+  border: 1px solid color-mix(in srgb, var(--text-high-color) 22%, transparent);
+  border-radius: var(--radius-lg);
+  background: light-dark(white, #22242f);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 30%);
+}
+
+.ai_combo_list[hidden] { display: none; }
+
+/* Matches above, everything else under a rule, so the list never hides a model. */
+.ai_combo_list > [role="group"] + [role="group"] {
+  margin-top: var(--sp-1);
+  padding-top: var(--sp-1);
+  border-top: 1px solid color-mix(in srgb, var(--text-high-color) 16%, transparent);
+}
+
+.ai_combo_caption {
+  padding: var(--sp-1) var(--sp-3);
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ai_combo_option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-1-5) var(--sp-3);
+  color: var(--text-high-color);
+  cursor: pointer;
+}
+
+.ai_combo_option:hover,
+.ai_combo_option.ai_combo_active { background: color-mix(in srgb, var(--cursor-color) 28%, transparent); }
+.ai_combo_option[aria-selected="true"] .ai_combo_id { color: light-dark(#2f3f9c, #9fb0ff); }
+.ai_combo_id { min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
+.ai_combo_name { flex: none; color: var(--text-muted-color); font-size: var(--fs-meta); }
 
 /* A narrow panel (a phone, a slim sidebar) stacks the name over a full-width
    control, and the token's state takes its own line above its buttons. */

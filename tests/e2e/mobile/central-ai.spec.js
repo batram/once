@@ -33,7 +33,12 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 
     await editor.getByRole("button", { name: "Refresh models", exact: true }).click()
     await expect(editor.getByRole("status")).toContainText("2 models available")
     await expect(editor.getByLabel("Model", { exact: true })).toHaveValue("draft-model")
-    await expect(editor.locator("datalist option")).toHaveCount(2)
+    await expect(editor.locator('[role="option"]')).toHaveCount(2)
+    // Every model stays offered; the ones matching the text lead, the rest follow under "Other models".
+    await editor.getByLabel("Model", { exact: true }).fill("vision")
+    const models = editor.getByRole("listbox", { name: "Models" })
+    await expect(models.getByRole("option")).toHaveText(["fixture-vision", "fixture"])
+    await expect(models.getByRole("group", { name: "Other models" }).getByRole("option")).toHaveText(["fixture"])
     await editor.getByRole("button", { name: "Cancel", exact: true }).press("Enter")
     await expect(page.getByRole("button", { name: "Default model: Fixture AI · fixture", exact: true })).toBeVisible()
     await expect(page.getByRole("button", { name: "Default model: Fixture AI · fixture", exact: true })).toBeFocused()
