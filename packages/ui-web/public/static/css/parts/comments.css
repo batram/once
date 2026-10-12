@@ -382,11 +382,16 @@
   text-overflow: ellipsis;
 }
 
+/* Everything joins the one line: code keeps neither its line breaks nor its
+   block background and type, or a code sample turns the preview into a page. */
 .comment.is-collapsed > .comment_main > .comment_body * {
   display: inline;
   margin: 0;
   padding: 0;
   border: 0;
+  background: none;
+  font: inherit;
+  white-space: inherit;
 }
 
 /* One click anywhere on a collapsed comment opens it, so it reads as one control. */
