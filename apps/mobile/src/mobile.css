@@ -265,6 +265,14 @@
     color: var(--error-color);
   }
 
+  /* A link inside a sentence is an inline target, exempt from the touch box;
+     a 44px button there lifts it off the baseline of the words around it, and
+     the button text size makes it larger than they are. */
+  .ai_inline_link {
+    min-height: 0;
+    font: inherit;
+  }
+
   /* Glyph-only controls keep the finger-sized target but not the box: a
      setting's (?), a tab row's ⋯ and ×, the tabs list's gear, a notice's ×. */
   .help_tip.button,

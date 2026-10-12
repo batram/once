@@ -216,21 +216,27 @@
   font-size: var(--fs-meta);
 }
 
+/* A link inside a sentence: it sits on the sentence's baseline with no box of
+   its own, so it lines up with the words around it. */
 #settings_panel .ai_inline_link {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
+  display: inline;
+  vertical-align: baseline;
   min-height: 0;
-  padding: var(--sp-0-5) var(--sp-1);
+  height: auto;
+  margin: 0;
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: light-dark(#2f3f9c, #9fb0ff);
   font: inherit;
+  line-height: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
 }
+
+#settings_panel .ai_inline_link:focus-visible { outline: 2px solid var(--cursor-color); outline-offset: 2px; }
 
 /* Form rows in a card: a fixed name column so every field starts on one line
    and takes the rest of the width. */
