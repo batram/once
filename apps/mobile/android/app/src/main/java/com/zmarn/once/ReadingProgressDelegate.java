@@ -57,11 +57,11 @@ final class ReadingProgressDelegate implements GeckoSession.ProgressDelegate {
         // on it cleared the navigation deadline, so a restore that then never
         // loaded (its process killed under memory pressure) stayed blank forever.
         if (h.initialBlank) return;
-        h.stoppedNavigation = h.activeNavigation;
+        h.display.stoppedNavigation = h.activeNavigation;
         // Only a background tab, or a page under a shell view that stays up (a
         // comment thread), skips verification; a selected tab hidden under a
         // dialog or panel is verified once it is shown again.
-        if (!h.visible && (!h.ownsForeground() || h.coveredByShell)) { h.documentReady(); return; }
+        if (!h.visible && (!h.ownsForeground() || h.display.coveredByShell)) { h.documentReady(); return; }
         if (!ReadingAddress.embeddable(h.currentUrl)) h.navigationDeadline = 0;
         // A successful network stop does not mean a visible, responsive
         // document. The matching content-port health reply completes web

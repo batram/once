@@ -52,8 +52,6 @@ abstract class ReadingSurfaceHost extends Plugin {
     public void clearAllData(PluginCall call) { getActivity().runOnUiThread(() -> { ensureEngine(); GeckoBrowsingData.clearAll(engine, call); }); }
     protected boolean visible;
     protected boolean killedWhileHidden;
-    /** Hidden under a view of the shell's own that stays up, so the page is never shown to be verified. */
-    protected boolean coveredByShell;
     protected long surfaceGeneration;
     protected final AtomicLong requestedSequence = new AtomicLong();
     protected PluginCall navigationWaiter;
@@ -95,8 +93,7 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected String offeredExternalUrl;
     protected final AtomicLong navigationSequence = new AtomicLong();
     protected long activeNavigation;
-    /** stoppedNavigation: the navigation whose document last stopped loading successfully. */
-    protected long committedNavigation, stoppedNavigation;
+    protected long committedNavigation;
     protected String currentUrl = "";
     protected String pageTitle = "";
     protected String documentSourceUrl = "";

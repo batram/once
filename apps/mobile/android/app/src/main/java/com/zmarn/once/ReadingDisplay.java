@@ -16,6 +16,10 @@ import org.json.JSONObject;
 final class ReadingDisplay {
     private final ReadingSurfaceHost h;
     ReadingDisplay(ReadingSurfaceHost host) { h = host; }
+    /** Hidden under a view of the shell's own that stays up, so the page is never shown to be verified. */
+    boolean coveredByShell;
+    /** The navigation whose document last stopped loading successfully. */
+    long stoppedNavigation;
 
     void painted(GeckoSession source) {
         if (h.session != source) return;
@@ -128,11 +132,11 @@ final class ReadingDisplay {
 
     /** The shell's setVisible; `covered`: hidden under a view of its own that stays up (a comment thread). */
     void show(boolean visible, boolean covered) {
-        h.coveredByShell = !visible && covered;
+        coveredByShell = !visible && covered;
         h.setSurfaceVisible(visible);
         // A page that stopped while on screen waits for a health reply the
         // hidden page no longer gets; under a lasting cover it is done.
-        if (h.coveredByShell && !h.navigationCompleted && h.activeNavigation != 0 && h.stoppedNavigation == h.activeNavigation
+        if (coveredByShell && !h.navigationCompleted && h.activeNavigation != 0 && stoppedNavigation == h.activeNavigation
             && h.session != null && h.session.isOpen()) h.documentReady();
     }
 
