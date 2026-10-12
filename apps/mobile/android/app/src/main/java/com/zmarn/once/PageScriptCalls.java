@@ -14,9 +14,15 @@ import org.mozilla.geckoview.WebExtension;
  * by its reply, a timeout, or the page going away, whichever comes first.
  */
 final class PageScriptCalls {
+    /** Who awaits a script's answer: the shell's call, or the app itself. */
+    private interface Reply {
+        void resolve(String value);
+        void reject(String message);
+    }
+
     private final Handler handler;
     private final Map<Long, Runnable> evaluationTimeouts = new HashMap<>();
-    private final Map<Long, PluginCall> pendingEvaluations = new HashMap<>();
+    private final Map<Long, Reply> pendingEvaluations = new HashMap<>();
     private final AtomicLong evaluationSequence = new AtomicLong();
 
     PageScriptCalls(Handler handler) { this.handler = handler; }
@@ -44,12 +50,28 @@ final class PageScriptCalls {
     }
 
     void send(PluginCall call, String script, WebExtension.Port bridgePort) {
+        send(new Reply() {
+            @Override public void resolve(String value) { call.resolve(new JSObject().put("value", value)); }
+            @Override public void reject(String message) { call.reject(message); }
+        }, script, bridgePort);
+    }
+
+    /** A script for the app's own use: `answer` gets its JSON-encoded value, or null when it failed. */
+    void request(String script, WebExtension.Port bridgePort, java.util.function.Consumer<String> answer) {
+        if (bridgePort == null) { answer.accept(null); return; }
+        send(new Reply() {
+            @Override public void resolve(String value) { answer.accept(value); }
+            @Override public void reject(String message) { answer.accept(null); }
+        }, script, bridgePort);
+    }
+
+    private void send(Reply call, String script, WebExtension.Port bridgePort) {
         if (pendingEvaluations.size() >= 32) { call.reject("Too many pending page script requests"); return; }
         long id = evaluationSequence.incrementAndGet();
         pendingEvaluations.put(id, call);
         Runnable timeout = () -> {
             evaluationTimeouts.remove(id);
-            PluginCall pending = pendingEvaluations.remove(id);
+            Reply pending = pendingEvaluations.remove(id);
             if (pending != null) pending.reject("The page did not answer the script request in time");
         };
         evaluationTimeouts.put(id, timeout);
@@ -62,14 +84,14 @@ final class PageScriptCalls {
         } catch (Exception error) {
             pendingEvaluations.remove(id);
             cancelEvaluationTimeout(id);
-            call.reject("The script could not be sent to the page", error);
+            call.reject("The script could not be sent to the page");
         }
     }
 
     /** Settles the call a bridge reply answers, as a WebView would: a JSON-encoded value. */
     void settle(JSONObject reply) {
         long id = reply.optLong("id", -1);
-        PluginCall call = pendingEvaluations.remove(id);
+        Reply call = pendingEvaluations.remove(id);
         cancelEvaluationTimeout(id);
         if (call == null) return;
         String error = reply.optString("error", null);
@@ -77,15 +99,13 @@ final class PageScriptCalls {
             call.reject("The script failed: " + error);
             return;
         }
-        JSObject result = new JSObject();
-        result.put("value", reply.optString("value", "null"));
-        call.resolve(result);
+        call.resolve(reply.optString("value", "null"));
     }
 
     void failAll(String reason) {
         for (Runnable timeout : evaluationTimeouts.values()) handler.removeCallbacks(timeout);
         evaluationTimeouts.clear();
-        for (PluginCall pending : pendingEvaluations.values()) pending.reject(reason);
+        for (Reply pending : pendingEvaluations.values()) pending.reject(reason);
         pendingEvaluations.clear();
     }
 

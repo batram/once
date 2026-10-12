@@ -29,10 +29,10 @@ if (window === window.top) {
     if (suspended || port) return
     const connected = browser.runtime.connectNative("once_surface")
     port = connected
-    // The image text probe (evaluated here, see imageTextProbe.ts) reports
-    // where its image is through this, to the app's overlay over the page.
+    // Image text selection (evaluated here, see imageTextInjection.ts) reports
+    // to the app through this: what its native bar shows, and where the image is.
     globalThis.__onceImageTextPush = payload => {
-      if (port === connected) connected.postMessage({ type: "image-text-probe", payload: String(payload) })
+      if (port === connected) connected.postMessage({ type: "image-text", payload: String(payload) })
     }
     cleanupMedia = installOnceMediaBridge(connected)
     cleanupPip = installOncePictureInPicture(connected)

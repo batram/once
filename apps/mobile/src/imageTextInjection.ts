@@ -2,5 +2,13 @@ import { installImageTextOverlay } from "@once/ui-web/imageText/imageTextOverlay
 
 // Evaluated in a page by mobileImageText.ts to show recognized words over the
 // long-pressed image for selection and copying, with GeckoView's native touch
-// selection over a text layer.
-installImageTextOverlay({ textLayer: true })
+// selection over a text layer. Its bar is the app's own native view
+// (ImageTextBar.java): what it shows goes there through the bridge content
+// script's port, where this runs.
+
+const push = (globalThis as { __onceImageTextPush?: (payload: string) => void }).__onceImageTextPush
+
+installImageTextOverlay({
+  textLayer: true,
+  bar: (token, state) => push?.(JSON.stringify({ token, bar: state }))
+})

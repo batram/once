@@ -8,8 +8,13 @@ import { playRecognitionScan } from "./imageTextScan"
 interface ImageTextSession {
   token: string
   finish(result: ImageTextResult | null, message?: string): void
+  /** The text Copy takes: the selection, reflowed, or all recognized text. */
+  copyText(): string
   close(): void
 }
+
+/** What the app's own bar shows for a selection (see `bar` below); null once it closed. */
+export interface ImageTextBarState { status: string; copy: boolean }
 
 declare global {
   interface Window {
@@ -24,14 +29,19 @@ declare global {
  * bridge: native recognition receives only the image chosen from the native
  * menu, and the result is handed back through `__onceImageText.finish`.
  * `textLayer` (Android) selects with the engine's native touch carets over an
- * `ImageTextLayer` instead of the overlay's own pointer model.
+ * `ImageTextLayer` instead of the overlay's own pointer model. `bar` (Android)
+ * is the app's own native bar: the page then gets none, and the overlay
+ * reports what that bar shows instead.
  */
-export function installImageTextOverlay({ textLayer = false } = {}): void {
+export function installImageTextOverlay({ textLayer = false, bar }: {
+  textLayer?: boolean
+  bar?: (token: string, state: ImageTextBarState | null) => void
+} = {}): void {
   window.__onceStartImageText = (src, x, y, token) => {
     window.__onceImageText?.close()
     const image = findImage(src, x, y)
     if (!image) return false
-    const session = createSelection(image, token, textLayer)
+    const session = createSelection(image, token, textLayer, bar)
     window.__onceImageText = session
     return true
   }
@@ -94,7 +104,8 @@ export const OVERLAY_CSS = `
   }
 `
 
-function createSelection(image: HTMLImageElement, token: string, textLayer: boolean): ImageTextSession {
+function createSelection(image: HTMLImageElement, token: string, textLayer: boolean,
+  appBar?: (token: string, state: ImageTextBarState | null) => void): ImageTextSession {
   const host = document.createElement("div")
   host.dataset.onceImageText = token
   const shadow = host.attachShadow({ mode: "open" })
@@ -132,7 +143,14 @@ function createSelection(image: HTMLImageElement, token: string, textLayer: bool
   copy.textContent = "Copy"
   copy.hidden = true
   bar.append(status, copy, done)
-  shadow.append(clip, bar)
+  shadow.append(clip)
+  if (!appBar) shadow.append(bar)
+  const show = (text: string, offerCopy = !copy.hidden) => {
+    status.textContent = text
+    copy.hidden = !offerCopy
+    appBar?.(token, { status: text, copy: offerCopy })
+  }
+  show(status.textContent)
   const pointer = layer ? null
     : new ImageTextPointer(shadow, clip, words, image, (sweeping) => bar.classList.toggle("sweeping", sweeping))
   document.documentElement.append(host)
@@ -152,6 +170,7 @@ function createSelection(image: HTMLImageElement, token: string, textLayer: bool
     layer?.destroy()
     host.remove()
     if (window.__onceImageText?.token === token) delete window.__onceImageText
+    appBar?.(token, null)
   }
   const keydown = (event: KeyboardEvent) => {
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close() }
@@ -168,7 +187,7 @@ function createSelection(image: HTMLImageElement, token: string, textLayer: bool
     position(image, fit, clip, words)
     layer?.update(fit)
     bar.hidden = clip.hidden = !fit.visible
-    if (fit.visible) placeBar(bar, fit.visibleBox, wordRects, rendered)
+    if (fit.visible && !appBar) placeBar(bar, fit.visibleBox, wordRects, rendered)
   }
   const layout = () => {
     if (!image.isConnected || (image.currentSrc || image.src) !== originalSource) { close(); return }
@@ -180,10 +199,11 @@ function createSelection(image: HTMLImageElement, token: string, textLayer: bool
   layout()
   return {
     token, close,
+    copyText: () => blocks.copyText(),
     finish(result, message) {
       if (closed) return
       if (!result?.lines.some((line) => line.length)) {
-        status.textContent = message || "No text found in this image"
+        show(message || "No text found in this image")
         return
       }
       if (layer) layer.show(result)
@@ -195,9 +215,8 @@ function createSelection(image: HTMLImageElement, token: string, textLayer: bool
       place()
       stopScan = playRecognitionScan(image, clip, wordRects)
       // Runs in the page, so the page reports the platform for the copy shortcut.
-      copy.hidden = !touch
-      status.textContent = layer ? "Long-press text to select" : touch ? "Tap words to select"
-        : `Drag to select text · ${/^Mac/.test(navigator.platform) ? "⌘C" : "Ctrl+C"} to copy`
+      show(layer ? "Double-tap or long-press text" : touch ? "Tap words to select"
+        : `Drag to select text · ${/^Mac/.test(navigator.platform) ? "⌘C" : "Ctrl+C"} to copy`, touch)
     }
   }
 }

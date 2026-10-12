@@ -320,9 +320,9 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     @PluginMethod
     public void recognizeImage(PluginCall call) { TextRecognition.recognize(call, engine.runtime); }
 
-    /** The out-of-page image text overlay over this tab's page (prototype). */
+    /** This tab's image text selection, as far as the app shows it natively (its bar). */
     private final ImageTextOverlays imageTexts = new ImageTextOverlays(this::getActivity, () -> surfaceContent, () -> visible ? surface : null,
-        code -> scripts.post(code, bridgePort));
+        code -> scripts.post(code, bridgePort), (code, answer) -> scripts.request(code, bridgePort, answer));
 
     @PluginMethod
     public void imageTextOverlay(PluginCall call) {

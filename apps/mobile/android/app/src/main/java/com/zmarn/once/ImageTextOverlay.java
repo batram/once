@@ -5,14 +5,10 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.content.res.Configuration;
 import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.util.TypedValue;
-import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -22,10 +18,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.Button;
 import android.widget.FrameLayout;
-import android.widget.LinearLayout;
-import android.widget.TextView;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -63,9 +56,7 @@ final class ImageTextOverlay {
     private final Host host;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final WordsView words;
-    private final LinearLayout bar;
-    private final TextView status;
-    private final Button copy;
+    private final ImageTextBar bar;
     private final float density;
     private final List<String> pending = new ArrayList<>();
     private JSONObject fit;
@@ -116,36 +107,10 @@ final class ImageTextOverlay {
             @Override public void onViewDetachedFromWindow(View view) { close(); }
         });
 
-        boolean dark = (activity.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        bar = new LinearLayout(activity);
-        bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setGravity(Gravity.CENTER_VERTICAL);
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(dark ? Color.rgb(37, 41, 48) : Color.WHITE);
-        background.setCornerRadius(12 * density);
-        background.setStroke(Math.round(density), dark ? Color.rgb(111, 119, 131) : Color.rgb(184, 190, 199));
-        bar.setBackground(background);
-        bar.setElevation(6 * density);
-        int padding = Math.round(10 * density);
-        bar.setPadding(padding + padding / 2, padding / 3, padding / 3, padding / 3);
-        status = new TextView(activity);
-        status.setText("Recognizing text…");
-        status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-        status.setTextColor(dark ? Color.rgb(241, 243, 246) : Color.rgb(32, 36, 43));
-        bar.addView(status);
-        copy = new Button(activity, null, android.R.attr.borderlessButtonStyle);
-        copy.setText("Copy");
-        copy.setVisibility(View.GONE);
-        copy.setOnClickListener(ignored -> copyText());
-        bar.addView(copy);
-        Button done = new Button(activity, null, android.R.attr.borderlessButtonStyle);
-        done.setText("Done");
-        done.setOnClickListener(ignored -> close());
-        bar.addView(done);
-        bar.setVisibility(View.INVISIBLE);
-        container.addView(bar, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        bar = new ImageTextBar(activity, container, false, this::copyText, this::close);
+        bar.view.setVisibility(View.INVISIBLE);
         // Placed once it has measured itself.
-        bar.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> { if (r - l != or - ol || b - t != ob - ot) place(); });
+        bar.view.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> { if (r - l != or - ol || b - t != ob - ot) place(); });
         place();
     }
 
@@ -182,7 +147,7 @@ final class ImageTextOverlay {
         closed = true;
         handler.removeCallbacksAndMessages(null);
         container.removeView(words);
-        container.removeView(bar);
+        bar.remove();
         words.destroy();
         page.setFocusableInTouchMode(pageTakesFocus);
         host.evaluate("window.__onceImageTextProbe?.stop(" + JSONObject.quote(token) + ")");
@@ -208,7 +173,7 @@ final class ImageTextOverlay {
         }
         if (!fit.optBoolean("visible") || right <= left || bottom <= top) {
             words.setVisibility(View.INVISIBLE);
-            bar.setVisibility(View.INVISIBLE);
+            bar.view.setVisibility(View.INVISIBLE);
             return;
         }
         ViewGroup.LayoutParams params = words.getLayoutParams();
@@ -243,16 +208,16 @@ final class ImageTextOverlay {
 
     /** Below the image's visible part, else above it, else inside its bottom edge. */
     private void placeBar(int left, int top, int right, int bottom, int width, int height) {
-        int w = bar.getWidth(), h = bar.getHeight();
-        if (w == 0 || h == 0) { bar.setVisibility(View.INVISIBLE); return; }
+        int w = bar.view.getWidth(), h = bar.view.getHeight();
+        if (w == 0 || h == 0) { bar.view.setVisibility(View.INVISIBLE); return; }
         int gap = Math.round(GAP_DP * density);
         int x = clamp(right - w, gap, Math.max(gap, width - w - gap));
         int y = bottom + gap + h <= height - gap ? bottom + gap
             : top - gap - h >= gap ? top - gap - h
             : clamp(bottom - h - gap, gap, Math.max(gap, height - h - gap));
-        bar.setTranslationX(page.getX() + x);
-        bar.setTranslationY(page.getY() + y);
-        bar.setVisibility(View.VISIBLE);
+        bar.view.setTranslationX(page.getX() + x);
+        bar.view.setTranslationY(page.getY() + y);
+        bar.view.setVisibility(View.VISIBLE);
     }
 
     private void copyText() {
@@ -283,8 +248,7 @@ final class ImageTextOverlay {
                     pending.clear();
                     break;
                 case "status":
-                    status.setText(event.optString("text"));
-                    copy.setVisibility(View.VISIBLE);
+                    bar.show(event.optString("text"), true);
                     break;
                 case "close":
                     close();
