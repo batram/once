@@ -8,6 +8,8 @@
   --comment-rail-size: 14px;
   /* Text lines up with the author: past the toggle and the header's gap. */
   --comment-text-inset: calc(var(--sp-4) + var(--sp-2));
+  /* From a comment's top to its text: the main's padding, the header line, the text's gap. */
+  --comment-line-start: 23px;
   box-sizing: border-box;
   padding: 0 var(--sp-1) var(--sp-6);
   /* The reader's body color: --text-color is a mid grey in both themes and reads as disabled. */
@@ -262,10 +264,8 @@
   padding-inline-start: var(--sp-1);
 }
 
-/* The rail runs down the replies, as on Reddit; clicking it collapses the
-   comment. Its tint steps with depth so siblings far apart still line up. */
+/* The rail along the replies, as on Reddit; clicking it collapses the comment. */
 .comment_rail {
-  --comment-rail-color: color-mix(in srgb, var(--cursor-color) 60%, transparent);
   position: absolute;
   inset-block: 0;
   inset-inline-start: calc(var(--sp-1-5) * -1);
@@ -276,26 +276,39 @@
   cursor: pointer;
 }
 
-.comment[data-depth="1"] > .comment_replies > .comment_rail {
-  --comment-rail-color: color-mix(in srgb, var(--audio-playing-color) 60%, transparent);
+/* The comment draws its rail line: faint, as wide as the chevron's tip and
+   right under it, from the top of the text down the replies. The tint steps
+   with depth so siblings far apart still line up. */
+.comment {
+  --comment-rail-color: color-mix(in srgb, var(--cursor-color) 16%, transparent);
 }
 
-.comment[data-depth="2"] > .comment_replies > .comment_rail {
-  --comment-rail-color: color-mix(in srgb, var(--warning-color) 60%, transparent);
+.comment[data-depth="1"] {
+  --comment-rail-color: color-mix(in srgb, var(--audio-playing-color) 16%, transparent);
 }
 
-.comment_rail::before {
+.comment[data-depth="2"] {
+  --comment-rail-color: color-mix(in srgb, var(--warning-color) 16%, transparent);
+}
+
+.comment:has(> .comment_replies > .comment_rail:hover) {
+  --comment-rail-color: var(--text-muted-color);
+}
+
+.comment:not(.is-collapsed):has(> .comment_replies > .comment)::before {
   content: "";
   position: absolute;
-  inset-block: var(--sp-0-5);
-  inset-inline-start: var(--sp-1-5);
+  inset-block: var(--comment-line-start) var(--sp-1);
+  /* The main's padding plus half the toggle, less half the line. */
+  inset-inline-start: calc(var(--sp-1) + var(--sp-2) - 1px);
   inline-size: 2px;
-  border-radius: var(--radius-sm);
   background: var(--comment-rail-color);
+  pointer-events: none;
 }
 
-.comment_rail:hover::before {
-  background: var(--text-muted-color);
+.comment_list > .comment:not(.is-collapsed):has(> .comment_replies > .comment)::before {
+  /* Past the top-level comment's own padding. */
+  inset-block-start: calc(var(--sp-1) + var(--comment-line-start));
 }
 
 /* Collapsed: the header, its "[+N]" count, and the text cut to a one-line preview. */

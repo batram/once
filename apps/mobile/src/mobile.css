@@ -1854,6 +1854,11 @@
     margin-block-start: var(--sp-1);
   }
 
+  /* The rail line starts at the text, below this taller header. */
+  .reading_comment_thread .comment_thread {
+    --comment-line-start: calc(var(--sp-1) + var(--sp-5) + var(--sp-1));
+  }
+
   /* The shell's touch-button size and font would make every header 44px tall
      and the "[+N]" count larger than the name beside it. The toggle keeps
      the header's type and a full touch target around its small box. */
