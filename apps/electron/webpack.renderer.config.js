@@ -40,7 +40,8 @@ module.exports = {
     new CopyPlugin({
       patterns: [
         { from: path.join(root, "node_modules/pdfjs-dist/LICENSE"), to: "pdf/LICENSE" },
-        { from: path.join(root, "node_modules/pdfjs-dist/wasm"), to: "pdf/wasm", globOptions: { ignore: ["**/quickjs*"] } },
+        // A filter, not globOptions.ignore: ignores match relative to the compiler context, which never sees ../node_modules
+        { from: path.join(root, "node_modules/pdfjs-dist/wasm"), to: "pdf/wasm", filter: (file) => !path.basename(file).startsWith("quickjs") },
         { from: path.join(root, "node_modules/pdfjs-dist/cmaps"), to: "pdf/cmaps" },
         { from: path.join(root, "node_modules/pdfjs-dist/standard_fonts"), to: "pdf/standard_fonts" },
         {

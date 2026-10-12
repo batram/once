@@ -154,7 +154,7 @@ module.exports = (_env = {}, argv = {}) => {
       new CopyPlugin({
         patterns: [
           { from: path.join(root, "node_modules/pdfjs-dist/LICENSE"), to: "pdf/LICENSE" },
-          { from: path.join(root, "node_modules/pdfjs-dist/wasm"), to: "pdf/wasm", globOptions: { ignore: ["**/quickjs*"] } },
+          { from: path.join(root, "node_modules/pdfjs-dist/wasm"), to: "pdf/wasm", filter: (file) => !path.basename(file).startsWith("quickjs") },
           { from: path.join(root, "node_modules/pdfjs-dist/cmaps"), to: "pdf/cmaps" },
           { from: path.join(root, "node_modules/pdfjs-dist/standard_fonts"), to: "pdf/standard_fonts" },
           ...(process.env.ONCE_MOBILE_PLATFORM === "ios" ? [
