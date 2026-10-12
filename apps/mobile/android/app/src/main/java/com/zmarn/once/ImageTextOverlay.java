@@ -34,7 +34,8 @@ import java.util.List;
 import org.json.JSONObject;
 
 /**
- * Image text selection out of the page (prototype): a transparent system
+ * Image text selection out of the page (prototype, off: see
+ * LinkContextMenu.IMAGE_TEXT_OVERLAY_ENABLED): a transparent system
  * WebView laid over the long-pressed image, holding the recognized words for
  * the platform's own touch selection, and a native bar beside it. Nothing of
  * it enters the page. A read-only probe in the page's bridge content script
