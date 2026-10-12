@@ -5,6 +5,7 @@ import {
   ReaderTtsPreferences,
   readerTtsRateForVoice
 } from "./readerTtsPreferences"
+import { createReaderTtsFollow, ReaderTtsFollow } from "./readerTtsFollow"
 import {
   createWafli,
   toAudioBuffer,
@@ -288,15 +289,13 @@ function runReaderTts(
   const clearHighlight = (): void => {
     article.querySelector(".tts-current")?.classList.remove("tts-current")
   }
+  const follow = createReaderTtsFollow()
   const highlight = (index: number): void => {
     clearHighlight()
     const segment = segments[index]
     if (!segment) return
     segment.element.classList.add("tts-current")
-    const bounds = segment.element.getBoundingClientRect()
-    if (bounds.top < 64 || bounds.bottom > window.innerHeight - 24) {
-      segment.element.scrollIntoView({ behavior: "smooth", block: "center" })
-    }
+    follow.reveal(segment.element)
   }
   const session = new Session({
     engine: synth,
@@ -338,7 +337,7 @@ function runReaderTts(
   )
   bindDom({
     play, stop, back, forward, voiceSelect, voiceSettings, rateInput, rateValue,
-    segments, session
+    segments, session, follow
   }, remember)
   populateVoiceOptions(voiceSelect, synth.getVoices(), preferences.voice)
   synth.addEventListener?.("voiceschanged", () => {
@@ -347,10 +346,11 @@ function runReaderTts(
   })
   const unsubscribeStop = options.subscribeToStop?.(() => session.yield())
   const unsubscribeControl = options.subscribeToControl?.((control) => {
-    applyControl(control, session, voiceSelect, remember)
+    applyControl(control, session, voiceSelect, remember, follow)
   })
   window.addEventListener("pagehide", () => {
     session.dispose()
+    follow.dispose()
     unsubscribeStop?.()
     unsubscribeControl?.()
   }, { once: true })
@@ -405,6 +405,7 @@ interface ReaderTtsDomBinding {
   rateValue: HTMLElement
   segments: ReturnType<typeof createReaderSpeechSegments>
   session: ReaderSpeechSession
+  follow: ReaderTtsFollow
 }
 
 function bindReaderTtsDom(
@@ -413,12 +414,13 @@ function bindReaderTtsDom(
 ): void {
   const {
     play, stop, back, forward, voiceSelect, voiceSettings, rateInput, rateValue,
-    segments, session
+    segments, session, follow
   } = binding
-  play.addEventListener("click", () => session.toggle())
+  // Choosing a reading position follows it again after the user scrolled away.
+  play.addEventListener("click", () => { follow.resume(); session.toggle() })
   stop.addEventListener("click", () => session.stop())
-  back.addEventListener("click", () => session.previous())
-  forward.addEventListener("click", () => session.next())
+  back.addEventListener("click", () => { follow.resume(); session.previous() })
+  forward.addEventListener("click", () => { follow.resume(); session.next() })
   voiceSelect.addEventListener("change", () => {
     if (voiceSettings) voiceSettings.open = false
     remember.voice(voiceSelect.value)
@@ -442,7 +444,9 @@ function bindReaderTtsDom(
       // A tap on a link follows the link; it does not start reading.
       if (event.target instanceof Element && event.target.closest("a[href], area[href]")) return
       const index = segments.findIndex((segment) => segment.element === element)
-      if (index >= 0) session.start(index)
+      if (index < 0) return
+      follow.resume()
+      session.start(index)
     })
   })
 }
@@ -451,13 +455,14 @@ function applyExternalControl(
   control: ReaderTtsControl,
   session: ReaderSpeechSession,
   voiceSelect: HTMLSelectElement,
-  remember: ReaderTtsRemember
+  remember: ReaderTtsRemember,
+  follow: ReaderTtsFollow
 ): void {
   switch (control.type) {
-    case "play-toggle": session.toggle(); break
+    case "play-toggle": follow.resume(); session.toggle(); break
     case "stop": session.stop(); break
-    case "prev": session.previous(); break
-    case "next": session.next(); break
+    case "prev": follow.resume(); session.previous(); break
+    case "next": follow.resume(); session.next(); break
     case "set-rate":
       remember.rate(control.rate)
       break
