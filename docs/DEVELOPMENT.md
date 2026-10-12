@@ -459,7 +459,9 @@ npm run inspect:ios -- log
 happen; `log` prints what the app kept in its console messages and error log.
 Pass `--target "Once Dev"` when both apps are inspectable; the in-app browser's
 pages are listed by their titles too. The bridge serves one connection per
-page, so a new command takes the page over from a running `console`.
+page, so a new command takes the page over from a running `console`. Only the
+app in the foreground answers; a newly started bridge doesn't list a suspended
+app until it has been brought to the front.
 
 ### Inspect the Android WebView with Chrome DevTools
 
