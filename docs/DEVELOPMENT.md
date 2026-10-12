@@ -435,12 +435,18 @@ Release builds keep two aids for errors that happen away from a debugger:
   also applies from the next launch on. Debug builds are always inspectable.
 
 From the command line (and for coding agents), `npm run inspect:ios --` reaches
-the app on a USB-connected iPhone without Safari, through the CDP bridge of
+the app on an iPhone over USB or Wi-Fi without Safari, through the CDP bridge of
 [pymobiledevice3](https://github.com/doronz88/pymobiledevice3) (`pip install
 pymobiledevice3` in a virtual environment; the script finds it in
 `$PYMOBILEDEVICE3`, `~/.local/share/pymobiledevice3/bin` or `PATH`). It needs no
-tunnel or sudo; the phone must be unlocked, trust this Mac and have Web
-Inspector on (Settings → Apps → Safari → Advanced).
+sudo; the phone must be unlocked, trust this Mac and have Web Inspector on
+(Settings → Apps → Safari → Advanced). It uses USB when the phone is plugged in
+and otherwise Wi-Fi, by riding the tunnel macOS's `remoted` keeps to a paired
+phone on the same network (pymobiledevice3's `--native`; the phone shows in
+Xcode → Devices with a network icon). Force one with `--transport usb|wifi`; the
+script prints which one it used. While a Wi-Fi bridge runs, Xcode and
+`devicectl` can briefly lose the phone; `npm run inspect:ios -- stop` hands it
+back.
 
 ```bash
 npm run inspect:ios -- targets

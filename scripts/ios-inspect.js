@@ -1,9 +1,9 @@
-// Inspect the Once app running on a USB-connected iPhone from the command
-// line: run JavaScript in it, follow its console, read its captured logs.
-// Talks to WebKit's remote inspector through pymobiledevice3's CDP bridge,
-// which needs no Safari, tunnel or sudo. Release builds are only listed while
+// Inspect the Once app running on an iPhone, over USB or Wi-Fi, from the
+// command line: run JavaScript in it, follow its console, read its captured
+// logs. Talks to WebKit's remote inspector through pymobiledevice3's CDP
+// bridge, which needs no Safari or sudo. Release builds are only listed while
 // Settings -> Error log -> Show console messages -> Allow Web Inspector is on.
-const { spawn } = require("node:child_process")
+const { spawn, execFileSync } = require("node:child_process")
 const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
@@ -28,10 +28,20 @@ The bridge serves one connection per page: starting another command takes the
 page over from a running console, which then exits. Use console --eval to
 trigger something and watch its output in one connection.
   --port <n>              Bridge port (default 9222)
+  --transport <how>       auto (default), usb or wifi: auto uses USB when the phone is plugged in, else Wi-Fi
 
 The bridge is pymobiledevice3 (\`webinspector cdp\`). It is looked up in
 $PYMOBILEDEVICE3, then ~/.local/share/pymobiledevice3/bin, then PATH; it keeps
-running between calls so later commands start instantly.`
+running between calls so later commands start instantly. A running USB bridge
+is replaced once the phone is unplugged, and any bridge by passing the other
+--transport.
+
+Wi-Fi needs no sudo and no extra pairing: the bridge rides the tunnel macOS's
+own remoted keeps to a paired iOS 17+ phone on the same network (pymobiledevice3
+--native). The phone must have been trusted over USB once, be unlocked, and
+show up in Xcode -> Devices with a network icon (Connect via network). That
+tunnel carries a single connection, so while the bridge runs, Xcode and
+devicectl may lose the phone for a moment; \`stop\` hands it back.`
 
 const args = process.argv.slice(2)
 const option = (name, fallback) => {
@@ -41,6 +51,7 @@ const option = (name, fallback) => {
   return value
 }
 const port = Number(option("port", "9222"))
+const transport = option("transport", "auto")
 const wanted = option("target", undefined)
 const seconds = Number(option("seconds", "0"))
 const levels = option("levels", undefined)?.split(",")
@@ -50,6 +61,13 @@ const history = historyIndex >= 0 && Boolean(args.splice(historyIndex, 1))
 const [command, ...rest] = args
 const base = `http://127.0.0.1:${port}`
 const pidFile = path.join(os.tmpdir(), `once-ios-inspect-${port}.pid`)
+const transportFile = path.join(os.tmpdir(), `once-ios-inspect-${port}.transport`)
+const logFile = path.join(os.tmpdir(), `once-ios-inspect-${port}.log`)
+const TRANSPORTS = {
+  usb: { label: "USB", flags: [] },
+  // Apple's remoted tunnel reaches the phone over Wi-Fi without root.
+  wifi: { label: "Wi-Fi (Apple's remoted tunnel)", flags: ["--native"] }
+}
 
 function fail(message) {
   console.error(message)
@@ -77,25 +95,98 @@ async function listTargets() {
   }
 }
 
-async function ensureBridge() {
-  const ready = await listTargets()
-  if (ready) return ready
-  const bridge = spawn(bridgeExecutable(), ["webinspector", "cdp", "--port", String(port)], {
+function usbConnected() {
+  try {
+    return JSON.parse(execFileSync(bridgeExecutable(), ["usbmux", "list", "--usb", "--simple"], { encoding: "utf8" })).length > 0
+  } catch {
+    return false
+  }
+}
+
+function runningTransport() {
+  try { return fs.readFileSync(transportFile, "utf8").trim() } catch { return undefined }
+}
+
+function stopBridge() {
+  if (!fs.existsSync(pidFile)) return false
+  try { process.kill(Number(fs.readFileSync(pidFile, "utf8"))) } catch { /* already gone */ }
+  fs.rmSync(pidFile, { force: true })
+  fs.rmSync(transportFile, { force: true })
+  return true
+}
+
+function bridgeLog() {
+  try {
+    return fs.readFileSync(logFile, "utf8").split("\n")
+      .filter((line) => line && !/^INFO:/.test(line)).slice(-3).map((line) => `    ${line}`).join("\n")
+  } catch {
+    return ""
+  }
+}
+
+// Resolves to the pages the bridge lists, or to a reason it found none.
+async function startBridge(kind) {
+  const log = fs.openSync(logFile, "w")
+  const bridge = spawn(bridgeExecutable(), ["webinspector", "cdp", "--port", String(port), ...TRANSPORTS[kind].flags], {
     detached: true,
-    stdio: "ignore"
+    stdio: ["ignore", log, log]
   })
-  bridge.on("error", (error) => fail(`Could not start pymobiledevice3 (${error.message}); install it as described in docs/DEVELOPMENT.md ("Debug a running release build").`))
+  fs.closeSync(log)
+  let exited = false
+  bridge.on("exit", () => { exited = true })
+  const started = await new Promise((resolve) => {
+    bridge.on("error", (error) => resolve(error))
+    bridge.on("spawn", () => resolve(null))
+  })
+  if (started) fail(`Could not start pymobiledevice3 (${started.message}); install it as described in docs/DEVELOPMENT.md ("Debug a running release build").`)
   bridge.unref()
   fs.writeFileSync(pidFile, String(bridge.pid))
+  fs.writeFileSync(transportFile, kind)
   // A new bridge answers before it has found the phone's pages.
   let targets = null
-  for (let attempt = 0; attempt < 60 && !targets?.length; attempt++) {
+  for (let attempt = 0; attempt < 60 && !targets?.length && !exited; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 500))
     targets = await listTargets() ?? targets
     if (targets && attempt >= 20) break
   }
-  if (targets) return targets
-  fail("The bridge did not start. Is the iPhone connected, unlocked and trusting this Mac?")
+  if (targets) return { targets }
+  stopBridge()
+  return { reason: bridgeLog() || "    the bridge did not answer" }
+}
+
+async function ensureBridge() {
+  if (!TRANSPORTS[transport] && transport !== "auto") fail(`--transport is auto, usb or wifi, not "${transport}"`)
+  const running = runningTransport()
+  const usb = transport !== "wifi" && usbConnected()
+  // A USB bridge whose phone was unplugged has nothing left to reach.
+  const stale = running === "usb" && transport !== "usb" && !usb
+  const mismatched = running && transport !== "auto" && running !== transport
+  if (stale || mismatched) stopBridge()
+  else {
+    const ready = await listTargets()
+    if (ready) {
+      console.error(`Using the running bridge, over ${TRANSPORTS[running]?.label ?? "a transport this script did not choose"}.`)
+      return ready
+    }
+  }
+  const failures = []
+  const order = transport === "auto" ? (usb ? ["usb", "wifi"] : ["wifi"]) : [transport]
+  if (transport === "auto" && !usb) failures.push("  USB: no iPhone plugged in (usbmuxd lists none)")
+  for (const kind of order) {
+    if (kind === "usb" && !usb) {
+      failures.push("  USB: no iPhone plugged in (usbmuxd lists none)")
+      continue
+    }
+    const { targets, reason } = await startBridge(kind)
+    if (targets) {
+      console.error(`Connected over ${TRANSPORTS[kind].label}.`)
+      return targets
+    }
+    failures.push(`  ${TRANSPORTS[kind].label}: the bridge found no phone:\n${reason}`)
+  }
+  fail(`Could not reach the iPhone.\n${failures.join("\n")}\n` +
+    "Plug it in, or for Wi-Fi keep it unlocked on the same network as this Mac and check that Xcode -> Devices " +
+    "shows it with a network icon. See --help.")
 }
 
 function pickTarget(targets) {
@@ -195,10 +286,7 @@ async function main() {
     return
   }
   if (command === "stop") {
-    if (!fs.existsSync(pidFile)) return console.log("No bridge started by this script.")
-    try { process.kill(Number(fs.readFileSync(pidFile, "utf8"))) } catch { /* already gone */ }
-    fs.rmSync(pidFile)
-    return console.log("Bridge stopped.")
+    return console.log(stopBridge() ? "Bridge stopped." : "No bridge started by this script.")
   }
   const targets = await ensureBridge()
   if (command === "targets") {
