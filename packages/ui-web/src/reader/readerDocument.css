@@ -258,19 +258,39 @@ ul { margin: 5px; padding: 0 25px; }
 .reader-ai button:disabled { opacity: 0.6; cursor: default; }
 .reader-ai button:focus-visible { outline: 2px solid currentcolor; outline-offset: 2px; }
 .reader-ai [hidden] { display: none; }
-/* A row of its own under the sticky toolbar, so it never squeezes the speech controls. */
+/*
+ * A row of its own under the sticky toolbar, so it never squeezes the speech controls: progress,
+ * a failure, and while a long scan is partly read, how far it is and the buttons for more.
+ */
 .reader-ai-status {
   position: absolute;
   top: 100%;
   right: 0;
   left: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin: 0;
   padding: 0.25rem 0.75rem;
   background: color-mix(in srgb, var(--reader-bg) 94%, var(--reader-text));
   border-bottom: 1px solid var(--reader-border);
   font: 400 12px/1.4 system-ui, sans-serif;
-  overflow-wrap: anywhere;
 }
-.reader-ai-status:empty { display: none; }
-.reader-ai-status[data-error="true"] { color: #e05252; }
+.reader-ai-status[hidden], .reader-ai-status [hidden] { display: none; }
+.reader-ai-status [role="status"] { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.reader-ai-status[data-error="true"] [role="status"] { color: #e05252; }
+.reader-ai-pages { flex: 0 0 auto; opacity: 0.8; }
+.reader-ai-status button {
+  flex: 0 0 auto;
+  padding: 0.125rem 0.625rem;
+  border: 1px solid var(--reader-border);
+  border-radius: 0.375rem;
+  color: var(--reader-text);
+  background: color-mix(in srgb, var(--reader-bg) 86%, var(--reader-text));
+  cursor: pointer;
+  font: 600 12px/1.4 system-ui, sans-serif;
+}
+.reader-ai-status button:disabled { opacity: 0.6; cursor: default; }
+/* The row covers the article's first lines otherwise. */
+html[data-reader-status="true"] main { padding-top: 2.25rem; }
 }

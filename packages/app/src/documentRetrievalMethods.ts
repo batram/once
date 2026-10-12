@@ -6,7 +6,7 @@ export function documentRetrievalMethods(platform: OncePlatformPorts) {
   return {
     livePageHtml: async (url: string) => await platform.livePage?.html(url) ?? null,
     retrieveDocument: (url: string) => retrieveDocument(fetch, url, platform.textRecognition, platform.pdfText),
-    fetchDocument: (url: string) => fetchDocument(fetch, url, platform.textRecognition, platform.pdfText),
+    fetchDocument: (url: string, paginate?: boolean) => fetchDocument(fetch, url, platform.textRecognition, platform.pdfText, paginate),
     fetchText: (url: string) => fetchText(platform.fetch, url)
   }
 }

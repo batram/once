@@ -12,6 +12,7 @@ export function readerDocument(
   const values: Record<string, string> = {
     ARTICLE: article.content,
     KIND: article.mediaType === "text/plain" || article.mediaType === "application/octet-stream" ? "document" : "article",
+    PAGES: article.pages ? `${article.pages.through}/${article.pages.total}` : "",
     BYLINE: article.byline
       ? `<p class="byline">${escapeHtml(article.byline)}</p>`
       : "",

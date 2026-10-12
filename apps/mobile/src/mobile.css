@@ -2004,31 +2004,59 @@
     display: none;
   }
 
-  /* Progress, the model's name or an error, just above the bar. */
-  #reader_ai_status {
+  /*
+   * Just above the bar: progress or an error, and while a long scan is partly read, how far it is
+   * and the next pages, so nobody scrolls to the end to read on.
+   */
+  #reader_ai_strip {
     position: absolute;
     right: var(--sp-2);
     bottom: 100%;
-    max-width: calc(100% - 2 * var(--sp-2));
+    left: var(--sp-2);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    box-sizing: border-box;
     margin: 0 0 var(--sp-1);
     padding: var(--sp-1) var(--sp-2);
-    overflow: hidden;
     border: var(--m-bw) solid var(--m-ink);
     border-radius: var(--m-radius);
     background: var(--m-card-bg);
     font-family: var(--m-sans);
     font-size: var(--fs-meta);
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
-  #reader_ai_status:empty {
+  #reader_ai_strip[hidden],
+  #reader_ai_strip [hidden] {
     display: none;
+  }
+
+  #reader_ai_pages {
+    flex: 0 0 auto;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #reader_ai_status {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   #reader_ai_status[data-error="true"] {
     color: var(--error-color);
     white-space: normal;
+  }
+
+  #reader_ai_strip > button {
+    flex: 0 0 auto;
+    min-height: 32px;
+    margin: 0;
+    padding: 0 var(--sp-2);
+    font-family: var(--m-sans);
+    font-weight: 600;
   }
 
   #reader_tts_settings {

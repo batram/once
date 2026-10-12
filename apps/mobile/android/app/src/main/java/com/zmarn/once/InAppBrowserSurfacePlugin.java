@@ -317,7 +317,11 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     /** On-device OCR for the shell's text retrieval; see TextRecognition. */
     @PluginMethod
-    public void recognizeImage(PluginCall call) { TextRecognition.recognize(call, engine.runtime); }
+    public void recognizeImage(PluginCall call) {
+        // The shell's base64 input needs no Gecko; the story list's reader runs before any page starts it.
+        if (call.getString("url") == null) TextRecognition.recognize(call, null);
+        else getActivity().runOnUiThread(() -> { ensureEngine(); TextRecognition.recognize(call, engine.runtime); });
+    }
 
     /** This tab's image text selection, as far as the app shows it natively (its bar). */
     private final ImageTextOverlays imageTexts = new ImageTextOverlays(this::getActivity, () -> surfaceContent, () -> visible ? surface : null,

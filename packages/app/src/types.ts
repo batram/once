@@ -235,7 +235,9 @@ export interface OnceClient {
    * setting "" removes it. Rejects when this shell has no secret store.
    */
   /** Sends the reader's extraction with everything the source offers (raw text, image, PDF text and pages) and returns the model's HTML. */
-  rewriteReaderAi(input: { sourceUrl: string; html?: string; title?: string }, signal?: AbortSignal, progress?: (text: string) => void): Promise<import("@once/core").ReaderRewriteResult>
+  rewriteReaderAi(input: { sourceUrl: string; html?: string; title?: string; pages?: { from: number; to: number }; previous?: string }, signal?: AbortSignal, progress?: (text: string) => void): Promise<import("@once/core").ReaderRewriteResult>
+  /** The next pages of a long scanned PDF the reader reads in parts, with on-device OCR. */
+  readReaderPages(sourceUrl: string, pages: { from: number; to: number }, signal?: AbortSignal, progress?: (text: string) => void): Promise<import("@once/core").ReaderPagesResult>
   getAiSettings(): Promise<import("@once/core").AiSettings>
   saveAiSettings(settings: import("@once/core").AiSettings): Promise<void>
   saveAiToken(id: string, endpoint: string, token: string): Promise<void>
@@ -315,10 +317,12 @@ export interface OnceClient {
   addFilter(filter: string): Promise<void>
   /** Retrieve HTML or plain OCR text for readers and other services. */
   retrieveDocument(url: string): Promise<import("./textRetrieval").RetrievedDocument>
-  fetchDocument(url: string): Promise<{
+  /** `paginate` (the reader) reads a long scanned PDF's first pages only; `pages` then says how far it got. */
+  fetchDocument(url: string, paginate?: boolean): Promise<{
     html: string
     url: string
     mediaType: string
+    pages?: import("@once/core").ReaderPages
   }>
   /** The page as a tab or the reading view currently shows it, scripts run and all, or null when it is not open. */
   livePageHtml(url: string): Promise<{ html: string; url: string } | null>

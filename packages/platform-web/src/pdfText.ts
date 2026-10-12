@@ -87,7 +87,8 @@ async function extractInSandbox(
           clearTimeout(readyDeadline); readyDeadline = undefined
           if (message.protocol !== PDF_SANDBOX_PROTOCOL) { finish(new Error("PDF sandbox protocol mismatch")); return }
           const copy = bytes.slice()
-          post({ type: "extract", protocol: PDF_SANDBOX_PROTOCOL, bytes: copy, workerSource: source, recognition: Boolean(recognition), pageImages: job?.onPageImage ? job.pageImages ?? 0 : 0 }, [copy.buffer])
+          post({ type: "extract", protocol: PDF_SANDBOX_PROTOCOL, bytes: copy, workerSource: source, recognition: Boolean(recognition), pageImages: job?.onPageImage ? job.pageImages ?? 0 : 0,
+            ...(job?.pages ? { range: { from: job.pages.from, to: job.pages.to, onlyIfScanned: job.pages.onlyIfScanned === true } } : {}) }, [copy.buffer])
           return
         }
         case "progress":

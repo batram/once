@@ -21,12 +21,17 @@ export interface DocumentRecognitionOptions {
   /** Also render the first this-many PDF pages as JPEG pictures; a pictured page needs no OCR. */
   pageImages?: number
   onPageImage?(page: number, image: Uint8Array): void
+  /**
+   * Reads PDF pages `from` to `to` only. With `onlyIfScanned`, the window applies only when page
+   * `from` has no embedded text, so a long scan is read in parts while a text PDF is read whole.
+   */
+  pages?: { from: number; to: number; onlyIfScanned?: boolean }
 }
 
 /** HTML remains intact for article extraction; OCR is plain text, never markup. */
 export type RetrievedDocument =
   | { kind: "html"; html: string; url: string; mediaType: string }
-  | { kind: "text"; text: string; lines: string[]; paragraphs: string[]; url: string; mediaType: string; method: "ocr" | "embedded" | "mixed"; title?: string }
+  | { kind: "text"; text: string; lines: string[]; paragraphs: string[]; url: string; mediaType: string; method: "ocr" | "embedded" | "mixed"; title?: string; pages?: import("@once/core").ReaderPages }
 
 export const MAX_IMAGE_BYTES = 32 * 1024 * 1024
 

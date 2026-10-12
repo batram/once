@@ -44,6 +44,8 @@ export const emptyAiSettings = (): AiSettings => ({ connections: [], overrides: 
 export const AI_VAULT_ID = "ai_vault"
 export const AI_IMAGE_LIMIT = 20 * 1024 * 1024
 export const AI_TEXT_LIMIT = 1024 * 1024
+/** Parts per message: room for a few texts and the pictures of a long scanned PDF. */
+export const AI_CONTENT_PARTS = 50
 const identifier = /^[a-zA-Z0-9][a-zA-Z0-9:._-]{0,99}$/
 export function readAiSelection(value: unknown): AiSelection {
   const raw = value as AiSelection | null
@@ -82,7 +84,7 @@ export function readAiRequest(value: unknown): AiRequest {
     if (!message || !["user", "assistant"].includes(message.role)) throw new Error("Invalid AI message")
     const content = message.content
     if (typeof content === "string") textBytes += new TextEncoder().encode(content).length
-    else if (Array.isArray(content) && content.length <= 20) for (const part of content) {
+    else if (Array.isArray(content) && content.length <= AI_CONTENT_PARTS) for (const part of content) {
       if (part.type === "text" && typeof part.text === "string") textBytes += new TextEncoder().encode(part.text).length
       else if (part.type === "image" && ["image/png", "image/jpeg", "image/webp"].includes(part.mediaType) && typeof part.base64 === "string" && /^[A-Za-z0-9+/]*={0,2}$/.test(part.base64) && part.base64.length % 4 === 0 && part.base64.length > 0) images += part.base64.length * 3 / 4
       else throw new Error("Invalid AI content")

@@ -9,6 +9,8 @@ export interface ReaderArticle {
   siteName: string
   content: string
   sourceUrl: string
+  /** A long scanned PDF read in parts: how far the reader has read. */
+  pages?: { through: number; total: number }
 }
 
 /**

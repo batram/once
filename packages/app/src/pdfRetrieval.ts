@@ -3,7 +3,8 @@ import type { RecognizedText, RetrievedDocument, TextRecognitionPort, DocumentRe
 import { MAX_DOCUMENT_BYTES, readResponseBytes } from "./responseBytes"
 
 export interface PdfTextPage extends RecognizedText { method: "embedded" | "ocr" }
-export interface PdfTextResult { pages: PdfTextPage[]; title?: string }
+/** `total` is the page count and `through` the last page read, when a page window left later pages for later. */
+export interface PdfTextResult { pages: PdfTextPage[]; title?: string; total?: number; through?: number }
 /** A platform may use PDF.js, PDFKit or another local PDF engine. Pages remain ordered. */
 export interface PdfTextPort {
   extract(bytes: Uint8Array, recognition?: TextRecognitionPort, options?: DocumentRecognitionOptions): Promise<PdfTextResult>
@@ -22,8 +23,12 @@ export async function extractPdf(bytes: Uint8Array, url: string, pdf: PdfTextPor
   options?.signal?.throwIfAborted()
   const paragraphs = result.pages.flatMap(page => ocrParagraphs(page))
   const lines = result.pages.flatMap(page => page.lines)
-  if (!paragraphs.length && !options?.pageImages) throw new Error("No readable text was found in this PDF")
+  // A later page window may be blank; only a whole document without text is an error.
+  if (!paragraphs.length && !options?.pageImages && (options?.pages?.from ?? 1) === 1) throw new Error("No readable text was found in this PDF")
   const used = new Set(result.pages.filter(page => page.lines.some(line => line.trim())).map(page => page.method))
   const method = used.size > 1 ? "mixed" : used.has("ocr") ? "ocr" : "embedded"
-  return { kind: "text", text: paragraphs.join("\n\n"), lines, paragraphs, url, mediaType: "application/pdf", method, title: result.title }
+  // Reported only for reading in parts: pages remain, or this continued an earlier part.
+  const partial = options?.pages && result.total && result.through && (result.through < result.total || options.pages.from > 1)
+  const pages = partial ? { through: result.through as number, total: result.total as number } : undefined
+  return { kind: "text", text: paragraphs.join("\n\n"), lines, paragraphs, url, mediaType: "application/pdf", method, title: result.title, ...(pages ? { pages } : {}) }
 }

@@ -34,7 +34,7 @@ export type ReaderTtsRequestBody =
     voices: ReaderTtsVoice[]
     voice: string
     /** The reader's AI rewrite, whose buttons live in the same bar. */
-    ai?: { running: boolean; canUndo: boolean; status: string; madeBy: string }
+    ai?: { running: boolean; canUndo: boolean; status: string; madeBy: string; pages?: ReaderAiPagesState }
   }
   | {
     type: "speak"
@@ -59,8 +59,18 @@ export type ReaderTtsEventBody =
   | { type: "ui-next" }
   | { type: "ui-set-rate"; rate: number }
   | { type: "ui-set-voice"; voice: string }
-  | { type: "ui-ai"; action: "rewrite" | "undo" }
+  | { type: "ui-ai"; action: "rewrite" | "undo" | "continue" | "finish" }
 export type ReaderTtsEvent = ReaderTtsEnvelope & ReaderTtsEventBody
+
+/** A long scan the reader reads in parts; the bar shows how far and offers the next pages. */
+export interface ReaderAiPagesState { through: number; total: number; ai: boolean; toEnd: boolean }
+
+function validPages(value: unknown): boolean {
+  if (value === undefined) return true
+  const pages = value as Partial<ReaderAiPagesState> | null
+  return Boolean(pages) && Number.isInteger(pages?.through) && Number.isInteger(pages?.total) &&
+    typeof pages?.ai === "boolean" && typeof pages?.toEnd === "boolean"
+}
 
 export function isReaderTtsEnvelope(value: unknown): value is ReaderTtsEnvelope {
   if (!value || typeof value !== "object") return false
@@ -90,7 +100,7 @@ export function isReaderTtsRequest(value: unknown): value is ReaderTtsRequest {
       Array.isArray(candidate.voices) &&
       typeof candidate.voice === "string" &&
       (candidate.ai === undefined || (Boolean(candidate.ai) && typeof candidate.ai.running === "boolean" &&
-        typeof candidate.ai.canUndo === "boolean" && typeof candidate.ai.status === "string" && typeof candidate.ai.madeBy === "string"))
+        typeof candidate.ai.canUndo === "boolean" && typeof candidate.ai.status === "string" && typeof candidate.ai.madeBy === "string" && validPages(candidate.ai.pages)))
   }
   if (candidate.type !== "speak") return false
   return Number.isInteger(candidate.id) &&
@@ -118,7 +128,7 @@ export function isReaderTtsEvent(value: unknown): value is ReaderTtsEvent {
     return typeof candidate.rate === "number" && Number.isFinite(candidate.rate)
   }
   if (candidate.type === "ui-set-voice") return typeof candidate.voice === "string"
-  if (candidate.type === "ui-ai") return candidate.action === "rewrite" || candidate.action === "undo"
+  if (candidate.type === "ui-ai") return ["rewrite", "undo", "continue", "finish"].includes(String(candidate.action))
   if (candidate.type === "state") {
     return typeof candidate.playing === "boolean" &&
       typeof candidate.rate === "number" &&

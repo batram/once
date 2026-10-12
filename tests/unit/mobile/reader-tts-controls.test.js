@@ -24,7 +24,13 @@ function loadControls(document) {
     moduleObject,
     () => ({}),
     document,
-    document.defaultView.Option
+    // linkedom has no Option constructor.
+    document.defaultView.Option ?? function Option(text, value) {
+      const option = document.createElement("option")
+      option.textContent = text
+      option.value = value
+      return option
+    }
   )
   return moduleObject.exports.installReaderTtsControls
 }
@@ -42,13 +48,14 @@ test("host TTS bar is the single control surface in Reader mode", () => {
       <div id="reader_tts_rates"></div>
       <button data-host-ai="rewrite"></button>
       <button data-host-ai="undo" hidden></button>
-      <p id="reader_ai_status"></p>
+      <div id="reader_ai_strip" hidden><span id="reader_ai_pages"></span><p id="reader_ai_status"></p><button data-host-ai="continue"></button><button data-host-ai="finish"></button></div>
     </div>
   `)
   const sent = []
+  let listen
   const controller = {
     send: (message) => sent.push(message),
-    subscribe: () => () => undefined,
+    subscribe: (listener) => { listen = listener; return () => undefined },
     refresh: () => undefined
   }
   const controls = loadControls(document)(controller)
@@ -66,6 +73,25 @@ test("host TTS bar is the single control surface in Reader mode", () => {
   document.querySelector('[data-host-ai="rewrite"]').click()
   document.querySelector('[data-host-ai="undo"]').click()
   assert.deepEqual(sent.splice(-2), [{ type: "ui-ai", action: "rewrite" }, { type: "ui-ai", action: "undo" }])
+
+  // A long scan read in parts: the strip above the bar offers the next pages and the rest.
+  const strip = document.querySelector("#reader_ai_strip")
+  // linkedom's select has no value setter.
+  Object.defineProperty(document.querySelector("#reader_tts_voice"), "value", { value: "", writable: true })
+  const speech = { playing: false, paused: false, rate: 1, segment: 0, voices: [], voice: "" }
+  listen({ ...speech, ai: { running: false, canUndo: false, status: "", madeBy: "", pages: { through: 5, total: 29, ai: false, toEnd: false } } })
+  assert.equal(strip.hidden, false)
+  assert.equal(document.querySelector("#reader_ai_pages").textContent, "5/29")
+  assert.equal(document.querySelector('[data-host-ai="continue"]').textContent, "Next 5")
+  document.querySelector('[data-host-ai="continue"]').click()
+  document.querySelector('[data-host-ai="finish"]').click()
+  assert.deepEqual(sent.splice(-2), [{ type: "ui-ai", action: "continue" }, { type: "ui-ai", action: "finish" }])
+  listen({ ...speech, ai: { running: true, canUndo: false, status: "Reading PDF page 12 of 29…", madeBy: "", pages: { through: 10, total: 29, ai: true, toEnd: true } } })
+  assert.equal(document.querySelector('[data-host-ai="finish"]').textContent, "Stop")
+  assert.equal(document.querySelector('[data-host-ai="finish"]').disabled, false, "reading to the end can be stopped")
+  assert.equal(document.querySelector('[data-host-ai="continue"]').disabled, true)
+  listen({ ...speech, ai: { running: false, canUndo: true, status: "", madeBy: "m", pages: { through: 29, total: 29, ai: true, toEnd: false } } })
+  assert.equal(strip.hidden, true, "nothing is left to read")
 
   controls.setReaderMode(false)
   assert.equal(pill.hidden, true)
@@ -86,7 +112,7 @@ test("hiding the bar or switching tabs keeps speech running; only stop and dismi
       <div id="reader_tts_rates"></div>
       <button data-host-ai="rewrite"></button>
       <button data-host-ai="undo" hidden></button>
-      <p id="reader_ai_status"></p>
+      <div id="reader_ai_strip" hidden><span id="reader_ai_pages"></span><p id="reader_ai_status"></p><button data-host-ai="continue"></button><button data-host-ai="finish"></button></div>
     </div>
   `)
   const sent = []

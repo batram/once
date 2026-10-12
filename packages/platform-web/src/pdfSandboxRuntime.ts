@@ -4,7 +4,7 @@
 import type { PdfTextPage, PdfTextResult, RecognizedText } from "@once/app"
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs"
 import { pdfTextLines } from "./pdfTextLines"
-import { HostToPdfSandbox, PDF_SANDBOX_PROTOCOL, PdfAssetKind, readPdfHostMessage } from "./pdfSandboxProtocol"
+import { HostToPdfSandbox, PDF_SANDBOX_PROTOCOL, PdfAssetKind, PdfPageRange, readPdfHostMessage } from "./pdfSandboxProtocol"
 
 type PdfPage = import("pdfjs-dist").PDFPageProxy
 type TextItem = import("pdfjs-dist/types/src/display/api").TextItem
@@ -62,7 +62,7 @@ export function startPdfSandboxRuntime(scope: Window): void {
         post({ type: "error", message: "PDF sandbox protocol mismatch" })
         return
       }
-      extract(message.bytes, message.workerSource, message.recognition, message.pageImages, host).then(
+      extract(message.bytes, message.workerSource, message.recognition, message.pageImages, message.range, host).then(
         result => post({ type: "result", result }),
         error => post({ type: "error", message: error instanceof Error ? error.message : String(error) })
       )
@@ -79,8 +79,9 @@ export function startPdfSandboxRuntime(scope: Window): void {
 /**
  * Page-by-page extraction: preserve embedded text, OCR only pages without a text layer.
  * The first `pageImages` pages are also sent as pictures; a picture stands in for a page OCR cannot read.
+ * A `range` reads only those pages and reports how far it got.
  */
-async function extract(bytes: Uint8Array, workerSource: string, recognition: boolean, pageImages: number, host: Host): Promise<PdfTextResult> {
+async function extract(bytes: Uint8Array, workerSource: string, recognition: boolean, pageImages: number, range: PdfPageRange | undefined, host: Host): Promise<PdfTextResult> {
   // The parser's code arrives from the shell, which fetched it from its own
   // origin: the frame's policy forbids loading anything itself. It becomes a
   // blob module; PDF.js starts it as a worker where the host allows one and
@@ -117,26 +118,48 @@ async function extract(bytes: Uint8Array, workerSource: string, recognition: boo
     const metadata = await pdf.getMetadata().catch(() => null)
     const title = (metadata?.info as { Title?: unknown } | undefined)?.Title
     const pages: PdfTextPage[] = []
-    for (let number = 1; number <= pdf.numPages; number++) {
+    const first = Math.min(range?.from ?? 1, pdf.numPages)
+    let last = Math.min(range?.to ?? pdf.numPages, pdf.numPages)
+    // A window meant for scans only: a first page with a text layer means the whole PDF is read.
+    if (range?.onlyIfScanned && last < pdf.numPages && hasText(await pageText(first))) last = pdf.numPages
+    for (let number = first; number <= last; number++) {
       host.progress(number, pdf.numPages)
       const page = await pdf.getPage(number)
       try {
         const viewport = page.getViewport({ scale: 1 })
         const text = pdfTextLines(await textItems(page), matrix => pdfjs.Util.transform(viewport.transform, matrix))
-        const pictured = number <= pageImages ? await renderPage(page, PAGE_IMAGE_PIXELS, "image/jpeg") : null
+        const pictures = number - first < pageImages
+        const pictured = pictures ? await renderPage(page, PAGE_IMAGE_PIXELS, "image/jpeg") : null
         if (pictured) host.pageImage(pictured, number)
-        if (text.lines.some(line => /[\p{L}\p{N}]/u.test(line))) { pages.push({ ...text, method: "embedded" }); continue }
-        if (number <= pageImages) { pages.push({ lines: [], method: "embedded" }); continue }
+        if (hasText(text.lines)) { pages.push({ ...text, method: "embedded" }); continue }
+        if (pictures) { pages.push({ lines: [], method: "embedded" }); continue }
         const image = await renderPage(page)
         if (!image) { pages.push({ lines: [], method: "embedded" }); continue }
-        if (!recognition) throw new Error(`PDF page ${number} has no embedded text. OCR is not available on this platform yet.`)
-        const recognized = await host.recognize(image, number)
-        if (!recognized.lines.some(line => line.trim())) throw new Error(`No text could be recognized on PDF page ${number}`)
+        if (!recognition) {
+          // With pictures requested, a page past the picture budget is skipped rather than failing the PDF.
+          if (pageImages) { pages.push({ lines: [], method: "embedded" }); continue }
+          throw new Error(`PDF page ${number} has no embedded text. OCR is not available on this platform yet.`)
+        }
+        const recognized = await host.recognize(image, number).catch((error: unknown) => { if (pageImages) return { lines: [] }; throw error })
+        if (!recognized.lines.some(line => line.trim())) {
+          if (pageImages) { pages.push({ lines: [], method: "embedded" }); continue }
+          throw new Error(`No text could be recognized on PDF page ${number}`)
+        }
         pages.push({ ...recognized, method: "ocr" })
       } finally { page.cleanup() }
     }
-    return { pages, ...(typeof title === "string" && title.trim() ? { title: title.trim().slice(0, 512) } : {}) }
+    const counted = range ? { total: pdf.numPages, through: last } : {}
+    return { pages, ...(typeof title === "string" && title.trim() ? { title: title.trim().slice(0, 512) } : {}), ...counted }
+
+    async function pageText(number: number): Promise<string[]> {
+      const page = await pdf.getPage(number)
+      try { return (await textItems(page)).map(item => item.str) } finally { page.cleanup() }
+    }
   }
+}
+
+function hasText(lines: string[]): boolean {
+  return lines.some(line => /[\p{L}\p{N}]/u.test(line))
 }
 
 /** The page's text runs; read with a reader because WebKit cannot iterate a stream with `for await`, which `getTextContent` does. */

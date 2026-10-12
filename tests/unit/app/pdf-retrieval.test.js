@@ -24,6 +24,19 @@ test("PDF retrieval preserves ordered pages, paragraphs and embedded/OCR provena
   assert.equal(result.url, "https://example.test/document")
 })
 
+test("the reader asks for a long scan's first pages and learns how far it got; a text PDF reads whole", async () => {
+  const asked = []
+  const scan = { async extract(_bytes, _port, options) { asked.push(options?.pages); return { pages: [{ lines: ["Scanned"], method: "ocr" }], total: 29, through: 5 } } }
+  const partial = await fetchDocument(fetchPdf, "https://example.test/scan.pdf", undefined, scan, true)
+  assert.deepEqual(asked[0], { from: 1, to: 5, onlyIfScanned: true })
+  assert.deepEqual(partial.pages, { through: 5, total: 29 })
+  const whole = { async extract() { return { pages: [{ lines: ["Text layer"], method: "embedded" }], total: 29, through: 29 } } }
+  assert.equal((await fetchDocument(fetchPdf, "https://example.test/text.pdf", undefined, whole, true)).pages, undefined)
+  const unpaged = await fetchDocument(fetchPdf, "https://example.test/scan.pdf", undefined, scan)
+  assert.equal(asked[1], undefined, "stored content and add-ons still read the whole PDF")
+  assert.equal(unpaged.pages, undefined)
+})
+
 test("a PDF served as a generic download is read by its name or, without one, by its signature", async () => {
   const pdf = { async extract(bytes) { return { pages: [{ lines: [`${bytes.length} bytes`], method: "embedded" }] } } }
   const respond = (body, headers) => async () => new Response(body, { headers })

@@ -88,8 +88,12 @@ export async function fetchText(
   return text
 }
 
-/** Compatibility adapter for reader and stored-content consumers. */
-export async function fetchDocument(fetch: typeof globalThis.fetch, url: string, recognition?: TextRecognitionPort, pdf?: PdfTextPort): Promise<{ html: string; url: string; mediaType: string }> {
-  const result = await retrieveDocument(fetch, url, recognition, pdf)
-  return { html: documentHtml(result), url: result.url, mediaType: result.kind === "text" ? "text/plain" : result.mediaType }
+/** Pages a reader reads of a long scanned PDF before it waits to be asked for more. */
+export const READER_PAGE_STEP = 5
+
+/** Compatibility adapter for reader and stored-content consumers; `paginate` reads a long scan in parts. */
+export async function fetchDocument(fetch: typeof globalThis.fetch, url: string, recognition?: TextRecognitionPort, pdf?: PdfTextPort, paginate = false): Promise<{ html: string; url: string; mediaType: string; pages?: import("@once/core").ReaderPages }> {
+  const result = await retrieveDocument(fetch, url, recognition, pdf, paginate ? { pages: { from: 1, to: READER_PAGE_STEP, onlyIfScanned: true } } : undefined)
+  const pages = result.kind === "text" ? result.pages : undefined
+  return { html: documentHtml(result), url: result.url, mediaType: result.kind === "text" ? "text/plain" : result.mediaType, ...(pages ? { pages } : {}) }
 }

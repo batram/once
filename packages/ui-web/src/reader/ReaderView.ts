@@ -65,8 +65,9 @@ export class ReaderView {
     let article = stored
     if (!article) {
       try {
-        const fetched = await ReaderView.client.fetchDocument(url)
-        article = extractArticle(fetched.html, fetched.url, fetched.mediaType)
+        // A long scanned PDF opens with its first pages; the reader asks for the rest.
+        const fetched = await ReaderView.client.fetchDocument(url, true)
+        article = { ...extractArticle(fetched.html, fetched.url, fetched.mediaType), ...(fetched.pages ? { pages: fetched.pages } : {}) }
       } catch (error) {
         if (!openDocument) throw error
         await openDocument(readerErrorDocument(url, error, currentTheme()), url, target)

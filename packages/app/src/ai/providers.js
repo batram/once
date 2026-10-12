@@ -156,7 +156,8 @@ export function providerResult(provider, data) {
     text = data.choices?.[0]?.message?.content || ""
   }
   if (typeof text !== "string" || !text.trim()) throw new Error("The AI endpoint returned no answer text.")
-  if (text.length > 64_000) throw new Error("The AI answer is too long.")
+  // Room for the largest output a request may ask for (32,000 tokens); a reader rewrite of a long scan fills it.
+  if (text.length > 256_000) throw new Error("The AI answer is too long.")
   return { text: text.trim(), sources: safeSources(sources).slice(0, 30), fetched }
 }
 

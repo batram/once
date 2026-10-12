@@ -22,9 +22,10 @@ export const PDF_SANDBOX_LIMITS = {
 }
 
 export type PdfAssetKind = "cMapUrl" | "standardFontDataUrl" | "wasmUrl"
+export interface PdfPageRange { from: number; to: number; onlyIfScanned: boolean }
 
 export type HostToPdfSandbox =
-  | { type: "extract"; protocol: number; bytes: Uint8Array; workerSource: string; recognition: boolean; pageImages: number }
+  | { type: "extract"; protocol: number; bytes: Uint8Array; workerSource: string; recognition: boolean; pageImages: number; range?: PdfPageRange }
   | { type: "asset"; requestId: number; bytes?: Uint8Array; error?: string }
   | { type: "recognized"; requestId: number; result?: RecognizedText; error?: string }
 
@@ -104,13 +105,20 @@ export function readPdfSandboxMessage(value: unknown): PdfSandboxToHost | null {
         pages.push(validated)
       }
       const title = typeof value.result.title === "string" ? value.result.title.slice(0, PDF_SANDBOX_LIMITS.title) : undefined
-      return { type: "result", result: { pages, ...(title ? { title } : {}) } }
+      const { total, through } = value.result
+      const counted = Number.isInteger(total) && Number.isInteger(through) && Number(through) >= 1 && Number(through) <= Number(total) ? { total: Number(total), through: Number(through) } : {}
+      return { type: "result", result: { pages, ...(title ? { title } : {}), ...counted } }
     }
     case "error":
       return { type: "error", message: typeof value.message === "string" ? value.message.slice(0, PDF_SANDBOX_LIMITS.error) : "PDF text extraction failed" }
     default:
       return null
   }
+}
+
+function pageRange(value: unknown): { range?: PdfPageRange } {
+  if (!record(value) || !Number.isInteger(value.from) || !Number.isInteger(value.to) || Number(value.from) < 1 || Number(value.to) < Number(value.from)) return {}
+  return { range: { from: Number(value.from), to: Number(value.to), onlyIfScanned: value.onlyIfScanned === true } }
 }
 
 /** Validates a reply from the host inside the frame, which trusts only its parent. */
@@ -120,7 +128,7 @@ export function readPdfHostMessage(value: unknown): HostToPdfSandbox | null {
     case "extract":
       if (!finite(value.protocol) || !(value.bytes instanceof Uint8Array) || typeof value.workerSource !== "string") return null
       return { type: "extract", protocol: value.protocol, bytes: value.bytes, workerSource: value.workerSource, recognition: value.recognition === true,
-        pageImages: Number.isInteger(value.pageImages) ? Math.max(0, Math.min(PDF_SANDBOX_LIMITS.pages, Number(value.pageImages))) : 0 }
+        pageImages: Number.isInteger(value.pageImages) ? Math.max(0, Math.min(PDF_SANDBOX_LIMITS.pages, Number(value.pageImages))) : 0, ...pageRange(value.range) }
     case "asset":
       if (!finite(value.requestId)) return null
       return { type: "asset", requestId: value.requestId, ...(value.bytes instanceof Uint8Array ? { bytes: value.bytes } : {}), ...(typeof value.error === "string" ? { error: value.error } : {}) }

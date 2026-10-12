@@ -1,4 +1,5 @@
 import { ReaderTtsHostController } from "./readerTtsHostBridge"
+import type { ReaderAiPagesState } from "./readerTtsProtocol"
 
 export interface ReaderTtsUiControls {
   /** Shows the bar for the selected tab's reader; hiding it leaves speech running. */
@@ -32,10 +33,15 @@ export function installReaderTtsControls(
 
   const ai = required<HTMLButtonElement>('[data-host-ai="rewrite"]')
   const undo = required<HTMLButtonElement>('[data-host-ai="undo"]')
+  const strip = required("#reader_ai_strip")
   const aiStatus = required("#reader_ai_status")
-  ai.onclick = () => controller.send({ type: "ui-ai", action: "rewrite" })
-  undo.onclick = () => controller.send({ type: "ui-ai", action: "undo" })
-  const showAi = (state = { running: false, canUndo: false, status: "", madeBy: "" }): void => {
+  const pagesLabel = required("#reader_ai_pages")
+  const next = required<HTMLButtonElement>('[data-host-ai="continue"]')
+  const end = required<HTMLButtonElement>('[data-host-ai="finish"]')
+  for (const button of [ai, undo, next, end]) {
+    button.onclick = () => controller.send({ type: "ui-ai", action: button.dataset.hostAi as "rewrite" | "undo" | "continue" | "finish" })
+  }
+  const showAi = (state: { running: boolean; canUndo: boolean; status: string; madeBy: string; pages?: ReaderAiPagesState } = { running: false, canUndo: false, status: "", madeBy: "" }): void => {
     ai.textContent = state.running ? "Cancel" : "AI"
     ai.setAttribute("aria-label", state.running ? "Cancel AI rewrite" : "Rewrite with AI")
     ai.title = state.madeBy ? `Rewritten by ${state.madeBy}` : ""
@@ -44,6 +50,16 @@ export function installReaderTtsControls(
     // Progress while running; afterwards only an error remains.
     aiStatus.textContent = state.status
     aiStatus.dataset.error = String(!state.running && !!state.status)
+    // A long scan read in parts: how far, and the next pages without scrolling to the end.
+    const pages = state.pages, open = !!pages && pages.through < pages.total
+    pagesLabel.textContent = pages ? `${pages.through}/${pages.total}${pages.ai ? " AI" : ""}` : ""
+    pagesLabel.setAttribute("aria-label", pages ? `Pages 1 to ${pages.through} of ${pages.total}${pages.ai ? ", rewritten with AI" : ""}` : "")
+    next.hidden = end.hidden = !open
+    next.textContent = pages ? `Next ${Math.min(5, pages.total - pages.through)}` : "Next"
+    next.disabled = state.running
+    end.textContent = pages?.toEnd ? "Stop" : "To end"
+    end.disabled = state.running && !pages?.toEnd
+    strip.hidden = !state.status && !open
   }
 
   for (const rate of [1, 1.25, 1.5, 2, 3]) {
