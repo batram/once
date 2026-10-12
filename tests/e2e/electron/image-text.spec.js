@@ -475,6 +475,10 @@ test("the overlay stays out of the page's way: covered edges, keys and autoscrol
     await overlayInput(app, [{ type: "mouseMove", ...start }, { type: "mouseDown", ...start, button: "left", clickCount: 1 },
       { type: "mouseMove", x: start.x + 40, y: viewport.height - 4, button: "left", modifiers: ["leftButtonDown"] }])
     await expect.poll(() => inPage(app, "scrollY")).toBeGreaterThan(scrolledTo + 10)
+    // It scrolls as far as the image's end, which comes to rest at the viewport's.
+    await expect.poll(() => inPage(app, `new Promise(resolve => { const y=scrollY; setTimeout(() =>
+      resolve(scrollY === y && Math.abs(document.querySelector('img').getBoundingClientRect().bottom - innerHeight) < 1), 200) })`))
+      .toBe(true)
     await overlayInput(app, [{ type: "mouseUp", x: start.x + 40, y: viewport.height - 4, button: "left", clickCount: 1 }])
   } finally { await closeApp(app, userData) }
 })

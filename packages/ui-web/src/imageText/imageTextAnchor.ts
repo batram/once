@@ -250,7 +250,22 @@ class AnchoredSelection {
       this.wordBoxes = event.boxes.slice(0, 5000).map((box) => ({ left: Number(box.left) || 0, top: Number(box.top) || 0,
         right: Number(box.right) || 0, bottom: Number(box.bottom) || 0 }))
       this.lastBar = ""
-    } else if (event.type === "scroll") (scrollContainer(this.image) ?? window).scrollBy(0, Number(event.deltaY) || 0)
+    } else if (event.type === "scroll") this.autoscroll(Number(event.deltaY) || 0)
+  }
+
+  /**
+   * A sweep held at the edge scrolls whatever scrolls the image, as far as
+   * the image's own edge: there is no text past it to select. It stops on
+   * purpose with the image's end at the viewport's, rather than when the
+   * image has left the view and the frame, out of sight, stops asking.
+   */
+  private autoscroll(deltaY: number): void {
+    const scroller = scrollContainer(this.image)
+    const view = scroller?.getBoundingClientRect() ?? { top: 0, bottom: viewport().height }
+    const image = this.image.getBoundingClientRect()
+    const step = deltaY > 0 ? Math.min(deltaY, Math.max(0, image.bottom - view.bottom))
+      : Math.max(deltaY, Math.min(0, image.top - view.top))
+    if (step) (scroller ?? window).scrollBy(0, step)
   }
 
   private readonly layout = (): void => {
