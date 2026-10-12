@@ -8,6 +8,19 @@ const { version } = require("../../package.json")
 // Dev bundles ("--dev" via run-forge.js) get their own name, executable and
 // icon so they are distinguishable and installable next to a release build.
 const isDevChannel = process.env.ONCE_BUILD_CHANNEL === "dev"
+
+// ONCE_MACOS_SIGN_IDENTITY names another identity, or "-" forces ad-hoc.
+function macSigningIdentity() {
+  const identity = process.env.ONCE_MACOS_SIGN_IDENTITY || "Once Local Code Signing"
+  if (identity === "-") return identity
+  const found = spawnSync("security", ["find-certificate", "-c", identity], { stdio: "ignore" })
+  if (found.status === 0) return identity
+  console.log(
+    `No "${identity}" signing identity; signing ad-hoc. Run ` +
+    "apps/electron/scripts/create-macos-signing-identity.sh for a stable one."
+  )
+  return "-"
+}
 const iconBase = path.resolve(
   __dirname,
   "../../packages/ui-web/public/static/imgs/icons/mipmap-mdpi",
@@ -45,18 +58,22 @@ module.exports = {
   },
   hooks: {
     // Packaging rewrites Info.plist and the resources, which invalidates the
-    // ad-hoc signature Electron ships with. Re-sign ad-hoc so the bundle
-    // verifies again and safeStorage gets a stable Keychain identity; a real
+    // ad-hoc signature Electron ships with, so the bundle is re-signed. With
+    // the local identity from scripts/create-macos-signing-identity.sh every
+    // package keeps the same signing identity, and the safeStorage Keychain
+    // item stays trusted across rebuilds; without it the bundle is signed
+    // ad-hoc, which the Keychain treats as a new app on every package. A real
     // Developer ID signature is a separate, later step.
     postPackage: async (_config, { platform, outputPaths }) => {
       if (platform !== "darwin") return
+      const identity = macSigningIdentity()
       for (const outputPath of outputPaths) {
         const appBundle = path.join(outputPath, `${module.exports.packagerConfig.name}.app`)
-        const result = spawnSync("codesign", ["--force", "--deep", "--sign", "-", appBundle], {
+        const result = spawnSync("codesign", ["--force", "--deep", "--sign", identity, appBundle], {
           stdio: "inherit"
         })
         if (result.status !== 0) {
-          throw new Error(`Ad-hoc codesign failed for ${appBundle}`)
+          throw new Error(`codesign with "${identity}" failed for ${appBundle}`)
         }
       }
     }
