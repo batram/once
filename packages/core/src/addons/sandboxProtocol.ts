@@ -1,3 +1,4 @@
+import { AiRequest, AiSelection, readAiRequest, readAiSelection } from "../ai"
 // The messages between the Once UI and an add-on's sandbox frame. Both sides
 // are JSON over postMessage; the host treats everything that arrives as
 // untrusted and validates it here before acting.
@@ -58,7 +59,7 @@ export type HostToSandbox =
   | { type: "redirect.failed"; requestId: number; redirect: string; url: string; reason: string }
   | { type: "panel.invoke"; requestId: number; action: string }
   /** The answer to an operation that asked for one (`fetch`, `storage.*`). */
-  | { type: "opResult"; opId: number; ok: boolean; value?: unknown; error?: string }
+  | { type: "opResult"; opId: number; ok: boolean; value?: unknown; error?: string; code?: string }
   /** Body text of a streamed `request` as it arrives; its `opResult` still carries the whole response. */
   | { type: "opProgress"; opId: number; text: string }
 
@@ -68,6 +69,11 @@ export type HostToSandbox =
  * governed by grants rather than by the story in hand.
  */
 export type SandboxOperation =
+  | { name: "ai.connections"; href: "" }
+  | { name: "ai.generate"; href: ""; request: AiRequest; stream?: true }
+  | { name: "ai.resolve"; href: ""; selection?: AiSelection }
+  | { name: "ai.models"; href: ""; connection: string }
+  | { name: "search.query"; href: ""; query: string; connection?: string }
   | { name: "request"; href: ""; connection: string; request: AddonRequest; stream?: true }
   | { name: "story.content"; href: string; fresh?: boolean }
   /** A tray's view while its invocation is still working. */
@@ -109,6 +115,16 @@ const STORAGE_KEY = /^[a-zA-Z0-9_.-]{1,80}$/
 function readOperation(value: unknown): SandboxOperation | null {
   if (!isRecord(value)) return null
   switch (value.name) {
+    case "ai.connections": return { name: "ai.connections", href: "" }
+    case "ai.generate":
+      try { return { name: "ai.generate", href: "", request: readAiRequest(value.request), ...(value.stream === true ? { stream: true as const } : {}) } } catch { return null }
+    case "ai.resolve":
+      try { return { name: "ai.resolve", href: "", ...(value.selection ? { selection: readAiSelection(value.selection) } : {}) } } catch { return null }
+    case "ai.models":
+      return isText(value.connection, 100) ? { name: "ai.models", href: "", connection: value.connection } : null
+    case "search.query":
+      return isText(value.query) && (value.connection === undefined || isText(value.connection, 100)) ? { name: "search.query", href: "", query: value.query, connection: value.connection as string | undefined } : null
+
     case "request":
       try {
         return typeof value.connection === "string" && /^[a-z][a-z0-9-]{2,39}$/.test(value.connection)

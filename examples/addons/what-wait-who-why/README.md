@@ -1,216 +1,75 @@
-# What? Wait, who, why?
+# What? Wait, who, why? (What4)
 
-A Once addon that explains a title, summarizes its article, and answers
-follow-up questions in a tray below the story. It makes no AI requests until you
-click its question-mark-and-sparkles button (or invoke its story action); opening
-the tray then sends two requests at once, one for the explanation and one for the
-summary, and a third for the web section when web search is on.
+What4 explains a story's title, summarizes its article and answers follow-up
+questions in a tray. Opening the tray starts explanation and summary requests;
+turning on web search adds a cited web section. Requests stream when the platform
+transport supports streaming. Closing or stopping the invocation cancels it.
 
-## Develop and configure
+## Setup
 
-In Electron, open **Settings → Once Add-ons → Import addon… → Load directory…** and select this folder.
-It works in packaged builds and remembers the folder; edits reload automatically.
-Use **Unload folder** to remove the link without deleting the example files.
+1. Open **Settings → AI & Search** and add an AI connection. Supported protocols
+   are OpenAI Responses, Anthropic Messages and compatible Chat Completions.
+2. Save the endpoint and API token together. Compatible local servers can omit a
+   token. Tokens are bound to their saved endpoint; changing that destination
+   requires replacing the token before it can be used there.
+3. Open **Default model** and choose a connection and model. Discovery offers
+   provider model IDs; a manual ID is also supported.
+4. Open **Settings → Once Add-ons → What4**. Its model row initially inherits the
+   global default. Choose **Use another model** only when What4 should override it.
 
-Alternatively, use **Import folder**, or ZIP this folder and choose **Import ZIP** on the import page.
-Return to the Once Add-ons list and open **What? Wait, who, why?** for its connection,
-search and prompt settings. The raw JSON editor is under **Advanced: edit addon JSON…**;
-it is not needed for normal installation or setup.
-Import keeps a snapshot on this device and shows the usual installation review.
-The supplied manifest works directly: Once calculates the script hash for you.
-Reimport to update a snapshot. With encrypted addon sync enabled, installed
-snapshots reach your other devices automatically. For a linked development folder,
-choose **Install this version** in its settings to share a snapshot. While an
-installed copy exists, the folder is ignored; the addon's page says so and offers
-to switch to the folder or update the installed copy from it.
+AI & Search lists registered consumers as links to their own settings. What4 no
+longer keeps provider adapters, AI credentials or search credentials in its package.
+Its own settings retain prompts, web-search enablement and YouTube behavior.
 
-Set `ONCE_ADDONS` to this directory and launch an unpackaged Electron build using
-the normal development workflow. It appears in Settings → Once Add-ons, including its
-settings even though its manifest is not installed. Development options stay on
-this device; packaged builds ignore `ONCE_ADDONS`. Its settings include local
-Enable/Disable and Retry controls; disabling does not discard your configuration.
+## Search and article sources
+
+Native provider search is preferred where supported. When native search is
+unavailable, What4 uses the default SearXNG or Tavily connection configured in
+**AI & Search → Search**. Search is opt-in and can incur provider charges. Summaries
+remain article-only. Search failure offers retry or an answer without search where
+that choice is meaningful. A provider authentication failure is not a reason to
+silently switch services.
+
+Article context comes from saved content, a fetched article, or the live open page.
+YouTube stories can use captions through the addon's declared YouTube connection.
+When Once cannot read an article, the UI identifies title-only answers. Anthropic
+models can optionally fetch the page through their native tool; unsupported tools
+produce a structured fallback, without claiming that missing content was read.
+
+## Credentials and sync
+
+Configure credentials centrally. **Settings → Sync → Encrypted sync** has one
+passphrase, one recovery key and one lock state. Add-ons and AI & Search have
+separate switches on each device. Disabling either switch keeps a local copy before
+leaving that dataset; it does not disable the other one or affect other devices.
+Pairing can carry the same shared sync passphrase.
+
+Existing What4 provider/search settings migrate before the verified package update.
+The migration fingerprints and verifies the source and preserves endpoint bindings,
+custom model selection and existing central defaults. Encrypted credentials remain
+encrypted. If an earlier experimental separate AI vault exists, its data is kept
+until it can be imported into shared sync.
+
+Addon code never receives stored tokens. Provider requests omit cookies, refuse
+redirects, redact credentials, and have bounded input/output and request deadlines.
+Opening a tray sends its article context to the selected provider. OpenAI requests
+set `store: false`; the provider's own logging and retention policies still apply.
+
+## Conversations and prompts
+
+Prompts for explanations, summaries, web context and follow-up answers remain
+editable in What4 settings. Answers preserve citations returned by the shared
+service. The addon keeps recent complete exchanges in memory with bounded article
+and history context. Conversations are not persisted by What4. Settings changes,
+Clear, or disposing the addon reset its in-memory conversation.
+
+## Development
 
 Run `node scripts/validate-addon.js examples/addons/what-wait-who-why` from the
-repository root after building the shared packages. It validates the package and
-prints the SHA-256 integrity of `main.js`. For URL installation, replace the
-development-only `"script": "main.js"` with
-`"script": { "url": "main.js", "integrity": "sha256-…" }`, using that exact hash,
-then serve the directory and install its manifest URL. No service is deployed by
-the example. Firefox additionally requires its usual hosted sandbox page.
+repository root. The build derives the bundled script integrity from the package's
+actual bytes. The public addon contract and capability rules are in
+[ADDONS.md](../../../docs/ADDONS.md).
 
-Choose a provider, enter a model ID, and configure its full request endpoint:
-
-| Provider | Default endpoint | Authentication |
-| --- | --- | --- |
-| OpenAI | `https://api.openai.com/v1/responses` | Bearer API token |
-| Anthropic | `https://api.anthropic.com/v1/messages` | API key, optional workspace ID |
-| Compatible | User supplied, including `/v1/chat/completions` | Optional bearer token |
-
-Save tokens using the dedicated masked fields. Tokens are bound to the endpoint
-you configured and never enter the addon script, ordinary synced options, or
-conversation. [Encrypted addon sync](../../../docs/addon-sync-vault.md) includes
-installed addons' tokens in the encrypted vault so you only unlock once on each
-device. Otherwise tokens stay in the local secret store. Changing an endpoint
-requires replacing its saved token. Electron and native mobile use protected local
-storage; browser profiles offer remembering with weaker local protection.
-
-The three prompt editors have separate Restore default buttons. Ordinary installed
-addon options sync with Once; tokens require encrypted addon sync. Conversation
-history stays in the current session. The app sends
-article text and conversation context to the endpoint you choose. OpenAI requests
-set `store: false`; this is not a promise about a provider's separate logging policy.
-
-## Gemini API free-tier setup
-
-Google's Gemini API works with the existing **compatible** provider through its
-[Chat Completions endpoint](https://ai.google.dev/gemini-api/docs/openai).
-No proxy, server deployment, or addon code change is required.
-
-1. Create a key in [Google AI Studio](https://aistudio.google.com/apikey), using a
-   project whose Gemini API usage tier is **Free**. Keep that project on the free
-   tier; enabling paid billing changes the applicable pricing. Prefer a newly
-   created key; see Google's [current key requirements](https://ai.google.dev/gemini-api/docs/api-key).
-2. In **Settings → Once Add-ons → What? Wait, who, why?**, enter:
-
-   | Setting | Value |
-   | --- | --- |
-   | AI provider | `compatible` |
-   | Model ID | `gemini-3.5-flash-lite` |
-   | Chat Completions endpoint | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` |
-   | Compatible API token | Your Gemini API key, saved in the masked field |
-   | Enable web search | Off |
-
-3. Set the endpoint before saving the key: Once binds the saved token to that
-   exact endpoint. Keep the key out of the manifest and advanced JSON editor.
-   With the endpoint and key saved, **Load models** under Model ID lists what
-   the key can use; Google's list names models as `models/gemini-…`, which the
-   endpoint accepts as well as the bare name.
-4. Open a story's addon tray to explain its title and summarize its article,
-   then try a follow-up question. These are separate requests. Reopening an
-   existing tray reuses its answers during the same session.
-
-For new projects, use `gemini-3.5-flash-lite` (or 3.1 while it answers): Google has
-[restricted 2.5 model access to previous users](https://discuss.ai.google.dev/t/gemini-2-5-flash-deprecated-without-warning-earlier-than-shutdown-date/174217/27).
-A 404 with `gemini-2.5-flash-lite` can therefore mean the project lacks model
-access even when the endpoint is correct. Change the model, keeping the endpoint
-and saved key unchanged, then retry. The tray includes the provider's structured
-error message when available to help distinguish model access from other failures.
-
-Google lists 3.1 Flash-Lite's standard input and output as free on the free tier
-([pricing](https://ai.google.dev/gemini-api/docs/pricing), checked 2026-09-06).
-Availability and request/token quotas depend on the project and model; check
-[active limits in AI Studio](https://ai.google.dev/gemini-api/docs/rate-limits).
-HTTP 429 means a quota/rate limit was reached; wait for the relevant limit to reset
-before retrying. The addon does not automatically switch to a paid provider.
-
-The compatible connection does not enable native Google Search grounding. Leave
-web search off for this setup; enabling it requires the separate SearXNG fallback.
-Story text and follow-up context are sent to Google. Review the
-[Gemini API terms](https://ai.google.dev/gemini-api/terms) for the data-use rules
-that apply to your account and region before sending private content.
-
-This setup uses the Gemini Developer API free tier. Vertex AI and Google Cloud
-trial credits have separate endpoints, authentication, and billing rules.
-
-## Use
-
-Opening a tray explains the title and answers it if it asks a question, and
-summarizes the article; with web search on, a cited **From the web** section adds
-what the search finds. All of them are asked at once and stream in as they are
-written, in that order. The answer stays in view; **Key entities** and **Summary**
-fold behind disclosures you expand when you want them. For a release
-announcement, the default prompt explains what the software does and who uses it.
-The prompts in Settings are the whole instruction: each request adds only the
-story material and a one-line task name such as "Explain this story.", so the
-`## Key entities` heading the fold relies on comes from the editable
-explanation prompt, and an answer without it simply shows whole.
-The **Summarize** button appears only while the conversation has no summary, for
-example after the automatic one failed; the question box continues the conversation.
-Saved/feed content is used first; otherwise, when the page is open in a tab or
-the reading view and has loaded, Once reads it as shown there, scripts and all;
-otherwise it fetches and extracts the original article. When none of that yields
-readable text, an Anthropic model is asked to fetch the page itself through its
-web fetch tool, and the status says so when it did. Otherwise the tray explains
-the title alone, says why the article was unavailable, and offers **Open page**
-and **Read the page**: open it, let it load, then read it, and the explanation and
-summary are asked again with the article. While it works, the status line says
-what it is doing: reading the article, asking the model, writing.
-Reading content for the addon does not mark a story read or save an offline copy.
-
-### YouTube videos
-
-For a story that links a YouTube video (`watch`, `youtu.be`, `shorts`, `live` or
-`embed` URLs), the video's captions are the article: the summary and every answer
-come from the transcript, headed by the channel, duration and description. The
-addon asks YouTube's player endpoint for the video's caption tracks the way the
-YouTube Android app does, then downloads one track from `www.youtube.com`; no
-account, key or cookie is involved, and nothing about you reaches YouTube beyond
-the video ID. The track follows the video's own language, the one its default
-audio track speaks: the uploader's captions in that language first, then the
-auto-generated ones in it, then whatever YouTube pairs with the audio, then any
-uploaded captions. A dubbed video lists an auto-generated track per dub, so
-without that rule the first one alphabetically, Arabic, would be read.
-The transcript is grouped into half-minute paragraphs headed by `[m:ss]`
-timestamps, so a follow-up such as "when does she mention the price?" can be
-answered with a time. The status line names the track used, for example
-**Using the video transcript (English (auto-generated))**.
-
-A video without captions, an age-restricted or private video, or a YouTube
-outage falls back to the page content Once can extract, and the status line says
-why the transcript was not used. **Read YouTube transcripts** under **Settings →
-Add-ons → YouTube** turns the feature off; the player endpoint setting exists for
-a proxy or a future URL change and normally stays at its default. YouTube changes
-this interface without notice: if transcripts stop arriving, the fallback keeps
-the addon working and the client identity in `main.js` is the first thing to update.
-
-The player endpoint answers 403 to any request carrying a foreign `Origin`
-header. Electron and the mobile apps send none; the Chrome and Firefox side
-panels remove theirs for `youtube.com/youtubei/` with a `declarativeNetRequest`
-rule (`packages/webext-shell/src/connectionOriginBackground.ts`). A player
-endpoint moved to another host through a proxy needs that host to accept the
-extension's Origin, or a matching rule.
-
-Close hides the tray; reopening reuses the answer. Row redraws and sorting preserve
-the conversation. Clear conversation starts fresh; disabling the addon, changing
-its options, restarting its sandbox, or restarting Once clears the session.
-No conversations are persisted. Answers stream in as the provider writes them
-(on Android they appear when complete). Stop prevents late answers; Retry repeats
-only the requests that failed.
-
-Web search is off by default. The explanation never waits for it: it answers from
-the article and the model's knowledge, while the **From the web** section is written
-from the search results beside it. Follow-up questions search before answering.
-Enable it to use OpenAI or Anthropic's native search.
-Compatible models, and native-search unavailability, use the fallback provider you
-pick under **Web search**: a SearXNG `/search` endpoint or [Tavily](https://tavily.com).
-The SearXNG instance must allow `format=json`; many public instances do not, so a
-local instance is the practical choice. Its token is optional. Tavily's free tier
-gives 1,000 credits a month without a card, one per search: create a key in its
-dashboard and save it in the masked field, keeping the default endpoint. Fallback
-search sends one query, uses at most five bounded snippets, and does not crawl
-result pages. Only referenced, supplied sources
-become links. Summaries always use the article alone. A failed web section offers
-Retry; a follow-up whose search fails also offers Answer without search.
-Authentication errors and rate limits do not silently switch providers.
-
-## Limits and validation
-
-Article input is capped at 64,000 characters, recent complete conversation pairs at
-32,000, and each prompt at 16,000. The tray reports shortened context. Host requests
-have a 120-second deadline, at most two concurrent tray invocations per addon, and
-1 MiB request/response limits. Missing article text is labelled title-only and
-cannot be summarized. Provider/model/tool errors are shown without crashing the addon.
-A caption track larger than 1 MiB (auto-generated captions of a very long video
-carry per-word timing) cannot be downloaded and the story falls back to page content;
-a transcript longer than 64,000 characters is cut there and reported as shortened.
-
-Electron forwards cancellation through IPC. Native Capacitor HTTP currently has no
-cancellation API: Stop revokes the invocation immediately, while the underlying
-request may finish within its native timeout. Native responses are buffered before
-the size check. Redirects are disabled explicitly on all connection transports.
-
-The tests use this actual script with fixture providers and a local search fixture;
-they require no real API key or paid requests. See `tests/unit/ui-web/ai-addon.test.js`
-and the shared Electron, extension, and mobile addon tests for worked integrations.
-To run just the native addon fixture, set `ONCE_MOBILE_ADDONS_ONLY=1` before
-`npm run test:mobile:e2e:android:local` (or the iOS suite on a supported Mac).
+What4 declares `ai` and `search` capabilities. It uses `context.ai.resolve()`,
+`context.ai.generate()` and `context.querySearch()`, so cancellation belongs to the
+tray invocation. Provider-specific request formats and SSE parsing live in the app.

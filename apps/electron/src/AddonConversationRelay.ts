@@ -1,4 +1,4 @@
-import { WebContents } from "electron"
+import { WebContents, IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import { AddonConversationKey, readConversationKey } from "@once/core"
 import { ADDON_CONVERSATION_URL, ELECTRON_IPC } from "@once/platform-electron/bridge"
 
@@ -94,4 +94,10 @@ export class AddonConversationRelay {
     const shown = readConversationKey(tab.getURL())
     if (shown && shown.addon === key.addon && shown.tray === key.tray && shown.story === key.story) tab.send(ELECTRON_IPC.addonsConversationState, snapshot, connected)
   }
+}
+
+/** Main-frame reader input is accepted only from the conversation scheme. */
+export function conversationPage(event: IpcMainInvokeEvent | IpcMainEvent): WebContents {
+  if (!isAddonConversationUrl(event.sender.getURL()) || event.senderFrame !== event.sender.mainFrame) throw new Error("Untrusted IPC sender")
+  return event.sender
 }

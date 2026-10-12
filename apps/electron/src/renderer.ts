@@ -1,3 +1,4 @@
+import { installReaderAiHost } from "./readerAiHost"
 import { createOnceApp, OnceClient } from "@once/app"
 import { applyTabSyncTestTiming, bindRemoteTabsPlacement, desktopTabSyncNotices, initializeRemoteTabsButton, remoteTabsInPanel } from "./remoteTabsPlacement"
 import { electronTabOpener, hostRemoteTabsPages } from "./remoteTabsHost"
@@ -170,6 +171,7 @@ async function startRenderer(): Promise<void> {
   startupStage("redirects")
   await bindBrowserRedirects(app.client)
   exchangeExtensionSettings(app.client)
+  installReaderAiHost(app.client, window.onceElectron)
   startupStage("mount-ui")
   // Test switches main put on the entry URL (ONCE_ELECTRON_DISABLE_*).
   const flags = new URL(window.location.href).searchParams

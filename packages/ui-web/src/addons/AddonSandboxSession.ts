@@ -253,7 +253,7 @@ export class AddonSandboxSession {
   private operation(message: Extract<SandboxToHost, { type: "op" }>): void {
     const { op, opId } = message
     const pending = message.requestId !== undefined ? this.pending.get(message.requestId) : undefined
-    const inScope = UNSCOPED_OPERATIONS.has(op.name) || (op.name === "request" && (message.requestId === undefined || !!pending)) ||
+    const inScope = UNSCOPED_OPERATIONS.has(op.name) || (["request", "ai.generate", "ai.resolve", "ai.connections", "ai.models", "search.query"].includes(op.name) && (message.requestId === undefined || !!pending)) ||
       (op.name === "updateBadge"
         ? this.badgeScope.get(op.contribution)?.has(op.href) === true
         : message.requestId !== undefined && this.pending.get(message.requestId)?.scope.has(op.href) === true)
@@ -265,11 +265,11 @@ export class AddonSandboxSession {
     void Promise.resolve()
       .then(() => {
         if (this.closed) throw new Error("Add-on sandbox closed")
-        if (op.name === "request" || op.name === "story.content") {
+        if (["request", "ai.generate", "ai.resolve", "ai.connections", "ai.models", "search.query", "story.content"].includes(op.name)) {
           pending?.controller.signal.throwIfAborted()
           if (message.requestId !== undefined && !this.pending.has(message.requestId)) throw new Error("Request is no longer active")
         }
-        if (op.name === "request") return this.connectionOperation(op, pending?.controller.signal, opId)
+        if (op.name === "request" || op.name === "ai.generate" || op.name === "search.query" || op.name === "ai.models") return this.connectionOperation(op, pending?.controller.signal, opId)
         if (op.name === "tray.update") {
           if (!pending?.update) throw new Error("only a tray request can show an update")
           return pending.update(op.view)
@@ -282,11 +282,11 @@ export class AddonSandboxSession {
       .catch((error) => {
         const text = error instanceof Error ? error.message : String(error)
         if (op.name !== "request" && op.name !== "story.content") this.host.report(`Add-on ${this.addonId} ${op.name} failed: ${text}`)
-        if (!this.closed && opId !== undefined) this.transport.post({ type: "opResult", opId, ok: false, error: text })
+        if (!this.closed && opId !== undefined) this.transport.post({ type: "opResult", opId, ok: false, error: text, ...(error && typeof error === "object" && "code" in error ? { code: String(error.code) } : {}) })
       })
   }
 
-  private async connectionOperation(op: Extract<SandboxOperation, { name: "request" }>, signal?: AbortSignal, opId?: number): Promise<unknown> {
+  private async connectionOperation(op: Extract<SandboxOperation, { name: "request" | "ai.generate" | "search.query" | "ai.models" }>, signal?: AbortSignal, opId?: number): Promise<unknown> {
     if (this.connectionOperations.size >= CONNECTION_LIMIT) throw new Error(`${CONNECTION_LIMIT} connection requests are already running`)
     const controller = new AbortController()
     const abort = () => controller.abort()
@@ -298,7 +298,7 @@ export class AddonSandboxSession {
       controller.signal.addEventListener("abort", () => reject(new Error("Request cancelled or timed out")), { once: true })
       timer = setTimeout(abort, SANDBOX_TIMEOUTS.trayMs)
     })
-    const onChunk = op.stream && opId !== undefined
+    const onChunk = "stream" in op && op.stream && opId !== undefined
       ? (text: string) => { if (!this.closed && !controller.signal.aborted) this.transport.post({ type: "opProgress", opId, text }) }
       : undefined
     try { return await Promise.race([this.host.perform(op, controller.signal, onChunk), cancelled]) }

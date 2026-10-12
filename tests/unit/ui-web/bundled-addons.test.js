@@ -72,12 +72,12 @@ test("a newer shipped version replaces a still-installed bundled copy but not th
   configureBundledAddons(older)
   const { client, state } = fakeClient()
   await seedBundledAddons(client)
-  state.doc = readAddonsDocument({ ...state.doc, addons: state.doc.addons.map(entry => ({ ...entry, enabled: false, options: { provider: "anthropic" } })) })
+  state.doc = readAddonsDocument({ ...state.doc, addons: state.doc.addons.map(entry => ({ ...entry, enabled: false, options: { explainPrompt: "My custom prompt" } })) })
   configureBundledAddons(shippedPackages())
   await seedBundledAddons(client)
   assert.equal(state.doc.addons[0].manifest.version, shipped.version)
   assert.equal(state.doc.addons[0].enabled, false, "the upgrade keeps the user's enabled flag")
-  assert.equal(state.doc.addons[0].options.provider, "anthropic", "and their options")
+  assert.equal(state.doc.addons[0].options.explainPrompt, "My custom prompt", "and their options")
   assert.deepEqual(state.doc.bundled, { [shipped.id]: shipped.version })
 
   const own = fakeClient({ version: 1, addons: [{ manifest: { ...shipped, version: "5.0.0",

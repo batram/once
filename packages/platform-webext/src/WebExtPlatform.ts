@@ -42,7 +42,7 @@ export function createWebExtPlatform(
 ): OncePlatformPorts {
   keepIndexedDbOpenAfterAborts()
   const onceDb = new PouchDB("once_db", LOCAL_POUCH_OPTIONS)
-  const listStore = new PouchListStore(onceDb)
+  const listStore = new PouchListStore(onceDb, version => syncService.requireSyncProtocol(version))
   const storyStore = new PouchStoryStore(onceDb, (story) =>
     Story.from_obj(story)
   )

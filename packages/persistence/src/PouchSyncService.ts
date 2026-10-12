@@ -1,4 +1,6 @@
-import { isRoutedTabDocId, isTabSyncChangeId, normalizeSyncUrl, ROUTED_TAB_DOC_PREFIXES, TAB_SYNC_SETTINGS_ID } from "@once/core"
+import { PouchSyncCompatibility, SyncCompatibilityError } from "./PouchSyncCompatibility"
+import { listenLiveSync, watchSyncCompatibility } from "./PouchSyncWatch"
+import { SYNC_COMPAT_ID, SYNC_PROTOCOL, SyncCompatibilityDetails, isRoutedTabDocId, isTabSyncChangeId, normalizeSyncUrl, ROUTED_TAB_DOC_PREFIXES, TAB_SYNC_SETTINGS_ID } from "@once/core"
 import {
   PouchMaintenanceDatabase,
   PouchMaintenanceService
@@ -30,6 +32,7 @@ export interface PouchSyncDatabase extends PouchMaintenanceDatabase {
 
 export interface PouchSyncStatus {
   state:
+    | "update-required"
     | "disabled"
     | "connecting"
     | "syncing"
@@ -38,6 +41,7 @@ export interface PouchSyncStatus {
     | "error"
   message: string
   changes?: number
+  compatibility?: SyncCompatibilityDetails
 }
 
 export interface PouchRemoteChange {
@@ -59,6 +63,7 @@ export class PouchSyncService {
   }
   private static readonly SETTINGS_DOCUMENT_IDS = [
     "addon_vault",
+    "ai_vault",
     "addons",
     "browser_extension_sync",
     "sources",
@@ -71,6 +76,11 @@ export class PouchSyncService {
     "save_bookmarked_content",
     TAB_SYNC_SETTINGS_ID
   ]
+  private readonly compatibility: PouchSyncCompatibility
+  private stopWatch?: () => void
+  private retryTimer?: ReturnType<typeof setTimeout>
+  private destination = ""
+  private loadedStoryIds?: () => string[]
   private syncHandler?: PouchEventChain
   private initialReplication?: PouchEventChain
   private remoteDatabase?: PouchSyncDatabase
@@ -102,8 +112,9 @@ export class PouchSyncService {
     private db: PouchSyncDatabase,
     private onChange: (event: unknown) => void,
     private createRemote: (url: string) => string | PouchSyncDatabase = (url) =>
-      url
-  ) {}
+      url,
+    supportedProtocol = SYNC_PROTOCOL
+  ) { this.compatibility = new PouchSyncCompatibility(db, supportedProtocol) }
 
   onDiagnostic(handler: (error: {
     severity: "warning" | "error"
@@ -182,10 +193,13 @@ export class PouchSyncService {
     const syncOps = {
       ...PouchSyncService.REPLICATION_OPTIONS,
       live: true,
-      retry: true
+      retry: false,
+      filter: (doc: { _id?: string }) => doc._id !== SYNC_COMPAT_ID
     }
 
     const generation = ++this.generation
+    clearTimeout(this.retryTimer); this.stopWatch?.(); this.stopWatch = undefined
+    this.destination = couchdbUrl; this.loadedStoryIds = getLoadedStoryIds
     this.remoteDatabase = undefined
     this.settingsReplicatedGeneration = 0
     this.initialReplication?.cancel?.()
@@ -230,7 +244,8 @@ export class PouchSyncService {
       return
     }
 
-    void this.runInitialSync(remote, generation, getLoadedStoryIds)
+    void this.preflight(remote, couchdbUrl, generation)
+      .then(() => this.generation === generation ? this.runInitialSync(remote, generation, getLoadedStoryIds) : 0)
       .then(async (initialChanges) => {
         if (this.generation !== generation) return
         this.initialReplication = undefined
@@ -239,7 +254,7 @@ export class PouchSyncService {
         // back and accidentally become the remote winner.
         const maintenanceSucceeded = await new PouchMaintenanceService(
           this.db,
-          (status) => this.updateStatus(status),
+          (status) => { if (this.generation === generation) this.updateStatus(status) },
           (error) => this.report(
             "database.maintenance",
             "Local database maintenance failed",
@@ -248,21 +263,12 @@ export class PouchSyncService {
           () => this.generation === generation
         ).run()
         if (this.generation !== generation || !maintenanceSucceeded) return
-        this.startLiveSync(remote, syncOps, initialChanges)
+        await this.compatibility.check(remote as PouchSyncDatabase, couchdbUrl, 1, () => this.generation === generation)
+        if (this.generation === generation) this.startLiveSync(remote, syncOps, initialChanges)
       })
       .catch((error) => {
         if (this.generation !== generation) return
-        this.initialReplication = undefined
-        console.error("pouch sync error", error)
-        this.updateStatus({
-          state: "error",
-          message: "Could not connect to CouchDB; see the error log"
-        })
-        this.report(
-          "sync.initial",
-          "Initial database synchronization failed",
-          error
-        )
+        this.pauseCompatibility(error, generation)
       })
   }
 
@@ -288,7 +294,7 @@ export class PouchSyncService {
       })
       await this.replicateOnce(
         remote,
-        { ...PouchSyncService.REPLICATION_OPTIONS, ...options },
+        { ...PouchSyncService.REPLICATION_OPTIONS, filter: (doc: { _id?: string }) => doc._id !== SYNC_COMPAT_ID, ...options },
         generation,
         presentation,
         (count) => {
@@ -457,50 +463,47 @@ export class PouchSyncService {
       changes: initialChanges
     })
     this.syncHandler = this.db.sync(remote, syncOps)
-    this.syncHandler
-      .on("change", (event: unknown) => {
-        this.onChange(event)
-        this.notifyRemoteChanges(event, true, "foreground")
-        const changes = this.changeCount(event)
-        this.updateStatus({
-          state: "syncing",
-          message: changes === 1 ? "Syncing 1 change…" : `Syncing ${changes} changes…`,
-          changes
-        })
-      })
-      .on("error", (err: unknown) => {
-        console.error("pouch err", err)
-        this.updateStatus({
-          state: "error",
-          message: "Sync failed; see the error log"
-        })
-        this.report("sync.live", "Database synchronization failed", err)
-      })
-      .on("denied", (err: unknown) => {
-        console.error("pouch denied", err)
-        this.updateStatus({
-          state: "error",
-          message: "A remote change was denied; see the error log"
-        })
-        this.report(
-          "sync.denied",
-          "The remote database denied a synchronized change",
-          err
-        )
-      })
-      .on("active", () => {
-        this.updateStatus({ state: "syncing", message: "Syncing changes…" })
-      })
-      .on("paused", (error: unknown) => {
-        this.updateStatus(
-          error
-            ? {
-              state: "retrying",
-              message: "Connection interrupted; retrying…"
-            }
-            : { state: "up-to-date", message: "Up to date" }
-        )
-      })
+    const generation = this.generation
+    listenLiveSync(this.syncHandler, () => this.generation === generation, event => {
+      this.onChange(event); this.notifyRemoteChanges(event, true, "foreground")
+      this.updateStatus({ state: "syncing", message: "Syncing changes…", changes: this.changeCount(event) })
+    }, busy => this.updateStatus({ state: busy ? "syncing" : "up-to-date", message: busy ? "Syncing changes…" : "Up to date" }),
+    error => this.pauseCompatibility(error, generation))
+  }
+
+  private async preflight(remote: string | PouchSyncDatabase, destination: string, generation: number): Promise<void> {
+    if (typeof remote === "string") throw new Error("Sync compatibility checks require a database transport")
+    await this.compatibility.check(remote, destination, 1, () => this.generation === generation)
+    if (this.generation !== generation) return
+    this.stopWatch = watchSyncCompatibility(remote,
+      () => this.compatibility.check(remote, destination, 1, () => this.generation === generation),
+      error => this.pauseCompatibility(error, generation))
+  }
+
+  private pauseCompatibility(error: unknown, generation: number): void {
+    if (this.generation !== generation) return
+    ++this.generation
+    this.initialReplication?.cancel?.(); this.syncHandler?.cancel?.(); this.stopWatch?.()
+    this.settingsReplicatedGeneration = 0
+    const details = error instanceof SyncCompatibilityError ? error.compatibility : undefined
+    const message = error instanceof Error && /^(Sync compatibility|Sync paused)/.test(error.message) ? error.message : "Sync paused. Could not verify compatibility with the database. Check your connection and try again."
+    this.report("sync.compatibility", message, new Error(message))
+    this.updateStatus({ state: details ? "update-required" : "error", message, ...(details ? { compatibility: details } : {}) })
+    if (!details && !message.startsWith("Sync compatibility")) this.retryTimer = setTimeout(() => this.recheckCompatibility(), 3000)
+  }
+
+  recheckCompatibility(): void { this.syncFrom(this.destination, this.loadedStoryIds) }
+
+  async requireSyncProtocol(version: number): Promise<void> {
+    if (!Number.isSafeInteger(version) || version < 1) throw new Error("Invalid sync protocol")
+    const generation = this.generation
+    try {
+      await this.compatibility.localRequirement(version)
+      if (!this.destination.trim()) return
+      if (!this.remoteDatabase) throw new Error("Connect sync before changing shared formats")
+      await this.compatibility.check(this.remoteDatabase, this.destination, version, () => this.generation === generation)
+      if (this.generation !== generation) throw new Error("Sync session changed; try again")
+    } catch (error) { this.pauseCompatibility(error, generation); throw error }
   }
 
   private notifyRemoteChanges(

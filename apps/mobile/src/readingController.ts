@@ -89,8 +89,8 @@ export class MobileReadingController {
     this.runtime.setReaderAudible(source, audible)
   }
 
-  onReaderClosed(listener: (reader: ReaderDocumentHost) => void): void {
-    this.runtime.onReaderClosed(listener)
+  onReaderClosed(listener: (reader: ReaderDocumentHost) => void): () => void {
+    return this.runtime.onReaderClosed(listener)
   }
 
   openBrowserUrl(url: string): void {

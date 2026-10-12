@@ -21,7 +21,7 @@ export class ReadingTabRuntime {
   private syncingTabs = false
   private usedInitialReader = false
   // Shell UI covering the panel; a tab created or selected under it must stay hidden too.
-  private readerClosedListener: ((reader: ReaderDocumentHost) => void) | null = null
+  private readonly readerClosedListeners = new Set<(reader: ReaderDocumentHost) => void>()
   private loadFailedListener: ((session: ReadingSession, url: string, reason: string) => void) | null = null
   // A tab is audible while its reader speaks or its page plays media.
   private readonly audible = new Map<string, { reader: boolean; page: boolean }>()
@@ -37,7 +37,7 @@ export class ReadingTabRuntime {
     private readonly announce: (message: string) => void
   ) {
     this.emptyCoordinator = new ReadingSurfaceCoordinator(this.emptySession, surface, initialReader, content)
-    initialReader.onDocumentClosed(() => this.readerClosedListener?.(initialReader))
+    initialReader.onDocumentClosed(() => this.readerClosedListeners.forEach(listener => listener(initialReader)))
     this.session = new Proxy(this.emptySession, {
       get: (_target, property) => {
         if (property === "subscribe") return (listener: (state: Readonly<ReadingSessionState>) => void) => {
@@ -69,8 +69,9 @@ export class ReadingTabRuntime {
   }
 
   /** A reader document closing or being replaced, in any tab. */
-  onReaderClosed(listener: (reader: ReaderDocumentHost) => void): void {
-    this.readerClosedListener = listener
+  onReaderClosed(listener: (reader: ReaderDocumentHost) => void): () => void {
+    this.readerClosedListeners.add(listener)
+    return () => this.readerClosedListeners.delete(listener)
   }
 
   /** A page that failed in any tab goes where `report` says (an add-on redirect that moved), in that tab. */
@@ -85,6 +86,11 @@ export class ReadingTabRuntime {
   isReaderWindow(source: unknown): boolean {
     return this.initialReader.isReaderWindow(source) ||
       [...this.runtimes.values()].some(runtime => runtime.reader.isReaderWindow(source))
+  }
+
+  readerDocumentIdentity(source: unknown): string | undefined {
+    if (this.initialReader.isReaderWindow(source)) return this.initialReader.documentIdentity
+    return [...this.runtimes.values()].find(runtime => runtime.reader.isReaderWindow(source))?.reader.documentIdentity
   }
 
   tabForReaderWindow(source: unknown): ReadingTab | undefined {
@@ -182,7 +188,7 @@ export class ReadingTabRuntime {
           const surface = this.surface.forTab?.({ tabId: tab.id, generation: tab.generation }) ?? this.surface
           const reader = this.usedInitialReader ? this.initialReader.createSibling() : this.initialReader
           this.usedInitialReader = true
-          if (reader !== this.initialReader) reader.onDocumentClosed(() => this.readerClosedListener?.(reader))
+          if (reader !== this.initialReader) reader.onDocumentClosed(() => this.readerClosedListeners.forEach(listener => listener(reader)))
           reader.setScrollPosition(() => tab.readerScroll)
           reader.setReaderPosition(() => tab.pendingReaderPosition)
           const coordinator = new ReadingSurfaceCoordinator(tab.session, surface, reader, this.content, undefined, tab.history)

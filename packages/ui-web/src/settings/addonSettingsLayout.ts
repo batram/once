@@ -28,7 +28,7 @@ function addonSyncNote(): HTMLElement[] {
   link.type = "button"
   link.className = "settings_inline_link"
   link.dataset.testid = "open-addon-sync"
-  link.textContent = "Add-on sync settings"
+  link.textContent = "Sync settings"
   // Already in Settings: switch section, without the menu button that toggles
   // the panel, and open the page in that visit's place so Back comes back here.
   link.addEventListener("click", () => {

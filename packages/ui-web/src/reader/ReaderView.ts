@@ -1,3 +1,4 @@
+import { readerErrorDocument } from "./readerErrorDocument"
 import { OnceClient } from "@once/app"
 import { articleFromStoredContent, extractArticle, ReaderArticle } from "./extractArticle"
 import { readerDocument, ReaderTheme } from "./readerDocument"
@@ -63,10 +64,16 @@ export class ReaderView {
     if (!ReaderView.client) throw new Error("ReaderView has not been mounted")
     let article = stored
     if (!article) {
-      const fetched = await ReaderView.client.fetchDocument(url)
-      article = extractArticle(fetched.html, fetched.url, fetched.mediaType)
+      try {
+        const fetched = await ReaderView.client.fetchDocument(url)
+        article = extractArticle(fetched.html, fetched.url, fetched.mediaType)
+      } catch (error) {
+        if (!openDocument) throw error
+        await openDocument(readerErrorDocument(url, error, currentTheme()), url, target)
+        return
+      }
     }
-    const html = readerDocument(article, currentTheme())
+    const html = readerDocument({ ...article, sourceUrl: url }, currentTheme())
     if (openDocument) {
       // Keep the requested story URL as reader identity even when fetching
       // followed redirects; article assets still resolve against the final URL.

@@ -1,3 +1,4 @@
+import type { ReaderAiRequest, ReaderAiResponse } from "@once/core"
 import type { RecognizedText } from "@once/app"
 import type { AddonCondition, StoryPageContext } from "@once/core"
 
@@ -234,6 +235,11 @@ export interface ElectronToolbarTool {
 }
 
 export interface ElectronBridge {
+  readerAi: {
+    onRequest(handler: (key: string, request: ReaderAiRequest) => void): () => void
+    reply(key: string, response: ReaderAiResponse): void
+  }
+
   app: {
     getBuildInfo(): Promise<ElectronBuildInfo>
     getUpdateStatus(): Promise<ElectronUpdateStatus>

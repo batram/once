@@ -15,7 +15,8 @@ const MAX_RENDER_PIXELS = 2600
 
 interface Host {
   asset(kind: PdfAssetKind, filename: string): Promise<Uint8Array>
-  recognize(image: Uint8Array): Promise<RecognizedText>
+  progress(page: number, total: number): void
+  recognize(image: Uint8Array, page: number): Promise<RecognizedText>
 }
 
 export function startPdfSandboxRuntime(scope: Window): void {
@@ -38,8 +39,9 @@ export function startPdfSandboxRuntime(scope: Window): void {
       if (!reply.bytes) throw new Error(reply.error || `Unable to load ${filename}`)
       return reply.bytes
     },
-    async recognize(image) {
-      const reply = await request<HostToPdfSandbox & { type: "recognized" }>({ type: "recognize", image }, [image.buffer])
+    progress: (page, total) => post({ type: "progress", page, total }),
+    async recognize(image, page) {
+      const reply = await request<HostToPdfSandbox & { type: "recognized" }>({ type: "recognize", image, page }, [image.buffer])
       if (!reply.result) throw new Error(reply.error || "Image text recognition failed")
       return reply.result
     }
@@ -109,6 +111,7 @@ async function extract(bytes: Uint8Array, workerSource: string, recognition: boo
     const title = (metadata?.info as { Title?: unknown } | undefined)?.Title
     const pages: PdfTextPage[] = []
     for (let number = 1; number <= pdf.numPages; number++) {
+      host.progress(number, pdf.numPages)
       const page = await pdf.getPage(number)
       try {
         const viewport = page.getViewport({ scale: 1 })
@@ -117,7 +120,7 @@ async function extract(bytes: Uint8Array, workerSource: string, recognition: boo
         const image = await renderPage(page)
         if (!image) { pages.push({ lines: [], method: "embedded" }); continue }
         if (!recognition) throw new Error(`PDF page ${number} has no embedded text. OCR is not available on this platform yet.`)
-        const recognized = await host.recognize(image)
+        const recognized = await host.recognize(image, number)
         if (!recognized.lines.some(line => line.trim())) throw new Error(`No text could be recognized on PDF page ${number}`)
         pages.push({ ...recognized, method: "ocr" })
       } finally { page.cleanup() }

@@ -1,3 +1,4 @@
+import { AiRequest, AiResult, AiSelection, AiResolvedModel, AiModel, SearchResult } from "../ai"
 import { StoryView } from "./storyView"
 import { AddonRequest, AddonResponse } from "./connections"
 import { AddonStoryContent, AddonTrayEvent, AddonTrayView } from "./trayProtocol"
@@ -9,6 +10,8 @@ export interface AddonRequestOptions {
 
 export interface AddonTrayContext {
   readonly signal: AbortSignal
+  readonly ai: AddonAiApi
+  querySearch(query: string, connection?: string): Promise<SearchResult[]>
   request(connectionId: string, request: AddonRequest, options?: AddonRequestOptions): Promise<AddonResponse>
   /** Uses saved content normally; an explicit refresh-and-restart bypasses saved articles. */
   getStoryContent(): Promise<AddonStoryContent>
@@ -37,7 +40,16 @@ export interface AddonRedirectHandlers {
 export interface AddonFetchResult { status: number; text: string }
 
 /** Public author contract; handlers may return promises. Keep the supplied story object for operations. */
+export interface AddonAiApi {
+  connections(): Promise<Array<{ id: string; name: string; provider: import("../ai").AiProvider }>>
+  generate(request: AiRequest, options?: { onText?(text: string): void }): Promise<AiResult>
+  resolve(selection?: AiSelection): Promise<AiResolvedModel>
+  models(connection: string): Promise<AiModel[]>
+}
+
 export interface OnceAddonApi {
+  readonly ai: AddonAiApi
+  querySearch(query: string, connection?: string, context?: AddonTrayContext): Promise<SearchResult[]>
   readonly settings: Readonly<Record<string, unknown>>
   readonly collectors: { register(id: string, handlers: AddonCollectorHandlers): void }
   /** `set` pushes a new replacement at any time, such as after a collector moved elsewhere. */

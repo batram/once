@@ -48,7 +48,9 @@ export interface DiagnosticError {
 }
 
 export interface SyncStatus {
+  compatibility?: { supportedSyncProtocol: number; requiredSyncProtocol: number; minAppVersion?: string }
   state:
+    | "update-required"
     | "disabled"
     | "connecting"
     | "syncing"
@@ -109,6 +111,7 @@ export interface OnceAppEvents {
       | "swipe"
       | "extensions"
       | "addons"
+      | "ai"
       | "content"
   }
   /** Something changed what the cache holds: a reload, a refetch, a clear. */
@@ -157,7 +160,7 @@ export interface OnceClient {
   createAddonVault(passphrase: string, remember: boolean, deviceName: string): Promise<{ recoveryKey: string; warning?: string }>
   unlockAddonVault(secret: string, recovery: boolean, remember: boolean, deviceName: string): Promise<void>
   lockAddonVault(): Promise<void>
-  /** Turns add-on sync off on this device only; its add-ons and tokens stay here. Unlocking turns it back on. */
+  /** Turns add-on sync off on this device only; its add-ons and tokens stay here. The shared unlock preserves this choice. */
   leaveAddonVault(): Promise<void>
   /** Whether a passphrase opens the synced add-on vault; nothing is unlocked or stored. */
   verifyAddonVaultPassphrase(passphrase: string): Promise<boolean>
@@ -166,6 +169,7 @@ export interface OnceClient {
   resolveAddonVault(revision: string, expected: string[]): Promise<void>
   getDiagnostics(): DiagnosticError[]
   getSyncStatus(): SyncStatus
+  recheckSyncCompatibility(): void
   getStorySources(): Promise<StorySourceDocument>
   saveStorySources(
     storySources: StorySourceDocument,
@@ -230,6 +234,29 @@ export interface OnceClient {
    * The token a source sends, kept on this device only. Absent reads as "";
    * setting "" removes it. Rejects when this shell has no secret store.
    */
+  formatReaderAi(blocks: import("@once/core").ReaderFormatBlock[], signal?: AbortSignal, model?: import("@once/core").AiResolvedModel): Promise<import("@once/core").ReaderFormatResult>
+  readDocumentAi(url: string, signal?: AbortSignal, progress?: (text: string) => void, model?: import("@once/core").AiResolvedModel): Promise<Extract<import("./textRetrieval").RetrievedDocument, { kind: "text" }>>
+  getAiSettings(): Promise<import("@once/core").AiSettings>
+  saveAiSettings(settings: import("@once/core").AiSettings): Promise<void>
+  saveAiToken(id: string, endpoint: string, token: string): Promise<void>
+  hasAiToken(id: string): Promise<boolean>
+  listAiConnections(): Promise<Array<Pick<import("@once/core").AiConnection, "id" | "name" | "provider">>>
+  registerLocalAiConsumers(ids: string[]): void
+  listAiModels(id: string, signal?: AbortSignal): Promise<import("@once/core").AiModel[]>
+  resolveAiModel(consumer: string, selection?: import("@once/core").AiSelection): Promise<import("@once/core").AiResolvedModel>
+  generateAi(consumer: string, request: import("@once/core").AiRequest, signal?: AbortSignal, onText?: (text: string) => void): Promise<import("@once/core").AiResult>
+  querySearch(query: string, connection?: string, signal?: AbortSignal): Promise<import("@once/core").SearchResult[]>
+  getLegacyAiImportStatus(): Promise<string | null>
+  importLegacyAiVault(secret?: string, recovery?: boolean): Promise<boolean>
+  editAiConnection(edit: import("./ai/settingsMutations").ConnectionEdit): Promise<void>
+  removeAiConnection(id: string, expected: import("@once/core").AiConnection | import("@once/core").SearchConnection): Promise<void>
+  setAiModel(consumer: string | null, selection?: import("@once/core").AiSelection): Promise<void>
+  setDefaultSearch(id?: string): Promise<void>
+  migrateAiSettings(): Promise<boolean>
+  unlockSyncVault(secret: string, recovery: boolean, remember: boolean, name: string): Promise<void>
+  getSyncVaultStatus(): Promise<import("@once/core").AddonVaultStatus>
+  getSyncDatasets(): Promise<{ addons: boolean; ai: boolean }>
+  setSyncDataset(dataset: "addons" | "ai", enabled: boolean): Promise<void>
   getSourceSecret(sourceId: string): Promise<string>
   setSourceSecret(sourceId: string, secret: string): Promise<void>
   saveAddonSecret(addon: string, field: string, endpoint: string, secret: string, localOnly?: boolean): Promise<void>
@@ -365,6 +392,8 @@ export interface StoryStorePort {
 }
 
 export interface SyncServicePort {
+  requireSyncProtocol?(version: number): Promise<void>
+  recheckCompatibility?(): void
   storageInfo?(): Promise<{ doc_count?: number; doc_del_count?: number; sizes?: { file?: number; active?: number }; compact_running?: boolean } | null>
   syncFrom(couchdbUrl: string, getLoadedStoryIds?: () => string[]): void
   onSettingsReplicated?(handler: () => void): () => void

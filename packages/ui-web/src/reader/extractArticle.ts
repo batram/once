@@ -3,6 +3,7 @@ import { StoredContentMeta } from "@once/core"
 import { sanitize, sanitizedFragmentDocument } from "./sanitizeHtml"
 
 export interface ReaderArticle {
+  mediaType?: string
   title: string
   byline: string
   siteName: string
@@ -39,7 +40,7 @@ export function extractArticle(
 ): ReaderArticle {
   if (mediaType === "text/plain") {
     const doc = new DOMParser().parseFromString(html, "text/html")
-    return articleFromStoredContent(doc.querySelector("article")?.innerHTML ?? doc.body.innerHTML, { source: "page", saved_at: 0, title: doc.title }, sourceUrl)
+    return { ...articleFromStoredContent(doc.querySelector("article")?.innerHTML ?? doc.body.innerHTML, { source: "page", saved_at: 0, title: doc.title }, sourceUrl), mediaType }
   }
   const doc = parseDocument(html, mediaType)
   revealStreamedContent(doc)

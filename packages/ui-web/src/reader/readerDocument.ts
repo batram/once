@@ -11,6 +11,7 @@ export function readerDocument(
 ): string {
   const values: Record<string, string> = {
     ARTICLE: article.content,
+    KIND: article.mediaType === "text/plain" || article.mediaType === "application/octet-stream" ? "document" : "article",
     BYLINE: article.byline
       ? `<p class="byline">${escapeHtml(article.byline)}</p>`
       : "",

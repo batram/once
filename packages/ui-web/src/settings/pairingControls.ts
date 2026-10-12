@@ -9,7 +9,7 @@ const SHOWN_FOR_MS = 60_000
 
 /**
  * Settings › Sync › Pair a device. Showing a code warns first, since it
- * carries the database password, and only adds the add-on sync passphrase
+ * carries the database password, and only adds the sync passphrase
  * when asked to and after checking it. Connecting from a link or a scanned
  * code names the database and user before anything changes.
  */
@@ -40,7 +40,7 @@ export function bindPairingControls(client: OnceClient, scan?: () => Promise<str
     })
   }
   offer()
-  // Opening the page brings the offer up to date (add-on sync may have been
+  // Opening the page brings the offer up to date (encrypted sync may have been
   // set up meanwhile); so do connecting and disconnecting. Status flips
   // between syncing and up to date all the time: redrawing on each would
   // reset the passphrase choice the reader is making.
@@ -66,7 +66,7 @@ export function bindPairingControls(client: OnceClient, scan?: () => Promise<str
     const { database, user } = describeSyncConnection(payload.syncUrl)
     void confirmPairing(`Connect to ${database}${user ? ` as ${user}` : ""}?`,
       payload.passphrase
-        ? "This replaces the current sync connection and unlocks add-on sync with the passphrase in the link."
+        ? "This replaces the current sync connection and unlocks encrypted sync with the passphrase in the link."
         : "This replaces the current sync connection.",
       // The browser asks for consent only while the click is being handled.
       () => consent === "required" ? client.requestSyncConsent() : Promise.resolve(true))
@@ -76,7 +76,7 @@ export function bindPairingControls(client: OnceClient, scan?: () => Promise<str
         await client.setSyncUrl(payload.syncUrl)
         await waitForPairingSync(client)
         input.value = ""
-        status.textContent = payload.passphrase ? "Connected. Waiting for add-on sync…" : "Connected"
+        status.textContent = payload.passphrase ? "Connected. Waiting for encrypted sync…" : "Connected"
         if (payload.passphrase) status.textContent = await unlockAddonSync(client, payload.passphrase)
       })
       .catch((error) => { status.textContent = error instanceof Error ? error.message : "Pairing failed" })
@@ -94,7 +94,7 @@ export function bindPairingControls(client: OnceClient, scan?: () => Promise<str
 /** The warning, the passphrase choice, and the button that makes the code. */
 async function renderOffer(client: OnceClient, panel: HTMLElement, current: () => boolean, showCode: (link: string) => void): Promise<void> {
   const syncUrl = await client.getSyncUrl()
-  const vault = await client.getAddonVaultStatus().catch(() => null)
+  const vault = await (client.getSyncVaultStatus?.() ?? client.getAddonVaultStatus()).catch(() => null)
   if (!current()) return
   const warning = document.createElement("p")
   warning.className = "pair_warning"
@@ -110,18 +110,18 @@ async function renderOffer(client: OnceClient, panel: HTMLElement, current: () =
   const includeBox = document.createElement("input")
   includeBox.type = "checkbox"
   includeBox.dataset.testid = "pair-include-passphrase"
-  include.append(includeBox, " Also include the add-on sync passphrase")
+  include.append(includeBox, " Also include the sync passphrase")
   const passphrase = document.createElement("input")
   passphrase.type = "password"
   passphrase.autocomplete = "current-password"
-  passphrase.placeholder = "Add-on sync passphrase"
-  passphrase.setAttribute("aria-label", "Add-on sync passphrase")
+  passphrase.placeholder = "Sync passphrase"
+  passphrase.setAttribute("aria-label", "Sync passphrase")
   passphrase.dataset.testid = "pair-passphrase"
   passphrase.hidden = true
   const stronger = document.createElement("p")
   stronger.className = "pair_warning"
   stronger.hidden = true
-  stronger.textContent = "With the passphrase, the code also opens your synced add-on tokens and settings."
+  stronger.textContent = "With the passphrase, the code also opens your enabled encrypted sync datasets."
   includeBox.addEventListener("change", () => { passphrase.hidden = stronger.hidden = !includeBox.checked })
   const make = document.createElement("button")
   make.type = "button"
@@ -133,7 +133,7 @@ async function renderOffer(client: OnceClient, panel: HTMLElement, current: () =
   make.addEventListener("click", () => void (async () => {
     const withPassphrase = includeBox.checked
     if (withPassphrase && !await client.verifyAddonVaultPassphrase(passphrase.value)) {
-      feedback.textContent = "That passphrase does not open add-on sync"
+      feedback.textContent = "That passphrase does not open encrypted sync"
       return
     }
     if (!current()) return
@@ -236,17 +236,17 @@ function confirmPairing(question: string, detail: string, beforeConnect: () => P
 async function unlockAddonSync(client: OnceClient, passphrase: string): Promise<string> {
   const until = Date.now() + 60_000
   while (Date.now() < until) {
-    const status = await client.getAddonVaultStatus().catch(() => null)
-    if (status?.state === "ready") return "Connected; add-on sync is unlocked"
+    const status = await (client.getSyncVaultStatus?.() ?? client.getAddonVaultStatus()).catch(() => null)
+    if (status?.state === "ready") return "Connected; encrypted sync is unlocked"
     if (status?.state === "locked") {
       const name = (await client.getTabSync().catch(() => null))?.self?.name ?? ""
-      await client.unlockAddonVault(passphrase, false, status.protectedStorage === true, name)
-      return "Connected; add-on sync is unlocked"
+      await (client.unlockSyncVault?.(passphrase, false, status.protectedStorage === true, name) ?? client.unlockAddonVault(passphrase, false, status.protectedStorage === true, name))
+      return "Connected; encrypted sync is unlocked"
     }
-    if (status?.state === "disabled" && client.getSyncStatus().state === "up-to-date") return "Connected; there is no add-on sync to unlock"
+    if (status?.state === "disabled" && client.getSyncStatus().state === "up-to-date") return "Connected; there is no encrypted sync to unlock"
     await new Promise((resolve) => setTimeout(resolve, 500))
   }
-  return "Connected, but add-on sync has not arrived yet; unlock it in Settings › Sync"
+  return "Connected, but encrypted sync has not arrived yet; unlock it in Settings › Sync"
 }
 
 /** Copies through the async clipboard, or the older command where a shell refuses it. */

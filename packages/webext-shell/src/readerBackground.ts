@@ -1,3 +1,4 @@
+import { installReaderAiRouting } from "./readerAiRouting"
 import { watchPdfSources } from "./pdfSource"
 import { cancelSourceDownload } from "./sourceDownload"
 import {
@@ -16,6 +17,7 @@ interface StoredReaderDocument {
 export function installReaderBackground(
   browserApi: typeof browser = browser
 ): () => void {
+  const releaseAi = browserApi.runtime.onConnect ? installReaderAiRouting(browserApi) : () => undefined
   let activeReaderTabId: number | null = null
   const messageListener = (message: {
     onceCommand?: string
@@ -95,6 +97,7 @@ export function installReaderBackground(
   browserApi.runtime.onMessage.addListener(messageListener)
   browserApi.tabs.onRemoved.addListener(removedListener)
   return () => {
+    releaseAi()
     browserApi.runtime.onMessage.removeListener(messageListener)
     browserApi.tabs.onRemoved.removeListener(removedListener)
   }

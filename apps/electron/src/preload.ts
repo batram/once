@@ -16,6 +16,14 @@ import {
 } from "@once/platform-electron/bridge"
 
 const bridge: ElectronBridge = {
+  readerAi: {
+    onRequest(handler) {
+      const listener = (_event: Electron.IpcRendererEvent, key: string, request: import("@once/core").ReaderAiRequest) => handler(key, request)
+      ipcRenderer.on("once:reader-ai-host", listener)
+      return () => ipcRenderer.removeListener("once:reader-ai-host", listener)
+    },
+    reply: (key, response) => ipcRenderer.send("once:reader-ai-reply", key, response)
+  },
   app: {
     getBuildInfo: () => ipcRenderer.invoke(ELECTRON_IPC.appGetBuildInfo),
     getUpdateStatus: () => ipcRenderer.invoke(ELECTRON_IPC.appGetUpdateStatus),

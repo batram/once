@@ -63,6 +63,9 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
     feedback.setAttribute("role", "status")
     const confirm = addonButton(existing ? "Apply update" : "Confirm install", async () => {
       await requireAddonAvailability(client)
+      if (existing?.manifest.id === "what-wait-who-why" && existing.manifest.settings?.type === "object" && existing.manifest.settings.properties.provider && entry.manifest.capabilities.includes("ai")) {
+        if (!await client.migrateAiSettings()) throw new Error("Set up and unlock encrypted AI sync in AI & Search before migrating this add-on")
+      }
       feedback.textContent = "Verifying package…"
       const projected = upsertAddon(await client.getAddons(), entry).addons.find(item => item.manifest.id === entry.manifest.id)
       if (!projected) throw new Error("The add-on could not be prepared")

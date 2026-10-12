@@ -21,7 +21,8 @@ function handleRequest(request, response) {
   if (request.url === "/ai-addon/main.js") {
     response.writeHead(200, { "content-type": "text/javascript" }); response.end(script); return true
   }
-  if (request.url === "/ai-addon/completions" && request.method === "POST") {
+  if (request.url === "/ai-addon/v1/models") { response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify({ data: [{ id: "fixture" }, { id: "fixture-vision" }] })); return true }
+  if (["/ai-addon/completions", "/ai-addon/v1/chat/completions"].includes(request.url) && request.method === "POST") {
     let text = ""
     request.on("data", chunk => { text += chunk })
     request.on("end", () => {
@@ -29,8 +30,10 @@ function handleRequest(request, response) {
       const call = { body, authorized: request.headers.authorization === "Bearer fixture-token", closed: false }
       calls.push(call)
       response.once("close", () => { call.closed = true })
-      const last = body.messages.at(-1).content
-      const answer = last.includes("Summarize") ? "- The article describes its main result.\n- Its qualifications are preserved." :
+      const content = body.messages.at(-1).content
+      const last = typeof content === "string" ? content : "Image transcription"
+      const formatting = body.messages[0]?.content?.includes("Classify the supplied document blocks")
+      const answer = formatting ? JSON.stringify(JSON.parse(last).map((block, index) => ({ id: block.id, kind: index === 0 && block.text.length < 100 ? "h2" : block.kind }))) : Array.isArray(content) ? "Scanned heading\n\nFirst paragraph.\n\nSecond paragraph." : last.includes("Summarize") ? "- The article describes its main result.\n- Its qualifications are preserved." :
         // The follow-up carries a link, so hosts can show that a tray link opens where their tabs are.
         last.includes("Who uses") ? `Developers use it. This follows our earlier explanation. See [the beta story](http://${request.headers.host}/story/beta).` :
           "**ExampleApp is software** for organizing projects.\n\n## Key entities\n\n**ExampleApp**: a project organizer. Use `projects` to group related work."

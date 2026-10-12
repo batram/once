@@ -19,7 +19,7 @@ async function render(): Promise<void> {
     installReaderDocument(readerDocument(article, theme))
     await installReaderPageTts(browser.runtime)
   } catch (error) {
-    showReaderPageError(error)
+    showReaderPageError(error, sourceUrl, browser.runtime)
   }
 }
 

@@ -26,7 +26,7 @@ async function render(): Promise<void> {
       const fetched = await fetchDocument(fetch, sourceUrl, undefined, createPdfTextPort({ sandboxUrl: browser.runtime.getURL("static/pdf-sandbox.html") }))
       const article = extractArticle(fetched.html, fetched.url, fetched.mediaType)
       const theme = params.get("theme")
-      installReaderDocument(readerDocument(article, theme === "dark" || theme === "light" ? theme : "system"))
+      installReaderDocument(readerDocument({ ...article, sourceUrl }, theme === "dark" || theme === "light" ? theme : "system"))
       await installReaderPageTts(browser.runtime)
       return
     }
@@ -42,7 +42,7 @@ async function render(): Promise<void> {
     installReaderDocument(stored.html)
     await installReaderPageTts(browser.runtime)
   } catch (error) {
-    showReaderPageError(error)
+    showReaderPageError(error, new URLSearchParams(location.search).get("sourceUrl") ?? location.href, browser.runtime)
   }
 }
 

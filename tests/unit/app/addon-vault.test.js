@@ -336,11 +336,11 @@ test("turning add-on sync off on one device keeps its add-ons, package and token
   assert.equal(await second.client.hasAddonSecret(manifest.id, "token", "https://provider.test/messages"), true)
   await second.client.requestAddonConnection(doc.addons[0].manifest, doc.addons[0].options, "provider", { method: "POST" })
   assert.deepEqual(second.state.requests, ["Bearer private-test-token"])
-  // Edits stay on this device; the vault key is forgotten.
+  // Edits stay on this device; the shared unlock is retained for other datasets.
   await second.client.saveAddons(readAddonsDocument({ version: 1, addons: [] }))
   assert.equal((await second.client.getAddons()).addons.length, 0)
   assert.equal(JSON.stringify(second.state.records), sharedBefore)
-  assert.equal(JSON.parse(second.local.get("once:addon-vault")).key, "")
+  assert.equal(JSON.parse(second.local.get("once:addon-vault")).datasets.addons, false)
   await assert.rejects(second.client.shareAddonSnapshot(installed().addons[0], code), /Turn add-on sync on/)
   // Unlocking again rejoins: the synced add-ons replace this device's own.
   await second.client.unlockAddonVault(passphrase, false, true, "Phone")

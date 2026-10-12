@@ -1,3 +1,4 @@
+import { bindConsumerModel } from "./aiConsumerSettings"
 import { OnceClient } from "@once/app"
 import { AddonEntry, AddonModel, ConfigSchema, validateConfig } from "@once/core"
 import { requireElement } from "../dom"
@@ -108,6 +109,7 @@ function settingsGroup(client: OnceClient, entry: AddonEntry, dev: boolean, cont
     updateStatus(group)
   }
   group.append(sourceCard(entry, dev, controls))
+  if (manifest.capabilities?.includes("ai")) bindConsumerModel(client, group, manifest.id, manifest.shortName ?? manifest.name)
   const values = validateConfig(schema, entry.options ?? {}) as Record<string, unknown>
   const fields: { element: HTMLElement; schema: ConfigSchema }[] = []
   // A field hides with the field its condition names, so a hidden toggle takes its dependants along.

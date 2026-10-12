@@ -6,6 +6,8 @@ module.exports = Object.freeze([
   ["redirects", "Redirects", "#redirect_area"],
   ["extensions", "Browser Extensions", "#extension_settings"],
   ["addons", "Once Add-ons", "#addons_area"],
+  ["reader", "Reader", "#reader_settings"],
+  ["ai", "AI & Search", "#ai_settings"],
   ["sync", "Sync", "#couch_input"],
   ["theme", "Appearance", "#theme_select"],
   ["keyboard", "Keyboard shortcuts", "#keyboard_shortcuts", "electron"],

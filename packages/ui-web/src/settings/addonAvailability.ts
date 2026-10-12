@@ -6,7 +6,7 @@ export async function requireAddonAvailability(client: OnceClient): Promise<void
   if (["locked", "conflict", "error"].includes(status.state)) {
     throw new Error(status.state === "conflict"
       ? "Review the sync conflict in Once Add-ons before installing or updating. Your synced add-ons have not been removed."
-      : status.state === "locked" ? "Unlock add-on sync in Once Add-ons before installing or updating."
+      : status.state === "locked" ? "Unlock encrypted sync in Settings → Sync before installing or updating."
         : status.message)
   }
 }

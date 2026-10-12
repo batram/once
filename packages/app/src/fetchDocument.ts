@@ -3,7 +3,7 @@ import { hasPdfSignature, isGenericBinaryType, isPdfByHeaders, mediaTypeOf } fro
 import { MAX_DOCUMENT_BYTES, readResponseBytes } from "./responseBytes"
 
 export { isDownloadByHeaders, isPdfByHeaders } from "./pdfMediaType"
-import { documentHtml, recognizeResponse, recognizedDocument, RetrievedDocument, TextRecognitionPort } from "./textRetrieval"
+import { documentHtml, recognizeResponse, recognizedDocument, RetrievedDocument, TextRecognitionPort, DocumentRecognitionOptions } from "./textRetrieval"
 
 /**
  * Media types the reader can extract from. XHTML is included because sites that
@@ -19,13 +19,14 @@ export async function retrieveDocument(
   fetch: typeof globalThis.fetch,
   url: string,
   recognition?: TextRecognitionPort,
-  pdf?: PdfTextPort
+  pdf?: PdfTextPort,
+  options?: DocumentRecognitionOptions
 ): Promise<RetrievedDocument> {
   const parsed = new URL(url)
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error("Reader mode only supports HTTP and HTTPS pages")
   }
-  const response = await fetch(parsed.toString(), { credentials: "omit" })
+  const response = await fetch(parsed.toString(), { credentials: "omit", ...(options?.signal ? { signal: options.signal } : {}) })
   if (!response.ok) {
     if (response.status === 429) {
       throw new Error(
@@ -40,15 +41,15 @@ export async function retrieveDocument(
   const contentType = response.headers.get("content-type") || ""
   const mediaType = mediaTypeOf(contentType)
   const finalUrl = response.url || parsed.toString()
-  if (isPdfByHeaders(finalUrl, contentType, response.headers.get("content-disposition"))) return retrievePdf(response, finalUrl, pdf, recognition)
+  if (isPdfByHeaders(finalUrl, contentType, response.headers.get("content-disposition"))) return retrievePdf(response, finalUrl, pdf, recognition, options)
   if (isGenericBinaryType(mediaType)) {
     // A download type without a telling name: the bytes say whether it is a PDF.
     const bytes = response.body ? await readResponseBytes(response, MAX_DOCUMENT_BYTES, "Document") : new Uint8Array()
-    if (hasPdfSignature(bytes)) return extractPdf(bytes, finalUrl, pdf, recognition)
+    if (hasPdfSignature(bytes)) return extractPdf(bytes, finalUrl, pdf, recognition, options)
     throw new Error(`Reader mode cannot display ${contentType || "this content type"}`)
   }
   if (mediaType.startsWith("image/")) {
-    const result = await recognizeResponse(response, recognition)
+    const result = await recognizeResponse(response, recognition, options?.cloud)
     return recognizedDocument(result, response.url || parsed.toString(), mediaType)
   }
   if (!READABLE_MEDIA_TYPES.has(mediaType)) {

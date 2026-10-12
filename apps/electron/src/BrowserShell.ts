@@ -1,3 +1,4 @@
+import { readerErrorDocument } from "@once/ui-web/reader/readerErrorDocument"
 import { ElectronBridge, ElectronTabState, REMOTE_TABS_URL } from "@once/platform-electron/bridge"
 import {
   focusStoryList,
@@ -650,7 +651,7 @@ export class BrowserShell {
   private showReaderError(tabId: string, sourceUrl: string, error: unknown): void {
     this.address.setError("")
     void this.bridge.tabs
-      .showReaderError(sourceUrl, readerErrorMessage(error), tabId)
+      .openReader(readerErrorDocument(sourceUrl, readerErrorMessage(error), document.body.getAttribute("data-theme") === "dark" ? "dark" : "light"), sourceUrl, "current", tabId)
       .catch((reportError) => {
         console.error("Failed to display the reader error page", reportError)
       })

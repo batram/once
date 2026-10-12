@@ -6,7 +6,7 @@ export * from "./OnceApp"
 export * from "./browsingSite"
 export type { TabSyncView, RemoteDeviceView, SentTabView } from "./tabsync/TabSyncService"
 
-export type { RecognizedText, TextRecognitionPort } from "./textRetrieval"
+export type { RecognizedText, TextRecognitionPort, DocumentRecognitionOptions } from "./textRetrieval"
 export type { AddonRedirectHandler, AddonRedirectView } from "./AddonRedirects"
 export type { PdfTextPort, PdfTextResult, PdfTextPage } from "./pdfRetrieval"
 export { MAX_DOCUMENT_BYTES } from "./responseBytes"

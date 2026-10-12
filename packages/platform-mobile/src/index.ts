@@ -178,7 +178,7 @@ export function createMobilePlatform(
   installNativeFetch()
   keepIndexedDbOpenAfterAborts()
   const onceDb = database || new PouchDB("once_mobile_v1", LOCAL_POUCH_OPTIONS)
-  const listStore = new PouchListStore(onceDb)
+  const listStore = new PouchListStore(onceDb, version => syncService.requireSyncProtocol(version))
   const storyStore = new PouchStoryStore(onceDb, (story) => Story.from_obj(story))
   const syncService = new PouchSyncService(
     onceDb as unknown as PouchSyncDatabase,

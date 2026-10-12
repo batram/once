@@ -344,6 +344,7 @@ function runReaderTts(
     populateVoiceOptions(voiceSelect, synth.getVoices(), session.state.voice)
     session.notify()
   })
+  bindReaderContentUpdates(session, segments, article, createSegments)
   const unsubscribeStop = options.subscribeToStop?.(() => session.yield())
   const unsubscribeControl = options.subscribeToControl?.((control) => {
     applyControl(control, session, voiceSelect, remember, follow)
@@ -541,4 +542,13 @@ function populateVoices(
     select.append(option)
   })
   if (available.some((voice) => voice.voiceURI === previous)) select.value = previous
+}
+
+function bindReaderContentUpdates(session: ReaderSpeechSession, segments: ReturnType<typeof createReaderSpeechSegments>, article: HTMLElement, createSegments: typeof createReaderSpeechSegments): void {
+  document.addEventListener("once-reader-content-changing", () => session.stop())
+  document.addEventListener("once-reader-content-changed", () => {
+    session.stop()
+    segments.splice(0, segments.length, ...createSegments(article))
+    session.replaceTexts(segments.map(segment => segment.text))
+  })
 }

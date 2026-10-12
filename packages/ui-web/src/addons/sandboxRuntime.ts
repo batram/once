@@ -1,3 +1,4 @@
+import { AiRequest, AiResult, AiSelection, AiResolvedModel, AiModel, SearchResult } from "@once/core"
 // Runs inside the add-on sandbox frame, and nowhere else. It receives the
 // add-on's code from the parent, runs it as a module, hands it the `once`
 // object, and relays requests and operations. Nothing here may import from
@@ -67,6 +68,13 @@ function createApi(state: RuntimeState, post: (message: SandboxToHost) => void):
       get: (key) => ask({ name: "storage.get", href: "", key }),
       set: async (key, value) => { await ask({ name: "storage.set", href: "", key, value }) }
     },
+    ai: {
+      connections: () => ask({ name: "ai.connections", href: "" }) as ReturnType<import("@once/core").AddonAiApi["connections"]>,
+      generate: (request, options) => askOperation(state, post, { name: "ai.generate", href: "", request, ...(options?.onText ? { stream: true } : {}) }, undefined, options?.onText) as Promise<AiResult>,
+      resolve: selection => ask({ name: "ai.resolve", href: "", selection }) as Promise<AiResolvedModel>,
+      models: connection => ask({ name: "ai.models", href: "", connection }) as Promise<AiModel[]>
+    },
+    querySearch: (query, connection, context) => context ? context.querySearch(query, connection) : ask({ name: "search.query", href: "", query, connection }) as Promise<SearchResult[]>,
     fetch: (url) => ask({ name: "fetch", href: "", url }) as Promise<FetchResult>,
     request: (connection, request, context) => context ? context.request(connection, request) : ask({ name: "request", href: "", connection, request }) as Promise<AddonResponse>,
     getStoryContent: story => askOperation(state, post, { name: "story.content", href: story.href }, state.storyRequests.get(story)) as Promise<AddonStoryContent>,
@@ -122,6 +130,13 @@ function work(message: HostToSandbox, state: RuntimeState, post: (message: Sandb
       }
       const context: AddonTrayContext = {
         signal: controller.signal,
+        ai: {
+          connections: () => ask({ name: "ai.connections", href: "" }) as ReturnType<import("@once/core").AddonAiApi["connections"]>,
+          generate: (request: AiRequest, options?: { onText?(text: string): void }) => ask({ name: "ai.generate", href: "", request, ...(options?.onText ? { stream: true as const } : {}) }, options?.onText) as Promise<AiResult>,
+          resolve: (selection?: AiSelection) => ask({ name: "ai.resolve", href: "", selection }) as Promise<AiResolvedModel>,
+          models: (connection: string) => ask({ name: "ai.models", href: "", connection }) as Promise<AiModel[]>
+        },
+        querySearch: (query: string, connection?: string) => ask({ name: "search.query", href: "", query, connection }) as Promise<SearchResult[]>,
         request: (connection, request, options) => {
           const onChunk = typeof options?.onChunk === "function" ? options.onChunk : undefined
           return ask({ name: "request", href: "", connection, request, ...(onChunk ? { stream: true as const } : {}) }, onChunk) as Promise<AddonResponse>
@@ -221,7 +236,7 @@ export function startSandboxRuntime(scope: Window): void {
       if (!waiting) return
       state.awaitingOps.delete(message.opId)
       if (message.ok) waiting.resolve(message.value)
-      else waiting.reject(new Error(message.error ?? "refused"))
+      else waiting.reject(Object.assign(new Error(message.error ?? "refused"), { code: message.code }))
     } else if (message.type === "opProgress") {
       // A throwing callback is the addon's own bug; the request carries on.
       try { state.awaitingOps.get(message.opId)?.onChunk?.(message.text) } catch (error) { console.error(error) }

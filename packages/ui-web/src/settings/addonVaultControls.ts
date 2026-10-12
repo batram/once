@@ -1,3 +1,4 @@
+import { legacyAiImportControls } from "./legacyAiImportControls"
 import { OnceClient } from "@once/app"
 import { AddonVaultStatus } from "@once/core"
 import { refreshAddonCollectionSummary } from "./addonAvailability"
@@ -17,7 +18,7 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
   group.id = "addon_vault_controls"
   group.className = "settings_group addon_vault"
   const title = document.createElement("legend")
-  title.textContent = "Add-on sync"
+  title.textContent = "Encrypted sync"
   // The state and what it means, as one card at the top of the page.
   const summary = document.createElement("div")
   summary.className = "addon_vault_summary"
@@ -47,7 +48,7 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
     if (busy) return
     busy = true
     feedback.textContent = "Working…"
-    for (const control of [...form.querySelectorAll<HTMLButtonElement>("button"), ...review.querySelectorAll<HTMLButtonElement>("button")]) control.disabled = true
+    for (const control of [...form.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>("button,input,select,textarea"), ...review.querySelectorAll<HTMLButtonElement>("button")]) control.disabled = true
     try { await work(); feedback.textContent = "" }
     catch (error) { feedback.textContent = error instanceof Error ? error.message : "Could not update synced connections" }
     finally { busy = false; signature = ""; await refresh() }
@@ -61,13 +62,13 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
     for (const control of review.querySelectorAll<HTMLButtonElement>("button")) control.disabled = false
     form.hidden = ["error", "unavailable"].includes(state.state)
     hint.textContent = state.state === "conflict"
-      ? "Your synced add-ons are paused, not removed. Choose a version to restore them on all devices. Linked folders remain available on this device."
-      : state.state === "ready" ? "Packages, settings and saved connections sync together, encrypted. Linked folders stay on this device."
+      ? "Encrypted sync needs review. Choose a version to restore them on all devices. Linked folders remain available on this device."
+      : state.state === "ready" ? "One passphrase protects your synced add-ons and AI connections. Choose what this device syncs below."
         : state.state === "off" ? "This device keeps its add-ons and their tokens, and no longer syncs them. Other devices still sync. " +
           "Turning it back on replaces this device's add-ons with the synced ones."
-          : state.state === "locked" ? "Enter the sync passphrase to use your synced add-ons on this device."
+          : state.state === "locked" ? "Enter your sync passphrase to unlock the enabled datasets on this device."
             : ["error", "unavailable"].includes(state.state) ? ""
-              : "Sync packages, settings and saved connections between devices, encrypted. Set up once, then unlock on each new device."
+              : "Set up one sync passphrase and recovery key, then choose what this device syncs."
     if (form.hidden) return
     if (state.state === "conflict" && state.unlockRequired === false) {
       // Once the versions are listed, they are the next step; the button would only repeat it.
@@ -75,6 +76,7 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
       return
     }
     if (state.state === "ready") {
+      void legacyAiImportControls(client, form, run)
       readyActions(form, client, run, () => { recovery.replaceChildren(); recovery.hidden = true })
       return
     }
@@ -87,14 +89,15 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
     if (confirmation) confirmation.autocomplete = "new-password"
     const useRecovery = creating ? null : check(form, "Use recovery key", false)
     const remember = check(form, state.protectedStorage ? "Remember on this device using protected storage" : "Remember in this browser (weaker protection on a shared or compromised profile)", state.protectedStorage)
-    const submit = button(creating ? "Enable encrypted addon sync" : rejoining ? "Turn on on this device" : "Unlock add-on sync", () => void run(async () => {
+    const submit = button(creating ? "Enable encrypted sync" : rejoining ? "Turn on on this device" : "Unlock sync", () => void run(async () => {
       // Snapshots name their author with the device name set above in the Sync section.
       const name = { value: (await client.getTabSync().catch(() => null))?.self?.name ?? "" }
       if (creating) {
         if (secret.value !== confirmation?.value) throw new Error("The passphrases do not match")
         const result = await client.createAddonVault(secret.value, remember.checked, name.value)
         recoveryNotice(result.recoveryKey, result.warning)
-      } else await client.unlockAddonVault(secret.value, useRecovery?.checked === true, remember.checked, name.value)
+      } else if (client.unlockSyncVault) await client.unlockSyncVault(secret.value, useRecovery?.checked === true, remember.checked, name.value)
+      else await client.unlockAddonVault(secret.value, useRecovery?.checked === true, remember.checked, name.value)
       secret.value = ""
       if (confirmation) confirmation.value = ""
     }))
@@ -104,30 +107,27 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
   const refresh = async () => {
     const current = ++revision
     try {
-      const state = await client.getAddonVaultStatus()
+      const state = await (client.getSyncVaultStatus?.() ?? client.getAddonVaultStatus())
+      const addonState = await client.getAddonVaultStatus()
       if (current !== revision) return
       status.textContent = state.message
       const root = parent.closest<HTMLElement>("#addon_install_settings") ?? document.querySelector<HTMLElement>("#addon_install_settings")
       if (root) {
-        root.dataset.vaultState = state.state
-        const paused = ["locked", "conflict", "error"].includes(state.state)
+        root.dataset.vaultState = addonState.state
+        const paused = ["locked", "conflict", "error"].includes(addonState.state)
         for (const control of root.querySelectorAll<HTMLButtonElement>('[data-testid="open-addon-import"], [data-testid="update-addons"], [data-testid="open-addon-advanced"]')) control.disabled = paused
       }
       // The Add-ons page's link here says what it will find.
-      for (const link of document.querySelectorAll<HTMLElement>("[data-addon-sync-link]")) {
-        link.hidden = state.state === "unavailable"
-        link.dataset.vaultState = state.state
-        const summary = link.querySelector<HTMLElement>("[data-addon-sync-summary]")
-        if (summary) summary.textContent = VAULT_SUMMARIES[state.state] ?? ""
-      }
+      updateSyncLinks(state)
       refreshAddonCollectionSummary()
-      const next = `${state.state}:${state.protectedStorage}:${state.unlockRequired}`
+      const datasets = await client.getSyncDatasets?.()
+      const next = `${state.state}:${state.protectedStorage}:${state.unlockRequired}:${JSON.stringify(datasets)}`
       if (busy || signature === next) return
       signature = next
       configure(state)
     } catch { status.textContent = "Could not read encrypted sync status" }
   }
-  client.subscribe("settingsChanged", ({ section }) => { if (section === "addons" || section === "sync") void refresh() })
+  client.subscribe("settingsChanged", ({ section }) => { if (section === "addons" || section === "ai" || section === "sync") void refresh() })
   void refresh()
 }
 
@@ -149,12 +149,23 @@ function readyActions(form: HTMLElement, client: OnceClient, run: (work: () => P
     await client.lockAddonVault()
   }))
   row(form, "Lock on this device", "Forgets the key here. Unlock again with the passphrase or recovery key.", lock)
-  const off = button("Turn off…", () => void showConfirmDialog({
-    message: "Turn add-on sync off on this device? Its add-ons and tokens stay here but stop syncing. Other devices keep syncing.",
-    confirmLabel: "Turn off"
-  }).then((confirmed) => { if (confirmed) void run(() => client.leaveAddonVault()) }))
-  off.dataset.testid = "addon-vault-leave"
-  row(form, "Turn off on this device", "Keeps this device's add-ons and tokens, but stops syncing them. Other devices keep syncing.", off)
+  if (client.getSyncDatasets) {
+    const datasets = document.createElement("section")
+    datasets.className = "settings_rows"
+    form.prepend(datasets)
+    void client.getSyncDatasets().then(values => {
+      datasets.append(heading("Sync on this device"))
+      for (const [id, label] of [["addons", "Add-ons"], ["ai", "AI & Search"]] as const) {
+        const enabled = check(datasets, label, values[id])
+        enabled.dataset.testid = `sync-dataset-${id}`
+        enabled.onchange = () => void run(() => client.setSyncDataset(id, enabled.checked))
+      }
+    })
+  } else {
+    const off = button("Turn off…", () => void showConfirmDialog({ message: "Turn add-on sync off on this device? Its local copy is kept.", confirmLabel: "Turn off" }).then(confirmed => { if (confirmed) void run(() => client.leaveAddonVault()) }))
+    off.dataset.testid = "addon-vault-leave"
+    row(form, "Turn off on this device", "Other devices keep syncing.", off)
+  }
 }
 
 /** The recovery key, shown once after setup until the reader confirms saving it. */
@@ -236,4 +247,13 @@ function check(parent: HTMLElement, text: string, value: boolean): HTMLInputElem
   label.append(input, caption)
   parent.append(label)
   return input
+}
+
+function updateSyncLinks(state: AddonVaultStatus): void {
+  for (const link of document.querySelectorAll<HTMLElement>("[data-addon-sync-link]")) {
+    link.hidden = state.state === "unavailable"
+    link.dataset.vaultState = state.state
+    const summary = link.querySelector<HTMLElement>("[data-addon-sync-summary]")
+    if (summary) summary.textContent = VAULT_SUMMARIES[state.state] ?? ""
+  }
 }

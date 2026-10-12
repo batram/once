@@ -24,6 +24,7 @@ export function joinBlockLines(previous: string, next: string): string {
 
 /** Reflow line wrapping, preserving paragraph spacing, headings, lists and column boundaries. */
 export function ocrParagraphs(result: RecognizedText): string[] {
+  if (result.paragraphs) return result.paragraphs.map(text => text.trim()).filter(Boolean)
   return ocrParagraphLines(result).map(block =>
     block.map(index => result.lines[index].trim()).reduce((text, line) => joinBlockLines(text, line)))
 }

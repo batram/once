@@ -412,7 +412,7 @@
                     <div class="settings_row">
                       <label class="settings_row_name" for="device_name_input">Device name</label>
                       <p class="settings_row_hint" id="device_name_hint">
-                        Other devices and add-on sync show this name.
+                        Other devices and synced changes show this name.
                       </p>
                       <input type="text" id="device_name_input" maxlength="80" spellcheck="false"
                         data-testid="device-name" aria-describedby="device_name_hint" />
@@ -430,7 +430,7 @@
                       <span class="sync_page_link_arrow" aria-hidden="true">›</span>
                     </button>
                     <button type="button" class="sync_page_link" data-sync-target="addons" data-testid="sync-page-addons">
-                      <span class="sync_page_link_text"><span>Add-on sync</span>
+                      <span class="sync_page_link_text"><span>Encrypted sync</span>
                         <span class="sync_page_link_summary" id="sync_page_addons_summary"></span></span>
                       <span class="sync_page_link_arrow" aria-hidden="true">›</span>
                     </button>
@@ -610,9 +610,15 @@
                       <p class="settings_rows_hint" id="pair_status" role="status" data-testid="pair-status"></p>
                     </section>
                   </div>
-                  <div class="sync_page" id="sync_page_addons" data-sync-page="addons" data-sync-title="Add-on sync" hidden>
+                  <div class="sync_page" id="sync_page_addons" data-sync-page="addons" data-sync-title="Encrypted sync" hidden>
                     <section class="settings_rows" id="sync_addon_vault"></section>
                   </div>
+                </div>
+                <div class="settings_block"><section class="settings_rows" id="reader_settings" aria-label="Reader"></section></div>
+                <div class="settings_block">
+                  <section class="settings_rows" id="ai_settings" aria-label="AI &amp; Search">
+                    <p class="settings_rows_hint">Configure shared models and search services here. Reader AI actions send content only when requested.</p>
+                  </section>
                 </div>
                 <div class="settings_block">
                   <section class="settings_rows">

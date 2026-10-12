@@ -472,3 +472,13 @@
 .pair_code[data-blurred="true"] svg {
   filter: blur(8px);
 }
+
+@layer components {
+  .sync_compatibility {
+    border: 1px solid currentcolor;
+    border-radius: .5rem;
+    padding: 1rem;
+    margin-block: 1rem;
+    overflow-wrap: anywhere;
+  }
+}

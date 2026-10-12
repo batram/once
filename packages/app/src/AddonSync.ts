@@ -1,6 +1,6 @@
 import { ADDONS_DOCUMENT_ID, AddonEntry, AddonManifest, AddonsDocument, addonEndpoint, emptyAddonsDocument, readAddonsDocument, validateConfig } from "@once/core"
 import { AppSettings } from "./AppSettings"
-import { AddonVault } from "./AddonVault"
+import { SyncVault } from "./SyncVault"
 import { AddonConnections } from "./addonConnections"
 import { getAddonScript, storeAddonScript } from "./addonScriptCache"
 import { fetchText } from "./fetchDocument"
@@ -11,12 +11,13 @@ import { VaultData, verifyVaultScript } from "./vaultData"
 const LOCAL_DOCUMENT = "once:addon-local-document"
 
 export class AddonSync {
-  readonly vault: AddonVault
+  readonly vault: SyncVault
   private readonly local: AddonConnections
   private readonly synced: AddonConnections
+  onRemoved?: (ids: string[]) => Promise<void>
   private writes: Promise<unknown> = Promise.resolve()
   constructor(private readonly platform: OncePlatformPorts, private readonly settings: AppSettings, private readonly changed: () => void) {
-    this.vault = new AddonVault(platform.listStore, platform.secretStore, changed)
+    this.vault = new SyncVault(platform.listStore, platform.secretStore, changed)
     this.local = new AddonConnections(platform.addonFetch ?? platform.fetch, platform.secretStore)
     this.synced = new AddonConnections(platform.addonFetch ?? platform.fetch, {
       get: async name => (await this.vault.read())?.secrets[name] ?? "",
@@ -42,7 +43,7 @@ export class AddonSync {
   async document(): Promise<AddonsDocument> {
     try {
       if (await this.vault.left()) return await this.localDocument()
-      return await this.vault.enabled() ? (await this.vault.read())?.document ?? emptyAddonsDocument() : await this.settings.getAddons()
+      return await this.vault.participates("addons") ? (await this.vault.read())?.document ?? emptyAddonsDocument() : await this.settings.getAddons()
     } catch { return emptyAddonsDocument() } // Fail closed: dispose installed runtimes while locked or conflicted.
   }
 
@@ -58,7 +59,12 @@ export class AddonSync {
   }
 
   update(change: (doc: AddonsDocument) => AddonsDocument): Promise<void> {
-    return this.serialize(() => this.updateNow(change))
+    return this.serialize(async () => {
+      const before = await this.document()
+      await this.updateNow(change)
+      const after = new Set((await this.document()).addons.map(entry => entry.manifest.id))
+      return before.addons.filter(entry => !after.has(entry.manifest.id)).map(entry => entry.manifest.id)
+    }).then(async removed => { if (removed.length) await this.onRemoved?.(removed) })
   }
 
   private async updateNow(change: (doc: AddonsDocument) => AddonsDocument): Promise<void> {
@@ -67,12 +73,12 @@ export class AddonSync {
       this.changed()
       return
     }
-    if (!await this.vault.enabled()) return this.settings.updateAddons(change)
+    if (!await this.vault.participates("addons")) return this.settings.updateAddons(change)
     await this.vault.update(async data => {
       data.document = readAddonsDocument(change(data.document))
       await this.packages(data)
       const ids = new Set(data.document.addons.map(item => item.manifest.id))
-      data.secrets = Object.fromEntries(Object.entries(data.secrets).filter(([name]) => ids.has(name.split(":")[1])))
+      data.secrets = Object.fromEntries(Object.entries(data.secrets).filter(([name]) => !name.startsWith("addon:") || ids.has(name.split(":")[1])))
     })
   }
 
@@ -128,20 +134,27 @@ export class AddonSync {
     const data = await this.vault.read()
     if (!data) throw new Error("Add-on sync is not set up")
     for (const [integrity, code] of Object.entries(data.scripts)) await storeAddonScript(this.platform.cacheStore, integrity, code)
-    for (const [name, value] of Object.entries(data.secrets)) await this.platform.secretStore.set(name, value)
+    for (const [name, value] of Object.entries(data.secrets)) if (name.startsWith("addon:")) await this.platform.secretStore.set(name, value)
     await this.platform.secretStore.set(LOCAL_DOCUMENT, JSON.stringify(data.document))
-    await this.vault.leave()
+    await this.vault.setParticipation("addons", false)
   }
 
   /** Unlocking after leaving rejoins: the synced add-ons take the place of this device's own. */
   private async unlockNow(secret: string, recovery: boolean, remember: boolean, name: string): Promise<void> {
     const rejoining = await this.vault.left()
     await this.vault.unlock(secret, recovery, remember, name)
-    if (rejoining) await this.platform.secretStore?.set(LOCAL_DOCUMENT, "")
+    if (rejoining) { await this.vault.setParticipation("addons", true); await this.platform.secretStore?.set(LOCAL_DOCUMENT, "") }
+  }
+
+  async setEnabled(enabled: boolean): Promise<void> {
+    if (!enabled) return this.serialize(() => this.leaveNow())
+    if ((await this.vault.status()).state !== "ready") throw new Error("Unlock sync first")
+    await this.vault.setParticipation("addons", true)
+    await this.platform.secretStore?.set(LOCAL_DOCUMENT, "")
   }
 
   async script(integrity: string): Promise<string | null> {
-    if (await this.vault.enabled()) {
+    if (await this.vault.participates("addons")) {
       const code = (await this.vault.read())?.scripts[integrity]
       if (code !== undefined) { await verifyVaultScript(integrity, code); return code }
     }
@@ -157,7 +170,7 @@ export class AddonSync {
   }
 
   private async share(entry: AddonEntry, code: string | null, replace = false): Promise<void> {
-    if (!await this.vault.enabled()) throw new Error(await this.vault.left() ? "Turn add-on sync on on this device first" : "Enable encrypted addon sync first")
+    if (!await this.vault.participates("addons")) throw new Error(await this.vault.left() ? "Turn add-on sync on on this device first" : "Enable encrypted addon sync first")
     const snapshot = structuredClone(entry)
     if (snapshot.manifest.script) {
       if (code === null) throw new Error("The directory's script is unavailable")
@@ -186,7 +199,7 @@ export class AddonSync {
     "storeAddonScript" | "saveAddonSecret" | "hasAddonSecret" | "requestAddonConnection" | "listAddonModels" | "localizeAddonSecrets" | "shareAddonSnapshot" |
     "verifyAddonVaultPassphrase" | "leaveAddonVault"> {
     return {
-      getAddonVaultStatus: () => this.vault.status(),
+      getAddonVaultStatus: () => this.vault.datasetStatus("addons"),
       verifyAddonVaultPassphrase: passphrase => this.vault.verifyPassphrase(passphrase),
       shareAddonSnapshot: (entry, code, replace) => this.serialize(() => this.share(entry, code, replace)),
       unlockAddonVault: (secret, recovery, remember, name) => this.serialize(() => this.unlockNow(secret, recovery, remember, name)),
@@ -204,7 +217,7 @@ export class AddonSync {
         await storeAddonScript(this.platform.cacheStore, integrity, code)
       },
       saveAddonSecret: (addon, field, endpoint, secret, localOnly) => this.serialize(async () => {
-        if (localOnly || !await this.vault.enabled()) return this.local.save(addon, field, endpoint, secret)
+        if (localOnly || !await this.vault.participates("addons")) return this.local.save(addon, field, endpoint, secret)
         const entry = (await this.vault.read())?.document.addons.find(item => item.manifest.id === addon)
         const connection = entry?.manifest.connections?.find(item => item.secret === field)
         const values = entry?.manifest.settings ? validateConfig(entry.manifest.settings, entry.options ?? {}) as Record<string, unknown> : {}
@@ -212,23 +225,23 @@ export class AddonSync {
         await this.synced.save(addon, field, endpoint, secret)
       }),
       hasAddonSecret: async (addon, field, endpoint, localOnly) =>
-        (localOnly || !await this.vault.enabled() ? this.local : this.synced).configured(addon, field, endpoint),
+        (localOnly || !await this.vault.participates("addons") ? this.local : this.synced).configured(addon, field, endpoint),
       requestAddonConnection: async (manifest, options, connection, request, signal, localOnly, onChunk) => {
-        if (localOnly || !await this.vault.enabled()) return this.local.request(manifest, options, connection, request, signal, onChunk)
+        if (localOnly || !await this.vault.participates("addons")) return this.local.request(manifest, options, connection, request, signal, onChunk)
         await this.approved(manifest, options, connection)
         return this.synced.request(manifest, options, connection, request, signal, onChunk)
       },
       // The form may hold an endpoint not saved yet, so the installed copy is
       // only checked for approval; its token is bound to the endpoint anyway.
       localizeAddonSecrets: async addon => {
-        if (!this.platform.secretStore || !await this.vault.enabled()) return
+        if (!this.platform.secretStore || !await this.vault.participates("addons")) return
         const data = await this.vault.read()
         for (const [name, value] of Object.entries(data?.secrets ?? {})) {
           if (name.startsWith(`addon:${addon}:`)) await this.platform.secretStore.set(name, value)
         }
       },
       listAddonModels: async (manifest, options, connection, localOnly) => {
-        if (localOnly || !await this.vault.enabled()) return this.local.models(manifest, options, connection)
+        if (localOnly || !await this.vault.participates("addons")) return this.local.models(manifest, options, connection)
         await this.approved(manifest, options, connection)
         return this.synced.models(manifest, options, connection)
       }

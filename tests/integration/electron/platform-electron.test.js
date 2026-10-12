@@ -1,3 +1,4 @@
+const { compatibilityDatabase, eventually } = require("../../helpers/sync-compatibility")
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const { bridgeFetch } = require("@once/platform-electron/fetch")
@@ -163,9 +164,9 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
     }
   }
   const service = new PouchSyncService(
-    db,
+    compatibilityDatabase(db),
     (change) => changes.push(change),
-    (url) => ({ remote: url })
+    (url) => compatibilityDatabase({ remote: url })
   )
   const diagnostics = []
   const statuses = []
@@ -175,8 +176,10 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
   service.onRemoteChange((change) => remoteChanges.push(change))
 
   service.syncFrom("https://one.example/db")
+  await eventually(() => replications.length === 1)
   assert.equal(statuses.at(-1).message, "Syncing settings…")
   service.syncFrom("https://two.example/db")
+  await eventually(() => replications.length === 2)
   assert.equal(replications[0].chain.cancelled, true)
 
   replications[0].chain.emit("complete", {})
@@ -192,12 +195,14 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
   assert.deepEqual(replications[2].options, {
     batch_size: 1000,
     batches_limit: 2,
-    checkpoint: "target"
+    checkpoint: "target",
+    filter: replications[2].options.filter
   })
   replications[2].chain.emit("complete", {})
   await nextTurn()
+  await eventually(() => syncs.length === 1)
   assert.equal(syncs.length, 1)
-  assert.deepEqual(syncs[0].target, { remote: "https://two.example/db" })
+  assert.equal(syncs[0].target.remote, "https://two.example/db")
   assert.equal(statuses.at(-1).state, "up-to-date")
 
   syncs[0].chain.emit("change", {
@@ -208,7 +213,7 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
     direction: "pull",
     change: { docs: [{ _id: "sto_one", id: "one" }] }
   }])
-  assert.equal(statuses.at(-1).message, "Syncing 1 change…")
+  assert.equal(statuses.at(-1).message, "Syncing changes…")
   syncs[0].chain.emit("change", {
     direction: "push",
     change: { docs: [{ _id: "sto_local", id: "local" }] }
@@ -216,10 +221,11 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
   syncs[0].chain.emit("paused")
   assert.equal(statuses.at(-1).state, "up-to-date")
   syncs[0].chain.emit("denied", { status: 403, message: "forbidden" })
-  assert.equal(diagnostics[0].operation, "sync.denied")
+  assert.equal(diagnostics[0].operation, "sync.compatibility")
   assert.equal(statuses.at(-1).state, "error")
-  assert.match(diagnostics[0].details, /forbidden/)
+  assert.match(diagnostics[0].details, /compatibility/)
   service.syncFrom("https://three.example/db")
+  await eventually(() => replications.length === 4)
   assert.equal(syncs[0].chain.cancelled, true)
 
   service.syncFrom("")
@@ -284,7 +290,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
   }
   const statuses = []
   const remoteChanges = []
-  const service = new PouchSyncService(db, () => {}, () => remote)
+  const service = new PouchSyncService(compatibilityDatabase(db), () => {}, () => compatibilityDatabase(remote))
   service.onStatus((status) => statuses.push(status))
   service.onRemoteChange((change) => remoteChanges.push(change))
 
@@ -292,8 +298,10 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
     "https://example.test/once",
     () => ["sto_loaded", "sto_loaded", "sto_visible"]
   )
+  await eventually(() => replications.length === 1)
   assert.deepEqual(replications[0].options.doc_ids, [
     "addon_vault",
+    "ai_vault",
     "addons",
     "browser_extension_sync",
     "sources",
@@ -345,7 +353,8 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
   assert.deepEqual(replications[3].options, {
     batch_size: 1000,
     batches_limit: 2,
-    checkpoint: "target"
+    checkpoint: "target",
+    filter: replications[3].options.filter
   })
   assert.equal(statuses.at(-1).message, "Loading older stories…")
 
@@ -355,6 +364,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
   assert.equal(statuses.at(-1).message, "Loading older stories (1 received)…")
   replications[3].chain.emit("complete", {})
   await nextTurn()
+  await eventually(() => syncs.length === 1)
   assert.equal(syncs.length, 1)
   assert.deepEqual(lifecycle, [
     "conflicts-checked",
@@ -367,7 +377,8 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
     batches_limit: 2,
     checkpoint: "target",
     live: true,
-    retry: true
+    retry: false,
+    filter: syncs[0].options.filter
   })
   assert.equal(statuses.at(-1).state, "up-to-date")
   assert.equal(statuses.at(-1).changes, 4)

@@ -1,6 +1,7 @@
-import { AddonsDocument, SANDBOX_LIMITS, readAddonsDocument } from "@once/core"
+import { AiSettings, readAiSettings, AddonsDocument, SANDBOX_LIMITS, readAddonsDocument } from "@once/core"
 
 export interface VaultData {
+  ai?: AiSettings
   document: AddonsDocument
   secrets: Record<string, string>
   scripts: Record<string, string>
@@ -27,8 +28,9 @@ export function readVaultData(value: unknown): VaultData {
     throw new Error("Vault contains an add-on this version of Once cannot read; update Once before opening it")
   }
   for (const [name, text] of Object.entries(data.secrets)) {
-    if (!/^addon:[a-z0-9-]{3,40}:[a-zA-Z_][a-zA-Z0-9_]{0,39}$/.test(name) || typeof text !== "string" || text.length > 16000) throw new Error("Invalid vault connection")
+    if (!/^(?:ai:[a-zA-Z0-9:._-]{1,100}|addon:[a-z0-9-]{3,40}:[a-zA-Z_][a-zA-Z0-9_]{0,39})$/.test(name) || typeof text !== "string" || text.length > 16000) throw new Error("Invalid vault connection")
   }
+  if (data.ai) readAiSettings(data.ai)
   for (const [hash, code] of Object.entries(data.scripts)) {
     if (!hash.startsWith("sha256-") || typeof code !== "string" || new TextEncoder().encode(code).length > SANDBOX_LIMITS.code) throw new Error("Invalid vault package")
   }
@@ -41,7 +43,7 @@ export function readVaultData(value: unknown): VaultData {
  * two devices making the same change at once compare equal.
  */
 export function sameVaultContents(left: VaultData, right: VaultData): boolean {
-  const contents = ({ document, secrets, scripts }: VaultData) => canonical({ document, secrets, scripts })
+  const contents = ({ document, secrets, scripts, ai }: VaultData) => canonical({ document, secrets, scripts, ...(ai ? { ai } : {}) })
   return contents(left) === contents(right)
 }
 

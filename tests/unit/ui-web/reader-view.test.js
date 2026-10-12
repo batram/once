@@ -63,7 +63,7 @@ test("a story with stored content opens in the reader without a request", async 
   )
 })
 
-test("a story without stored content is fetched and extracted as before", async () => {
+test("a failed reader fetch retains a reader surface for explicit AI OCR", async () => {
   const { ReaderView, Story } = loadReaderView()
   const story = new Story("rss", "https://example.com/b", "Live")
   const fetched = []
@@ -74,9 +74,9 @@ test("a story without stored content is fetched and extracted as before", async 
       fetched.push(url)
       throw new Error("fetch reached (extraction needs a browser DOM)")
     }
-  }, async () => {})
+  }, async html => { assert.match(html, /data-reader-error/); assert.match(html, /fetch reached/); assert.match(html, /data-once-reader-runtime/) })
 
-  await assert.rejects(ReaderView.open(story.href), /fetch reached/)
+  await ReaderView.open(story.href)
   assert.deepEqual(fetched, [story.href])
 })
 

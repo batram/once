@@ -1,3 +1,4 @@
+import { tabSyncCompatibility } from "./tabSyncCompatibility"
 import {
   DeviceIdentity,
   SyncDestinationBinding,
@@ -50,7 +51,17 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
     if (refusal || generation !== connection) return
     // Each request re-checks: consent can be withdrawn and the URL replaced at any time.
     const allowed = async () => generation === connection && !await gate.check(url, "external").catch(() => "unavailable")
-    const docs = couchHttpTabDocs(url, fetch.bind(globalThis), allowed)
+    const checkCompatibility = tabSyncCompatibility(url, secrets, allowed)
+    await checkCompatibility()
+    if (generation !== connection) return
+    const docs = couchHttpTabDocs(url, fetch.bind(globalThis), async () => {
+      if (!await allowed()) return false
+      try { await checkCompatibility(); return generation === connection }
+      catch (error) {
+        if (generation === connection) { ++connection; current?.service.dispose(); current = null }
+        throw error
+      }
+    })
     // Only an end-to-end test writes this key, to wait seconds rather than the real intervals.
     const timing = tabSyncTestTiming((await api.storage.local.get(TEST_TIMING_KEY))[TEST_TIMING_KEY])
     const service = new TabSyncService({

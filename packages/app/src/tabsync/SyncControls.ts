@@ -153,6 +153,6 @@ export class SyncControls {
 
   /** Configured, allowed, and not given up on: tab sync publishes only then. */
   private active(status: SyncStatus): boolean {
-    return !this.blocked && status.state !== "disabled"
+    return !this.blocked && (status.state === "syncing" || status.state === "up-to-date")
   }
 }

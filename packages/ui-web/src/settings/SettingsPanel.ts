@@ -1,3 +1,5 @@
+import { bindReaderSettings } from "./aiConsumerSettings"
+import { bindAiSettings } from "./AiSettingsView"
 import { OnceClient, SourceError } from "@once/app"
 import { parseRedirectList, parseStorySourceText, presentRedirectList,
   serializeStorySourceDocument } from "@once/core"
@@ -149,6 +151,8 @@ export class SettingsPanel {
       () => this.save_cache_settings()
     )
 
+    bindAiSettings(client, requireElement<HTMLElement>("#ai_settings"))
+    bindReaderSettings(client, requireElement<HTMLElement>("#reader_settings"))
     this.structuredEditors = this.createStructuredEditors()
     this.installSettingsNavigation()
     bindSyncSettingsPages(requireElement<HTMLElement>("#sync_settings"))

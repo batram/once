@@ -5,7 +5,7 @@ const ITERATIONS = 600_000
 
 interface Sealed { iv: string; data: string }
 export interface VaultEnvelope {
-  version: 1
+  version: 1 | 2
   id: string
   salt: string
   password: Sealed
@@ -45,12 +45,12 @@ async function open(key: CryptoKey, sealed: Sealed, context: string): Promise<st
   return decoder.decode(bytes)
 }
 function context(envelope: VaultEnvelope): string {
-  return JSON.stringify([1, envelope.id, envelope.salt, envelope.password.iv, envelope.password.data, envelope.recovery.iv, envelope.recovery.data])
+  return JSON.stringify([envelope.version, envelope.id, envelope.salt, envelope.password.iv, envelope.password.data, envelope.recovery.iv, envelope.recovery.data])
 }
 export function readEnvelope(value: unknown): VaultEnvelope {
   if (JSON.stringify(value)?.length > VAULT_LIMIT * 2) throw new Error("Vault is too large")
   const item = value as Partial<VaultEnvelope> | null
-  if (!item || item.version !== 1 || typeof item.id !== "string" || typeof item.salt !== "string") throw new Error("Unsupported or damaged vault")
+  if (!item || (item.version !== 1 && item.version !== 2) || typeof item.id !== "string" || typeof item.salt !== "string") throw new Error("Unsupported or damaged vault")
   unhex(item.id, 16); unhex(item.salt, 16)
   for (const part of [item.password, item.recovery, item.payload]) {
     if (!part || typeof part.iv !== "string" || typeof part.data !== "string") throw new Error("Damaged vault")
@@ -78,7 +78,8 @@ export async function unlockEnvelope(envelope: VaultEnvelope, secret: string, re
 export async function encryptVault(envelope: VaultEnvelope, rawKey: string, value: unknown): Promise<VaultEnvelope> {
   const text = JSON.stringify(value)
   if (encoder.encode(text).length > VAULT_LIMIT) throw new Error("Synced add-ons exceed the 4 MiB vault limit. Remove unused packages before retrying.")
-  return { ...envelope, payload: await seal(await key(rawKey), text, context(envelope)) }
+  const versioned = { ...envelope, version: (envelope.version === 2 || (value as { ai?: unknown })?.ai ? 2 : 1) as 1 | 2 }
+  return { ...versioned, payload: await seal(await key(rawKey), text, context(versioned)) }
 }
 export async function decryptVault(envelope: VaultEnvelope, rawKey: string): Promise<unknown> {
   try { return JSON.parse(await open(await key(rawKey), envelope.payload, context(envelope))) }

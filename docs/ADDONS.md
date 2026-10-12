@@ -324,7 +324,7 @@ options live locally by addon ID, independently of the synced manifest document.
 
 ### Capabilities
 
-`capabilities` lists grants; shown at install. Only one kind exists:
+`capabilities` lists grants shown at install. Generic fetch grants are described here; `ai` and `search` use the shared services described below:
 `fetch:<match pattern>` allows `once.fetch` for matching URLs
 (`https://api.example/*`, `*://*.example.org/*`; ports are ignored,
 `http(s)` only). This GET-only API does not accept fetch init/options.
@@ -597,10 +597,10 @@ Rules the host enforces, not the script:
 
 Start with [Story length](../examples/addons/story-length/README.md), a small
 package with typed script hints. [What? Wait, who, why?](../examples/addons/what-wait-who-why/README.md)
-is the full-featured one: connections to an AI provider, a story tray that
+is the full-featured one: the shared AI service, a story tray that
 summarizes and answers questions about the article (or a YouTube video's
 transcript, read through a secretless connection and a `fetch:` grant), native
-or fallback web search (SearXNG, Tavily), grouped settings with secrets, and a conversation
+or fallback web search (SearXNG, Tavily), centrally stored credentials, grouped prompt settings, and a conversation
 that continues in the browser surface. `node scripts/validate-addon.js <directory>`
 validates a local package and its pinned script without executing code or
 accessing the network. The [editor schema](addon-manifest.schema.json) supplies
@@ -618,3 +618,42 @@ The repository's e2e fixtures are complete, tested add-ons:
   a declarative add-on, a scripted one, a collector, an install from URL,
   and the capabilities case, each with the assertions that define correct
   behaviour.
+
+## Shared AI and search
+
+Addons declaring the `ai` capability can call `once.ai` or a tray's `context.ai`.
+The tray API binds work to its cancellation signal. Shared credentials stay in the
+host; the addon receives model metadata, normalized answer text, safe citations,
+and structured errors. Declare `search` as well for either native provider search
+or `context.querySearch(query, connectionId?)`.
+
+```js
+const selected = await context.ai.resolve()
+const answer = await context.ai.generate({
+  selection: selected,
+  expectedRevision: selected.revision,
+  instructions: "Answer using the supplied source material.",
+  messages: [{ role: "user", content: sourceText }],
+  maxOutputTokens: 2048
+}, { onText: text => showPartial(text) })
+```
+
+`ai.connections()` lists credential-free connection IDs, names and protocols;
+`ai.models(connectionId)` lists model IDs and display names. `ai.resolve(selection?)`
+uses the addon's override or the global default when no explicit selection is given.
+The optional `expectedRevision` refuses a request if the displayed connection or
+credential binding changed before sending. Generation uses one settings snapshot.
+Messages accept strings or text/image content blocks. Image blocks carry a bounded
+base64 PNG, JPEG or WebP payload, never a credential-bearing URL.
+
+`AiError.code` is preserved across the sandbox boundary. Consumers should handle
+`unsupported-search`, `unsupported-fetch`, `search`, `setup`, `configuration-changed`,
+`busy`, `timeout`, and `cancelled` rather than matching translated error text. A
+truncated provider stream is an error, not a completed answer.
+
+AI & Search is a central overview. Addon consumers register from their manifests
+and link to their own settings, including linked development addons. The host adds
+an AI model row to those settings: default inheritance is compact, and a custom
+model is edited on its own page. Addon removal drops its unowned override while
+shared provider connections remain. Provider/search tokens are configured centrally
+and use the same encrypted sync passphrase as addons, with separate dataset switches.

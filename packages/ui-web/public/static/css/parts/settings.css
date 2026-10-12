@@ -2282,7 +2282,8 @@
   color: #2f9e44;
 }
 
-.couch-status[data-state="error"]::before {
+.couch-status[data-state="error"]::before,
+.couch-status[data-state="update-required"]::before {
   color: #d64545;
 }
 

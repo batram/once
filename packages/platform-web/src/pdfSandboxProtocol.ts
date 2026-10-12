@@ -31,7 +31,8 @@ export type HostToPdfSandbox =
 export type PdfSandboxToHost =
   | { type: "ready"; protocol: number }
   | { type: "asset"; requestId: number; kind: PdfAssetKind; filename: string }
-  | { type: "recognize"; requestId: number; image: Uint8Array }
+  | { type: "progress"; page: number; total: number }
+  | { type: "recognize"; requestId: number; image: Uint8Array; page?: number }
   | { type: "result"; result: PdfTextResult }
   | { type: "error"; message: string }
 
@@ -63,7 +64,12 @@ function page(value: unknown): PdfTextPage | null {
       lineBounds.push({ x: box.x, y: box.y, width: box.width, height: box.height })
     }
   }
-  return { lines, method: value.method, ...(lineBounds ? { lineBounds } : {}) }
+  let paragraphs: string[] | undefined
+  if (value.paragraphs !== undefined) {
+    if (!Array.isArray(value.paragraphs) || value.paragraphs.length > PDF_SANDBOX_LIMITS.linesPerPage || value.paragraphs.some(text => typeof text !== "string" || text.length > PDF_SANDBOX_LIMITS.lineLength)) return null
+    paragraphs = value.paragraphs
+  }
+  return { lines, ...(paragraphs ? { paragraphs } : {}), method: value.method, ...(lineBounds ? { lineBounds } : {}) }
 }
 
 /** Validates a message from the frame; anything malformed is dropped. */
@@ -76,10 +82,14 @@ export function readPdfSandboxMessage(value: unknown): PdfSandboxToHost | null {
       if (!finite(value.requestId) || typeof value.kind !== "string" || !ASSET_KINDS.has(value.kind as PdfAssetKind)) return null
       if (typeof value.filename !== "string" || !ASSET_FILENAME.test(value.filename) || value.filename.length > 128) return null
       return { type: "asset", requestId: value.requestId, kind: value.kind as PdfAssetKind, filename: value.filename }
+    case "progress":
+      return Number.isInteger(value.page) && Number.isInteger(value.total) && Number(value.page) >= 1 && Number(value.page) <= Number(value.total) && Number(value.total) <= PDF_SANDBOX_LIMITS.pages
+        ? { type: "progress", page: Number(value.page), total: Number(value.total) } : null
     case "recognize":
+      if (value.page !== undefined && (!Number.isInteger(value.page) || Number(value.page) < 1 || Number(value.page) > PDF_SANDBOX_LIMITS.pages)) return null
       if (!finite(value.requestId) || !(value.image instanceof Uint8Array)) return null
       if (!value.image.byteLength || value.image.byteLength > PDF_SANDBOX_LIMITS.imageBytes) return null
-      return { type: "recognize", requestId: value.requestId, image: value.image }
+      return { type: "recognize", requestId: value.requestId, image: value.image, ...(value.page !== undefined ? { page: Number(value.page) } : {}) }
     case "result": {
       if (!record(value.result) || !Array.isArray(value.result.pages) || value.result.pages.length > PDF_SANDBOX_LIMITS.pages) return null
       const pages: PdfTextPage[] = []

@@ -19,7 +19,7 @@ export type SyncPageRequest = SyncPage | { page: SyncPage; replace?: boolean }
 
 /**
  * Settings › Sync as pages: the overview (connection, this device, links)
- * and one page each for Tab sync, Pair a device and Add-on sync. The header
+ * and one page each for Tab sync, Pair a device and Encrypted sync. The header
  * Back steps from a page to the overview, as in Once Add-ons; every page
  * stays mounted, so drafts and listeners survive moving between them.
  */

@@ -1,3 +1,4 @@
+import { bindSyncCompatibilityControls } from "./syncCompatibilityControls"
 import { OnceClient, SourceError } from "@once/app"
 import { requireElement } from "../dom"
 
@@ -12,6 +13,7 @@ export interface SettingsSubscriptionActions {
   swipe(): void
   extensions(): void
   addons(): void
+  ai?(): void
   /** Stored-content settings restore themselves; see SettingsPersistence. */
   content?(): void
   sourceErrors(errors: SourceError[]): void
@@ -29,8 +31,10 @@ export function bindSettingsSubscriptions(
   client.subscribe("sourceErrorsChanged", ({ errors }) => {
     actions.sourceErrors(errors)
   })
+  const compatibility = bindSyncCompatibilityControls(client)
   const setSyncStatus = (status: ReturnType<OnceClient["getSyncStatus"]>) => {
     const element = requireElement<HTMLElement>("#couch_status")
+    compatibility(status)
     element.dataset.state = status.state
     element.textContent = status.message
     actions.summaries()

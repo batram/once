@@ -1,3 +1,5 @@
+import { installReaderAi } from "./readerAiControls"
+import { readerAiPortBridge } from "./readerAiBridge"
 // What the extension reader surfaces share once they hold a rendered reader
 // document: the live page's content script (which built it from the page) and
 // the reader page (which received it from the panel). Both run under the
@@ -22,6 +24,7 @@ export function installReaderDocument(html: string): void {
  * speeds, and ownership so two reader tabs do not read aloud at once.
  */
 export async function installReaderPageTts(runtime: typeof browser.runtime): Promise<void> {
+  installReaderAi(readerAiPortBridge(async () => { const owner = await runtime.sendMessage({ onceCommand: "readerAiOwner" }); if (typeof owner !== "string") throw new Error("Open the Once panel in this window to use AI assistance"); return runtime.connect({ name: `once-reader-ai:${owner}` }) }))
   let preferences = emptyReaderTtsPreferences()
   try {
     preferences = normalizeReaderTtsPreferences(await runtime.sendMessage({
@@ -61,7 +64,8 @@ export async function installReaderPageTts(runtime: typeof browser.runtime): Pro
   })
 }
 
-export function showReaderPageError(error: unknown): void {
+export function showReaderPageError(error: unknown, sourceUrl = location.href, runtime?: typeof browser.runtime): void {
+  if (runtime) installReaderAi(readerAiPortBridge(async () => { const owner = await runtime.sendMessage({ onceCommand: "readerAiOwner" }); if (typeof owner !== "string") throw new Error("Open the Once panel in this window to use AI assistance"); return runtime.connect({ name: `once-reader-ai:${owner}` }) }), sourceUrl)
   const detail = error instanceof Error ? error.message : String(error)
   const message = document.createElement("div")
   message.className = "once-reader-error"

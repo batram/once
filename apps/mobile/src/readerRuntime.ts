@@ -1,3 +1,5 @@
+import { installReaderAi } from "@once/ui-web/reader/readerAiControls"
+import { readerAiMessageBridge } from "@once/ui-web/reader/readerAiBridge"
 import { installReaderTts } from "@once/ui-web/reader/readerTts"
 import { captureReaderPositionInPage, restoreReaderPositionInPage } from "@once/app/tabsync/pageScripts"
 import {
@@ -17,6 +19,7 @@ import {
 } from "./readerTtsProtocol"
 
 installReaderTtsPolyfill(window, { force: true })
+installReaderAi(readerAiMessageBridge())
 installReaderFind(window)
 installReaderLinks(window)
 installReaderLinkMenu(window)

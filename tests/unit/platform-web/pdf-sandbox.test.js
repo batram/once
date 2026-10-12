@@ -145,3 +145,27 @@ test("a sandbox that never starts, or never finishes, is torn down on its deadli
   await rejected
   assert.equal(frames[0].removed, true)
 })
+
+test("cloud OCR reports actual page numbers, preserves paragraphs and abort removes the parser", async t => {
+  const { frames, send, listeners } = frameHarness(t, { fetched: { "https://shell.test/app/pdf/pdf.worker.js": workerSource } })
+  const abort = new AbortController(), pages = [], progress = []
+  const port = createPdfTextPort({ sandboxUrl: "https://shell.test/app/pdf-sandbox.html", workerUrl })
+  const extraction = port.extract(new Uint8Array([37, 80, 68, 70]), undefined, {
+    signal: abort.signal, onPage: (page, total) => progress.push([page, total]),
+    cloud: { async recognizeImage(_bytes, page) { pages.push(page); return { lines: ["first", "second"], paragraphs: ["first", "second"] } } }
+  })
+  await tick()
+  const frame = frames[0]
+  send(frame, { type: "ready", protocol: PDF_SANDBOX_PROTOCOL })
+  send(frame, { type: "progress", page: 3, total: 5 })
+  send(frame, { type: "recognize", requestId: 1, page: 3, image: new Uint8Array([1, 2, 3]) })
+  await tick()
+  assert.deepEqual(progress, [[3, 5]])
+  assert.deepEqual(pages, [3])
+  assert.deepEqual(frame.sent.at(-1).message.result.paragraphs, ["first", "second"])
+  const rejected = assert.rejects(extraction, /cancelled/)
+  abort.abort()
+  await rejected
+  assert.equal(frame.removed, true)
+  assert.equal(listeners.size, 0)
+})

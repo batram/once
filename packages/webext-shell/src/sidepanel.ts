@@ -1,3 +1,4 @@
+import { installReaderAiHost } from "./readerAi"
 import browser = require("webextension-polyfill")
 
 import { createOnceApp } from "@once/app"
@@ -92,6 +93,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const testMode = query.has("once-e2e")
   const app = createOnceApp(platform)
   const client = app.client
+  installReaderAiHost(client, browser)
 
   await app.start()
   await mountOnceUi(client, {

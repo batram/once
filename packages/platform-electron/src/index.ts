@@ -50,7 +50,7 @@ export function createElectronPlatform(
   const onceDb = new PouchDB("once_electron_v2", LOCAL_POUCH_OPTIONS)
   const fetchThroughMain = (input: RequestInfo | URL, init?: RequestInit) =>
     bridgeFetch(bridge, input, init)
-  const listStore = new PouchListStore(onceDb)
+  const listStore = new PouchListStore(onceDb, version => syncService.requireSyncProtocol(version))
   const storyStore = new PouchStoryStore(onceDb, (story) =>
     Story.from_obj(story)
   )

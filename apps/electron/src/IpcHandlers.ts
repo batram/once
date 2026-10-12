@@ -1,3 +1,4 @@
+import { registerReaderAiRelay } from "./ReaderAiRelay"
 import { registerTextRecognition } from "./browser/NativeTextRecognition"
 import {
   app,
@@ -5,14 +6,13 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
-  IpcMainEvent,
   IpcMainInvokeEvent,
   net,
   session,
   shell,
   WebContents
 } from "electron"
-import { AddonConversationRelay, isAddonConversationUrl } from "./AddonConversationRelay"
+import { AddonConversationRelay, conversationPage } from "./AddonConversationRelay"
 import {
   ELECTRON_IPC,
   ElectronBuildInfo,
@@ -54,14 +54,6 @@ interface IpcHandlerOptions {
   setUpdateStatus: (status: ElectronUpdateStatus) => void
   updatesStarted: () => boolean
   conversations: AddonConversationRelay
-}
-
-/** The addon conversation page in a tab is the only page allowed on its channels. */
-function conversationPage(event: IpcMainInvokeEvent | IpcMainEvent): WebContents {
-  if (!isAddonConversationUrl(event.sender.getURL()) || event.senderFrame !== event.sender.mainFrame) {
-    throw new Error("Untrusted IPC sender")
-  }
-  return event.sender
 }
 
 function registerAddonConversationHandlers(options: IpcHandlerOptions): void {
@@ -596,6 +588,7 @@ export function registerIpcHandlers(
   settings: SecureSettings,
   options: IpcHandlerOptions
 ): void {
+  registerReaderAiRelay(options.coordinator)
   registerAppHandlers(options)
   registerExtensionHandlers(options)
   registerAddonConversationHandlers(options)

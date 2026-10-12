@@ -16,7 +16,7 @@ export function waitForPairingSync(client: OnceClient, timeoutMs = 60_000): Prom
     const check = () => {
       const status = client.getSyncStatus()
       if (status.state === "up-to-date") finish()
-      else if (status.state === "error" || status.state === "disabled") {
+      else if (status.state === "update-required" || status.state === "error" || status.state === "disabled") {
         finish(new Error(status.message || "Could not connect. Check the pairing link and try again."))
       }
     }

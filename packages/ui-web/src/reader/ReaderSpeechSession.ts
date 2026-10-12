@@ -131,6 +131,8 @@ export class ReaderSpeechSession {
     }
   }
 
+  replaceTexts(texts: string[]): void { this.stop(); this.options.texts = texts; this.notify() }
+
   stop(): void {
     this.cancel(true)
   }

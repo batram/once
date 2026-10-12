@@ -79,10 +79,12 @@ export async function seedBundledAddons(client: OnceClient): Promise<void> {
   if (bundled.length === 0) return
   // With the vault locked or in conflict the document is unreadable, not
   // empty; offering the package now would write into the wrong place.
+  if (client.getSyncStatus?.().state === "update-required") return
   const vault = await client.getAddonVaultStatus()
   if (vault.state === "locked" || vault.state === "conflict" || vault.state === "error") return
   const doc = await client.getAddons()
-  const pending = bundled.filter(pack => plan(doc, pack) !== null)
+  const migrationReady = client.migrateAiSettings ? await client.migrateAiSettings() : true
+  const pending = bundled.filter(pack => migrationReady || pack.entry.manifest.id !== "what-wait-who-why").filter(pack => plan(doc, pack) !== null)
   if (pending.length === 0) return
   for (const pack of pending) {
     const script = pack.entry.manifest.script

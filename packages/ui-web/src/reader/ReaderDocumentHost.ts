@@ -63,6 +63,8 @@ export class ReaderDocumentHost {
     return !this.root.hidden
   }
 
+  get documentIdentity(): string { return String(this.documentVersion) }
+
   isReaderWindow(source: unknown): boolean {
     return source != null && source === this.frame.contentWindow
   }
@@ -81,7 +83,7 @@ export class ReaderDocumentHost {
     // (exposed by iOS rubber-band overscroll) matches the reader background.
     this.frame.dataset.theme = /<html[^>]*\sdata-theme="([a-z]+)"/i.exec(html)?.[1] ?? "system"
     if (this.frame.hasAttribute("srcdoc")) this.documentClosed?.()
-    this.frame.srcdoc = document
+    this.frame.srcdoc = document.replace("<html", `<html data-once-reader-session="${version}"`)
     this.root.hidden = false
     globalThis.document.body.classList.add("once-reader-open")
   }

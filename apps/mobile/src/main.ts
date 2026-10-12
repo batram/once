@@ -1,3 +1,4 @@
+import { installReaderAiHost } from "./readerAiHost"
 import { App } from "@capacitor/app"
 import { Capacitor } from "@capacitor/core"
 import { createOnceApp } from "@once/app"
@@ -293,6 +294,7 @@ async function startMobileApp(): Promise<void> {
   reading.onReaderClosed((closed) => tts.release((source) => closed.isReaderWindow(source)))
   reading.runtime.followRedirectFailures((url, reason) => app.client.reportRedirectFailure(url, reason))
   installReaderMediaSession(tts, (frame) => reading.describeReader(frame))
+  installReaderAiHost(app.client, reading)
   await reading.install()
   await installMobileImageText(browserSurface)
   bindTabStories(reading, app.client)

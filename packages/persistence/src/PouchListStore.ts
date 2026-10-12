@@ -1,3 +1,4 @@
+import { requiredSyncProtocol } from "@once/core"
 import { dropVaultBranches, readVault, writeVault } from "./pouchVault"
 
 export interface PouchListDatabase {
@@ -6,11 +7,11 @@ export interface PouchListDatabase {
 }
 
 export class PouchListStore {
-  constructor(private db: PouchListDatabase) {}
+  constructor(private db: PouchListDatabase, private requireProtocol?: (version: number) => Promise<void>) {}
 
-  readVault() { return readVault(this.db) }
-  writeVault(value: unknown, parents: string[]): Promise<void> { return writeVault(this.db, value, parents) }
-  dropVaultBranches(revisions: string[]): Promise<void> { return dropVaultBranches(this.db, revisions) }
+  readVault(id?: string) { return readVault(this.db, id) }
+  async writeVault(value: unknown, parents: string[], id = "addon_vault"): Promise<void> { await this.requireProtocol?.(requiredSyncProtocol(id, value)); return writeVault(this.db, value, parents, id) }
+  dropVaultBranches(revisions: string[], id?: string): Promise<void> { return dropVaultBranches(this.db, revisions, id) }
 
   async get<T>(id: string, fallbackValue: T): Promise<T> {
     try {
@@ -26,6 +27,7 @@ export class PouchListStore {
   }
 
   async set<T>(id: string, value: T): Promise<void> {
+    if (id === "addons") await this.requireProtocol?.(requiredSyncProtocol(id, value))
     const tryUpdate = async (retryCount = 0): Promise<void> => {
       try {
         const doc = await this.db.get(id)

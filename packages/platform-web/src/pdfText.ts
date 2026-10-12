@@ -1,4 +1,4 @@
-import type { PdfTextPort, PdfTextResult, TextRecognitionPort } from "@once/app"
+import type { PdfTextPort, PdfTextResult, TextRecognitionPort, DocumentRecognitionOptions } from "@once/app"
 import { PDF_SANDBOX_LIMITS, PDF_SANDBOX_PROTOCOL, PdfAssetKind, readPdfSandboxMessage } from "./pdfSandboxProtocol"
 
 export interface PdfTextPortOptions {
@@ -29,9 +29,9 @@ const READY_TIMEOUT_MS = 15_000
 export function createPdfTextPort(options: PdfTextPortOptions): PdfTextPort {
   let worker: Promise<{ source: string; assets: string }> | undefined
   return {
-    extract(bytes, recognition) {
+    extract(bytes, recognition, job) {
       worker ??= loadWorker(options).catch(error => { worker = undefined; throw error })
-      return extractInSandbox(bytes, recognition, options, worker)
+      return extractInSandbox(bytes, recognition, options, worker, job)
     }
   }
 }
@@ -47,11 +47,14 @@ async function extractInSandbox(
   bytes: Uint8Array,
   recognition: TextRecognitionPort | undefined,
   options: PdfTextPortOptions,
-  worker: Promise<{ source: string; assets: string }>
+  worker: Promise<{ source: string; assets: string }>,
+  job?: DocumentRecognitionOptions
 ): Promise<PdfTextResult> {
   const doc = options.document ?? document
   const scope = options.window ?? window
+  job?.signal?.throwIfAborted()
   const { source, assets } = await worker
+  job?.signal?.throwIfAborted()
   const frame = doc.createElement("iframe")
   frame.setAttribute("sandbox", "allow-scripts")
   frame.hidden = true
@@ -66,24 +69,31 @@ async function extractInSandbox(
       settled = true
       clearTimeout(deadline); clearTimeout(readyDeadline)
       scope.removeEventListener("message", onMessage)
+      job?.signal?.removeEventListener("abort", aborted)
       frame.remove()
       if (error) reject(error); else resolve(result as PdfTextResult)
     }
-    const deadline = setTimeout(() => finish(new Error("PDF text extraction timed out")), options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+    const expire = () => finish(new Error("PDF text extraction timed out"))
+    let deadline = setTimeout(expire, options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+    const aborted = () => finish(new Error("PDF extraction cancelled"))
     let readyDeadline: ReturnType<typeof setTimeout> | undefined = setTimeout(() => finish(new Error("PDF sandbox did not start")), READY_TIMEOUT_MS)
 
     const onMessage = (event: MessageEvent) => {
       if (!frame.contentWindow || event.source !== frame.contentWindow) return
       const message = readPdfSandboxMessage(event.data)
       if (!message) return
+      if (job?.cloud) { clearTimeout(deadline); deadline = setTimeout(expire, 150_000) }
       switch (message.type) {
         case "ready": {
           clearTimeout(readyDeadline); readyDeadline = undefined
           if (message.protocol !== PDF_SANDBOX_PROTOCOL) { finish(new Error("PDF sandbox protocol mismatch")); return }
           const copy = bytes.slice()
-          post({ type: "extract", protocol: PDF_SANDBOX_PROTOCOL, bytes: copy, workerSource: source, recognition: Boolean(recognition) }, [copy.buffer])
+          post({ type: "extract", protocol: PDF_SANDBOX_PROTOCOL, bytes: copy, workerSource: source, recognition: Boolean(recognition || job?.cloud) }, [copy.buffer])
           return
         }
+        case "progress":
+          job?.onPage?.(message.page, message.total)
+          return
         case "asset":
           void loadBytes(`${assets}${ASSET_DIRECTORIES[message.kind]}${message.filename}`, PDF_SANDBOX_LIMITS.assetBytes).then(
             loaded => post({ type: "asset", requestId: message.requestId, bytes: loaded }, [loaded.buffer]),
@@ -91,8 +101,8 @@ async function extractInSandbox(
           )
           return
         case "recognize":
-          if (!recognition) { post({ type: "recognized", requestId: message.requestId, error: "Image text recognition is not available on this platform yet" }); return }
-          void recognition.recognizeImage(message.image).then(
+          if (!recognition && !job?.cloud) { post({ type: "recognized", requestId: message.requestId, error: "Image text recognition is not available on this platform yet" }); return }
+          void (job?.cloud?.recognizeImage(message.image, message.page) ?? recognition?.recognizeImage(message.image))?.then(
             result => post({ type: "recognized", requestId: message.requestId, result }),
             (error: unknown) => post({ type: "recognized", requestId: message.requestId, error: error instanceof Error ? error.message : String(error) })
           )
@@ -104,6 +114,8 @@ async function extractInSandbox(
           finish(new Error(message.message))
       }
     }
+    job?.signal?.addEventListener("abort", aborted, { once: true })
+    if (job?.signal?.aborted) { aborted(); return }
     scope.addEventListener("message", onMessage)
     frame.src = options.sandboxUrl
     doc.body.append(frame)

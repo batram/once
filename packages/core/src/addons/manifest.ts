@@ -407,8 +407,9 @@ class Reader {
     if (!list) return []
     const accepted: string[] = []
     list.forEach((capability, index) => {
+      if (capability === "ai" || capability === "search") { accepted.push(capability); return }
       if (!capability.startsWith("fetch:")) {
-        this.fail(`capabilities[${index}]`, "only fetch:<match pattern> grants exist")
+        this.fail(`capabilities[${index}]`, "supported grants are ai, search, and fetch:<match pattern>")
         return
       }
       try {

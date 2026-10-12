@@ -6,13 +6,32 @@ async function installAiAddon(page, origin) {
   await addonAdvanced(page)
   await page.getByTestId("addons").fill(JSON.stringify([fixture.manifest(origin)]))
   await page.getByTestId("save-addons").click()
+  await configureCentralAi(page, origin)
+  for (let level = 0; level < 4 && !(await page.locator('[data-settings-target="addons"]').isVisible()); level++) await page.locator("#settings_section_back").click()
+  await page.locator('[data-settings-target="addons"]').click()
   await addonSettings(page, "what-wait-who-why")
-  const token = page.getByTestId("addon-option-what-wait-who-why-compatibleToken")
-  await expect(token).toBeVisible()
-  await token.fill("fixture-token")
-  await token.locator("..").getByRole("button", { name: "Save token", exact: true }).click()
-  await expect(token.locator("..").getByRole("status")).toHaveText("Token saved on this device")
+  await expect(page.getByRole("button", { name: /^AI model: Default/ })).toBeVisible()
   await expect(page.getByTestId("addons")).not.toHaveValue(/fixture-token/)
+
+}
+
+async function configureCentralAi(page, origin) {
+  for (let level = 0; level < 5 && !(await page.locator('[data-settings-target="ai"]').isVisible()); level++) await page.locator("#settings_section_back").click()
+  await page.locator('[data-settings-target="ai"]').click()
+  await page.getByRole("button", { name: "Add connection", exact: true }).click()
+  let editor = page.locator("#ai_settings .ai_editor:not([hidden])")
+  await editor.getByLabel("Name", { exact: true }).fill("Fixture AI")
+  await editor.getByLabel("Provider", { exact: true }).selectOption("compatible")
+  await editor.getByLabel("Request endpoint", { exact: true }).fill(`${origin}/ai-addon/v1/chat/completions`)
+  await editor.getByLabel("API token", { exact: true }).fill("fixture-token")
+  await editor.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(page.getByRole("button", { name: /^Fixture AI:/ })).toBeVisible()
+  await page.getByRole("button", { name: /^Default model:/ }).click()
+  editor = page.locator("#ai_settings .ai_editor:not([hidden])")
+  await editor.getByLabel("Connection", { exact: true }).selectOption({ label: "Fixture AI" })
+  await editor.getByLabel("Model", { exact: true }).fill("fixture")
+  await editor.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Default model: Fixture AI · fixture", exact: true })).toBeVisible()
 }
 
 async function exerciseAiTray(page, row) {
@@ -65,4 +84,4 @@ async function exerciseAiTray(page, row) {
   await expect(tray.locator(".addon_tray_message")).toHaveCount(0)
 }
 
-module.exports = { installAiAddon, exerciseAiTray }
+module.exports = { installAiAddon, configureCentralAi, exerciseAiTray }

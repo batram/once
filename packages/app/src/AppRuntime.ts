@@ -1,3 +1,4 @@
+import { createAiClient } from "./ai/aiClient"
 import {
   applyStoryFilter,
   applyStoryFilters,
@@ -225,11 +226,13 @@ export class AppRuntime {
     return {
       getDiagnostics: () => this.diagnostics.snapshot(),
       getSyncStatus: () => this.syncStatus,
+      recheckSyncCompatibility: () => this.platform.syncService?.recheckCompatibility?.(),
       getStorySources: () => this.sourceSettingsReady
         .then(() => this.settings.getStorySources()),
       saveStorySources: (storySources, reloadStories) =>
         this.settings.saveStorySources(storySources, reloadStories),
       ...settingsClientMethods(this.settings, this.platform.secretStore),
+      ...createAiClient(this.platform, this.addonSync, () => this.events.publish("settingsChanged", { section: "ai" })),
       ...this.addonSync.methods(), ...this.addonRedirects.methods(),
       getEffectiveRedirects: async () => URLRedirect.dynamic_url_redirects,
       createAddonVault: async (passphrase, remember, deviceName) => {

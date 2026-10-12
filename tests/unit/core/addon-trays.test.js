@@ -17,7 +17,7 @@ test("AI manifest round-trips trays, connections, prompts and never secret optio
   const text = core.presentAddons(doc)
   assert.equal(text.includes("must-not-sync"), false)
   assert.equal(core.parseAddonsText(text).addons[0].manifest.trays[0].id, "assistant")
-  assert.equal(core.parseAddonsText(text).addons[0].manifest.connections.length, 6)
+  assert.equal(core.parseAddonsText(text).addons[0].manifest.connections.length, 1)
   const collector = core.readConfigSchema({ type: "string", maxLength: 16000, format: "multiline" })
   assert.throws(() => core.validateConfig(collector, "x".repeat(2001)), /too long/)
 })
@@ -33,12 +33,12 @@ test("invalid tray references, secret defaults and connection schemas are reject
 test("model lists stay on the endpoint's origin and suggestions must name a connection that has one", () => {
   const result = core.readAddonManifest(manifest())
   assert.equal(result.ok, true, JSON.stringify(result.reports))
-  assert.equal(result.manifest.connections.find(item => item.id === "compatible").models, "../models")
-  assert.deepEqual(result.manifest.settings.properties.model.suggestions, { connectionField: "provider" })
+  assert.deepEqual(result.manifest.capabilities, ["fetch:https://www.youtube.com/*", "ai", "search"])
+  assert.equal(result.manifest.settings.properties.model, undefined)
   assert.equal(core.addonModelsUrl("https://api.example.test/v1/chat/completions", "../models"), "https://api.example.test/v1/models")
   assert.equal(core.addonModelsUrl("https://api.example.test/v1/messages", "models"), "https://api.example.test/v1/models")
   assert.throws(() => core.addonModelsUrl("https://api.example.test/v1/messages", "https://other.test/models"), /origin/)
-  const bad = (change) => { const value = manifest(); change(value); return core.readAddonManifest(value).ok }
+  const bad = (change) => { const value = manifest(); value.settings = { type: "object", properties: { endpoint: { type: "string", format: "url" }, provider: { type: "string", enum: ["openai"] }, model: { type: "string" }, webSearch: { type: "boolean" } } }; value.connections = [{ id: "openai", endpoint: "endpoint", models: "models" }, { id: "youtube", endpoint: "endpoint" }]; change(value); return core.readAddonManifest(value).ok }
   assert.equal(bad(value => { value.connections[0].models = "https://other.test/models" }), false)
   assert.equal(bad(value => { value.settings.properties.model.suggestions = { connection: "youtube" } }), false)
   assert.equal(bad(value => { value.settings.properties.model.suggestions = { connectionField: "webSearch" } }), false)
@@ -91,4 +91,14 @@ test("connection requests cannot set authentication headers or arbitrary HTTP me
   assert.throws(() => core.readAddonRequest({ method: "DELETE" }), /GET and POST/)
   assert.throws(() => core.readAddonRequest({ body: "é".repeat(600000) }), /too large/)
   assert.throws(() => core.addonEndpoint("https://user:pass@example.test/"), /without credentials/)
+})
+
+test("shared AI sandbox operations validate image inputs and expose credential-free requests", () => {
+  const request = { instructions: "Read", messages: [{ role: "user", content: [{ type: "image", mediaType: "image/png", base64: "aGVsbG8=" }] }], selection: { connection: "configured", model: "vision" }, endpoint: "https://untrusted.test", token: "must-not-cross" }
+  const message = core.readSandboxMessage({ type: "op", opId: 1, op: { name: "ai.generate", href: "", request } })
+  assert.ok(message)
+  assert.equal(message.op.request.token, undefined)
+  assert.equal(message.op.request.endpoint, undefined)
+  assert.equal(core.readSandboxMessage({ type: "op", opId: 1, op: { name: "ai.generate", href: "", request: { ...request, messages: [{ role: "system", content: "bad" }] } } }), null)
+  assert.equal(core.readSandboxMessage({ type: "op", opId: 1, op: { name: "ai.generate", href: "", request: { ...request, messages: [{ role: "user", content: [{ type: "image", mediaType: "image/svg+xml", base64: "aGVsbG8=" }] }] } } }), null)
 })

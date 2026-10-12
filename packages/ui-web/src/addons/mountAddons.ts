@@ -1,3 +1,4 @@
+import { registerAddonAiConsumers } from "../settings/aiConsumers"
 import { registerStoryButton } from "../story/storyButtonPreferences"
 import { OnceClient } from "@once/app"
 import {
@@ -154,6 +155,7 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
         } })
       candidates.push({ entry: { enabled: devAddonEnabled(read.manifest.id), manifest: read.manifest, options: readDevAddonOptions(read.manifest.id) }, code: dev.code })
     }
+    if (!options.pageOnly) { registerAddonAiConsumers(candidates.map(candidate => candidate.entry)); client.registerLocalAiConsumers?.([...devIds]) }
     await reconciler.apply(candidates)
     if (!options.pageOnly) renderAddonOptions(client, candidates.map(candidate => candidate.entry), devIds, devControls)
   }
@@ -176,6 +178,7 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
   })
   client.subscribe("settingsChanged", ({ section }) => {
     if (section === "addons") refresh()
+
   })
   options.devAddons?.onChanged(() => {
     refresh()
@@ -327,6 +330,14 @@ async function sandboxFor(
   setAddonStatus(manifest.id, "idle")
   return new AddonSandbox(manifest.id, options.sandboxUrl, code, settings, {
     perform: (op, signal, onChunk) => {
+      if (op.name.startsWith("ai.") && !manifest.capabilities.includes("ai")) throw new Error("This add-on has no AI grant")
+      if (op.name === "search.query" && !manifest.capabilities.includes("search")) throw new Error("This add-on has no search grant")
+      if (op.name === "ai.generate" && (op.request.search || op.request.fetchPage) && !manifest.capabilities.includes("search")) throw new Error("This add-on has no search grant")
+      if (op.name === "ai.generate") return client.generateAi(manifest.id, op.request, signal, onChunk)
+      if (op.name === "ai.resolve") return client.resolveAiModel(manifest.id, op.selection)
+      if (op.name === "ai.connections") return client.listAiConnections()
+      if (op.name === "ai.models") return client.listAiModels(op.connection, signal)
+      if (op.name === "search.query") return client.querySearch(op.query, op.connection, signal)
       if (op.name === "request") return client.requestAddonConnection(manifest, settings(), op.connection, op.request, signal, devCode !== null, onChunk)
       if (op.name === "story.content") return addonStoryContent(client, op.href, signal, op.fresh)
       return performOperation(client, manifest, grants, op)
