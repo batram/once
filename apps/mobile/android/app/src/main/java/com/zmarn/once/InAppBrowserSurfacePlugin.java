@@ -322,7 +322,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     /** This tab's image text selection, as far as the app shows it natively (its bar). */
     private final ImageTextOverlays imageTexts = new ImageTextOverlays(this::getActivity, () -> surfaceContent, () -> visible ? surface : null,
-        code -> scripts.post(code, bridgePort), (code, answer) -> scripts.request(code, bridgePort, answer));
+        () -> bridgePort, scripts::post, scripts::request);
 
     @PluginMethod
     public void imageTextOverlay(PluginCall call) {
@@ -433,7 +433,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         String image = call.getString("image");
         LinkContextMenu.Target target = new LinkContextMenu.Target(link, call.getString("linkText"), image,
             image == null ? GeckoSession.ContentDelegate.ContextElement.TYPE_NONE : GeckoSession.ContentDelegate.ContextElement.TYPE_IMAGE,
-            call.getString("referrer"));
+            call.getString("referrer"), false);
         List<LinkContextMenu.Item> items = LinkContextMenu.Item.list(call.getArray("items"));
         getActivity().runOnUiThread(() -> {
             showLinkMenu(target, items);
@@ -677,7 +677,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     }
 
     @Override
-    protected void failPendingEvaluations(String reason) { scripts.failAll(reason); }
+    protected void failPendingEvaluations(String reason) { scripts.failAll(reason); imageTexts.close(); }
 
     private final class BridgePort implements WebExtension.PortDelegate {
         @Override
@@ -720,14 +720,14 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
                 }
                 return;
             }
-            if (imageTexts.receive(reply) || handleMediaMessage(reply)) return;
+            if (imageTexts.receive(reply, port) || handleMediaMessage(reply)) return;
             scripts.settle(reply);
         }
 
         @Override
         public void onDisconnect(WebExtension.Port port) {
             // Its page is gone, even when the next page's port already arrived.
-            imageTexts.close();
+            imageTexts.closed(port);
             if (bridgePort != port) return;
             bridgePort = null;
             healthSentAt = 0;

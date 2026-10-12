@@ -84,7 +84,7 @@ export class ImageTextLayer {
       document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]
       document.body.append(this.layer)
     } else {
-      const shadow = this.host.attachShadow({ mode: "open" })
+      const shadow = this.host.attachShadow({ mode: "closed" })
       const sheet = new CSSStyleSheet()
       sheet.replaceSync(FRAME_CSS)
       shadow.adoptedStyleSheets = [sheet]

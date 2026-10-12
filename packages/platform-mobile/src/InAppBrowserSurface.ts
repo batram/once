@@ -149,10 +149,14 @@ export const IMAGE_TEXT_MENU_ITEM = "once:image-text"
 export const IMAGE_TEXT_OVERLAY_MENU_ITEM = "once:image-text-overlay"
 
 /**
- * The app's image text overlay over a page (Android): opened on a probe's
- * first fit, then given the recognized words, or a message when there are none.
+ * The app's native side of image text selection (Android): "missing" says
+ * the chosen image could not be found in the page (such as one in a frame);
+ * "open" and "result" drive the out-of-page overlay prototype, opened on a
+ * probe's first fit, then given the recognized words, or a message when
+ * there are none.
  */
 export type ImageTextOverlayCommand =
+  | { action: "missing"; token: string }
   | { action: "open"; token: string; fit: unknown }
   | { action: "result"; token: string; result: unknown; message?: string }
 

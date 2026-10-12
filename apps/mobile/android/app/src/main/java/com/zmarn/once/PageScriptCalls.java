@@ -17,7 +17,7 @@ final class PageScriptCalls {
     /** Who awaits a script's answer: the shell's call, or the app itself. */
     private interface Reply {
         void resolve(String value);
-        void reject(String message);
+        void reject(String message, Exception cause);
     }
 
     private final Handler handler;
@@ -52,7 +52,7 @@ final class PageScriptCalls {
     void send(PluginCall call, String script, WebExtension.Port bridgePort) {
         send(new Reply() {
             @Override public void resolve(String value) { call.resolve(new JSObject().put("value", value)); }
-            @Override public void reject(String message) { call.reject(message); }
+            @Override public void reject(String message, Exception cause) { call.reject(message, cause); }
         }, script, bridgePort);
     }
 
@@ -61,18 +61,18 @@ final class PageScriptCalls {
         if (bridgePort == null) { answer.accept(null); return; }
         send(new Reply() {
             @Override public void resolve(String value) { answer.accept(value); }
-            @Override public void reject(String message) { answer.accept(null); }
+            @Override public void reject(String message, Exception cause) { answer.accept(null); }
         }, script, bridgePort);
     }
 
     private void send(Reply call, String script, WebExtension.Port bridgePort) {
-        if (pendingEvaluations.size() >= 32) { call.reject("Too many pending page script requests"); return; }
+        if (pendingEvaluations.size() >= 32) { call.reject("Too many pending page script requests", null); return; }
         long id = evaluationSequence.incrementAndGet();
         pendingEvaluations.put(id, call);
         Runnable timeout = () -> {
             evaluationTimeouts.remove(id);
             Reply pending = pendingEvaluations.remove(id);
-            if (pending != null) pending.reject("The page did not answer the script request in time");
+            if (pending != null) pending.reject("The page did not answer the script request in time", null);
         };
         evaluationTimeouts.put(id, timeout);
         handler.postDelayed(timeout, 10000);
@@ -84,7 +84,7 @@ final class PageScriptCalls {
         } catch (Exception error) {
             pendingEvaluations.remove(id);
             cancelEvaluationTimeout(id);
-            call.reject("The script could not be sent to the page");
+            call.reject("The script could not be sent to the page", error);
         }
     }
 
@@ -96,7 +96,7 @@ final class PageScriptCalls {
         if (call == null) return;
         String error = reply.optString("error", null);
         if (error != null && !reply.isNull("error")) {
-            call.reject("The script failed: " + error);
+            call.reject("The script failed: " + error, null);
             return;
         }
         call.resolve(reply.optString("value", "null"));
@@ -105,7 +105,7 @@ final class PageScriptCalls {
     void failAll(String reason) {
         for (Runnable timeout : evaluationTimeouts.values()) handler.removeCallbacks(timeout);
         evaluationTimeouts.clear();
-        for (Reply pending : pendingEvaluations.values()) pending.reject(reason);
+        for (Reply pending : pendingEvaluations.values()) pending.reject(reason, null);
         pendingEvaluations.clear();
     }
 

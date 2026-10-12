@@ -14,6 +14,12 @@ if (window === window.top) {
   let restored = false
   let retry = null
   let attempts = 0
+  // Image text selection (evaluated here, see imageTextInjection.ts) reports
+  // to the app through this: what its native bar shows, and where the image
+  // is. It posts on whichever port is current, so a reconnect keeps it working.
+  globalThis.__onceImageTextPush = payload => {
+    port?.postMessage({ type: "image-text", payload: String(payload) })
+  }
   const disconnect = () => {
     if (retry !== null) clearTimeout(retry)
     retry = null
@@ -29,11 +35,6 @@ if (window === window.top) {
     if (suspended || port) return
     const connected = browser.runtime.connectNative("once_surface")
     port = connected
-    // Image text selection (evaluated here, see imageTextInjection.ts) reports
-    // to the app through this: what its native bar shows, and where the image is.
-    globalThis.__onceImageTextPush = payload => {
-      if (port === connected) connected.postMessage({ type: "image-text", payload: String(payload) })
-    }
     cleanupMedia = installOnceMediaBridge(connected)
     cleanupPip = installOncePictureInPicture(connected)
     connected.onDisconnect.addListener(() => {
@@ -72,7 +73,13 @@ if (window === window.top) {
       connected.postMessage({ id: message.id, value: text })
     })
   }
-  window.addEventListener("pagehide", () => { suspended = true; disconnect() })
+  window.addEventListener("pagehide", () => {
+    // A selection never outlives its page's bar: a page restored from the
+    // back-forward cache must not come back with one the app has dropped.
+    window.__onceImageText?.close()
+    suspended = true
+    disconnect()
+  })
   window.addEventListener("pageshow", event => {
     suspended = false
     restored = event.persisted === true

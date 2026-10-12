@@ -1,5 +1,6 @@
 import type { ImageTextFit, ImageTextResult } from "./imageTextTypes"
 import { ImageTextBlocks } from "./imageTextBlocks"
+import { uncoveredBox } from "./imageTextCover"
 import { ImageTextHighlights, selectionRange } from "./imageTextHighlights"
 import { ImageTextLayer } from "./imageTextLayer"
 import { ImageTextPointer } from "./imageTextPointer"
@@ -58,6 +59,11 @@ export function findImage(src: string, x: number, y: number): HTMLImageElement |
   return image && image.complete && image.naturalWidth ? image : null
 }
 
+/** The overlay's own elements, which sit over the image and are no page UI covering it. */
+function ownElement(element: Element): boolean {
+  return Boolean(element.closest("[data-once-image-text], [data-once-image-text-layer]"))
+}
+
 function inView(image: HTMLImageElement): boolean {
   const rect = image.getBoundingClientRect()
   return rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth
@@ -108,7 +114,8 @@ function createSelection(image: HTMLImageElement, token: string, textLayer: bool
   appBar?: (token: string, state: ImageTextBarState | null) => void): ImageTextSession {
   const host = document.createElement("div")
   host.dataset.onceImageText = token
-  const shadow = host.attachShadow({ mode: "open" })
+  // Closed: the page's scripts cannot reach in to read or change the recognized words.
+  const shadow = host.attachShadow({ mode: "closed" })
   const sheet = new CSSStyleSheet()
   sheet.replaceSync(OVERLAY_CSS)
   shadow.adoptedStyleSheets = [sheet]
@@ -173,7 +180,8 @@ function createSelection(image: HTMLImageElement, token: string, textLayer: bool
     appBar?.(token, null)
   }
   const keydown = (event: KeyboardEvent) => {
-    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close() }
+    // The page's own script cannot close the selection with a synthetic key.
+    if (event.key === "Escape" && event.isTrusted) { event.preventDefault(); event.stopPropagation(); close() }
   }
   document.addEventListener("keydown", keydown, true)
   done.onclick = close
@@ -183,7 +191,8 @@ function createSelection(image: HTMLImageElement, token: string, textLayer: bool
     setTimeout(() => { if (!closed) status.textContent = hint }, 1600)
   }
   const place = () => {
-    const fit = imageFit(image)
+    // Clipped to what the page does not draw over, so the selection never shows through its UI.
+    const fit = imageFit(image, (box) => uncoveredBox(image, box, ownElement))
     position(image, fit, clip, words)
     layer?.update(fit)
     bar.hidden = clip.hidden = !fit.visible
@@ -226,7 +235,7 @@ function createSelection(image: HTMLImageElement, token: string, textLayer: bool
  * iframe (Electron's overlay places images inside frames through their
  * owners) fills its content box.
  */
-export function imageFit(image: HTMLImageElement | HTMLIFrameElement): ImageTextFit {
+export function imageFit(image: HTMLImageElement | HTMLIFrameElement, clip?: (box: ImageTextFit["visibleBox"]) => ImageTextFit["visibleBox"]): ImageTextFit {
   const rect = image.getBoundingClientRect()
   const style = getComputedStyle(image)
   const borderX = parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft)
@@ -237,7 +246,8 @@ export function imageFit(image: HTMLImageElement | HTMLIFrameElement): ImageText
   const sx = rect.width / (image.offsetWidth || 1)
   const sy = rect.height / (image.offsetHeight || 1)
   const left = rect.left + borderX * sx, top = rect.top + borderY * sy
-  const visibleBox = visibleImageBox(image, left, top, width * sx, height * sy)
+  const scrolled = visibleImageBox(image, left, top, width * sx, height * sy)
+  const visibleBox = clip && scrolled.right > scrolled.left && scrolled.bottom > scrolled.top ? clip(scrolled) : scrolled
   const clipPath = `inset(${Math.max(0, visibleBox.top - top)}px ${Math.max(0, left + width * sx - visibleBox.right)}px ` +
     `${Math.max(0, top + height * sy - visibleBox.bottom)}px ${Math.max(0, visibleBox.left - left)}px)`
   const natural = "naturalWidth" in image ? { width: image.naturalWidth, height: image.naturalHeight } : null

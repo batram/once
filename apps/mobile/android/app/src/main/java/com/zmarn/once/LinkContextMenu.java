@@ -25,18 +25,21 @@ final class LinkContextMenu {
         final String media;
         final int mediaType;
         final String referrer;
+        /** In the browsing page itself, where its text can be selected; not the shell's Reader frame. */
+        final boolean inPage;
 
-        Target(String link, String linkText, String media, int mediaType, String referrer) {
+        Target(String link, String linkText, String media, int mediaType, String referrer, boolean inPage) {
             this.link = link;
             this.linkText = linkText;
             this.media = media;
             this.mediaType = mediaType;
             this.referrer = referrer;
+            this.inPage = inPage;
         }
 
         static Target of(ContextElement element) {
             return new Target(element.linkUri, element.linkText,
-                element.type == ContextElement.TYPE_NONE ? null : element.srcUri, element.type, element.baseUri);
+                element.type == ContextElement.TYPE_NONE ? null : element.srcUri, element.type, element.baseUri, true);
         }
     }
 
@@ -116,7 +119,7 @@ final class LinkContextMenu {
             }
             if (target.mediaType == ContextElement.TYPE_IMAGE) {
                 // GeckoView has no Live Text; on-device OCR selects the image's text in place.
-                if (runItem != null && (isWebUrl(media) || media.startsWith("data:image/"))) {
+                if (runItem != null && target.inPage && (isWebUrl(media) || media.startsWith("data:image/"))) {
                     labels.add("Select text in image");
                     actions.add(() -> runItem.accept(IMAGE_TEXT));
                     if (IMAGE_TEXT_OVERLAY_ENABLED) {

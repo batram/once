@@ -6,9 +6,9 @@ import { installImageTextOverlay } from "@once/ui-web/imageText/imageTextOverlay
 // (ImageTextBar.java): what it shows goes there through the bridge content
 // script's port, where this runs.
 
-const push = (globalThis as { __onceImageTextPush?: (payload: string) => void }).__onceImageTextPush
-
 installImageTextOverlay({
   textLayer: true,
-  bar: (token, state) => push?.(JSON.stringify({ token, bar: state }))
+  // Looked up on each report: the content script owns it (see content.js).
+  bar: (token, state) => (globalThis as { __onceImageTextPush?: (payload: string) => void })
+    .__onceImageTextPush?.(JSON.stringify({ token, bar: state }))
 })

@@ -29,7 +29,8 @@ async function selectImageText(page: InAppBrowserSurface, image: string, referre
     // A touch menu reports no point: the overlay takes the matching image in view.
     const started = await page.evaluateJavaScript(
       `window.__onceStartImageText(${JSON.stringify(image)}, NaN, NaN, ${JSON.stringify(token)})`)
-    if (started !== "true") return
+    // Not in the page's own document (such as in a frame), or no longer there: say so.
+    if (started !== "true") { await page.imageTextOverlay?.({ action: "missing", token }).catch(() => undefined); return }
   } catch {
     return
   }
