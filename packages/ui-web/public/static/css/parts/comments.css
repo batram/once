@@ -311,7 +311,10 @@
    replies are painted over it, so down there it is the strip left of them. */
 .comment_rail {
   position: absolute;
-  inset-block: var(--comment-line-top) var(--sp-1);
+  /* It starts under the toggle rather than at the text, where the line does:
+     no gap between the two targets, or the shared highlight flickers when the
+     pointer crosses it. Both do the same, so the overlap is harmless. */
+  inset-block: calc(var(--comment-line-top) - var(--sp-2)) var(--sp-1);
   inset-inline-start: 0;
   inline-size: var(--comment-text-inset);
   padding: 0;
