@@ -62,6 +62,9 @@ test("the oldest origin goes first once the limit is reached, and a revisit keep
   record.record("https://a.test/again")
   record.record("https://d.test/")
   assert.deepEqual(["a", "b", "c", "d"].filter((host) => record.originsFor(`${host}.test`).length), ["a", "c", "d"])
+  // Saving now clears the pending minute-long save, which would otherwise hold
+  // the test process open and recreate the removed directory when it fires.
+  record.flush()
 })
 
 test("an unreadable or tampered file starts an empty record rather than failing startup", () => {
