@@ -439,6 +439,45 @@
   padding: 0;
 }
 
+/* The way in without the swipe: the reply count, at the end of the header line. */
+.comment_focus {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-inline-start: auto;
+  padding: 0 var(--sp-1);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* A chevron pointing in, drawn like the comment toggle's. */
+.comment_focus::after {
+  content: "";
+  inline-size: 5px;
+  block-size: 5px;
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(-45deg);
+}
+
+@media (hover: hover) {
+  .comment_focus:hover {
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    color: var(--text-high-color);
+  }
+}
+
+/* The focused comment is already in: its way back is the bar. */
+.comment.is-focused > .comment_main .comment_focus {
+  display: none;
+}
+
 /* The way back, pinned to the top while a comment is focused: the comment it replied to. */
 .comment_context {
   position: sticky;

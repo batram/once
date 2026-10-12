@@ -1872,6 +1872,19 @@
     inset: calc((var(--touch) - var(--sp-4)) / -2);
   }
 
+  /* The reply count gets the same: a full touch target around a caption-sized line. */
+  .reading_comment_thread .comment_focus {
+    position: relative;
+    min-height: 0;
+    min-block-size: var(--sp-4);
+  }
+
+  .reading_comment_thread .comment_focus::before {
+    content: "";
+    position: absolute;
+    inset: calc((var(--touch) - var(--sp-4)) / -2) 0;
+  }
+
   #reading_find_bar {
     position: relative;
     z-index: 2;

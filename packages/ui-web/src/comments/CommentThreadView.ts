@@ -225,6 +225,12 @@ export class CommentThreadView {
     if (target?.closest?.(".comment_thread_page")) return this.togglePage()
     const index = this.indexOf(target)
     if (index < 0) return
+    if (target?.closest?.(".comment_focus")) {
+      this.select(index, false)
+      this.setCollapsed(index, false)
+      this.focus(index)
+      return
+    }
     const control = target?.closest?.(".comment_toggle, .comment_rail")
     const click = this.countClick(event, !!control)
     // A drag that selected text, or a shift-click extending it, is not a click on the comment.
@@ -351,6 +357,15 @@ export class CommentThreadView {
     if (permalink.firstChild) head.append(permalink)
     if (node.score !== undefined) {
       head.append(element("span", "comment_score", points(node.score)))
+    }
+    // The way into a subthread without the swipe: its reply count, as Slack and X show it.
+    const replies = countAll(node.children)
+    if (this.options.foldDepth && replies) {
+      const count = `${replies} ${replies === 1 ? "reply" : "replies"}`
+      const focus = element("button", "comment_focus", count) as HTMLButtonElement
+      focus.type = "button"
+      focus.setAttribute("aria-label", `Show only this thread, ${count}`)
+      head.append(focus)
     }
     return head
   }

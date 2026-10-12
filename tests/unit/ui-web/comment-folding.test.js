@@ -124,4 +124,30 @@ test("without folding, a swipe right on an open comment steps into its first rep
   swipeRight(view, "a1")
   assert.equal(bar(view), null)
   assert.equal(view.root.querySelector(".comment.is-current").dataset.id, "a11")
+  assert.equal(view.root.querySelector(".comment_focus"), null, "no reply count button either")
+})
+
+const focusButton = (view, id) => view.root.querySelector(`[data-id="${id}"] > .comment_main .comment_focus`)
+const click = target => target.dispatchEvent(new window.Event("click", { bubbles: true }))
+
+test("a comment with replies counts them all in a button, a comment without has none", () => {
+  const view = render(true)
+  assert.equal(focusButton(view, "a").textContent, "3 replies")
+  assert.equal(focusButton(view, "a").getAttribute("aria-label"), "Show only this thread, 3 replies")
+  assert.equal(focusButton(view, "a11").textContent, "1 reply")
+  assert.equal(focusButton(view, "a111"), null)
+})
+
+test("the reply count focuses its comment, opening it first when collapsed", () => {
+  const view = render(true)
+  click(focusButton(view, "a1"))
+  assert.ok(comment(view, "a1").classList.contains("is-focused"))
+  assert.equal(view.root.querySelector(".comment.is-current").dataset.id, "a1")
+  click(bar(view))
+  view.select(2)
+  view.collapse()
+  assert.ok(comment(view, "a11").classList.contains("is-collapsed"))
+  click(focusButton(view, "a11"))
+  assert.ok(!comment(view, "a11").classList.contains("is-collapsed"))
+  assert.ok(comment(view, "a11").classList.contains("is-focused"))
 })
