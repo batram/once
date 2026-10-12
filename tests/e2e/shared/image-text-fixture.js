@@ -1,7 +1,12 @@
 const http = require("node:http")
 
+const SAMPLE = { width: 1000, height: 360, font: "48px Arial",
+  lines: [["Select these words", 65, 100], ["Native Apple Vision", 65, 185], ["Copy 12345 and punctuation.", 65, 270]] }
+
 // The browser creates a real raster image. The visible words are not DOM text.
-const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+// They are drawn as the page loads: a canvas redrawn later reads back blank
+// on a hidden desktop, and recognition finds nothing.
+const html = (text) => `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Image text selection fixture</title><style>
 body { margin: 24px; font: 16px system-ui; color: #172338; background: #f5f7fa; }
 main { max-width: 800px; margin: auto; }
@@ -14,17 +19,17 @@ img { display: block; width: 100%; height: 280px; object-fit: contain; border: 2
 <a href="/should-not-navigate"><img id="sample" alt="OCR test image"></a>
 <p>The three lines above are pixels. The text should copy without opening the link.</p>
 <div class="spacer"></div><p>End of scroll test</p></main><script>
-const canvas = document.createElement('canvas'); canvas.width = 1000; canvas.height = 360;
-const context = canvas.getContext('2d'); context.fillStyle = '#fff'; context.fillRect(0,0,1000,360);
-context.fillStyle = '#14253d'; context.font = '48px Arial';
-context.fillText('Select these words', 65, 100);
-context.fillText('Native Apple Vision', 65, 185);
-context.fillText('Copy 12345 and punctuation.', 65, 270);
+const text = ${JSON.stringify(text)};
+const canvas = document.createElement('canvas'); canvas.width = text.width; canvas.height = text.height;
+const context = canvas.getContext('2d'); context.fillStyle = '#fff'; context.fillRect(0,0,text.width,text.height);
+context.fillStyle = '#14253d'; context.font = text.font;
+for (const [line, x, y] of text.lines) context.fillText(line, x, y);
 document.querySelector('img').src = canvas.toDataURL('image/png');
 </script></body></html>`
 
 async function startImageTextServer(port = 0) {
   let raster = null
+  let text = SAMPLE
   const server = http.createServer((request, response) => {
     if (request.url === "/image.png" && raster) {
       response.writeHead(200, { "content-type": "image/png" })
@@ -40,11 +45,13 @@ async function startImageTextServer(port = 0) {
           style="position:absolute;left:60px;top:140px;width:640px;height:520px;border:9px solid #456"></iframe></body>`)
       return
     }
-    response.end(html)
+    response.end(html(text))
   })
   await new Promise(resolve => server.listen(port, "127.0.0.1", resolve))
   return { origin: `http://127.0.0.1:${server.address().port}`,
     setImage: (bytes) => { raster = bytes },
+    /** What the page's image shows from its next load: `{ width, height, font, lines: [[text, x, y]] }`; null for the sample. */
+    setText: (drawn) => { text = drawn ? { ...SAMPLE, ...drawn } : SAMPLE },
     close: () => new Promise(resolve => server.close(resolve)) }
 }
 module.exports = { startImageTextServer }

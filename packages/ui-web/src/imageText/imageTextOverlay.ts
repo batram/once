@@ -1,3 +1,4 @@
+import { ocrParagraphLines } from "@once/app/ocrParagraphs"
 import type { ImageTextFit, ImageTextPoint, ImageTextResult, ImageTextWord } from "./imageTextTypes"
 import { ImageTextBlocks } from "./imageTextBlocks"
 import { uncoveredBox } from "./imageTextCover"
@@ -80,8 +81,8 @@ export const OVERLAY_CSS = `
   /* Over Android's text layer the clip only carries the recognition flourish. */
   .clip.passive { pointer-events: none; }
   .words { position: absolute; transform-origin: 0 0; }
-  /* One block per recognized line with its words inline in it, so find in
-     page matches across words as in page text (see renderWords). */
+  /* One block per recognized paragraph with its words inline in it, so find
+     in page matches across words and wrapped lines as in page text (see renderWords). */
   .line { position: absolute; white-space: pre; line-height: 1; transform-origin: 0 0;
     font-family: Arial, sans-serif; color: transparent; }
   .word { position: relative; vertical-align: top; cursor: text; pointer-events: auto;
@@ -353,50 +354,72 @@ function visibleImageBox(image: HTMLElement, left: number, top: number, width: n
 
 /**
  * Lays the recognized words over the picture, in its natural pixels. Each
- * line is one block, turned to the line's angle, holding its words as plain
- * inline text with a real space between them: find in page searches a block
- * as one run of text, so "cost of" matches across two words as in page text.
- * (A block of its own per word, as before, kept every match inside one word.)
+ * paragraph is one block, turned to its first line's angle, holding its
+ * words as plain inline text with a real space between them, its wrapped
+ * lines included: find in page searches a block as one run of text, so
+ * "cost of" matches across two words, and across a line break, as in page
+ * text. (A block per word kept every match inside one word; a block per
+ * line, every match inside one line.)
  * A word reaches its box through letter spacing (the glyphs are transparent;
  * only where its characters fall matters), a left margin and a nudge across
- * the line, since inline text cannot be transformed.
+ * the block, since inline text cannot be transformed. The block stays one
+ * line of layout: a later line's first word goes back to the line's start
+ * with a negative margin, and down by its nudge.
  */
 export function renderWords(container: HTMLElement, result: ImageTextResult, width: number, height: number): void {
   container.replaceChildren()
-  const lines: ReturnType<typeof renderLine>[] = []
-  for (const [lineIndex, line] of result.lines.entries()) {
-    if (line.length) {
-      const rendered = renderLine(line, lineIndex, width, height)
-      container.append(rendered.block)
-      lines.push(rendered)
-    }
-    container.append(document.createTextNode("\n"))
-  }
+  const blocks = flows(result, width, height).map((lines) => {
+    const rendered = renderFlow(lines.map((line) => ({ line, words: result.lines[line] })), width, height)
+    container.append(rendered.block, document.createTextNode("\n"))
+    return rendered
+  })
   // Every natural width in one layout, then every fit.
-  lines.map((rendered) => rendered.measure()).forEach((fit) => fit())
+  blocks.map((rendered) => rendered.measure()).forEach((fit) => fit())
 }
 
-function renderLine(line: ImageTextWord[], lineIndex: number, width: number, height: number) {
+/** Lines' indices by paragraph, each paragraph cut where a line turns away from its first (a page bent in a photo). */
+function flows(result: ImageTextResult, width: number, height: number): number[][] {
+  const angle = (line: number) => {
+    const [{ topLeft, topRight }] = result.lines[line]
+    return Math.atan2((topRight.y - topLeft.y) * height, (topRight.x - topLeft.x) * width)
+  }
+  const paragraphs = ocrParagraphLines({ lines: result.textLines, lineBounds: result.lineBounds })
+  const grouped = new Set(paragraphs.flat())
+  // Lines with words the grouping passed over stand alone, in their place.
+  result.lines.forEach((words, line) => { if (words.length && !grouped.has(line)) paragraphs.push([line]) })
+  paragraphs.sort((a, b) => a[0] - b[0])
+  return paragraphs.flatMap((lines) => lines.filter((line) => result.lines[line]?.length)
+    .reduce<number[][]>((cut, line) => {
+      const flow = cut.at(-1)
+      if (flow && Math.abs(angle(line) - angle(flow[0])) < 0.03) flow.push(line)
+      else cut.push([line])
+      return cut
+    }, []))
+}
+
+function renderFlow(lines: { line: number; words: ImageTextWord[] }[], width: number, height: number) {
   const point = (corner: ImageTextPoint) => ({ x: corner.x * width, y: corner.y * height })
-  const origin = point(line[0].topLeft), towards = point(line[0].topRight)
+  const first = lines[0].words[0]
+  const origin = point(first.topLeft), towards = point(first.topRight)
   const length = Math.hypot(towards.x - origin.x, towards.y - origin.y) || 1
-  // The line's direction, and across it, downwards on upright text.
+  // The first line's direction, and across it, downwards on upright text.
   const along = { x: (towards.x - origin.x) / length, y: (towards.y - origin.y) / length }
   const across = { x: -along.y, y: along.x }
-  const boxes = line.map((word) => {
+  const boxes = lines.flatMap(({ line, words }) => words.map((word) => {
     const topLeft = point(word.topLeft), topRight = point(word.topRight), bottomLeft = point(word.bottomLeft)
     const offset = { x: topLeft.x - origin.x, y: topLeft.y - origin.y }
-    return { text: word.text, start: offset.x * along.x + offset.y * along.y, shift: offset.x * across.x + offset.y * across.y,
+    return { line, text: word.text, start: offset.x * along.x + offset.y * along.y, shift: offset.x * across.x + offset.y * across.y,
       width: Math.hypot(topRight.x - topLeft.x, topRight.y - topLeft.y),
       height: Math.hypot(bottomLeft.x - topLeft.x, bottomLeft.y - topLeft.y) }
-  })
+  }))
   const block = document.createElement("div")
   block.className = "line"
   Object.assign(block.style, { left: `${origin.x}px`, top: `${origin.y}px`,
-    // The spaces' size: the line's typical word height.
+    // The spaces' size: the paragraph's typical word height.
     fontSize: `${boxes.reduce((sum, box) => sum + box.height, 0) / boxes.length}px`,
     transform: `rotate(${Math.atan2(along.y, along.x)}rad)` })
   const spans = boxes.map((box, index) => {
+    // One space between words, and between a line and the next: "wraps onto" + "a line" reads "onto a line".
     if (index) {
       const separator = document.createElement("span")
       separator.className = "separator"
@@ -405,13 +428,13 @@ function renderLine(line: ImageTextWord[], lineIndex: number, width: number, hei
     }
     const span = document.createElement("span")
     span.className = "word"
-    span.dataset.line = String(lineIndex)
+    span.dataset.line = String(box.line)
     span.textContent = box.text
     Object.assign(span.style, { fontSize: `${box.height}px`, top: `${box.shift}px` })
     block.append(span)
     return span
   })
-  // A space after the line too: a selection running into the next line reads "words Native", not "wordsNative".
+  // A space after the paragraph too: a selection running into the next one reads "words Native", not "wordsNative".
   const trailing = document.createElement("span")
   trailing.className = "separator"
   trailing.textContent = " "

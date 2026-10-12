@@ -5,6 +5,7 @@ const { startImageTextServer } = require("../shared/image-text-fixture")
 test.skip(!["darwin", "win32"].includes(process.platform), "Native OCR uses Apple Vision (macOS) or Windows.Media.Ocr (Windows)")
 let server
 test.beforeAll(async () => { server = await startImageTextServer() })
+test.beforeEach(() => server.setText(null))
 test.afterAll(async () => { await server?.close() })
 
 async function inPage(app, script) {
@@ -88,11 +89,11 @@ async function overlayOpen(app) {
 
 const READY = `Drag to select text · ${process.platform === "darwin" ? "⌘C" : "Ctrl+C"} to copy`
 
-async function startRecognition(app) {
-  await app.evaluate(async ({ webContents, Menu }, url) => {
+async function startRecognition(app, selector = "img") {
+  await app.evaluate(async ({ webContents, Menu }, { url, selector }) => {
     const page = webContents.getAllWebContents().find(c => c.getURL() === url)
     const params = await page.executeJavaScript(`(() => {
-      const image = document.querySelector('img'), r = image.getBoundingClientRect();
+      const image = document.querySelector(${JSON.stringify(selector)}), r = image.getBoundingClientRect();
       return {srcURL:image.currentSrc, x:r.left+r.width/2, y:r.top+r.height/2};
     })()`)
     const original = Menu.buildFromTemplate
@@ -107,7 +108,7 @@ async function startRecognition(app) {
     } finally { Menu.buildFromTemplate = original }
     if (!action) throw new Error("Missing native image text action")
     action.click()
-  }, `${server.origin}/`)
+  }, { url: `${server.origin}/`, selector })
   await expect.poll(async () => (await overlayState(app))?.bar?.text).toContain(READY)
 }
 
@@ -159,9 +160,13 @@ async function selectAndCopy(app, url = `${server.origin}/`) {
   return text
 }
 
-/** How many matches the app's find in page reports for `text`; `keep` leaves the session open. */
-async function findMatches(app, text, { keep = false } = {}) {
-  return app.evaluate(({ webContents }, { url, text, keep }) => new Promise((resolve, reject) => {
+/**
+ * The app's find in page's final result for `text`: a new session, or with
+ * `step` ("forward", "backward") the next or previous match of the open one.
+ * `keep` leaves the session open.
+ */
+async function findResult(app, text, { keep = false, step, url = `${server.origin}/` } = {}) {
+  return app.evaluate(({ webContents }, { url, text, keep, step }) => new Promise((resolve, reject) => {
     const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
     const timer = setTimeout(() => reject(new Error(`No find result for ${text}`)), 5000)
     const found = (_event, result) => {
@@ -169,13 +174,27 @@ async function findMatches(app, text, { keep = false } = {}) {
       tab.removeListener("found-in-page", found)
       clearTimeout(timer)
       if (!keep) tab.stopFindInPage("clearSelection")
-      resolve(result.matches)
+      resolve(result)
     }
     tab.on("found-in-page", found)
     // findNext starts a session; a fresh query without it reports nothing.
-    tab.findInPage(text, { findNext: true })
-  }), { url: `${server.origin}/`, text, keep })
+    tab.findInPage(text, step ? { findNext: false, forward: step === "forward" } : { findNext: true })
+  }), { url, text, keep, step })
 }
+
+/** How many matches the app's find in page reports for `text`. */
+async function findMatches(app, text, options) {
+  return (await findResult(app, text, options)).matches
+}
+
+async function stopFind(app, url = `${server.origin}/`) {
+  await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url)
+    .stopFindInPage("clearSelection"), url)
+}
+
+/** Whether the page's element is in its viewport, at least in part. */
+const inView = (selector) => `(() => { const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
+  return r.bottom > 0 && r.top < innerHeight })()`
 
 /** The tab as the window shows it: the selection is part of the page. */
 async function capture(app, name) {
@@ -224,13 +243,12 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     // With the image scrolled away, find still goes to its words: Chromium
     // runs no scroll for a match in an off-screen cross-origin frame, so the
     // app brings the image back for it.
-    await inPage(app, "scrollTo(0, document.scrollingElement.scrollHeight)")
-    await expect.poll(() => inPage(app, "document.querySelector('img').getBoundingClientRect().bottom < 0")).toBe(true)
+    // Again until it holds: a scroll during find's own, to the last match, is undone by it.
+    await expect.poll(() => inPage(app, `new Promise(resolve => { scrollTo(0, document.scrollingElement.scrollHeight);
+      setTimeout(() => resolve(document.querySelector('img').getBoundingClientRect().bottom < 0), 200) })`)).toBe(true)
     expect(await findMatches(app, "Native Apple", { keep: true })).toBe(1)
-    await expect.poll(() => inPage(app, `(() => { const r=document.querySelector('img').getBoundingClientRect();
-      return r.bottom > 0 && r.top < innerHeight })()`)).toBe(true)
-    await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url)
-      .stopFindInPage("clearSelection"), `${server.origin}/`)
+    await expect.poll(() => inPage(app, inView("img"))).toBe(true)
+    await stopFind(app)
     await inPage(app, "scrollTo(0,0)")
     await inPage(app, "scrollBy(0,80)")
     await expect.poll(async () => (await geometry(app)).words[0].top).toBeCloseTo(initial.words[0].top - 80, 0)
@@ -317,22 +335,70 @@ test("native OCR selects and copies image words with stable geometry and cleanup
   } finally { await closeApp(app, userData) }
 })
 
-test("triple-click selects a reflowed paragraph and copy joins its wrapped lines", async () => {
+test("find next and previous bring the image back for matches in its words, and only for those", async () => {
+  // Matches in the words (2 and 3: the main frame's come first) and one in the page text below the image (1).
+  server.setText({ lines: [["Zebra first", 65, 100], ["Middle line here", 65, 185], ["Zebra second", 65, 270]] })
   const { electronApp: app, userData, window } = await launchApp()
   try {
     await window.locator("#urlfield").fill(`${server.origin}/`)
     await window.locator("#urlfield").press("Enter")
     await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
-    // A paragraph wrapped over two lines, a gap, then a second paragraph.
-    await inPage(app, `new Promise(resolve => {
-      const canvas=document.createElement('canvas'); canvas.width=1000; canvas.height=360;
-      const c=canvas.getContext('2d'); c.fillStyle='#fff'; c.fillRect(0,0,1000,360);
-      c.fillStyle='#14253d'; c.font='40px Arial';
-      c.fillText('The first paragraph wraps onto',40,70); c.fillText('a second line of text.',40,120);
-      c.fillText('Another paragraph follows.',40,260);
-      const image=document.querySelector('img'); image.onload=()=>resolve(true); image.src=canvas.toDataURL('image/png');
-    })`)
+    await inPage(app, "document.querySelector('.spacer').nextElementSibling.id='end'; document.getElementById('end').textContent='End Zebra page text'")
     await startRecognition(app)
+    // Once find's own scroll has landed: scrolling during it leaves the image where it was.
+    const away = async () => {
+      await expect.poll(async () => {
+        await inPage(app, "scrollTo(0, document.scrollingElement.scrollHeight - innerHeight - 300)")
+        return inPage(app, `new Promise(resolve => { const y=scrollY; setTimeout(() => resolve(scrollY === y && !${inView("img")}), 200) })`)
+      }).toBe(true)
+    }
+    const step = async (options, ordinal) => {
+      expect((await findResult(app, "Zebra", { keep: true, ...options })).activeMatchOrdinal).toBe(ordinal)
+    }
+    await step({}, 2)
+    await away()
+    await step({ step: "forward" }, 3)
+    await expect.poll(() => inPage(app, inView("img"))).toBe(true)
+    await away()
+    await step({ step: "backward" }, 2)
+    await expect.poll(() => inPage(app, inView("img"))).toBe(true)
+    // A click in the page moves find's start there: the next match is the page's own, and the image stays away.
+    await away()
+    // On the empty spacer above the page's match, clear of the image and its link.
+    const spot = await inPage(app, "(() => { const r=document.querySelector('.spacer').getBoundingClientRect(); return {x:r.left+40, y:Math.max(r.top,0)+40} })()")
+    await app.evaluate(({ webContents }, { url, spot }) => {
+      const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
+      tab.sendInputEvent({ type: "mouseDown", ...spot, button: "left", clickCount: 1 })
+      tab.sendInputEvent({ type: "mouseUp", ...spot, button: "left", clickCount: 1 })
+    }, { url: `${server.origin}/`, spot })
+    await step({ step: "forward" }, 1)
+    await expect.poll(() => inPage(app, inView("#end"))).toBe(true)
+    expect(await inPage(app, inView("img"))).toBe(false)
+    // From the page's match on into the words.
+    await step({ step: "forward" }, 2)
+    await expect.poll(() => inPage(app, inView("img"))).toBe(true)
+    await stopFind(app)
+  } finally { await closeApp(app, userData) }
+})
+
+test("triple-click selects a reflowed paragraph and copy joins its wrapped lines", async () => {
+  // A paragraph wrapped over two lines, a gap, then a second paragraph.
+  server.setText({ font: "40px Arial", lines: [["The first paragraph wraps onto", 40, 70], ["a second line of text.", 40, 120],
+    ["Another paragraph follows.", 40, 260]] })
+  const { electronApp: app, userData, window } = await launchApp()
+  try {
+    await window.locator("#urlfield").fill(`${server.origin}/`)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
+    await startRecognition(app)
+    // A paragraph is one run of text to find in page: a phrase matches across its wrap, not across paragraphs.
+    expect(await findMatches(app, "wraps onto a second")).toBe(1)
+    expect(await findMatches(app, "of text. Another")).toBe(0)
+    // Its words still sit on their own lines, the second line's first word at the paragraph's left edge.
+    const words = (await geometry(app)).words
+    const onto = words.find(w => w.text.trim() === "onto"), a = words.find(w => w.text.trim() === "a")
+    expect(a.top).toBeGreaterThan(onto.bottom - 4)
+    expect(Math.abs(a.left - words[0].left)).toBeLessThan(6)
     const second = (await geometry(app)).words.find(w => w.text.trim() === "second")
     const point = { x: second.left + second.width / 2, y: second.top + second.height / 2 }
     await overlayInput(app, [{ type: "mouseDown", ...point, button: "left", clickCount: 3 },
@@ -470,6 +536,15 @@ test("the overlay stays out of the page's way: covered edges, keys and autoscrol
     // take the image's layer, under what the page stacks above the image.
     expect(await inPage(app, `(() => { const r=document.querySelector('img').getBoundingClientRect();
       return document.elementFromPoint(r.left + r.width / 2, 60)?.id })()`)).toBe("header")
+    // With no room below a tall image, the bar does not take the room above it, over the header, but goes inside.
+    await inPage(app, `(() => { document.querySelector('img').style.height='600px';
+      scrollTo(0, document.querySelector('img').getBoundingClientRect().top + scrollY - 130) })()`)
+    await expect.poll(async () => {
+      const state = await overlayState(app)
+      const image = await inPage(app, "document.querySelector('img').getBoundingClientRect().toJSON()")
+      return Math.round(image.top) === 130 && state.bar.top >= 90 && state.bar.bottom <= image.bottom
+    }).toBe(true)
+    await inPage(app, "document.querySelector('img').style.height=''")
     // Also a sticky header in one stacking context with the image, as GitHub's README box has.
     await inPage(app, `(() => {
       document.getElementById('header').remove();
@@ -584,6 +659,28 @@ test("an image in a cross-site iframe gets the selection, anchored in its own fr
     await expect.poll(placed).toBe(true)
     await inFrame("scrollTo(0, 200)")
     await expect.poll(placed).toBe(true)
+    // Find in page goes to the words with the iframe scrolled out of the page,
+    // the image in view inside it, where the frame itself sees nothing to scroll:
+    // the app brings the iframe in through the outer page.
+    const imageInPage = async () => {
+      const frame = await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url)
+        .executeJavaScript("[document.getElementById('frame').getBoundingClientRect().top + 9, innerHeight]"), url)
+      const image = await inFrame("document.querySelector('img').getBoundingClientRect().toJSON()")
+      return frame[0] + image.bottom > 0 && frame[0] + image.top < frame[1]
+    }
+    await inFrame("scrollTo(0, 0)")
+    await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url).executeJavaScript("scrollTo(0, 2000)"), url)
+    await expect.poll(imageInPage).toBe(false)
+    expect(await findMatches(app, "Native Apple", { keep: true, url })).toBe(1)
+    await expect.poll(imageInPage).toBe(true)
+    // And with the image scrolled away inside the iframe too.
+    await stopFind(app, url)
+    await inFrame("scrollTo(0, 2000)")
+    await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url).executeJavaScript("scrollTo(0, 2000)"), url)
+    await expect.poll(imageInPage).toBe(false)
+    expect(await findMatches(app, "punctuation", { keep: true, url })).toBe(1)
+    await expect.poll(imageInPage).toBe(true)
+    await stopFind(app, url)
     // The outer page sees nothing of it; the iframe's page sees only the closed hosts.
     expect(await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url)
       .executeJavaScript("Boolean(document.querySelector('[data-once-image-text]'))"), url)).toBe(false)
@@ -595,21 +692,17 @@ test("an image in a cross-site iframe gets the selection, anchored in its own fr
 })
 
 test("on an image filling the page the bar takes the corner covering the fewest words", async () => {
+  // Text down the image's right side only; the image fills the viewport, so
+  // the bar has no room above or below it.
+  server.setText({ height: 1000, font: "44px Arial", lines: [["Top right words", 600, 80], ["Bottom right words", 560, 950]] })
   const { electronApp: app, userData, window } = await launchApp()
   try {
     await window.locator("#urlfield").fill(`${server.origin}/`)
     await window.locator("#urlfield").press("Enter")
     await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
-    // Text down the image's right side only; the image fills the viewport, so
-    // the bar has no room above or below it.
-    await inPage(app, `new Promise(resolve => {
-      const canvas=document.createElement('canvas'); canvas.width=1000; canvas.height=1000;
-      const c=canvas.getContext('2d'); c.fillStyle='#fff'; c.fillRect(0,0,1000,1000);
-      c.fillStyle='#14253d'; c.font='44px Arial';
-      c.fillText('Top right words',600,80); c.fillText('Bottom right words',560,950);
-      const image=document.querySelector('img'); image.style.height='100vh'; image.style.objectFit='fill';
-      image.onload=()=>{ image.scrollIntoView(); resolve(true) }; image.src=canvas.toDataURL('image/png');
-    })`)
+    await expect.poll(() => inPage(app, "document.querySelector('img').naturalWidth")).toBeGreaterThan(0)
+    await inPage(app, `(() => { const image=document.querySelector('img'); image.style.height='100vh'; image.style.objectFit='fill';
+      image.scrollIntoView() })()`)
     await startRecognition(app)
     await expect.poll(async () => {
       const g = await geometry(app)
@@ -619,5 +712,39 @@ test("on an image filling the page the bar takes the corner covering the fewest 
       // On a narrow image the bar can reach past the middle: compare its gaps to the image's sides.
       return overlaps ? "covers words" : inside && g.bar.left - g.image.left < g.image.right - g.bar.right ? "left corner" : "elsewhere"
     }).toBe("left corner")
+  } finally { await closeApp(app, userData) }
+})
+
+test("an image in a modal dialog gets the selection over it, and the bar above the dialog", async () => {
+  const { electronApp: app, userData, window } = await launchApp()
+  try {
+    await window.locator("#urlfield").fill(`${server.origin}/`)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
+    await expect.poll(() => inPage(app, "document.querySelector('img').naturalWidth")).toBeGreaterThan(0)
+    // The top layer paints over any z-index, and a modal makes the rest of the page inert.
+    await inPage(app, `new Promise(resolve => {
+      const dialog=document.createElement('dialog'), image=document.createElement('img');
+      image.id='in-dialog'; image.style.cssText='display:block;width:500px;height:180px;border:2px solid #768398';
+      image.onload=()=>{ dialog.showModal(); resolve(true) }; dialog.append(image); document.body.append(dialog);
+      image.src=document.querySelector('img').src;
+    })`)
+    await startRecognition(app, "#in-dialog")
+    // The words frame covers the image's content box.
+    const image = await inPage(app, "document.getElementById('in-dialog').getBoundingClientRect().toJSON()")
+    await expect.poll(async () => {
+      const { frame } = await overlayState(app)
+      return Math.abs(frame.left - (image.left + 2)) <= 1 && Math.abs(frame.top - (image.top + 2)) <= 1
+    }).toBe(true)
+    // The bar is what shows where it is, not the dialog's backdrop.
+    const { bar } = await overlayState(app)
+    expect(await inPage(app, `(() => { const top=document.elementFromPoint(${(bar.left + bar.right) / 2}, ${(bar.top + bar.bottom) / 2});
+      return top?.dataset.onceImageText !== undefined && top !== document.getElementById('in-dialog').nextElementSibling })()`)).toBe(true)
+    expect(await selectAndCopy(app)).toBe("Select these words")
+    // Its Done takes a real click.
+    const done = { x: bar.right - 24, y: (bar.top + bar.bottom) / 2 }
+    await overlayInput(app, [{ type: "mouseMove", ...done }, { type: "mouseDown", ...done, button: "left", clickCount: 1 },
+      { type: "mouseUp", ...done, button: "left", clickCount: 1 }])
+    await expect.poll(() => overlayOpen(app)).toBe(false)
   } finally { await closeApp(app, userData) }
 })

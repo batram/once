@@ -96,10 +96,11 @@ export class ImageTextOverlay {
    * scroll to one while the image is out of view (see the host's `reveal`).
    * Chromium makes the frame of each active match the focused frame, so a
    * final result with the words frame focused is a match in them.
+   * Chromium bug: https://issues.chromium.org/issues/572302955; drop this once fixed.
    */
   private readonly found = (_event: Electron.Event, result: Electron.Result) => {
     if (!result.finalUpdate || !result.activeMatchOrdinal || this.tab.isDestroyed()) return
-    if (this.tab.focusedFrame?.url === this.served.url) this.host.send({ type: "reveal" })
+    if (this.tab.focusedFrame?.url === this.served.url) this.host.reveal()
   }
 
   /** Escape closes it, from the page or the words frame alike. */

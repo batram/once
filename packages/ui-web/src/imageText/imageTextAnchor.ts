@@ -20,6 +20,9 @@ import type { ImageTextFit, ImageTextViewEvent, ImageTextViewLayout, ImageTextVi
 /** What this world pushes through the app's binding: the selection closed on its own (Done, Escape, the image went). */
 export interface ImageTextAnchorReport { token: string; closed: true }
 
+/** Where the image is in its frame's viewport, when it was in view there already (see `reveal`). */
+export interface ImageTextRevealed { left: number; top: number; width: number; height: number }
+
 /** For the app's tests: where the parts are, in the viewport. */
 export interface ImageTextAnchorState {
   frame: { left: number; top: number; width: number; height: number }
@@ -33,6 +36,7 @@ declare global {
     __onceImageTextAnchor?: {
       start(token: string, src: string, x: number, y: number, frameUrl: string): boolean
       message(token: string, message: ImageTextViewMessage): void
+      reveal(token: string): ImageTextRevealed | null
       alive(token: string): boolean
       stop(token: string): void
       state(token: string): ImageTextAnchorState | null
@@ -111,17 +115,20 @@ const round = (value: number) => Math.round(value * 100) / 100
  * inside corner covering the fewest words. Below or above the image's own
  * edge it is anchored like the frame (`below`, `above`), so it moves with the
  * image; at a viewport corner, or by an edge something cuts, it is `fixed`
- * in the viewport. Either way it stays put while the page scrolls.
+ * in the viewport. Either way it stays put while the page scrolls. Nor
+ * does it go over the page's own UI there (`clear`): a sticky header right
+ * above the image keeps it below, or inside.
  */
-function barSpot(fit: ImageTextFit, size: { w: number; h: number }, words: Box[], anchored: boolean): BarSpot {
+function barSpot(fit: ImageTextFit, size: { w: number; h: number }, words: Box[], anchored: boolean,
+  clear: (left: number, top: number) => boolean): BarSpot {
   const view = viewport(), box = fit.visibleBox, { w, h } = size
   const x = (left: number) => Math.max(GAP, Math.min(left, view.width - w - GAP))
   const y = (top: number) => Math.max(GAP, Math.min(top, view.height - h - GAP))
   if (!fit.visible) return { left: 0, top: 0, mode: "hidden" }
-  if (box.bottom + GAP + h <= view.height - GAP) {
+  if (box.bottom + GAP + h <= view.height - GAP && clear(x(box.right - w), box.bottom + GAP)) {
     return { left: x(box.right - w), top: box.bottom + GAP, mode: anchored && Math.abs(box.bottom - (fit.top + fit.height)) < 1 ? "below" : "fixed" }
   }
-  if (box.top - GAP - h >= GAP) {
+  if (box.top - GAP - h >= GAP && clear(x(box.right - w), box.top - GAP - h)) {
     return { left: x(box.right - w), top: box.top - GAP - h, mode: anchored && Math.abs(box.top - fit.top) < 1 ? "above" : "fixed" }
   }
   const picture = { left: fit.left + fit.imageLeft, top: fit.top + fit.imageTop, width: fit.imageWidth, height: fit.imageHeight }
@@ -193,7 +200,6 @@ class AnchoredSelection {
     this.barElement.append(this.status, done)
     this.bar.shadow.append(this.barElement)
     this.mount()
-    document.documentElement.append(this.bar.host)
     const origin = new URL(frameUrl).origin
     this.frame.addEventListener("load", () => this.connect(origin))
     this.layout()
@@ -202,7 +208,6 @@ class AnchoredSelection {
   message(message: ImageTextViewMessage): void {
     if (this.closed) return
     if (message.type === "status") { this.status.textContent = message.text; this.lastBar = "" }
-    else if (message.type === "reveal") this.reveal()
     else if (this.port) this.port.postMessage(message)
     else this.pending.push(message)
   }
@@ -237,9 +242,25 @@ class AnchoredSelection {
    * clip the image, all in the compositor's step. Hung above the whole page,
    * they showed through such UI for the frames their clip needed to catch up.
    * A page re-rendering the image's parent may drop them; they go back.
+   *
+   * The bar goes at the document's end, over the page, unless the image is
+   * in the top layer (a modal dialog, a popover, a fullscreen element), which
+   * paints over any z-index, and a modal makes the rest of the page inert:
+   * there the bar joins the image's top layer element as a popover of its
+   * own, shown above it and still inside it, so Done stays in reach.
    */
   private mount(): void {
     if (this.words.host.previousSibling !== this.image) this.image.after(this.words.host)
+    const host = this.bar.host, layer = this.image.closest(":modal, :popover-open")
+    const parent = layer ?? document.documentElement
+    if (host.parentElement !== parent) {
+      parent.append(host)
+      if (layer) host.popover = "manual"
+      else host.removeAttribute("popover")
+      this.lastBar = ""
+    }
+    // Thrown only while the page holds it shut (a popover closing); the next frame tries again.
+    if (layer && !host.matches(":popover-open")) try { host.showPopover() } catch { /* next frame */ }
   }
 
   /** The frame gets a port of its own: nothing the page posts reaches it, and the page sees none of its traffic. */
@@ -277,10 +298,35 @@ class AnchoredSelection {
    * (LocalFrameView::CanThrottleRendering, PageAnimator): the scroll would
    * wait for a frame that only it could bring into view, while the match is
    * counted anyway. Bringing the image into view lets that queued scroll run
-   * and centre the match itself.
+   * and centre the match itself. Chromium bug:
+   * https://issues.chromium.org/issues/572302955; drop this once fixed.
+   *
+   * This only sees its own frame's viewport. An image in view in an iframe
+   * scrolled out of the page is returned, for the app to bring the iframe in
+   * through its parent (see ImageTextHost.ts); one out of its frame's view
+   * scrolls it in, and Chromium carries that scroll up through the frames.
    */
-  private reveal(): void {
-    if (!imageFit(this.image).visible) this.image.scrollIntoView({ block: "center", inline: "nearest" })
+  reveal(): ImageTextRevealed | null {
+    if (!imageFit(this.image).visible) {
+      this.image.scrollIntoView({ block: "center", inline: "nearest" })
+      return null
+    }
+    const { left, top, width, height } = this.image.getBoundingClientRect()
+    return { left, top, width, height }
+  }
+
+  /** Whether a bar there would be clear of the page's own UI held over it: fixed or sticky headers, banners. */
+  private readonly clearOfPage = (left: number, top: number): boolean => {
+    const { width: w, height: h } = this.barElement.getBoundingClientRect()
+    return [[left + 2, top + 2], [left + w - 2, top + 2], [left + 2, top + h - 2], [left + w - 2, top + h - 2], [left + w / 2, top + h / 2]]
+      .every(([x, y]) => {
+        for (let node = document.elementsFromPoint(x, y).find((element) => !ownElement(element)) ?? null; node; node = node.parentElement) {
+          // A sticky column holding the image itself is no UI over it.
+          if (node.contains(this.image)) return true
+          if (/^(fixed|sticky)$/.test(getComputedStyle(node).position)) return false
+        }
+        return true
+      })
   }
 
   /**
@@ -376,7 +422,7 @@ class AnchoredSelection {
       .map(Math.round).join() + fit.visible
     if (key === this.lastBar) return
     this.lastBar = key
-    const spot = barSpot(fit, { w, h }, this.wordBoxes, !this.follow)
+    const spot = barSpot(fit, { w, h }, this.wordBoxes, !this.follow, this.clearOfPage)
     this.barMode = spot.mode
     const style: HostStyle = spot.mode === "hidden" ? { ...PLACED, position: "fixed", left: "0px", top: "0px", layer: BAR_LAYER, display: "none" }
       : spot.mode === "fixed" ? { ...PLACED, position: "fixed", left: `${round(spot.left)}px`, top: `${round(spot.top)}px`, layer: BAR_LAYER }
@@ -397,6 +443,7 @@ export function installImageTextAnchor(): void {
       return true
     },
     message(token, message) { if (current?.token === token) current.message(message) },
+    reveal(token) { return current?.token === token ? current.reveal() : null },
     alive(token) { return current?.token === token },
     stop(token) { if (current?.token === token) current.close(false) },
     state(token) { return current?.token === token ? current.state() : null }

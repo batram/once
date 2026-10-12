@@ -1,7 +1,7 @@
 import type { Debugger, WebContents, WebFrameMain } from "electron"
 import { readFileSync } from "node:fs"
 import path from "node:path"
-import type { ImageTextAnchorReport, ImageTextAnchorState } from "@once/ui-web/imageText/imageTextAnchor"
+import type { ImageTextAnchorReport, ImageTextAnchorState, ImageTextRevealed } from "@once/ui-web/imageText/imageTextAnchor"
 import type { ImageTextViewMessage } from "@once/ui-web/imageText/imageTextTypes"
 
 /**
@@ -16,6 +16,8 @@ export interface ImageTextHost {
   /** Called once the selection closed in the page: Done, Escape, or the image went away. */
   onClose(handler: () => void): void
   send(message: ImageTextViewMessage): void
+  /** Brings the image into the tab's view, for find in page's match in the words (see the anchor's `reveal`). */
+  reveal(): void
   /** For the app's tests. */
   state(): Promise<ImageTextAnchorState | null>
   close(): void
@@ -60,8 +62,13 @@ class ProtocolHost implements ImageTextHost {
   /** The host's world went away with its frame. */
   private lost = false
 
+  /**
+   * `owner` is the image's frame as its parent sees it, for a subframe: the
+   * frame's id and the parent's session, which holds its iframe element.
+   */
   private constructor(private readonly tab: WebContents, private readonly debug: Debugger,
-    private readonly token: string, private readonly session: string, private readonly context: number) {
+    private readonly token: string, private readonly session: string, private readonly context: number,
+    private readonly owner: { frame: string; session: string } | null) {
     debug.on("message", this.message)
     debug.on("detach", this.detached)
   }
@@ -86,7 +93,9 @@ class ProtocolHost implements ImageTextHost {
         const { result } = await send<{ result?: { value?: unknown } }>("Runtime.evaluate",
           { contextId: context, returnByValue: true, expression: call("start", token, ...start) }, candidate.session)
         if (result?.value !== true) continue
-        const host = new ProtocolHost(tab, debug, token, candidate.session, context)
+        const parent = frames.find((known) => known.id === candidate.parentId)
+        const host = new ProtocolHost(tab, debug, token, candidate.session, context,
+          parent ? { frame: candidate.id, session: parent.session } : null)
         // Reports the world going away with its frame (an iframe removed, a navigation), which it cannot report itself.
         await send("Runtime.enable", {}, candidate.session)
         return host
@@ -105,6 +114,26 @@ class ProtocolHost implements ImageTextHost {
 
   send(message: ImageTextViewMessage): void {
     void this.evaluate(call("message", this.token, message)).catch(() => undefined)
+  }
+
+  /**
+   * The image's frame brings it into its own view, and Chromium carries that
+   * scroll up through the frames. An image already in its frame's view, in
+   * an iframe the page has scrolled away, is brought in by its iframe
+   * element, through the parent: its frame, out of sight and cross-origin,
+   * runs no find scroll of its own (see the anchor's `reveal`).
+   */
+  reveal(): void {
+    void (async () => {
+      const shown = (await this.evaluate(call("reveal", this.token))) as ImageTextRevealed | null
+      if (!shown || !this.owner || this.closed || !this.debug.isAttached()) return
+      const send = <T>(method: string, params: object) => this.debug.sendCommand(method, params, this.owner?.session || undefined) as Promise<T>
+      const { backendNodeId } = await send<{ backendNodeId: number }>("DOM.getFrameOwner", { frameId: this.owner.frame })
+      // The image's place in its frame's viewport is relative to the iframe's content box; the rect wants its border box.
+      const { model } = await send<{ model: { content: number[]; border: number[] } }>("DOM.getBoxModel", { backendNodeId })
+      await send("DOM.scrollIntoViewIfNeeded", { backendNodeId, rect: { x: model.content[0] - model.border[0] + shown.left,
+        y: model.content[1] - model.border[1] + shown.top, width: shown.width, height: shown.height } })
+    })().catch(() => undefined)
   }
 
   async state(): Promise<ImageTextAnchorState | null> {
@@ -221,6 +250,11 @@ class IsolatedWorldHost implements ImageTextHost {
 
   send(message: ImageTextViewMessage): void {
     void this.evaluate(call("message", this.token, message))
+  }
+
+  /** In the main frame, the image's own scroll is all it takes. */
+  reveal(): void {
+    void this.evaluate(call("reveal", this.token))
   }
 
   async state(): Promise<ImageTextAnchorState | null> {

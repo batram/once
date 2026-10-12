@@ -120,13 +120,18 @@ export class ImageTextPointer {
 
   /**
    * The text position for a point: the exact character inside a word, else
-   * the nearest word on the nearest line, at its start or end.
+   * the nearest word on the nearest line, at its start or end. Only a
+   * position in the text under the point is exact: a paragraph's lines are
+   * one line of layout (see renderWords), where a point between words finds
+   * the nearest text across, whichever of its lines that is in.
    */
   private caretAt(x: number, y: number, snap: Snap = "nearest"): Caret | null {
     if (snap === "nearest") {
       const position = caretPosition(x, y, this.shadow)
-      if (position && position.offsetNode instanceof Text && this.words.contains(position.offsetNode)) {
-        return { node: position.offsetNode, offset: position.offset }
+      const node = position?.offsetNode
+      const box = node instanceof Text && this.words.contains(node) ? node.parentElement?.getBoundingClientRect() : undefined
+      if (position && box && x >= box.left - 1 && x <= box.right + 1 && y >= box.top - 1 && y <= box.bottom + 1) {
+        return { node: node as Text, offset: position.offset }
       }
     }
     let best: { node: Text; rect: DOMRect } | null = null
