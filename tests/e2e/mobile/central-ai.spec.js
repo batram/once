@@ -147,6 +147,10 @@ test("reader cancellation retains content and ignores a delayed provider result"
   const before = await frame.locator("article").first().innerHTML()
   await bar.getByRole("button", { name: "Rewrite with AI", exact: true }).click()
   await expect(status).toContainText("Waiting for the model")
+  // The strip takes its room from the reader instead of covering its last lines.
+  const readerBox = await page.locator('iframe[title="Reader mode"]').boundingBox()
+  const stripBox = await page.locator("#reader_ai_strip").boundingBox()
+  expect(readerBox.y + readerBox.height).toBeLessThanOrEqual(stripBox.y + 1)
   await bar.getByRole("button", { name: "Cancel AI rewrite", exact: true }).click()
   await expect(status).toBeHidden()
   release()

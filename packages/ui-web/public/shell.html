@@ -1155,6 +1155,12 @@
                   ✕
                 </button>
               </div>
+              <div id="reader_ai_strip" role="group" aria-label="Reader AI progress and pages" hidden>
+                <span id="reader_ai_pages"></span>
+                <p id="reader_ai_status" role="status"></p>
+                <button type="button" class="button" data-host-ai="continue">Next 5</button>
+                <button type="button" class="button" data-host-ai="finish">To end</button>
+              </div>
               <div
                 id="reader_tts_pill"
                 data-testid="reader-tts-bar"
@@ -1225,12 +1231,6 @@
                 >
                   Undo
                 </button>
-                <div id="reader_ai_strip" hidden>
-                  <span id="reader_ai_pages"></span>
-                  <p id="reader_ai_status" role="status"></p>
-                  <button type="button" class="button" data-host-ai="continue">Next 5</button>
-                  <button type="button" class="button" data-host-ai="finish">To end</button>
-                </div>
               </div>
             </div>
           </div>

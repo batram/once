@@ -2005,29 +2005,28 @@
   }
 
   /*
-   * Just above the bar: progress or an error, and while a long scan is partly read, how far it is
-   * and the next pages, so nobody scrolls to the end to read on.
+   * A bar of its own right above the speech bar, taking its height from the reader rather than
+   * covering its last lines: progress or an error, and while a long scan is partly read, how far
+   * it is and the next pages, so nobody scrolls to the end to read on.
    */
   #reader_ai_strip {
-    position: absolute;
-    right: var(--sp-2);
-    bottom: 100%;
-    left: var(--sp-2);
+    position: relative;
+    z-index: 2;
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     gap: var(--sp-2);
     box-sizing: border-box;
-    margin: 0 0 var(--sp-1);
     padding: var(--sp-1) var(--sp-2);
-    border: var(--m-bw) solid var(--m-ink);
-    border-radius: var(--m-radius);
+    border-top: var(--m-bw) solid var(--m-ink);
     background: var(--m-card-bg);
     font-family: var(--m-sans);
     font-size: var(--fs-meta);
   }
 
   #reader_ai_strip[hidden],
-  #reader_ai_strip [hidden] {
+  #reader_ai_strip [hidden],
+  #reading_panel:has(> #reader_tts_pill[hidden]) > #reader_ai_strip {
     display: none;
   }
 
@@ -3687,7 +3686,7 @@
     border: 0;
   }
 
-  #reading_panel:has(#reading_tabs_dialog[open]) :is(#reader_tts_pill, #reading_find_bar),
+  #reading_panel:has(#reading_tabs_dialog[open]) :is(#reader_tts_pill, #reader_ai_strip, #reading_find_bar),
   #reading_content:has(> #reading_tabs_dialog[open]) > :not(#reading_tabs_dialog) {
     visibility: hidden;
   }
