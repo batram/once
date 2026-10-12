@@ -1,820 +1,316 @@
 # Development
 
-Run all commands in this document from the repository root. The project is an
-npm workspace; a single root install supplies every app and package.
+Run all commands from the repository root. The project is an npm workspace; one
+root install supplies every app and package. The platform design and package
+rules are in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Prerequisites
 
 - Node.js 24 (`.nvmrc`) and npm
-- Firefox for Firefox extension testing
-- Chrome 120 or newer for Chrome extension testing
-- Windows for the current Electron packaging and end-to-end test workflows
+- Firefox for Firefox extension testing; Chrome 120+ for Chrome extension testing
+- Windows for Electron packaging and end-to-end tests
 - Android Studio 2025.2.1+, Android SDK platform 37.1 with build-tools 37,
-  Android Gradle plugin 9, and JDK 21 for Android (the pinned versions live in
-  `apps/mobile/android/variables.gradle`; GeckoView tracks its newest release,
-  which is what forces the platform version)
+  Android Gradle plugin 9 and JDK 21 for Android (pinned in
+  `apps/mobile/android/variables.gradle`)
 - macOS with Xcode 26+ for iOS
-
-Install the locked dependency set with:
 
 ```bash
 npm ci
 ```
 
-Browser tests install their matching Chromium build automatically when run.
-Linux CI additionally installs Chromium's system libraries through
-`npm run test:setup:ci`. Firefox extension tests use the locally installed
-Firefox application.
+Use `npm install` only when intentionally changing dependencies. Browser tests
+install their Chromium automatically; Linux CI also runs `npm run test:setup:ci`.
 
-Use `npm install` instead when intentionally changing dependencies and
-`package-lock.json`.
+Application builds consume the compiled packages (`npm run build:packages`); the
+app scripts build them first. Run `npm run clean:packages` if package output
+goes stale.
 
-The platform design, workspace structure, and package dependency rules are
-documented in [ARCHITECTURE.md](ARCHITECTURE.md).
-
-`npm run build:packages` compiles the referenced TypeScript packages to local
-`dist` directories. Application builds consume those compiled package outputs,
-so the root app scripts run the package build first. If generated package files
-become stale, use `npm run clean:packages` before rebuilding.
-
-## Git hooks on macOS
-
-The pre-commit hook runs staged-file static checks. The pre-push hook builds the
-packages, then runs static checks and the full unit suite against the commit
-being pushed (using an isolated worktree when necessary).
-
-On macOS, two unit tests compile small Swift harnesses. They use
-`xcrun --sdk macosx swiftc` so the compiler and host SDK come from the selected
-Apple developer installation. An implicit `xcrun swiftc` can mix Xcode's compiler
-with a separately updated Command Line Tools SDK. Do not work around that by
-setting a repository-wide `SDKROOT` or skipping these tests. The explicit SDK
-selection applies to direct test runs and hook runs, and still respects the
-selected developer installation (`DEVELOPER_DIR` / `xcode-select`). These native
-harnesses remain skipped on non-macOS hosts.
-
-## Install and validate
+## Validate
 
 ```bash
 npm run check
 ```
 
-`npm run check` lints and type-checks the workspace, validates source structure,
-dead code, and package boundaries, and creates development builds for both
-browser targets, Electron, and mobile. It does not run unit, collector,
-platform integration, or E2E test suites; run those separately as described
-below.
+`npm run check` lints, type-checks, validates structure, dead code and package
+boundaries, and makes development builds of every target. It runs no test
+suites; see [Test harness](#test-harness).
+
+The pre-commit hook runs staged-file checks; the pre-push hook builds packages
+and runs static checks and the unit suite against the pushed commit. On macOS two
+unit tests compile Swift harnesses with `xcrun --sdk macosx swiftc`; don't work
+around SDK mismatches by setting `SDKROOT` or skipping them.
 
 ## Styling
 
-Before changing CSS, read [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md). It states where
-a rule belongs, the cascade layer order, the button/icon/layout primitives, and
-the rules for inline and generated styles. The public token catalog is in
-[design-tokens.md](design-tokens.md).
-
-Four checks inside `npm run check` enforce those contracts and can be run
-alone while iterating:
+Read [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) before changing CSS; tokens are in
+[design-tokens.md](design-tokens.md). The style checks inside `npm run check` can
+run alone:
 
 ```bash
 npm run lint:css
-```
-
-```bash
 npm run check:css-debt
-```
-
-```bash
 npm run check:cascade
-```
-
-```bash
 npm run check:semantic-controls
-```
-
-Rendered geometry, keyboard semantics, icon integrity, and screenshot baselines
-are covered by `npm run test:design-system` and its `:electron` and `:mobile`
-variants. To inspect a rendered box while working:
-
-```bash
 npm run measure -- "<selector>"
 ```
 
-## Build commands
+Rendered geometry and screenshot baselines are covered by
+`npm run test:design-system` and its `:electron` and `:mobile` variants.
+
+## Browser extensions
 
 ```bash
-# Production bundles
-npm run build:firefox
-npm run build:chrome
-npm run build:extensions
-
-# Development bundles with inline source maps
-npm run build:firefox:dev
-npm run build:chrome:dev
-npm run build:extensions:dev
+npm run build:extensions        # production: build:firefox, build:chrome
+npm run build:extensions:dev    # development, inline source maps
 ```
 
-Outputs are written to:
+Output goes to `apps/{firefox,chrome}-extension/dist/{dev,release}`. Builds are
+one-shot (no watch mode). Dev builds are named "Once Sidepanel (dev)" with the
+dev icon, and the settings panel shows a build identifier next to the version.
 
-- `apps/firefox-extension/dist/{dev,release}`
-- `apps/chrome-extension/dist/{dev,release}`
+- **Firefox:** `about:debugging` → This Firefox → Load Temporary Add-on →
+  `apps/firefox-extension/dist/dev/manifest.json`, or
+  `npx web-ext run --source-dir ./apps/firefox-extension/dist/dev`.
+- **Chrome:** `chrome://extensions` → Developer mode → Load unpacked →
+  `apps/chrome-extension/dist/dev`.
 
-Webpack cleans only the selected target and channel directory on each extension
-build, so dev and release artifacts can coexist. Production builds are minified
-and omit source maps; development builds include inline source maps.
-
-Every build carries a build channel (`release` or `dev`). The settings panel
-shows a compact build identifier beside the version: `x.y.z (dev ID)` for dev
-builds and `x.y.z (ID)` for non-dev builds. Published releases omit this blip
-and show only `x.y.z`. Production extension builds are release-channel;
-development builds are dev-channel and additionally rename the extension to
-"Once Sidepanel (dev)" and switch the manifest icons to
-`ic_launcher_dev.png`, so a dev install is distinguishable from a store install
-in the toolbar and extension list. The icon sources live in
-`packages/ui-web/public/static/imgs/icons/` (`icon.svg`/`icon_dev.svg` plus the
-exported `ic_launcher*` files under `mipmap-mdpi/`).
-
-## Load locally
-
-### Firefox
-
-Open `about:debugging`, choose **This Firefox**, select **Load Temporary
-Add-on**, and open `apps/firefox-extension/dist/dev/manifest.json`.
-
-For automatic reloads:
-
-```bash
-npm run build:firefox:dev
-npx web-ext run --source-dir ./apps/firefox-extension/dist/dev
-```
-
-Rebuild after source changes; the documented webpack commands are one-shot
-builds and do not run in watch mode.
-
-### Chrome
-
-Open `chrome://extensions`, enable **Developer mode**, choose **Load
-unpacked**, and select `apps/chrome-extension/dist/dev`.
-
-The Chrome build requires Chrome 120 or newer: it uses the Side Panel API, and
-tab sync's background needs the 30-second alarm periods Chrome 120 allows.
-
-## Package and sign Firefox
-
-Build Firefox first, then create an unsigned archive in `web-ext-artifacts/`:
+Package and sign Firefox:
 
 ```bash
 npm run build:firefox
 npm run package:firefox
-```
-
-For an unlisted signed build, obtain AMO API credentials and run:
-
-```bash
-npx web-ext sign --source-dir ./apps/firefox-extension/dist/release --channel unlisted --api-key "your_jwt_issuer_key" --api-secret "your_jwt_secret"
+npx web-ext sign --source-dir ./apps/firefox-extension/dist/release --channel unlisted --api-key "<jwt issuer>" --api-secret "<jwt secret>"
 ```
 
 ## Electron
 
 ```bash
-# Development
-npm run start:electron
-
-# Static and unit validation
+npm run start:electron          # dev-channel run
 npm run build:electron
-npm run test:electron
+npm run test:electron           # type-check, shared app and integration tests
+npm run test:electron:e2e       # package, then Playwright against the compiled app
 
-# Packaged application smoke test
-npm run test:electron:e2e
+npm run package:electron        # unpacked release-channel app
+npm run make:electron           # plus Squirrel installer and ZIP
+npm run package:electron:dev    # dev channel ("Once Dev"), installs next to release
+npm run make:electron:dev
 ```
 
-An unpackaged Electron build reads two PATH-style directory lists:
-`ONCE_ELECTRON_EXTENSIONS` for unpacked WebExtensions and `ONCE_ADDONS` for
-Once add-on packages under development (`once-addon.json` beside its script;
-see [Add-ons](ADDONS.md)). Add-ons from `ONCE_ADDONS` reload when a file in
-their directory changes. Packaged builds ignore both variables.
+Output is in `apps/electron/out` (dev: `apps/electron/out/dev`), unsigned.
+Packaging stops a running app of the same channel; pass `-- --nokill` to keep
+it. `ONCE_BUILD_CHANNEL` overrides the channel of any command. Each unpacked or
+ZIP copy gets a profile keyed to its directory; installed builds keep the
+channel's normal profile. On Windows, packaging from a restricted sandbox can
+fail with `EPERM`; retry under the normal user before deleting anything.
 
-Other switches an Electron run understands, all off by default:
+Environment switches, all off by default:
 
-- `ONCE_ELECTRON_EXTENSION_LOG=1` prints every line the bundled and installed
-  extensions write to their consoles; errors and warnings are printed always.
-- `ONCE_ELECTRON_TEST_USER_DATA=<dir>` uses that directory as the profile, so
-  two builds can be compared without touching the normal profile.
-- `ONCE_ELECTRON_REMOTE_DEBUGGING=1` opens the Chrome DevTools Protocol on
-  loopback, on the channel's port from the table below (`run-forge.js
-  --debug-devtools` sets it). An explicit `--remote-debugging-port=<n>` on the
-  command line wins over the channel default.
-
-### Browser popups
-
-Page popups require a recent mouse press or keyboard interaction in that tab.
-One interaction permits one new popup within five seconds; moving the mouse,
-scripted DOM events, and browser shortcuts do not grant permission. Navigation
-clears the permission and that document's blocked requests. Allowed popups use
-Electron's `createWindow` callback so `window.open()` returns a real window
-reference and sites do not also run their popup-blocked fallback.
-
-The toolbar shows **Popup blocked** for the active tab. Clicking it lists the
-blocked destinations, with actions to open one or dismiss the list. Up to 20
-requests are retained in memory per document; nothing is persisted or sent to
-the shell except the count. Manually opening a request preserves its referrer
-and POST body, but cannot retroactively replace the original caller's `null`
-window reference. There is no permanent site allowlist yet.
-
-A link opened in a new tab — middle click, Ctrl+click, `target="_blank"` with a
-modifier — reaches the same handler, with the disposition saying background or
-foreground. Electron has no pending contents for those, only a `webContents` key
-with nothing in it: passing that to `WebContentsView` throws, and the tab is
-ours to navigate. `createTabView` drops the empty key and `TabPopups` loads the
-URL with its referrer, so the click is not swallowed.
-
-Electron's public `setWindowOpenHandler` details do not expose Chromium's
-per-frame transient user activation. `TabPopups` therefore tracks trusted native
-input events in main, at tab scope. This mirrors the common desktop interaction
-policy, not every Chromium exception: activation consumed by other browser APIs
-and per-frame activation propagation are not visible through these events.
-The regression suite covers native mouse and keyboard input, automatic and
-synthetic attempts, expiry, named-window reuse, and manual open/dismiss.
+- `ONCE_ELECTRON_EXTENSIONS`, `ONCE_ADDONS`: PATH-style lists of unpacked
+  WebExtensions and add-on packages under development (unpackaged runs only;
+  add-ons reload on change, see [ADDONS.md](ADDONS.md)).
+- `ONCE_ELECTRON_EXTENSION_LOG=1`: print every extension console line.
+- `ONCE_ELECTRON_TEST_USER_DATA=<dir>`: use that directory as the profile.
+- `ONCE_ELECTRON_REMOTE_DEBUGGING=1`: open CDP on the channel's port (below).
+- `ONCE_ELECTRON_E2E_INTERACTIVE=1`: run the Playwright suite headed;
+  `ONCE_ELECTRON_E2E_ATTACH_LOGS=1` keeps every test's app log.
+- `ONCE_TEST_AMO_EXTENSIONS=1`: enable the live Mozilla Add-ons test;
+  `ONCE_PDF_TEST_DARK_READER=<dir>` adds Dark Reader to the PDF viewer spec.
 
 ### DevTools ports
 
-Each inspectable surface has a fixed loopback port so the DevTools MCP servers,
-which read their endpoint once at start, can stay configured:
+| Port | What listens |
+| --- | --- |
+| 9223 | Packaged release app started with `--remote-debugging-port=9223` |
+| 9224 | The Android WebView through `adb forward` |
+| 9225 | A dev-channel run with `ONCE_ELECTRON_REMOTE_DEBUGGING=1` |
 
-| Port | What listens | MCP server (Codex / Claude Code) |
-| --- | --- | --- |
-| 9223 | Packaged release-channel `once.exe --remote-debugging-port=9223`, the app the developer looks at | `once-devtools` / `electron-devtools` |
-| 9224 | The Android WebView, through `adb forward` (see above) | `android-devtools` / `android-devtools` |
-| 9225 | A dev-channel run with `ONCE_ELECTRON_REMOTE_DEBUGGING=1`: `run-forge.js start`, a `--dev` package, or the `.webpack/x64` bundle launched directly | `once-dev-devtools` / `electron-dev-devtools` |
+DevTools MCP servers read their endpoint once at start; reload them after
+changing it.
 
-The dev port exists so a smoke run can be driven while the packaged app keeps
-running: the two never compete for one port. Both MCP definitions live in the
-user's config (`~/.codex/config.toml`, `~/.claude.json` under this project), not
-in the repository; after editing either, reload the MCP connection before
-`list_pages` sees the new endpoint.
-- `ONCE_ELECTRON_E2E_INTERACTIVE=1` runs the Playwright suite headed, for
-  watching a spec drive the app; `ONCE_ELECTRON_E2E_ATTACH_LOGS=1` keeps each
-  test's `electron-app-log.txt` under `test-results/` even when it passes.
-- `ONCE_TEST_AMO_EXTENSIONS=1` enables the live Mozilla Add-ons test (Dark
-  Reader and SponsorBlock); `ONCE_PDF_TEST_DARK_READER=<dir>` adds an unpacked
-  Dark Reader to the PDF viewer spec.
+### macOS signing
 
-Packaging signs macOS builds with the first valid "Apple Development" identity
-in the Keychain (a free Apple account's certificate from Xcode will do;
-`ONCE_MACOS_SIGN_IDENTITY` names another identity, `-` forces ad-hoc). Its Team
-ID stays the same across rebuilds, so after answering the first Keychain prompt
-with "Always Allow" later packages no longer ask. A self-signed certificate is
-not enough: it has no Team ID, and the Keychain's partition list then names the
-app by the hash of each build, asking for the login password after every
-package.
+Packaging signs with the first "Apple Development" identity in the Keychain
+(`ONCE_MACOS_SIGN_IDENTITY` picks another, `-` forces ad-hoc). Answer the first
+Keychain prompt with "Always Allow". Self-signed and ad-hoc builds get a new
+signature per package, so `safeStorage` loses its Keychain key and the sync URL
+and tokens are stored unencrypted until a stable identity is used or the stale
+`<app name> Safe Storage` item is deleted.
 
-Without such an identity, packaged macOS builds are only ad-hoc signed, and
-each `package` produces a new code signature. Electron's `safeStorage` keeps its key in a Keychain item
-(`<app name> Safe Storage`) that trusts only the signature that created it, so
-a rebuilt package is refused the key, either with a Keychain password prompt or
-silently. The app then logs a warning and keeps the sync URL and source tokens
-unencrypted in `once-v2-settings.json` under the user data directory; they are
-encrypted again on the next save made while `safeStorage` works. Signing the
-package with a stable identity, or deleting the stale item in Keychain Access
-before the first start of a new build, restores Keychain-backed encryption.
+### Updates
+
+Installed release-channel Windows builds update from the `batram/once` GitHub
+Releases feed via `update.electronjs.org` (Squirrel.Windows). Each release needs
+a `vX.Y.Z` tag with `RELEASES`, `*-full.nupkg` and the setup `.exe`;
+`verify:release-artifacts` checks this. Other builds offer **Check latest
+release** instead. `ONCE_ELECTRON_DISABLE_NETWORK_FETCH=1` disables both.
+Windows artifacts are not code-signed yet.
 
 ## Capacitor mobile apps
 
-The committed native projects live below `apps/mobile/android` and
-`apps/mobile/ios`. Do not recreate them with `cap add`; normal development uses
-the repository wrapper, which builds shared packages and always runs `cap sync`.
+The native projects are committed under `apps/mobile/android` and
+`apps/mobile/ios`; don't recreate them with `cap add`. The wrapper builds
+packages and runs `cap sync`.
 
 ```bash
-# Validate one native toolchain
-npm run mobile -- doctor android
-npm run mobile -- doctor ios
-
-# Build only the embedded web bundle
-npm run mobile -- web --channel dev
-npm run mobile -- web --channel release
-
-# Run or open a synchronized development app
-npm run mobile -- run android --channel dev
-npm run mobile -- run ios --channel dev
-npm run mobile -- open android --channel dev
-npm run mobile -- open ios --channel dev
-
-# Webpack live reload on a selected simulator/device
-npm run mobile -- serve android --channel dev
-npm run mobile -- serve ios --channel dev
-
-# Internal QA artifacts (debug APK or unsigned simulator app). The Android
-# package first runs scripts/fetch-extensions.js, which downloads the pinned
-# uBlock Origin and Violentmonkey bundles the GeckoView surface builds in.
-npm run mobile -- package android --channel dev
-npm run mobile -- package ios --channel dev
-
-# Unsigned production artifacts for store-signing workflows
-npm run package:mobile:android
-npm run package:mobile:ios
-
-# Install release-channel Android content on a paired wireless device.
-# The address is discovered with `adb mdns services`; no configuration is
-# needed when exactly one paired device is advertising.
+npm run mobile -- doctor android                       # also: ios
+npm run mobile -- web --channel dev                    # web bundle only; also: release
+npm run mobile -- run android --channel dev            # also: ios
+npm run mobile -- open android --channel dev           # also: ios
+npm run mobile -- serve android --channel dev          # live reload; also: ios
+npm run mobile -- package android --channel dev        # internal QA artifacts; also: ios
+npm run package:mobile:android                         # unsigned production AAB
+npm run package:mobile:ios                             # unsigned Once.xcarchive
 npm run deploy:mobile:android
+npm run deploy:mobile:ios
 ```
 
-Deploy resolves the wireless address in this order: an exported
-`ONCE_ANDROID_WIRELESS_ADDRESS`, then `adb mdns services`, then
-`.env.android.local`. Export the variable or copy `.env.android.example` to
-`.env.android.local` when discovery finds nothing, or set it to choose between
-several advertised devices.
+Release identity is `com.zmarn.once` / "Once"; dev is `com.zmarn.once.dev` /
+"Once Dev". Set `ONCE_BUILD_NUMBER` to an increasing integer in CI. Production
+artifacts stop before store signing.
 
-iOS commands read the git-ignored `.env.ios.local` first: `DEVELOPER_DIR` when
-xcode-select points at the Command Line Tools, and `ONCE_IOS_DEVICE`, the phone
-`deploy:mobile:ios` installs on. Copy `.env.ios.example` and take the id from
-`npx cap run ios --list` in `apps/mobile`.
-
-The iOS packaging command resolves the public Capacitor Swift package with
-system Git, disables Git credential helpers and interactive prompts, and tells
-Xcode to use netrc rather than the login Keychain for package authorization.
-The public dependency does not require GitHub credentials.
-
-Release channel identity is `com.zmarn.once` / “Once”; development and internal
-QA use `com.zmarn.once.dev` / “Once Dev”. Set `ONCE_BUILD_NUMBER` to a positive,
-monotonically increasing integer in CI. Android release packaging produces an
-unsigned production AAB at
-`apps/mobile/android/app/build/outputs/bundle/productionRelease/app-production-release.aab`.
-iOS release packaging requires macOS with Xcode and produces an unsigned device
-archive at `apps/mobile/ios/build/Once.xcarchive`. These artifacts deliberately
-stop before store signing/export: supply the Android keystore or use
-`xcodebuild -exportArchive` with the appropriate Apple team and provisioning
-profile in the secure release environment.
-
-`deploy:mobile:android` builds the production flavor with release-channel web
-content and Android's local debug signature, then replaces `com.zmarn.once`
-with `adb install -r`, preserving app data. Pair the phone through Android's
-Wireless debugging screen first. Deployment discovers its current address
-through mDNS, then tries an existing wireless ADB connection, then the address
-in `.env.android.local`. An exported `ONCE_ANDROID_WIRELESS_ADDRESS` takes
-precedence over discovery. The debug signature makes this APK locally
-installable; it is not a store release artifact and cannot replace an app
-signed with a different key.
-
-Deployment builds only the connected device's preferred supported ABI, uses
-ADB's compressed push followed by installation (`--no-streaming`), and reuses
-the Gradle daemon. It deletes the previous APK before packaging: incremental
-debug packaging otherwise rewrites the old file in place and keeps the space of
-replaced entries, which had grown a 224 MB APK to 376 MB. This avoids transferring the emulator's GeckoView libraries
-to an ARM64 phone. Normal package/run builds retain both ARM64 and x86-64.
-The command prints the selected device and ABIs, APK size, web/sync time,
-native build time, install time, and total deployment time.
-
-Optional overrides live in the git-ignored `.env.android.local`; see
-[`.env.android.example`](../.env.android.example). They are read even when
-wireless discovery succeeds. Exported environment variables override the file.
+`deploy:mobile:android` builds the release-channel production flavor with the
+local debug signature, for the device's ABI only, and replaces `com.zmarn.once`
+with `adb install -r` (app data is kept). Pair the phone under Wireless debugging
+first; the address comes from `ONCE_ANDROID_WIRELESS_ADDRESS`, then
+`adb mdns services`, then `.env.android.local` (copy `.env.android.example`).
+`-- --target <serial>` picks a device. Optional settings, in the environment or
+`.env.android.local`:
 
 | Setting | Default | Alternatives |
 | --- | --- | --- |
-| `ONCE_ANDROID_DEPLOY_ABIS` | `auto` | `all`, `arm64-v8a`, `x86_64`, or `arm64-v8a,x86_64` |
-| `ONCE_ANDROID_INSTALL_MODE` | `push` | `streaming`, `fastdeploy` |
-| `ONCE_ANDROID_GRADLE_DAEMON` | `true` | `false` to use `--no-daemon` |
-| `ONCE_ANDROID_SERIAL` | wireless discovery | An explicit ADB serial, including a USB device |
-| `ONCE_ANDROID_ADB` | SDK `platform-tools/adb` | A custom executable for installation; absolute path or relative to the repository root |
+| `ONCE_ANDROID_DEPLOY_ABIS` | `auto` | `all`, `arm64-v8a`, `x86_64`, `arm64-v8a,x86_64` |
+| `ONCE_ANDROID_INSTALL_MODE` | `push` | `streaming`, `fastdeploy` (experimental, usually slower) |
+| `ONCE_ANDROID_GRADLE_DAEMON` | `true` | `false` |
+| `ONCE_ANDROID_SERIAL` | wireless discovery | an explicit ADB serial |
+| `ONCE_ANDROID_ADB` | SDK `platform-tools/adb` | another adb for the install step |
 
-The ADB override applies to installation, including the push fallback. SDK ADB
-continues to manage discovery, connection, and device queries, so a minimal
-custom client can share the SDK server's wireless discovery support. Missing
-or directory-valued executable paths fail before building. Paths containing
-spaces are passed directly as executable paths without a shell.
-
-For a patched local build, set both values in `.env.android.local`:
-
-```dotenv
-ONCE_ANDROID_ADB=C:/path/to/patched/adb.exe
-ONCE_ANDROID_INSTALL_MODE=fastdeploy
-```
-
-Exported values override the file. Remove `ONCE_ANDROID_ADB` to use SDK ADB for
-installation again; use `ONCE_ANDROID_INSTALL_MODE=push` for the standard
-compressed-push mode.
-
-`npm run deploy:mobile:android -- --target <serial>` overrides the configured
-serial. Unsupported/incompatible ABIs and invalid settings fail before the
-build. `fastdeploy` is experimental: ADB may ignore it and do a full install;
-if it exits with an error, deployment retries a full push install. It never
-uninstalls the app or clears app data. To restore the previous build/install
-choices, use `all`, `streaming`, and `false` for the first three settings.
-
-Local Wi-Fi measurements on 2026-10-01 (Samsung SM-G780G, Android 13/API 33,
-ADB 37.0.0) selected these defaults. A 385.0 MiB dual-ABI APK took 68.9–72.3s
-with streaming and 46.0s with push. The 199.1 MiB ARM64 APK took 41.5–50.0s
-with streaming and 25.6–26.4s with push. These are install-only timings of
-repeat replacements, not build times or first-install guarantees. Fastdeploy
-was ignored by that ADB/device combination with an incorrect below-API-24
-warning, so it provided no patch-transfer benefit. Connection-interrupted
-and overlapping trials were excluded from this comparison.
-
-A repeat on 2026-10-07 with Platform Tools 35.0.2, which does apply the patch,
-measured a 224 MB ARM64 APK: fastdeploy took 47s even with every entry
-unchanged, against 36–38s for push. The time goes into the device rebuilding
-the full APK from the installed one before `pm install-commit`. ADB prints
-nothing during that phase, so a fastdeploy install looks stuck after its
-"bytes are equal" line for most of a minute. Push remains the recommended mode.
-
-`deploy:mobile:ios` is its iOS counterpart: a Release build of the `Once`
-scheme with release-channel web content, signed with the project's development
-team, installed on the phone named by `ONCE_IOS_DEVICE` with `xcrun devicectl`. It replaces the installed `com.zmarn.once` app.
+`deploy:mobile:ios` builds the `Once` scheme in Release with release-channel
+content and installs it with `xcrun devicectl` on `ONCE_IOS_DEVICE`, replacing
+`com.zmarn.once`. iOS commands read `.env.ios.local` (copy `.env.ios.example`):
+`ONCE_IOS_DEVICE` from `npx cap run ios --list` in `apps/mobile`, and
+`DEVELOPER_DIR` if xcode-select points at the Command Line Tools.
 
 ### Debug a running release build
 
-Release builds keep two aids for errors that happen away from a debugger:
+- **Settings → Error log → Show console messages** lists console errors and
+  warnings, uncaught errors and unhandled rejections (the last 300).
+- **Allow Web Inspector**, below it, lets a trusted computer attach to the
+  running app: Safari → Develop on iOS, `chrome://inspect` for the Android
+  shell, `about:debugging` in Firefox for GeckoView pages. Debug builds are
+  always inspectable.
 
-- **Console messages.** Settings → Error log → **Show console messages** lists
-  console errors and warnings, uncaught errors and unhandled rejections, kept
-  across launches (the last 300). Library failures that never reach the error
-  log, such as PouchDB's "Database has a global failure", show up here.
-- **Allow Web Inspector.** The switch below the console messages lets a
-  computer the device trusts attach to the running app without reinstalling
-  it: Safari → Develop → *device* → Once on iOS (the shell and every page
-  surface), `chrome://inspect` for the Android shell and `about:debugging` in
-  Firefox for GeckoView pages. It is off by default and stored natively, so it
-  also applies from the next launch on. Debug builds are always inspectable.
-
-From the command line (and for coding agents), `npm run inspect:ios --` reaches
-the app on an iPhone over USB or Wi-Fi without Safari, through the CDP bridge of
-[pymobiledevice3](https://github.com/doronz88/pymobiledevice3) (`pip install
-pymobiledevice3` in a virtual environment; the script finds it in
-`$PYMOBILEDEVICE3`, `~/.local/share/pymobiledevice3/bin` or `PATH`). It needs no
-sudo; the phone must be unlocked, trust this Mac and have Web Inspector on
-(Settings → Apps → Safari → Advanced). It uses USB when the phone is plugged in
-and otherwise Wi-Fi, by riding the tunnel macOS's `remoted` keeps to a paired
-phone on the same network (pymobiledevice3's `--native`; the phone shows in
-Xcode → Devices with a network icon). Force one with `--transport usb|wifi`; the
-script prints which one it used. While a Wi-Fi bridge runs, Xcode and
-`devicectl` can briefly lose the phone; `npm run inspect:ios -- stop` hands it
-back.
+`npm run inspect:ios --` reaches the app on an iPhone from the command line,
+over USB or Wi-Fi, through
+[pymobiledevice3](https://github.com/doronz88/pymobiledevice3)'s CDP bridge
+(`pip install pymobiledevice3` in a venv; found via `$PYMOBILEDEVICE3`,
+`~/.local/share/pymobiledevice3/bin` or `PATH`). No sudo is needed; the phone
+must be unlocked, trust this Mac and have Web Inspector on (Settings → Apps →
+Safari → Advanced). USB is used when plugged in, otherwise the Wi-Fi tunnel
+macOS keeps to a paired phone (it shows in Xcode → Devices with a network icon);
+`--transport usb|wifi` forces one. While a Wi-Fi bridge runs, Xcode can briefly
+lose the phone; `stop` releases it.
 
 ```bash
 npm run inspect:ios -- targets
 npm run inspect:ios -- eval "document.body.dataset.buildChannel"
 npm run inspect:ios -- console --levels error,warning --eval "location.reload()"
 npm run inspect:ios -- log
+npm run inspect:ios -- stop
 ```
 
-`eval` awaits promises and prints JSON; `console` follows messages as they
-happen; `log` prints what the app kept in its console messages and error log.
-Pass `--target "Once Dev"` when both apps are inspectable; the in-app browser's
-pages are listed by their titles too. The bridge serves one connection per
-page, so a new command takes the page over from a running `console`. Only the
-app in the foreground answers; a newly started bridge doesn't list a suspended
-app until it has been brought to the front.
+Pass `--target "Once Dev"` when both apps are inspectable. Each page takes one
+connection, so a new command takes over from a running `console`. Only the
+foreground app answers, and a new bridge lists a suspended app only after it
+has been brought to the front.
 
-### Inspect the Android WebView with Chrome DevTools
+### Inspect the Android WebView
 
-Both `run android --channel dev` (`com.zmarn.once.dev`) and the locally deployed
-`productionDebug` APK (`com.zmarn.once`) are debuggable builds. With the app
-open on a USB- or wireless-ADB device:
-
-1. Run `adb devices -l` and note the device serial. If the same phone appears
-   through more than one transport, use one explicit serial for every command.
-2. Open `chrome://inspect/#devices` in desktop Chrome and enable **Discover USB
-   devices**.
-3. Find the WebView named **Once** or **Once Dev**, then select **inspect**.
-
-The WebView is exposed only while the app process is running. If it does not
-appear, bring the app to the foreground, refresh `chrome://inspect`, and confirm
-that the installed package is debuggable:
-
-```powershell
-adb -s <serial> shell dumpsys package com.zmarn.once |
-  Select-String DEBUGGABLE
-
-# Use com.zmarn.once.dev for the development-channel app.
-```
-
-Chrome normally discovers the WebView directly through ADB. For a CDP client
-that needs a local TCP endpoint, first discover the current process-specific
-socket:
-
-```powershell
-adb -s <serial> shell cat /proc/net/unix |
-  Select-String webview_devtools_remote
-```
-
-Forward an unused local port to the listening socket shown in that output, then
-verify the target:
-
-```powershell
-adb -s <serial> forward tcp:9223 localabstract:webview_devtools_remote_<pid>
-curl.exe http://127.0.0.1:9223/json/list
-```
-
-The response contains the page's `webSocketDebuggerUrl` for CDP clients. The
-socket PID changes whenever Android restarts the app, so rediscover it instead
-of saving it in configuration. If a forwarded port accepts a connection but
-does not return discovery data, inspect `adb -s <serial> forward --list` and
-retry with another unused local port.
-
-Remove a manual forward when finished:
-
-```powershell
-adb -s <serial> forward --remove tcp:9223
-```
-
-Do not enable WebView debugging in a store-signed release build. A connected
-debugger can inspect and modify the live WebView state.
-
-Run `npm run test:mobile` for adapter checks and `npm run test:mobile:web` for
-the phone-sized browser suite. Native Appium suites use
-`test:mobile:e2e:android` and `test:mobile:e2e:ios`; install the pinned Appium
-driver listed in CI first. The runner rebuilds the dev app automatically when
-the installed bundle is missing, older than the sources, or was not packaged
-with `--e2e` (tracked via a build stamp in `apps/mobile/dist`); set
-`ONCE_MOBILE_APP` to test a specific prebuilt bundle instead. The test
-environment serves only reviewed fixtures and exposes its authenticated
-CouchDB-compatible endpoint below `/db`. Standard web and native runs ask the
-OS for a free port, identify the server with a per-run ownership token, and
-keep PouchDB state in a private temporary directory that is removed after the
-server exits. This avoids port-selection races, Playwright artifact cleanup,
-and cross-run LevelDB locks. Set `ONCE_MOBILE_TEST_PORT` only when a stable
-explicit port is required; an occupied explicit port fails without terminating
-its owner. Set `ONCE_MOBILE_TEST_DATA_DIR` only when database files need to be
-retained for debugging.
-
-The test server depends on the legacy `express-pouchdb@4.2.0`, which still
-imports the removed `uuid/v4` CommonJS subpath. The root `package.json`
-therefore scopes a `uuid@3.4.0` override to `express-pouchdb` while the global
-`uuid@^11.1.1` security override stays in place; replacing this server would let
-the compatibility override go. Separately, `npm ls` reports installed `uuid@14`
-copies in the Appium subtree that do not satisfy their parents' `^11.1.1`
-declaration. That mismatch is known and has not caused a failure.
-
-With an Android emulator already running, `npm run test:mobile:e2e:android:local`
-configures the local SDK and JDK paths, installs the pinned UiAutomator2 driver
-when needed, builds the E2E APK, and runs the Android Appium suite.
-The runner also supports physical and network-connected ADB devices: it pins
-Appium to the selected serial and uses `adb reverse` so the app can reach the
-host-only test server at `127.0.0.1`. If more than one device is connected, set
-`ONCE_ANDROID_UDID` to the serial shown by `adb devices`.
-
-Android E2E APKs carry only the selected device's ABI: GeckoView's native
-libraries are stored uncompressed, so a two-ABI APK is over 400 MiB. The
-runners read the ABI over ADB and pass it to `mobile package` as
-`ONCE_ANDROID_PACKAGE_ABIS`; the build stamp records it, and a build for a
-different ABI is rebuilt. Before installing, the runner checks free space on
-`/data`. Emulators fill up as the Play Store updates their preinstalled Google
-apps, so when the APK would not fit it removes the previous Once Dev install,
-trims caches, and reverts those updates one at a time (keeping Google Play
-services, the Play Store, and WebView) until it does. Physical devices are only
-reported. If an emulator still lacks space, raise its internal storage in
-Device Manager and cold boot it with Wipe Data: the emulator only grows `/data`
-when it is wiped.
-
-For a repeatable manual visual pass, use:
+Dev builds and the deployed `productionDebug` APK are debuggable. With the app
+open, find the serial with `adb devices -l`, open `chrome://inspect/#devices`
+in Chrome and inspect **Once** or **Once Dev**. For a raw CDP endpoint, forward
+the app's socket (its PID changes on every restart):
 
 ```bash
-npm run inspect:mobile:android
+adb -s <serial> shell cat /proc/net/unix | grep webview_devtools_remote
+adb -s <serial> forward tcp:9224 localabstract:webview_devtools_remote_<pid>
+curl http://127.0.0.1:9224/json/list
+adb -s <serial> forward --remove tcp:9224
+```
+
+Never enable WebView debugging in a store-signed build.
+
+### Mobile tests
+
+```bash
+npm run test:mobile                       # adapter checks
+npm run test:mobile:web                   # phone-sized browser suite
+npm run test:mobile:e2e:android           # Appium; install the pinned driver from CI first
+npm run test:mobile:e2e:ios
+npm run test:mobile:e2e:android:local     # sets up SDK/JDK/driver, builds and runs
+npm run inspect:mobile:android            # manual visual pass with a fixture feed
 npm run inspect:mobile:ios
 ```
 
-Each command builds and installs the current development app, replaces its
-sources with a deterministic visual-inspection feed, loads eight stories with
-varied title lengths and dates, scrolls to the top of the Stories panel, and
-then releases automation while leaving the app and emulator/simulator open.
-The command intentionally keeps running because the story and reader fixtures
-are served from its isolated temporary server; interact with the app normally
-and press Ctrl-C in the terminal when the visual pass is finished. Ctrl-C stops
-the fixture server and removes Android reverse-port forwarding without shutting
-down or erasing the device. Android requires one already-running emulator or
-connected device and follows the same `ONCE_ANDROID_UDID` selection rule as the
-local native test. iOS uses the configured `ONCE_MOBILE_DEVICE`,
-`ONCE_IOS_VERSION`, or `ONCE_IOS_UDID` when supplied.
+The runners rebuild the dev app when it is missing, stale or not built with
+`--e2e`; `ONCE_MOBILE_APP` tests a given bundle. Android APKs carry only the
+device's ABI, and the runner frees emulator `/data` space when needed (if it
+still can't, raise the emulator's storage and cold boot with Wipe Data).
+Physical and network ADB devices work through `adb reverse`; with several
+devices, set `ONCE_ANDROID_UDID`. iOS honours `ONCE_MOBILE_DEVICE`,
+`ONCE_IOS_VERSION` and `ONCE_IOS_UDID`. `ONCE_MOBILE_TEST_PORT` and
+`ONCE_MOBILE_TEST_DATA_DIR` pin the test server's port and keep its database.
+The visual pass keeps running to serve its fixtures; press Ctrl-C when done.
 
-Before either channel is distributed to internal testers, run this checklist on
-at least one physical Android device and one physical iPhone:
+The test server's `express-pouchdb@4.2.0` needs the scoped `uuid@3.4.0`
+override in the root `package.json`.
 
-- Confirm the development name, icon, version, startup, safe areas, and both
-  portrait and landscape layouts.
-- Configure a fixture/source and authenticated sync URL, restart, and confirm
-  both story state and the secure URL survive without appearing in app-private
+Before distributing either channel to testers, check on a physical Android
+device and iPhone:
+
+- Name, icon, version, startup, safe areas, portrait and landscape layouts.
+- A source and authenticated sync URL survive a restart without appearing in
   plaintext files or device logs.
-- Open an original story and return, then open reader mode and close it with the
-  platform Back/Done interaction.
-- Disable connectivity, restart, and confirm cached stories and read/skip state
-  remain usable; reconnect and confirm local and remote mutations converge.
+- Opening a story and reader mode, and closing them with Back/Done.
+- Offline restart keeps cached stories and read/skip state; changes converge
+  after reconnecting.
 
 ## Test harness
 
-For deterministic screenshots of the packaged Electron and generated mobile
-apps, including historical Git baselines and computed-style JSON, see
-[Built-app visual comparison](VISUAL_COMPARISON.md).
-
 ```bash
-# Fast deterministic unit and integration tests (never contact story sources)
-npm test
-
-# Collector/parser fixtures only
-npm run test:collectors
-
-# Build, validate, and smoke-test installed Chrome and Firefox extensions
-npm run test:extensions
-
-# Explicit manual live collector compatibility probes
-npm run test:live:collectors
-
-# Refresh exactly one named live capture for review
+npm test                                   # unit and integration tests, no network
+npm run test:collectors                    # collector/parser fixtures
+npm run test:extensions                    # build and smoke-test Chrome and Firefox
+npm run test:firefox                       # already-built Firefox extension only
+npm run test:live:collectors               # opt-in live probes, one request per source
 npm run refresh:fixtures:collectors -- reddit_json
 ```
 
-On Windows, Electron E2E, story-debug, design-system Electron, and native-rendering
-npm commands run their test processes on a private desktop through
-`scripts/run-hidden.js`. This contains shell consoles, app windows, popups, and
-native dialogs. The launcher requires
-`~/tools/agent-scripts/Invoke-OnHiddenDesktop.ps1`; it fails if that file is missing.
-Logs are saved under `artifacts/hidden-tests/` (outside Playwright's cleared output
-directory) and printed after completion. Use `npm run test:electron:e2e:run --
-<spec-path>` to test an existing build. For an explicitly visible run, use
-`node scripts/run-hidden.js --visible node_modules/@playwright/test/cli.js test
---config tests/e2e/electron/playwright.config.js`. Direct Playwright invocations
-bypass the private desktop. CI and other platforms run the command directly;
-hosted runners do not require the local desktop launcher.
+Tests never contact story sources; they use `tests/fixtures/collectors`. Live
+probes are never part of CI. For deterministic built-app screenshots see
+[VISUAL_COMPARISON.md](VISUAL_COMPARISON.md).
 
-Run `npm run test:firefox` to test an already-built Firefox extension. This is
-also the Firefox step of `npm run test:extensions`. On Windows the runner uses
-`~/tools/agent-scripts/Invoke-OnHiddenDesktop.ps1` to put Firefox and its child
-processes on a private desktop, so their windows cannot steal focus. The launcher
-must be installed; a missing launcher fails the run. Output is saved to
-`test-results/firefox-logs/hidden-desktop.log` and printed when the run finishes.
+On Windows, Electron E2E, story-debug, design-system Electron, native-rendering
+and Firefox runs happen on a private desktop through `scripts/run-hidden.js`,
+which requires `~/tools/agent-scripts/Invoke-OnHiddenDesktop.ps1`. Logs go to
+`artifacts/hidden-tests/` and `test-results/firefox-logs/`. Use
+`npm run test:electron:e2e:run -- <spec-path>` against an existing build, or
+`node scripts/run-hidden.js --visible node_modules/@playwright/test/cli.js test --config tests/e2e/electron/playwright.config.js`
+to watch. Firefox tests use a temporary profile and open the panel as a normal
+tab through `tests/e2e/extensions/firefox-panel.js`, because Firefox 153+
+WebDriver can't navigate to `moz-extension://` URLs.
 
-On Linux, the Firefox extension smoke runs headlessly. On Windows it uses a
-separate headful Firefox instance on that hidden desktop because Windows Firefox headless
-sessions can discard their initial browsing context. The test uses a temporary
-profile, `-no-remote`, a test-owned internal extension UUID, and WebDriver BiDi;
-it does not reuse or close a developer's normal Firefox session.
+Renderer changes, including the add-on and PDF sandboxes
+(`packages/ui-web/src/addons/sandboxRuntime.ts`,
+`packages/platform-web/src/pdfSandboxRuntime.ts`), need a repackage before
+rerunning E2E.
 
-The Firefox tests drive the panel as an ordinary browser tab, opened through a
-helper (`tests/e2e/extensions/firefox-panel.js`). This is a deliberate
-workaround for Firefox 153+: WebDriver may no longer navigate to
-`moz-extension://` URLs — the classic `driver.get()` is rejected as "not allowed
-in this context" and a BiDi `browsingContext.navigate` silently lands on
-about:blank — and the panel's real `sidebar_action` surface is not automatable
-because the revamped sidebar hosts it in a nested browsing context that
-WebDriver/BiDi cannot address as a first-class target. Instead the helper
-switches to the privileged chrome context and lets the browser itself open the
-panel URL with the system principal (a navigation Firefox still permits), then
-drives that normal content tab. This requires granting system access to the
-geckodriver process via its `--allow-system-access` flag (wired up by the
-helper's `systemAccessService()` and `Builder.setFirefoxService`). Note it must
-be given to geckodriver, not to Firefox: geckodriver 0.36+ owns that flag and
-rejects the Firefox arg `-remote-allow-system-access` when passed through
-capabilities ("can't be set via capabilities"), which is why the older
-capabilities form failed on macOS/Linux CI. The helper also hides the sidebar
-that auto-opens on install, and "reloads" by closing and reopening the tab,
-because WebDriver refresh is likewise rejected for `moz-extension://` pages.
-
-```bash
-# Windows outputs
-npm run package:electron
-npm run make:electron
-
-# Dev-channel Windows outputs, installable next to a release build
-npm run package:electron:dev
-npm run make:electron:dev
-```
-
-Package and make commands stop a running packaged app from the same channel so
-Windows can replace its output directory. Pass `--nokill` after npm's argument
-separator to preserve it, for example
-`npm run package:electron:dev -- --nokill`; the build will then fail if the
-running app still locks an output file. npm 11 also accepts the shorthand
-`npm run package:electron:dev --nokill`, though npm warns that shorthand will
-stop working in its next major version.
-
-`npm run test:electron` executes the shared app and Electron integration tests
-after a type-check. `npm run test:electron:e2e` packages the application, then launches
-the compiled webpack entry using the development Electron binary with Playwright.
-This validates packaging and the compiled app, but does not launch the shipped
-executable or exercise its packaged-only behavior. Failure traces and other
-Playwright artifacts are written below `test-results/`.
-
-CI runs the Electron E2E suite in six file-level shards on separate Windows 2025
-runners, each with one worker. Windows jobs install the root tooling, Electron,
-and all shared-package workspaces from the lockfile; mobile/Appium tooling is
-only needed by other jobs. To reproduce one shard, run
-`npm run test:electron:e2e -- --shard=1/6`. Integration and design-system tests
-run once in a separate Windows job. All three native-rendering calibration
-pairs still run on separate desktops: shards 3, 5, and 6 each run one pair
-after their browser tests, reusing the build. `ONCE_RENDERING_ITERATION`
-selects pair `0`, `1`, or `2`. Without that variable, the local rendering command
-runs all three pairs sequentially. Each pair keeps its positive and negative
-control on the same bundle/runtime. Matrix failures do not cancel other shards.
-The aggregate **Packaged Electron on Windows** check requires every Windows job.
-Pinned extension bundles are cached by the download scripts' hash. Downloads
-retry transient transport/HTTP failures at most twice; certificate errors,
-permanent HTTP failures, and archive hash mismatches still fail. Packaging is
-a separate prerequisite, so a failed build does not launch browser/rendering tests.
-
-Each E2E shard uploads `artifacts/electron-e2e/results.json`, including successful
-test durations and retry outcomes. Rendering jobs upload their reports, stage
-timestamps, and pair durations. These reports are retained for 14 days and have
-distinct artifact names per shard/pair; browser failure traces remain separate.
-
-The add-on specs (`tests/e2e/electron/addons.spec.js`, and
-`tests/e2e/mobile/addons.spec.js` for the phone-sized browser suite) install
-the fixture add-on from `tests/e2e/shared/addon-fixture.js`; both harnesses
-serve its script and its feed, and the manifests pin the script by the hash
-the fixture exports, so editing the script never needs a hash update by hand.
-The sandbox page is a Forge renderer entry (`addon_sandbox`) served over
-`once-addon://` on Electron, the `addon-sandbox.html` asset on mobile, and a
-manifest `sandbox` page in the Chrome build (`tests/e2e/extensions/chrome-addons.spec.js`
-covers it); a change to `packages/ui-web/src/addons/sandboxRuntime.ts`
-therefore needs a repackage before an E2E rerun, like any other renderer
-change. Firefox uses Manifest V2 and loads the packaged sandbox page directly;
-its manifest permits blob modules, while the shell and sandbox each retain
-their narrower document CSP. `tests/e2e/extensions/firefox-addons.test.js`
-installs scripts without configuring a sandbox URL and checks opaque-origin
-isolation, denied direct network access, and absent extension APIs. No hosted
-sandbox asset is emitted. The PDF sandbox (`pdf_sandbox` Forge entry,
-`pdf-sandbox.html` on mobile, `static/pdf-sandbox.html` in the extensions) is
-served the same way and likewise needs a repackage after a change to
-`packages/platform-web/src/pdfSandboxRuntime.ts`; the PDF reader specs
-(`tests/e2e/electron/pdf-reader.spec.js`, `tests/e2e/mobile/pdf-reader.spec.js`,
-`tests/e2e/extensions/chrome-pdf-reader.spec.js`,
-`tests/e2e/extensions/firefox-pdf-reader.test.js`) extract through it. Signing and Mozilla policy review are separate from
-this local execution path. The
-Android smoke suite (`mobile.smoke.js`) ends with the same add-on in the
-device WebView. See [ADDONS.md](ADDONS.md) for what the fixture exercises.
-
-On Windows, package builds that update committed or generated `dist` output can
-fail with `EPERM` when run from a restricted sandbox. Retry the unchanged
-command under the normal Windows identity; do not delete output or change
-permissions unless the retry also fails.
-
-`npm run package:electron` creates an unpacked Windows application.
-`npm run make:electron` also creates the configured Squirrel installer and ZIP.
-Release output is written below `apps/electron/out` and dev-channel output
-below `apps/electron/out/dev`, so the two channels never mix make artifacts;
-neither variant signs the resulting application.
-
-Each unpacked or ZIP distribution has a profile keyed to its containing
-directory. Copies extracted to different directories can run at the same time
-without sharing Chromium state or the Once database. Launching the executable
-from the same directory again retains the usual single-instance behavior and
-opens a window in the running process. Moving a portable distribution gives it
-a new profile. Squirrel-installed builds keep the channel's historical profile
-path so application updates do not move or reset user data.
-
-The Electron build channel is fixed at build time: `npm run start:electron`
-runs as dev-channel, `package:electron`/`make:electron` produce release-channel
-output, and the `:dev` variants produce a dev-channel bundle. A dev bundle is
-branded "Once Dev" (`once-dev.exe`, dev icon, Squirrel package `oncedev`) and
-installs alongside a release build with a separate user data profile.
-Dev-channel runs also use the dev icon for the window and taskbar. Setting
-`ONCE_BUILD_CHANNEL` overrides the default channel for any Electron command.
-
-Automated tests override the user data directory with a temporary directory so
-they do not touch a developer's normal Once profile.
-
-### Electron updates
-
-Installed release-channel Windows builds check the public `batram/once` GitHub
-Releases feed at startup and once per hour. When an update has downloaded, Once
-offers to restart immediately; choosing **Later** applies it on a subsequent app
-restart. The version row in Electron settings also provides a manual update
-check and reports its current status. Development builds, unpackaged runs,
-Forge's unpacked package output, Squirrel's first launch after an install, and
-macOS or Linux builds do not update themselves. Their version row instead
-offers **Check latest release**, which asks the public GitHub releases API for
-the newest published tag, says whether it is newer than the installed version,
-and links its release page (`apps/electron/src/ManualReleaseCheck.ts`). Only
-`ONCE_ELECTRON_DISABLE_NETWORK_FETCH=1`, which the tests set, disables that
-check. Run the generated Setup executable to install Squirrel's `Update.exe`
-and enable automatic updates on Windows.
-
-Updates use Electron's public `update.electronjs.org` service and native
-Squirrel.Windows updater. Each non-draft, non-prerelease GitHub release must use
-a valid `vX.Y.Z` tag and include the generated `RELEASES`, `*-full.nupkg`, and
-setup `.exe` files. The release workflow uploads these files and
-`verify:release-artifacts` fails if any required update asset is missing.
-
-The current Windows artifacts are not code-signed. Automatic updates work for
-Squirrel.Windows without signing, but production releases should be signed to
-establish publisher identity and improve Windows trust and SmartScreen behavior.
-
-Normal unit, integration, extension, and Electron E2E tests do not contact
-third-party story-source servers. Tests use responses below `tests/fixtures/collectors`, and window/tab E2E
-tests disable initial story loading and the renderer's network-fetch bridge.
-`test:live:collectors` is opt-in and makes one allowlisted request per source
-with a timeout and response-size cap. `refresh:fixtures:collectors` requires one
-source name and writes only that reviewed capture. Live checks are never part
-of pull-request CI.
+CI runs Electron E2E in six shards; reproduce one with
+`npm run test:electron:e2e -- --shard=1/6`. `ONCE_RENDERING_ITERATION` (`0`–`2`)
+selects one native-rendering calibration pair; without it all three run.
 
 ## Generated files
 
-The following paths are build or test outputs and must not be edited directly:
-
-- `packages/*/dist`
-- `apps/firefox-extension/dist`
-- `apps/chrome-extension/dist`
-- `apps/electron/.webpack`
-- `apps/electron/out`
-- `apps/mobile/dist`
-- copied Capacitor web assets and native build directories
-- `test-results`
-- `web-ext-artifacts`
-
-They are ignored by Git and can be recreated from the commands above.
+These are build or test outputs, ignored by Git; don't edit them:
+`packages/*/dist`, `apps/*-extension/dist`, `apps/electron/.webpack`,
+`apps/electron/out`, `apps/mobile/dist`, copied Capacitor web assets and native
+build directories, `test-results`, `web-ext-artifacts`.
