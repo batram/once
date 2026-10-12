@@ -52,6 +52,12 @@ function frameHarness(t, { fetched = {} } = {}) {
   global.fetch = async url => {
     const body = fetched[url]
     if (!body) return { ok: false, status: 404 }
+    if (body === "oversized") return {
+      ok: true, status: 200,
+      headers: { get: () => String(33 * 1024 * 1024) },
+      body: { cancel: async () => {} },
+      arrayBuffer: async () => { throw new Error("oversized asset was read") }
+    }
     return { ok: true, status: 200, arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) }
   }
   t.after(() => Object.assign(global, previous))
@@ -64,7 +70,8 @@ const workerSource = new TextEncoder().encode("// worker")
 test("the PDF port runs each document in a fresh opaque frame and validates what comes back", async t => {
   const { frames, send, listeners } = frameHarness(t, { fetched: {
     "https://shell.test/app/pdf/pdf.worker.js": workerSource,
-    "https://shell.test/app/pdf/cmaps/Identity-H.bcmap": new Uint8Array([1, 2, 3])
+    "https://shell.test/app/pdf/cmaps/Identity-H.bcmap": new Uint8Array([1, 2, 3]),
+    "https://shell.test/app/pdf/cmaps/too-big.bcmap": "oversized"
   } })
   const recognized = []
   const recognition = { async recognizeImage(bytes) { recognized.push(bytes); return { lines: ["Scanned line"], lineBounds: [{ x: 0, y: 0, width: 10, height: 2 }] } } }
@@ -92,12 +99,14 @@ test("the PDF port runs each document in a fresh opaque frame and validates what
 
   send(frame, { type: "asset", requestId: 1, kind: "cMapUrl", filename: "Identity-H.bcmap" })
   send(frame, { type: "asset", requestId: 2, kind: "standardFontDataUrl", filename: "missing.pfb" })
+  send(frame, { type: "asset", requestId: 5, kind: "cMapUrl", filename: "too-big.bcmap" })
   send(frame, { type: "asset", requestId: 3, kind: "cMapUrl", filename: "../../index.html" })
   await tick(); await tick()
   const reply = id => frame.sent.map(({ message }) => message).find(message => message.requestId === id)
   assert.deepEqual(reply(1), { type: "asset", requestId: 1, bytes: new Uint8Array([1, 2, 3]) })
   assert.match(reply(2).error, /Unable to load/)
-  assert.equal(frame.sent.length, 3, "a path traversal request is dropped")
+  assert.match(reply(5).error, /PDF asset too large/)
+  assert.equal(frame.sent.length, 4, "a path traversal request is dropped")
 
   send(frame, { type: "recognize", requestId: 4, image: new Uint8Array([137, 80]) })
   await tick()

@@ -18,6 +18,9 @@ function harness(pageActions) {
       if (name === "@once/core") return require("@once/core")
       if (name === "@once/app/browsingSite") return require("@once/app/browsingSite")
       if (name === "./BrowsingData") return { confirmClearSiteData: async (_window, site) => ran.push({ cleared: site }) }
+      if (name === "./ImageTextOverlay") return { showImageTextMenu: () => false }
+      if (name === "./NativeTextRecognition") return { nativeTextRecognitionAvailable: true }
+      if (name === "./ImageText") return { selectImageText: () => ran.push({ selectedImageText: true }) }
       if (name === "@once/platform-electron/bridge") return { ELECTRON_IPC: { addonsPageActionRun: "once:addons:page-action-run" } }
       if (name !== "electron") return {}
       return {
@@ -37,7 +40,8 @@ function harness(pageActions) {
     createWindow: async () => {}
   })
   menus.pageActions.set(owner, pageActions)
-  const contents = { isDestroyed: () => false, getTitle: () => "Page title" }
+  const mainFrame = {}
+  const contents = { isDestroyed: () => false, getTitle: () => "Page title", mainFrame, debugger: { isAttached: () => false } }
   const params = { x: 1, y: 1, isEditable: false, selectionText: "", linkURL: "", linkText: "", pageURL: "https://a.test/page", editFlags: {} }
   const labels = () => menu.map(item => item.label ?? item.type)
   const click = label => menu.find(item => item.label === label).click()
@@ -55,6 +59,20 @@ test("a page's menu offers each add-on action for the page and, under a link, fo
   assert.deepEqual(h.labels().slice(-3), ["separator", "Explain", "Explain for Link"])
   h.click("Explain for Link")
   assert.deepEqual(h.ran.at(-1), { channel: "once:addons:page-action-run", id: "addon:what-wait-who-why/explain", page: { href: "https://a.test/link", title: "The link" } })
+})
+
+test("image text remains available in an isolated frame and explains an occupied subframe", () => {
+  const h = harness([])
+  const subframe = {}
+  h.menus.showContentsMenu(h.owner, h.contents, { ...h.params, hasImageContents: true, frame: subframe })
+  assert.ok(h.labels().includes("Select Text in Image"))
+  h.contents.debugger.isAttached = () => true
+  h.menus.showContentsMenu(h.owner, h.contents, { ...h.params, hasImageContents: true, frame: subframe })
+  const blocked = h.menu().find(item => item.label?.startsWith("Select Text in Image"))
+  assert.equal(blocked.enabled, false)
+  assert.match(blocked.label, /close DevTools first/)
+  h.menus.showContentsMenu(h.owner, h.contents, { ...h.params, hasImageContents: true, frame: h.contents.mainFrame })
+  assert.ok(h.labels().includes("Select Text in Image"))
 })
 
 // Clearing a site lives in the browser menu and the tab's menu, not under the cursor on the page.

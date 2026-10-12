@@ -85,11 +85,8 @@ async function extractInSandbox(
           return
         }
         case "asset":
-          void loadBytes(`${assets}${ASSET_DIRECTORIES[message.kind]}${message.filename}`).then(
-            loaded => {
-              if (loaded.byteLength > PDF_SANDBOX_LIMITS.assetBytes) throw new Error("PDF asset too large")
-              post({ type: "asset", requestId: message.requestId, bytes: loaded }, [loaded.buffer])
-            },
+          void loadBytes(`${assets}${ASSET_DIRECTORIES[message.kind]}${message.filename}`, PDF_SANDBOX_LIMITS.assetBytes).then(
+            loaded => post({ type: "asset", requestId: message.requestId, bytes: loaded }, [loaded.buffer]),
             (error: unknown) => post({ type: "asset", requestId: message.requestId, error: error instanceof Error ? error.message : String(error) })
           )
           return
@@ -114,17 +111,48 @@ async function extractInSandbox(
 }
 
 /** Reads a same-origin file; `fetch` refuses `file:` (packaged Electron), where XHR still serves the shell's own files. */
-async function loadBytes(url: string): Promise<Uint8Array> {
+async function loadBytes(url: string, limit?: number): Promise<Uint8Array> {
   if (/^https?:|^[a-z-]+-extension:|^capacitor:/i.test(url)) {
     const response = await fetch(url)
     if (!response.ok) throw new Error(`Unable to load ${url}: ${response.status}`)
-    return new Uint8Array(await response.arrayBuffer())
+    if (!limit) return new Uint8Array(await response.arrayBuffer())
+    const length = Number(response.headers?.get("content-length"))
+    if (length > limit) { await response.body?.cancel(); throw new Error("PDF asset too large") }
+    if (!response.body) {
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      if (bytes.byteLength > limit) throw new Error("PDF asset too large")
+      return bytes
+    }
+    const reader = response.body.getReader()
+    const chunks: Uint8Array[] = []
+    let size = 0
+    try {
+      for (;;) {
+        const { value, done } = await reader.read()
+        if (done) break
+        size += value.byteLength
+        if (size > limit) throw new Error("PDF asset too large")
+        chunks.push(value)
+      }
+    } finally { await reader.cancel() }
+    const bytes = new Uint8Array(size)
+    let offset = 0
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
+    return bytes
   }
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest()
     request.open("GET", url, true)
     request.responseType = "arraybuffer"
-    request.onload = () => request.status === 200 || request.status === 0 ? resolve(new Uint8Array(request.response as ArrayBuffer)) : reject(new Error(`Unable to load ${url}: ${request.status}`))
+    if (limit) request.onprogress = event => {
+      if (event.loaded > limit) { request.abort(); reject(new Error("PDF asset too large")) }
+    }
+    request.onload = () => {
+      if (request.status !== 200 && request.status !== 0) { reject(new Error(`Unable to load ${url}: ${request.status}`)); return }
+      const bytes = new Uint8Array(request.response as ArrayBuffer)
+      if (limit && bytes.byteLength > limit) reject(new Error("PDF asset too large"))
+      else resolve(bytes)
+    }
     request.onerror = () => reject(new Error(`Unable to load ${url}`))
     request.send()
   })

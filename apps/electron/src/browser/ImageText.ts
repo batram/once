@@ -1,14 +1,10 @@
 import { type ContextMenuParams, type WebContents } from "electron"
-import { readFileSync } from "node:fs"
 import { randomUUID } from "node:crypto"
-import path from "node:path"
 import { ImageTextOverlay } from "./ImageTextOverlay"
 import { nativeTextRecognitionAvailable, recognize } from "./NativeTextRecognition"
-import type { ImageTextResult } from "@once/ui-web/imageText/imageTextTypes"
 
 const MAX_BYTES = 32 * 1024 * 1024
 const active = new WeakMap<WebContents, AbortController>()
-let injection: string | undefined
 
 /** User-initiated, on-device recognition; no bridge is exposed to remote pages. */
 export async function selectImageText(contents: WebContents, params: ContextMenuParams): Promise<void> {
@@ -25,44 +21,28 @@ export async function selectImageText(contents: WebContents, params: ContextMenu
   }
   contents.once("destroyed", cancel)
   contents.on("did-start-navigation", navigating)
-  let showImage: (bytes: Buffer) => void = () => undefined
-  let finish = async (result: ImageTextResult | null, message?: string) => {
-    if (contents.isDestroyed() || frame.detached || controller.signal.aborted) return
-    await frame.executeJavaScript(`if(window.__onceImageText?.token === ${JSON.stringify(token)}) {
-      window.__onceImageText.finish(${JSON.stringify(result)}, ${JSON.stringify(message ?? "")})
-    }`)
-  }
+  let overlay: ImageTextOverlay | null = null
   try {
     // The selection hangs on the image from an isolated world, its words in a
-    // cross-origin frame of the app's own. Only when that cannot reach the
-    // image's frame (another DevTools protocol client holds the tab, and the
-    // image is in a subframe) does the whole overlay go into the page.
-    const overlay = await ImageTextOverlay.open(contents, frame, params.srcURL, params.x, params.y, token)
-    if (overlay) {
-      overlay.onClose(cancel)
-      controller.signal.addEventListener("abort", overlay.close)
-      finish = async (result, message) => {
-        if (!controller.signal.aborted) overlay.finish(result, message)
-      }
-      showImage = (bytes) => overlay.setImage(bytes)
-    } else if (frame !== contents.mainFrame) {
-      injection ??= readFileSync(path.join(__dirname, "image-text-injection.js"), "utf8")
-      await frame.executeJavaScript(injection)
-      const started = await frame.executeJavaScript(`window.__onceStartImageText(${JSON.stringify(params.srcURL)},
-        ${Number(params.x)}, ${Number(params.y)}, ${JSON.stringify(token)})`, true)
-      if (!started) return
-    } else return
+    // cross-origin frame of the app's own. A subframe cannot safely fall back
+    // to executeJavaScript when another DevTools client owns the debugger:
+    // that would put the recognized text in the remote page's script world.
+    overlay = await ImageTextOverlay.open(contents, frame, params.srcURL, params.x, params.y, token)
+    if (!overlay) return
+    overlay.onClose(cancel)
+    controller.signal.addEventListener("abort", overlay.close)
     const scheme = new URL(params.srcURL).protocol
     if (!["http:", "https:", "data:"].includes(scheme)) throw new Error("Unsupported image URL")
     const bytes = scheme === "data:"
       ? decodeImageData(params.srcURL)
       : await fetchImage(contents, params.srcURL, url, controller.signal)
-    showImage(bytes)
-    await finish(await recognize(bytes, controller.signal))
+    overlay.setImage(bytes)
+    const result = await recognize(bytes, controller.signal)
+    if (!controller.signal.aborted) overlay.finish(result)
   } catch (error) {
     if (!controller.signal.aborted) {
       console.warn("Image text recognition failed", error instanceof Error ? error.message : String(error))
-      await finish(null, "Couldn’t recognize this image. Try another image.").catch(() => undefined)
+      overlay?.finish(null, "Couldn’t recognize this image. Try another image.")
     }
   } finally {
     contents.removeListener("destroyed", cancel)

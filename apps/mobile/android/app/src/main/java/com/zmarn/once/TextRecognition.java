@@ -50,6 +50,12 @@ final class TextRecognition {
                 call.reject("Invalid image");
                 return;
             }
+            // A data URL is decoded by ImageShare before the byte limit below.
+            // Bound its encoded form first, as for the shell's base64 input.
+            if (url.startsWith("data:image/") && url.length() > MAX_BASE64_CHARS) {
+                call.reject("Invalid image size");
+                return;
+            }
             String referrer = call.getString("referrer");
             worker.execute(() -> {
                 byte[] fetched;

@@ -16,10 +16,6 @@ module.exports = {
   entry: {
     // The main process bundle; package.json "main" resolves to index.js.
     index: "./src/main.ts",
-    "image-text-injection": {
-      import: "./src/imageTextInjection.ts",
-      library: { type: "var", name: "__onceImageTextBundle" }
-    },
     // Run in an isolated world of a tab's frame: hangs the image text
     // selection on the image (see browser/ImageTextHost.ts).
     "image-text-anchor": {

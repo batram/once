@@ -74,8 +74,6 @@
         "src/addonSandbox.ts",
         "src/pdfSandbox.ts",
         "src/pickerInjection.ts",
-        // Standalone image selection runtime built by webpack.main.config.js.
-        "src/imageTextInjection.ts",
         // Image text selection: the host run in a tab's isolated world, and
         // the Forge entry for the words frame it anchors to the image.
         "src/imageTextAnchor.ts",
