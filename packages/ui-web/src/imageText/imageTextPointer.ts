@@ -15,6 +15,21 @@
  */
 
 interface Caret { node: Text; offset: number }
+
+/**
+ * Where a sweep autoscrolls, for an overlay that is not in the image's page
+ * (Electron's app-owned view): the page's viewport edges in the overlay's
+ * coordinates, and how to scroll the page.
+ */
+export interface ImageTextScrolling {
+  edges(): { top: number; bottom: number }
+  scrollBy(deltaY: number): void
+  /**
+   * Where the overlay is in the page's viewport. It follows the image as the
+   * page scrolls, so a pointer held still moves within it without any event.
+   */
+  origin(): { x: number; y: number }
+}
 type Snap = "nearest" | "start" | "end"
 
 const LONG_PRESS_MS = 450
@@ -25,7 +40,8 @@ export class ImageTextPointer {
   private anchor: Caret | null = null
   private dragging = false
   private pointer = { x: 0, y: 0 }
-  private scrolling = 0
+  private pointerOrigin = { x: 0, y: 0 }
+  private scrollFrame = 0
   private press: { x: number; y: number; at: number } | null = null
   private longPress = 0
   private lastPointerType = "mouse"
@@ -33,7 +49,7 @@ export class ImageTextPointer {
 
   constructor(private readonly shadow: ShadowRoot, private readonly clip: HTMLElement,
     private readonly words: HTMLElement, private readonly image: HTMLImageElement,
-    private readonly onDrag: (dragging: boolean) => void) {
+    private readonly onDrag: (dragging: boolean) => void, private readonly scrolling?: ImageTextScrolling) {
     this.handles = ["start", "end"].map((end) => {
       const handle = document.createElement("div")
       handle.className = `handle ${end}`
@@ -140,47 +156,59 @@ export class ImageTextPointer {
     this.select(this.anchor, caret)
     this.dragging = true
     this.onDrag(true)
-    this.pointer = { x: event.clientX, y: event.clientY }
+    this.track(event)
     window.addEventListener("mousemove", this.mousemove, true)
     window.addEventListener("mouseup", this.mouseup, true)
   }
 
   private readonly mousemove = (event: MouseEvent) => {
     if (!this.dragging || !this.anchor) return
-    this.pointer = { x: event.clientX, y: event.clientY }
+    this.track(event)
     const caret = this.caretAt(event.clientX, event.clientY)
     if (caret) this.select(this.anchor, caret)
-    if (!this.scrolling && this.edgeSpeed() !== 0) this.scrolling = requestAnimationFrame(this.autoscroll)
+    if (!this.scrollFrame && this.edgeSpeed() !== 0) this.scrollFrame = requestAnimationFrame(this.autoscroll)
   }
 
   private readonly mouseup = () => this.endDrag()
 
+  private track(event: MouseEvent): void {
+    this.pointer = { x: event.clientX, y: event.clientY }
+    this.pointerOrigin = this.scrolling?.origin() ?? { x: 0, y: 0 }
+  }
+
+  /** The held pointer in the overlay's coordinates now, after the overlay moved under it. */
+  private heldPointer(): { x: number; y: number } {
+    const origin = this.scrolling?.origin() ?? { x: 0, y: 0 }
+    return { x: this.pointer.x + this.pointerOrigin.x - origin.x, y: this.pointer.y + this.pointerOrigin.y - origin.y }
+  }
+
   private endDrag(): void {
     if (this.dragging) this.onDrag(false)
     this.dragging = false
-    cancelAnimationFrame(this.scrolling)
-    this.scrolling = 0
+    cancelAnimationFrame(this.scrollFrame)
+    this.scrollFrame = 0
     window.removeEventListener("mousemove", this.mousemove, true)
     window.removeEventListener("mouseup", this.mouseup, true)
   }
 
   /** Vertical scroll speed while a sweep holds the pointer near the viewport's edge. */
   private edgeSpeed(): number {
-    const height = document.scrollingElement?.clientHeight || innerHeight
-    if (this.pointer.y < EDGE) return -Math.ceil((EDGE - this.pointer.y) / 2)
-    if (this.pointer.y > height - EDGE) return Math.ceil((this.pointer.y - height + EDGE) / 2)
+    const { top, bottom } = this.scrolling?.edges() ?? { top: 0, bottom: document.scrollingElement?.clientHeight || innerHeight }
+    const { y } = this.heldPointer()
+    if (y < top + EDGE) return -Math.ceil((top + EDGE - y) / 2)
+    if (y > bottom - EDGE) return Math.ceil((y - bottom + EDGE) / 2)
     return 0
   }
 
   private readonly autoscroll = () => {
     const speed = this.edgeSpeed()
-    if (!this.dragging || speed === 0) { this.scrolling = 0; return }
-    const scroller = scrollContainer(this.image)
-    if (scroller) scroller.scrollBy(0, speed)
-    else window.scrollBy(0, speed)
-    const caret = this.anchor && this.caretAt(this.pointer.x, this.pointer.y)
+    if (!this.dragging || speed === 0) { this.scrollFrame = 0; return }
+    if (this.scrolling) this.scrolling.scrollBy(speed)
+    else (scrollContainer(this.image) ?? window).scrollBy(0, speed)
+    const held = this.heldPointer()
+    const caret = this.anchor && this.caretAt(held.x, held.y)
     if (this.anchor && caret) this.select(this.anchor, caret)
-    this.scrolling = requestAnimationFrame(this.autoscroll)
+    this.scrollFrame = requestAnimationFrame(this.autoscroll)
   }
 
   private readonly pointerdown = (event: PointerEvent) => {

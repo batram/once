@@ -386,3 +386,42 @@ test("smooth selection respects partial words, reverse dragging, and line breaks
     await expect.poll(async () => (await geometry(app)).highlight).toBe("")
   } finally { await closeApp(app, userData) }
 })
+
+test("the overlay stays out of the page's way: covered edges, keys and autoscroll reach the page", async () => {
+  const { electronApp: app, userData, window } = await launchApp()
+  try {
+    await window.locator("#urlfield").fill(`${server.origin}/`)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
+    await startRecognition(app)
+    expect((await geometry(app)).hidden).toBe(false)
+    // A fixed header over the image's top: the words view starts below it, so
+    // the selection never shows through the page's own UI.
+    await inPage(app, `(() => {
+      const header=document.createElement('div'); header.id='header';
+      header.style.cssText='position:fixed;top:0;left:0;right:0;height:90px;background:#334;z-index:5';
+      document.body.append(header);
+      scrollTo(0, document.querySelector('img').getBoundingClientRect().top + scrollY - 40);
+    })()`)
+    await expect.poll(async () => {
+      const { tab, words } = await viewBounds(app)
+      const image = await inPage(app, "document.querySelector('img').getBoundingClientRect().toJSON()")
+      return words && words.y - tab.y >= 89 && words.y - tab.y <= 92 && Math.abs(words.y + words.height - tab.y - (image.bottom - 2)) <= 2
+    }).toBe(true)
+    await inPage(app, "document.getElementById('header').remove(); scrollTo(0,0)")
+    // Page keys pressed in the overlay scroll the page.
+    await overlayInput(app, [{ type: "keyDown", keyCode: "PageDown" }, { type: "keyUp", keyCode: "PageDown" }])
+    // PageDown scrolls smoothly: let it land (at the page's end) before scrolling back.
+    await expect.poll(() => inPage(app, "Math.abs(scrollY - (document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight)) <= 1")).toBe(true)
+    await inPage(app, "scrollTo(0,0)")
+    await expect.poll(async () => (await viewBounds(app)).words?.y - (await viewBounds(app)).tab.y).toBeGreaterThan(100)
+    // A sweep held at the page's bottom edge scrolls the page.
+    const { words: first } = await geometry(app)
+    const { tab } = await viewBounds(app)
+    const start = { x: first[0].left + 2, y: first[0].top + first[0].height / 2 }
+    await overlayInput(app, [{ type: "mouseDown", ...start, button: "left", clickCount: 1 },
+      { type: "mouseMove", x: start.x + 40, y: tab.height - 4, button: "left", modifiers: ["leftButtonDown"] }])
+    await expect.poll(() => inPage(app, "scrollY")).toBeGreaterThan(40)
+    await overlayInput(app, [{ type: "mouseUp", x: start.x + 40, y: tab.height - 4, button: "left", clickCount: 1 }])
+  } finally { await closeApp(app, userData) }
+})

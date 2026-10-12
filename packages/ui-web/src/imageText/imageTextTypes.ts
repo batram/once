@@ -26,9 +26,16 @@ export interface ImageTextFit {
 
 /**
  * Where the drawn picture sits inside an app-owned overlay view, in the view's
- * CSS pixels, and the picture's natural size that recognized words refer to.
+ * CSS pixels, and the picture's natural size that recognized words refer to;
+ * `pageTop` and `pageBottom` are the page viewport's edges, where a sweep
+ * autoscrolls the page, in the view's coordinates.
  */
-export interface ImageTextViewLayout { left: number; top: number; width: number; height: number; naturalWidth: number; naturalHeight: number }
+export interface ImageTextViewLayout {
+  left: number; top: number; width: number; height: number; naturalWidth: number; naturalHeight: number
+  pageTop: number; pageBottom: number
+  /** The view's own place in the page's viewport. */
+  viewLeft: number; viewTop: number
+}
 
 /** The app to an overlay view (Electron's out-of-page overlay). */
 export type ImageTextViewMessage =
@@ -42,6 +49,7 @@ export type ImageTextViewMessage =
 export type ImageTextViewEvent =
   | { type: "close" }
   | { type: "wheel"; x: number; y: number; deltaX: number; deltaY: number }
+  | { type: "scroll"; deltaY: number }
   | { type: "sweeping"; sweeping: boolean }
   | { type: "status"; text: string }
   | { type: "size"; width: number; height: number }

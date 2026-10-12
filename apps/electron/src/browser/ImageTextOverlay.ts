@@ -13,6 +13,11 @@ const GAP = 8
 /** The margin around the bar inside its view, for its shadow (see imageTextView.ts). */
 const BAR_INSET = 6
 let probeSource: string | undefined
+/** Keys that move around the page, by DOM key, as sendInputEvent names them. */
+const PAGE_KEYS: Record<string, string> = {
+  ArrowUp: "Up", ArrowDown: "Down", ArrowLeft: "Left", ArrowRight: "Right",
+  PageUp: "PageUp", PageDown: "PageDown", Home: "Home", End: "End", " ": "Space"
+}
 const overlays = new WeakMap<WebContents, ImageTextOverlay>()
 
 /**
@@ -40,6 +45,7 @@ export class ImageTextOverlay {
     private readonly token: string,
     private fit: ImageTextProbeFit
   ) {
+    this.words.webContents.on("before-input-event", this.forwardKey)
     this.words.webContents.ipc.on("image-text-overlay:event", this.event)
     this.bar.webContents.ipc.on("image-text-overlay:event", this.event)
     // The words view's own menu: the page's would offer the image underneath.
@@ -144,7 +150,9 @@ export class ImageTextOverlay {
       left: tab.x + (fit.left + fit.imageLeft) * zoom - left,
       top: tab.y + (fit.top + fit.imageTop) * zoom - top,
       width: fit.imageWidth * zoom, height: fit.imageHeight * zoom,
-      naturalWidth: fit.naturalWidth, naturalHeight: fit.naturalHeight
+      naturalWidth: fit.naturalWidth, naturalHeight: fit.naturalHeight,
+      pageTop: tab.y - top, pageBottom: tab.y + fit.viewportHeight * zoom - top,
+      viewLeft: left - tab.x, viewTop: top - tab.y
     }
     const key = JSON.stringify([words, layout])
     if (key !== this.lastWords) {
@@ -201,6 +209,13 @@ export class ImageTextOverlay {
       this.lastBar = ""
       this.apply(this.fit)
     } else if (message.type === "wheel" && fromWords) this.wheel(message)
+    else if (message.type === "scroll" && fromWords) this.scroll(Number(message.deltaY) || 0)
+  }
+
+  /** A sweep held at the page's edge scrolls whatever scrolls the image, as a wheel over it would. */
+  private scroll(deltaY: number): void {
+    const view = this.words.getBounds()
+    this.wheel({ type: "wheel", x: view.width / 2, y: view.height / 2, deltaX: 0, deltaY })
   }
 
   /** The words view covers the image, so wheel scrolling over it goes back to the page underneath. */
@@ -215,6 +230,21 @@ export class ImageTextOverlay {
 
   private readonly navigating = (event: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
     if (event.isMainFrame && !event.isSameDocument) this.close()
+  }
+
+  /**
+   * The overlay holds the keyboard while it is open, for copying and select
+   * all; keys that move around the page still go to the page.
+   */
+  private readonly forwardKey = (event: Electron.Event, input: Electron.Input) => {
+    const keyCode = PAGE_KEYS[input.key]
+    if (!keyCode || input.control || input.meta || input.alt || this.tab.isDestroyed()) return
+    if (input.type !== "keyDown" && input.type !== "keyUp") return
+    event.preventDefault()
+    const modifiers = input.shift ? ["shift" as const] : []
+    this.tab.sendInputEvent({ type: input.type, keyCode, modifiers })
+    // Space scrolls on the character it types, not on the key press.
+    if (input.type === "keyDown" && keyCode === "Space") this.tab.sendInputEvent({ type: "char", keyCode: " ", modifiers })
   }
 
   private readonly escape = (event: Electron.Event, input: Electron.Input) => {

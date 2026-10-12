@@ -22,8 +22,6 @@ const VIEW_CSS = `
 `
 
 function shadowHost(): ShadowRoot {
-  document.documentElement.style.background = document.body.style.background = "transparent"
-  document.body.style.margin = "0"
   const host = document.createElement("div")
   host.dataset.onceImageText = ""
   const shadow = host.attachShadow({ mode: "open" })
@@ -47,10 +45,15 @@ export function startImageTextWordsView(bridge: ImageTextViewBridge): void {
   const image = new Image()
   const highlights = new ImageTextHighlights(shadow, words)
   const blocks = new ImageTextBlocks(words, () => selectionRange(shadow))
-  const pointer = new ImageTextPointer(shadow, clip, words, image,
-    (sweeping) => bridge.send({ type: "sweeping", sweeping }))
-  const wordRects = () => [...words.querySelectorAll(".word")].map((word) => word.getBoundingClientRect())
   let layout: ImageTextViewLayout | null = null
+  // A sweep near the page's edge scrolls the page, which the app does for us.
+  const pointer = new ImageTextPointer(shadow, clip, words, image,
+    (sweeping) => bridge.send({ type: "sweeping", sweeping }), {
+      edges: () => ({ top: layout?.pageTop ?? 0, bottom: layout?.pageBottom ?? innerHeight }),
+      scrollBy: (deltaY) => bridge.send({ type: "scroll", deltaY }),
+      origin: () => ({ x: layout?.viewLeft ?? 0, y: layout?.viewTop ?? 0 })
+    })
+  const wordRects = () => [...words.querySelectorAll(".word")].map((word) => word.getBoundingClientRect())
   let stopScan: () => void = () => undefined
 
   const place = () => {
@@ -114,12 +117,20 @@ export function startImageTextBarView(bridge: ImageTextViewBridge): void {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") { event.preventDefault(); bridge.send({ type: "close" }) }
   })
-  new ResizeObserver(() => {
+  // Measured on the spot, not by a ResizeObserver: the view starts empty and
+  // off the window, where no frames are rendered and observers never report.
+  let size = ""
+  const measure = () => {
     const rect = bar.getBoundingClientRect()
-    bridge.send({ type: "size", width: Math.ceil(rect.width + 12), height: Math.ceil(rect.height + 12) })
-  }).observe(bar)
+    const next = { width: Math.ceil(rect.width + 12), height: Math.ceil(rect.height + 12) }
+    if (JSON.stringify(next) === size) return
+    size = JSON.stringify(next)
+    bridge.send({ type: "size", ...next })
+  }
+  measure()
+  void document.fonts.ready.then(measure)
   bridge.onMessage((message) => {
-    if (message.type === "status") status.textContent = message.text
+    if (message.type === "status") { status.textContent = message.text; measure() }
     else if (message.type === "sweeping") bar.classList.toggle("sweeping", message.sweeping)
   })
 }
