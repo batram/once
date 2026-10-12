@@ -62,12 +62,17 @@ export class ImageTextBlocks {
    * event below supplies the text, so no secure context is needed.
    */
   copyFromGesture(): boolean {
-    this.pending = this.selectedText() ?? this.allText()
+    this.pending = this.copyText()
     try {
       return document.execCommand("copy")
     } finally {
       this.pending = null
     }
+  }
+
+  /** The text Copy takes: the selection, reflowed, or all recognized text when nothing is selected. */
+  copyText(): string {
+    return this.selectedText() ?? this.allText()
   }
 
   private readonly copy = (event: ClipboardEvent) => this.supply(event, this.pending ?? this.selectedText())

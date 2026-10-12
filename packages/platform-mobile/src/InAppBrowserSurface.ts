@@ -142,6 +142,19 @@ export interface ContextMenuActionEvent {
 
 /** The native long-press entry "Select text in image"; the shell runs overlay and recognition. */
 export const IMAGE_TEXT_MENU_ITEM = "once:image-text"
+/**
+ * The same with the overlay out of the page, in the app's own view over it
+ * (Android prototype, offered beside IMAGE_TEXT_MENU_ITEM for comparison).
+ */
+export const IMAGE_TEXT_OVERLAY_MENU_ITEM = "once:image-text-overlay"
+
+/**
+ * The app's image text overlay over a page (Android): opened on a probe's
+ * first fit, then given the recognized words, or a message when there are none.
+ */
+export type ImageTextOverlayCommand =
+  | { action: "open"; token: string; fit: unknown }
+  | { action: "result"; token: string; result: unknown; message?: string }
 
 /** On-device OCR of an image: lines with bounds, plus each line's words with normalized corners. */
 export interface NativeImageText {
@@ -279,6 +292,8 @@ export interface InAppBrowserSurface {
   evaluateJavaScript(script: string): Promise<string | null>
   /** Recognizes an image of this page, fetched natively with its cookies and referrer (Android). */
   recognizeImageUrl?(url: string, referrer?: string): Promise<NativeImageText>
+  /** Drives the app's out-of-page image text overlay over this page (Android). */
+  imageTextOverlay?(command: ImageTextOverlayCommand): Promise<void>
   /**
    * Selects the next (or previous) occurrence of `query` in the open page and
    * says how many there are. Null when the surface cannot search.
@@ -328,6 +343,7 @@ interface NativeInAppBrowserPlugin {
   clearAllData(): Promise<void>
   evaluateJavaScript(options: { script: string }): Promise<{ value?: string }>
   recognizeImage(options: { url: string; referrer?: string }): Promise<NativeImageText>
+  imageTextOverlay(options: ImageTextOverlayCommand): Promise<void>
   findInPage(options: { query: string; forward: boolean }): Promise<PageFindResult>
   clearFind(): Promise<void>
   presentFind(): Promise<{ presented?: boolean }>
@@ -479,6 +495,7 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
       return result?.value ?? null
     },
     recognizeImageUrl: (url, referrer) => plugin.recognizeImage({ url, referrer }),
+    imageTextOverlay: (command) => plugin.imageTextOverlay(command),
     async findInPage(query, options) {
       const result = await plugin.findInPage({
         query,

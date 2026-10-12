@@ -87,6 +87,10 @@ const entry = {
   "reader-runtime": path.join(__dirname, "src", "readerRuntime.ts"),
   "picker-injection": path.join(__dirname, "src", "pickerInjection.ts"),
   "image-text-injection": path.join(__dirname, "src", "imageTextInjection.ts"),
+  // Android's out-of-page image text: the probe evaluated in the page's
+  // bridge content script, and the overlay view's own page.
+  "image-text-probe": path.join(__dirname, "src", "imageTextProbe.ts"),
+  "image-text-overlay": path.join(__dirname, "src", "imageTextOverlayView.ts"),
   "page-find": path.join(__dirname, "src", "pageFindRuntime.ts"),
   "addon-sandbox": path.join(__dirname, "src", "addonSandbox.ts"),
   "pdf-sandbox": path.join(__dirname, "src", "pdfSandbox.ts")

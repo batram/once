@@ -1,6 +1,6 @@
 import { BrowserWindow, Menu, type IpcMainEvent, type Rectangle, type WebContents, WebContentsView, type WebFrameMain } from "electron"
 import type { ImageTextResult, ImageTextViewEvent, ImageTextViewMessage } from "@once/ui-web/imageText/imageTextTypes"
-import type { ImageTextProbeFit } from "../imageTextProbe"
+import type { ImageTextProbeFit } from "@once/ui-web/imageText/imageTextProbe"
 import { type ImageTextProbes, openImageTextProbes } from "./ImageTextProbes"
 
 declare const IMAGE_TEXT_OVERLAY_WEBPACK_ENTRY: string

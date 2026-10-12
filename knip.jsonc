@@ -133,6 +133,9 @@
         "src/pickerInjection.ts",
         // The image text overlay mobileImageText.ts evaluates in the page.
         "src/imageTextInjection.ts",
+        // Android's out-of-page image text: the probe and the overlay view's page.
+        "src/imageTextProbe.ts",
+        "src/imageTextOverlayView.ts",
         // The find engine the iOS surface plugin evaluates in the page.
         "src/pageFindRuntime.ts",
         "src/readerRuntime.ts",

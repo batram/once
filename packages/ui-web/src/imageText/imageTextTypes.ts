@@ -48,6 +48,8 @@ export type ImageTextViewMessage =
 /** An overlay view to the app. */
 export type ImageTextViewEvent =
   | { type: "close" }
+  /** The view's page has loaded and listens for messages. */
+  | { type: "ready" }
   | { type: "wheel"; x: number; y: number; deltaX: number; deltaY: number }
   | { type: "scroll"; deltaY: number }
   /** The recognized words' boxes as fractions of the drawn picture. */

@@ -83,6 +83,8 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected final Map<PluginCall, Runnable> waiting = new HashMap<>();
 
     protected ReadingGeckoView surface;
+    /** The page view's container, where overlays over the page go (see ImageTextOverlay). */
+    protected FrameLayout surfaceContent;
     protected GeckoSession session;
     protected SwipeRefreshLayout refreshSurface;
     protected LinearLayout recoveryView;
@@ -242,7 +244,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         // only after the shell's real viewport has been laid out and exposed.
         surface.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> attachDisplay());
 
-        FrameLayout content = new FrameLayout(getContext());
+        FrameLayout content = surfaceContent = new FrameLayout(getContext());
         content.addView(surface, new FrameLayout.LayoutParams(-1, -1));
         recoveryView = new LinearLayout(getContext());
         recoveryView.setOrientation(LinearLayout.VERTICAL);
@@ -376,6 +378,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         session = null;
         surface = null;
         refreshSurface = null;
+        surfaceContent = null;
         recoveryView = null;
         recoveryMessage = null;
         loadStatus = null;

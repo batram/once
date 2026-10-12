@@ -21,6 +21,28 @@ final class PageScriptCalls {
 
     PageScriptCalls(Handler handler) { this.handler = handler; }
 
+    /** The shell's evaluateJavaScript: the call's script, once there is a page ready to run it. */
+    void evaluate(PluginCall call, boolean pageOpen, WebExtension.Port bridgePort) {
+        String script = call.getString("script");
+        if (script == null || script.isEmpty()) call.reject("JavaScript source is required");
+        else if (!pageOpen) call.reject("There is no open page");
+        else if (bridgePort == null) call.reject("The page is not ready to run scripts");
+        else send(call, script, bridgePort);
+    }
+
+    /** A script whose answer nobody awaits: no call waits on its id, as ours count from 1. */
+    void post(String script, WebExtension.Port bridgePort) {
+        if (bridgePort == null) return;
+        try {
+            JSONObject message = new JSONObject();
+            message.put("id", -1);
+            message.put("code", script);
+            bridgePort.postMessage(message);
+        } catch (Exception ignored) {
+            // The page is going away, and with it whatever the script was for.
+        }
+    }
+
     void send(PluginCall call, String script, WebExtension.Port bridgePort) {
         if (pendingEvaluations.size() >= 32) { call.reject("Too many pending page script requests"); return; }
         long id = evaluationSequence.incrementAndGet();

@@ -320,6 +320,16 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     @PluginMethod
     public void recognizeImage(PluginCall call) { TextRecognition.recognize(call, engine.runtime); }
 
+    /** The out-of-page image text overlay over this tab's page (prototype). */
+    private final ImageTextOverlays imageTexts = new ImageTextOverlays(this::getActivity, () -> surfaceContent, () -> visible ? surface : null,
+        code -> scripts.post(code, bridgePort));
+
+    @PluginMethod
+    public void imageTextOverlay(PluginCall call) {
+        if (!route(call, Missing.REJECT, tab -> tab.imageTextOverlay(call))) return;
+        getActivity().runOnUiThread(() -> imageTexts.command(call));
+    }
+
     @PluginMethod
     public void reload(PluginCall call) {
         if (!route(call, Missing.REJECT, tab -> tab.reload(call))) return;
@@ -497,22 +507,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     @PluginMethod
     public void evaluateJavaScript(PluginCall call) {
         if (!route(call, Missing.REJECT, tab -> tab.evaluateJavaScript(call))) return;
-        String script = call.getString("script");
-        if (script == null || script.isEmpty()) {
-            call.reject("JavaScript source is required");
-            return;
-        }
-        getActivity().runOnUiThread(() -> {
-            if (session == null) {
-                call.reject("There is no open page");
-                return;
-            }
-            if (bridgePort == null) {
-                call.reject("The page is not ready to run scripts");
-                return;
-            }
-            scripts.send(call, script, bridgePort);
-        });
+        getActivity().runOnUiThread(() -> scripts.evaluate(call, session != null, bridgePort));
     }
 
     @PluginMethod
@@ -669,6 +664,8 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
             } else if (environment == WebExtension.MessageSender.ENV_TYPE_CONTENT_SCRIPT
                 && port.sender.session == session
                 && port.sender.isTopLevel()) {
+                // A new document: the image text overlay belonged to the one before.
+                imageTexts.close();
                 bridgePort = port;
                 healthSentAt = 0;
                 nextHealthAt = 0;
@@ -723,12 +720,14 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
                 }
                 return;
             }
-            if (handleMediaMessage(reply)) return;
+            if (imageTexts.receive(reply) || handleMediaMessage(reply)) return;
             scripts.settle(reply);
         }
 
         @Override
         public void onDisconnect(WebExtension.Port port) {
+            // Its page is gone, even when the next page's port already arrived.
+            imageTexts.close();
             if (bridgePort != port) return;
             bridgePort = null;
             healthSentAt = 0;

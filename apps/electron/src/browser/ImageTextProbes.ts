@@ -1,7 +1,7 @@
 import type { Debugger, WebContents, WebFrameMain } from "electron"
 import { readFileSync } from "node:fs"
 import path from "node:path"
-import type { ImageTextProbeFit, ImageTextProbeReport } from "../imageTextProbe"
+import type { ImageTextProbeFit, ImageTextProbeReport } from "@once/ui-web/imageText/imageTextProbe"
 
 /**
  * Where the image whose text is being selected is, in the tab's top-level CSS
@@ -211,7 +211,8 @@ function composeFits(levels: ImageTextProbeFit[]): ImageTextProbeFit {
     imageLeft: image.imageLeft * scale, imageTop: image.imageTop * scale,
     imageWidth: image.imageWidth * scale, imageHeight: image.imageHeight * scale,
     visibleBox: box, visible: visible && image.visible && box.right > box.left && box.bottom > box.top,
-    viewportWidth: top.viewportWidth, viewportHeight: top.viewportHeight, innerWidth: top.innerWidth
+    viewportWidth: top.viewportWidth, viewportHeight: top.viewportHeight, innerWidth: top.innerWidth,
+    visualLeft: top.visualLeft, visualTop: top.visualTop, visualScale: top.visualScale, pixelRatio: top.pixelRatio
   }
 }
 

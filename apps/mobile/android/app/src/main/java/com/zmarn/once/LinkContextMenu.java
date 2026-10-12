@@ -61,6 +61,8 @@ final class LinkContextMenu {
 
     /** The shell item id of "Select text in image"; the shell runs the overlay and recognition. */
     static final String IMAGE_TEXT = "once:image-text";
+    /** The same, out of the page in the app's own view (prototype, offered beside it for comparison). */
+    static final String IMAGE_TEXT_OVERLAY = "once:image-text-overlay";
 
     static void show(Activity activity, GeckoRuntime runtime, Target target,
                      BiConsumer<String, Boolean> openInTab) {
@@ -111,6 +113,8 @@ final class LinkContextMenu {
                 if (runItem != null && (isWebUrl(media) || media.startsWith("data:image/"))) {
                     labels.add("Select text in image");
                     actions.add(() -> runItem.accept(IMAGE_TEXT));
+                    labels.add("Select text in image (overlay)");
+                    actions.add(() -> runItem.accept(IMAGE_TEXT_OVERLAY));
                 }
                 labels.add("Copy image");
                 actions.add(() -> ImageShare.copy(activity, runtime, media, target.referrer));

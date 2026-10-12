@@ -1,6 +1,7 @@
-import type { ImageTextViewBridge, ImageTextViewLayout } from "./imageTextTypes"
+import type { ImageTextFit, ImageTextViewBridge, ImageTextViewLayout } from "./imageTextTypes"
 import { ImageTextBlocks } from "./imageTextBlocks"
 import { ImageTextHighlights, selectionRange } from "./imageTextHighlights"
+import { ImageTextLayer } from "./imageTextLayer"
 import { OVERLAY_CSS, renderWords } from "./imageTextOverlay"
 import { ImageTextPointer } from "./imageTextPointer"
 import { playRecognitionScan } from "./imageTextScan"
@@ -103,6 +104,52 @@ export function startImageTextWordsView(bridge: ImageTextViewBridge): void {
     requestAnimationFrame(frame)
   }
   requestAnimationFrame(frame)
+}
+
+/**
+ * The words view for screens that select with the platform's own touch
+ * carets (Android's system WebView, over GeckoView): the gapless text layer
+ * of imageTextLayer.ts over the picture. The bar is the app's own native
+ * view, which asks this view for the text to copy.
+ */
+export function startImageTextLayerView(bridge: ImageTextViewBridge): { copyText(): string } {
+  const shadow = shadowHost()
+  // Carries only the reading flourish; the layer below takes the touches.
+  const clip = document.createElement("div")
+  clip.className = "clip passive"
+  shadow.append(clip)
+  const layer = new ImageTextLayer("", { inline: true })
+  const blocks = new ImageTextBlocks(layer.words, () => layer.range())
+  let layout: ImageTextViewLayout | null = null
+  let stopScan: () => void = () => undefined
+  // The view is the picture's visible part, so the layer's fit needs no clip.
+  const fit = (): ImageTextFit | null => layout && {
+    left: layout.left, top: layout.top, width: layout.width, height: layout.height, clipPath: "none",
+    visibleBox: { left: 0, top: 0, right: innerWidth, bottom: innerHeight }, visible: true,
+    imageLeft: 0, imageTop: 0, imageWidth: layout.width, imageHeight: layout.height
+  }
+  bridge.onMessage((message) => {
+    if (message.type === "layout") {
+      layout = message.layout
+      const current = fit()
+      if (current) layer.update(current)
+    } else if (message.type === "result") {
+      const result = message.result
+      const current = fit()
+      if (!current || !result?.lines.some((line) => line.length)) {
+        bridge.send({ type: "status", text: message.message || "No text found in this image" })
+        return
+      }
+      layer.show(result)
+      layer.update(current)
+      blocks.attach(result)
+      stopScan()
+      // No picture here to judge its brightness by: the flourish treats it as paper.
+      stopScan = playRecognitionScan(new Image(), clip, () => layer.wordRects())
+      bridge.send({ type: "status", text: "Long-press text to select" })
+    }
+  })
+  return { copyText: () => blocks.copyText() }
 }
 
 export function startImageTextBarView(bridge: ImageTextViewBridge): void {

@@ -6,6 +6,10 @@ import type { ImageTextFit, ImageTextResult, ImageTextWord } from "./imageTextTy
  * so a selection can never run into the page's own text, and the iframe sits in
  * the page's coordinates, so it scrolls and zooms with the page natively.
  *
+ * In a document of the app's own (Android's out-of-page overlay view, see
+ * imageTextView.ts) the layer goes inline instead: there is no page to keep it
+ * from, and Chromium's touch selection does not reach into such a frame.
+ *
  * Gecko's carets only behave over a gapless layer laid out to their rules:
  * - a caret drag resolves points through in-flow children by their frame
  *   rects: absolutely positioned lines are invisible to it (the selection jumps
@@ -26,9 +30,17 @@ const FRAME_CSS = `
   iframe[hidden] { display: none; }
 `
 
-const LAYER_CSS = `
+const FRAME_DOCUMENT_CSS = `
   :root, body { margin: 0; padding: 0; height: 100%; overflow: clip; background: transparent; color-scheme: normal; }
-  body { display: grid; grid-template: 100% / 100%; color: transparent; font-family: Arial, sans-serif;
+`
+
+const INLINE_CSS = `
+  .layer { position: absolute; overflow: clip; }
+  .layer[hidden] { display: none; }
+`
+
+const LAYER_CSS = `
+  .layer { display: grid; grid-template: 100% / 100%; color: transparent; font-family: Arial, sans-serif;
     cursor: text; -webkit-tap-highlight-color: transparent;
     -moz-text-size-adjust: none; -webkit-text-size-adjust: none; text-size-adjust: none; }
   .line { grid-area: 1 / 1; justify-self: start; align-self: start; width: max-content; white-space: pre; }
@@ -50,34 +62,52 @@ interface Line {
 
 export class ImageTextLayer {
   private readonly host = document.createElement("div")
-  private readonly frame = document.createElement("iframe")
+  /** The iframe holding the layer in a page; null when the layer is inline in the app's own document. */
+  private readonly frame: HTMLIFrameElement | null
+  /** The element placed over the image: the iframe, or the inline layer itself. */
+  private readonly box: HTMLElement
+  private readonly layer: HTMLElement
   private readonly doc: Document
   private result: ImageTextResult | null = null
   private placement = ""
   private geometry = ""
 
-  constructor(token: string) {
+  constructor(token: string, { inline = false } = {}) {
     this.host.dataset.onceImageTextLayer = token
-    const shadow = this.host.attachShadow({ mode: "open" })
-    const sheet = new CSSStyleSheet()
-    sheet.replaceSync(FRAME_CSS)
-    shadow.adoptedStyleSheets = [sheet]
-    this.frame.title = "Recognized text"
-    this.frame.hidden = true
-    shadow.append(this.frame)
-    document.documentElement.append(this.host)
-    // The initial about:blank document: built through the DOM, so a page's
-    // CSP (which it inherits) never sees an inline style or script.
-    this.doc = this.frame.contentDocument as Document
-    const view = this.frame.contentWindow as Window & typeof globalThis
-    const layerSheet = new view.CSSStyleSheet()
-    layerSheet.replaceSync(LAYER_CSS)
-    this.doc.adoptedStyleSheets = [layerSheet]
+    if (inline) {
+      // The app's own document: the layer is part of it, where selections and copies are plain.
+      this.frame = null
+      this.doc = document
+      this.layer = this.box = this.host
+      const sheet = new CSSStyleSheet()
+      sheet.replaceSync(INLINE_CSS + LAYER_CSS)
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]
+      document.body.append(this.layer)
+    } else {
+      const shadow = this.host.attachShadow({ mode: "open" })
+      const sheet = new CSSStyleSheet()
+      sheet.replaceSync(FRAME_CSS)
+      shadow.adoptedStyleSheets = [sheet]
+      document.documentElement.append(this.host)
+      this.frame = this.box = document.createElement("iframe")
+      this.frame.title = "Recognized text"
+      shadow.append(this.frame)
+      // The initial about:blank document: built through the DOM, so a page's
+      // CSP (which it inherits) never sees an inline style or script.
+      this.doc = this.frame.contentDocument as Document
+      const view = this.frame.contentWindow as Window & typeof globalThis
+      const layerSheet = new view.CSSStyleSheet()
+      layerSheet.replaceSync(FRAME_DOCUMENT_CSS + LAYER_CSS)
+      this.doc.adoptedStyleSheets = [layerSheet]
+      this.layer = this.doc.body
+    }
+    this.layer.classList.add("layer")
+    this.box.hidden = true
   }
 
   /** The element holding the `.word` spans (each with `data-line`), for copying and reflow. */
   get words(): HTMLElement {
-    return this.doc.body
+    return this.layer
   }
 
   show(result: ImageTextResult): void {
@@ -93,8 +123,8 @@ export class ImageTextLayer {
 
   /** Word boxes in the page's viewport pixels, in reading order. */
   wordRects(): DOMRect[] {
-    const origin = this.frame.getBoundingClientRect()
-    return [...this.doc.querySelectorAll(".word")].map((word) => {
+    const origin = this.frame ? this.frame.getBoundingClientRect() : { left: 0, top: 0 }
+    return [...this.layer.querySelectorAll(".word")].map((word) => {
       const rect = (word.parentElement ?? word).getBoundingClientRect()
       return new DOMRect(origin.left + rect.left, origin.top + rect.top, rect.width, rect.height)
     })
@@ -102,15 +132,16 @@ export class ImageTextLayer {
 
   /** Each layout frame: follow the image, and re-lay the words when its drawn size changes. */
   update(fit: ImageTextFit): void {
-    this.frame.hidden = !this.result || !fit.visible
-    if (this.frame.hidden) return
-    const origin = this.host.getBoundingClientRect()
+    this.box.hidden = !this.result || !fit.visible
+    if (this.box.hidden) return
+    // A frame is placed from its host, at the page origin; an inline layer from its own document origin.
+    const origin = this.frame ? this.host.getBoundingClientRect() : { left: 0, top: 0 }
     const placement = [fit.left - origin.left, fit.top - origin.top, fit.width, fit.height].map((value) => `${value}px`)
     const key = placement.join() + fit.clipPath
     if (key !== this.placement) {
       this.placement = key
       const [left, top, width, height] = placement
-      Object.assign(this.frame.style, { left, top, width, height, clipPath: fit.clipPath })
+      Object.assign(this.box.style, { left, top, width, height, clipPath: fit.clipPath })
     }
     const geometry = [fit.width, fit.height, fit.imageLeft, fit.imageTop, fit.imageWidth, fit.imageHeight]
       .map((value) => Math.round(value * 2) / 2).join()
@@ -125,7 +156,7 @@ export class ImageTextLayer {
   }
 
   private render(fit: ImageTextFit): void {
-    const body = this.doc.body
+    const body = this.layer
     body.replaceChildren()
     if (!this.result) return
     const inks: { ink: HTMLElement; width: number; lift: number; stretch: number }[] = []
@@ -204,3 +235,4 @@ function lineBoxes(result: ImageTextResult, fit: ImageTextFit): Line[] {
   }
   return lines
 }
+

@@ -1,5 +1,5 @@
 import { StoryCardCollapse, renderStoryTags } from "./readingStoryCard"
-import { IMAGE_TEXT_MENU_ITEM, InAppBrowserSurface, normalizeReadingUrl } from "@once/platform-mobile"
+import { IMAGE_TEXT_MENU_ITEM, IMAGE_TEXT_OVERLAY_MENU_ITEM, InAppBrowserSurface, normalizeReadingUrl } from "@once/platform-mobile"
 import { humanTime, URLRedirect, storyPageUrls } from "@once/core"
 import { ReaderTtsUiControls } from "./readerTtsControls"
 import {
@@ -157,7 +157,7 @@ export class MobileReadingController {
     })
     await this.surface.addListener("contextMenuAction", event => {
       // "Select text in image" is handled by mobileImageText.ts, even on a linked image.
-      if (!event.link || event.id === IMAGE_TEXT_MENU_ITEM || runSendItem(event.id, { url: event.link, title: event.linkText }) !== null) return
+      if (!event.link || event.id === IMAGE_TEXT_MENU_ITEM || event.id === IMAGE_TEXT_OVERLAY_MENU_ITEM || runSendItem(event.id, { url: event.link, title: event.linkText }) !== null) return
       this.runLinkAction(event.id, event.link, event.linkText)
     })
     await this.surface.addListener("openLinkRequested", event => {
