@@ -411,8 +411,9 @@ test("the overlay stays out of the page's way: covered edges, keys and autoscrol
     await inPage(app, "document.getElementById('header').remove(); scrollTo(0,0)")
     // Page keys pressed in the overlay scroll the page.
     await overlayInput(app, [{ type: "keyDown", keyCode: "PageDown" }, { type: "keyUp", keyCode: "PageDown" }])
-    // PageDown scrolls smoothly: let it land (at the page's end) before scrolling back.
-    await expect.poll(() => inPage(app, "Math.abs(scrollY - (document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight)) <= 1")).toBe(true)
+    // PageDown scrolls smoothly by most of a viewport: let it land before scrolling back.
+    await expect.poll(() => inPage(app, `new Promise(resolve => { const y=scrollY;
+      setTimeout(() => resolve(y > innerHeight / 2 && scrollY === y), 200) })`)).toBe(true)
     await inPage(app, "scrollTo(0,0)")
     await expect.poll(async () => (await viewBounds(app)).words?.y - (await viewBounds(app)).tab.y).toBeGreaterThan(100)
     // A sweep held at the page's bottom edge scrolls the page.
@@ -539,7 +540,8 @@ test("on an image filling the page the bar takes the corner covering the fewest 
       if (!g.bar || g.words.length < 6) return "waiting"
       const overlaps = g.words.some(word => g.bar.left < word.right && word.left < g.bar.right && g.bar.top < word.bottom && word.top < g.bar.bottom)
       const inside = g.bar.top >= g.image.top && g.bar.bottom <= g.image.bottom
-      return overlaps ? "covers words" : inside && g.bar.right < g.image.left + g.image.width / 2 ? "left corner" : "elsewhere"
+      // On a narrow image the bar can reach past the middle: compare its gaps to the image's sides.
+      return overlaps ? "covers words" : inside && g.bar.left - g.image.left < g.image.right - g.bar.right ? "left corner" : "elsewhere"
     }).toBe("left corner")
   } finally { await closeApp(app, userData) }
 })

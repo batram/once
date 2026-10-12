@@ -95,6 +95,7 @@ const STRICT_FRAMES_PAGE = `<!doctype html>
 // window here fails whichever spec happened to launch during a slow patch
 // rather than the one with the defect.
 const STARTUP_TIMEOUT_MS = process.env.CI ? 40_000 : 15_000
+const E2E_WINDOW_SIZE = { width: 1024, height: 728 }
 
 // Everything the app says while a spec drives it: main-process stdout and
 // stderr, main and renderer console output, uncaught renderer errors, and
@@ -451,6 +452,10 @@ async function launchApp(options = {}) {
       BrowserWindow.getAllWindows().length
     ), { timeout: STARTUP_TIMEOUT_MS }).toBe(1)
     window = await electronApp.firstWindow()
+    // Windows CI runners have a 1024x768 screen, which clamps the default
+    // 1280x800 window; every run gets that size so local runs lay out as CI does.
+    await electronApp.evaluate(({ BrowserWindow }, size) =>
+      BrowserWindow.getAllWindows()[0].setSize(size.width, size.height), E2E_WINDOW_SIZE)
     appLog.attachPage(window)
     await waitForAppReady(electronApp, window, appLog)
     await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()),
