@@ -180,6 +180,30 @@
   }
 }
 
+/* A quick wiggle as the chevron lights up. It turns with `rotate`, which
+   adds to the transform, so open and collapsed chevrons wiggle alike. */
+@keyframes comment-chevron-wiggle {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+
+  30% {
+    rotate: -14deg;
+  }
+
+  65% {
+    rotate: 9deg;
+  }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .comment_toggle:hover::before,
+  .comment:has(> .comment_rail:hover) > .comment_main .comment_toggle::before {
+    animation: comment-chevron-wiggle 260ms ease-out;
+  }
+}
+
 .comment_avatar {
   inline-size: var(--icon-sm);
   block-size: var(--icon-sm);
