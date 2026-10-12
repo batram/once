@@ -2,8 +2,8 @@ import { AddonEntry } from "@once/core"
 
 export interface AiConsumer { id: string; name: string; detail: string; enabled: boolean; owner: "reader" | "addon" }
 const builtins: AiConsumer[] = [
-  { id: "reader.formatting", name: "Reader formatting", detail: "Structure and layout", enabled: true, owner: "reader" },
-  { id: "reader.ocr", name: "Reader OCR", detail: "Images and scanned PDFs", enabled: true, owner: "reader" }
+  // The id predates the single reader action; keeping it keeps the model people chose.
+  { id: "reader.formatting", name: "Reader AI", detail: "Pages, images and PDFs", enabled: true, owner: "reader" }
 ]
 let addons: AiConsumer[] = []
 export const AI_CONSUMERS_CHANGED = "once:ai-consumers-changed"

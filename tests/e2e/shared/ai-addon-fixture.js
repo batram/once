@@ -32,8 +32,8 @@ function handleRequest(request, response) {
       response.once("close", () => { call.closed = true })
       const content = body.messages.at(-1).content
       const last = typeof content === "string" ? content : "Image transcription"
-      const formatting = body.messages[0]?.content?.includes("Classify the supplied document blocks")
-      const answer = formatting ? JSON.stringify(JSON.parse(last).map((block, index) => ({ id: block.id, kind: index === 0 && block.text.length < 100 ? "h2" : block.kind }))) : Array.isArray(content) ? "Scanned heading\n\nFirst paragraph.\n\nSecond paragraph." : last.includes("Summarize") ? "- The article describes its main result.\n- Its qualifications are preserved." :
+      const reader = body.messages[0]?.content?.includes("You prepare documents for a reader view")
+      const answer = reader ? "<h1>Fixture rewritten title</h1><h2>Fixture section</h2><ul><li>First point</li><li>Second point</li></ul>" : Array.isArray(content) ? "Scanned heading\n\nFirst paragraph.\n\nSecond paragraph." : last.includes("Summarize") ? "- The article describes its main result.\n- Its qualifications are preserved." :
         // The follow-up carries a link, so hosts can show that a tray link opens where their tabs are.
         last.includes("Who uses") ? `Developers use it. This follows our earlier explanation. See [the beta story](http://${request.headers.host}/story/beta).` :
           "**ExampleApp is software** for organizing projects.\n\n## Key entities\n\n**ExampleApp**: a project organizer. Use `projects` to group related work."

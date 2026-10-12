@@ -95,6 +95,7 @@ test("the PDF port runs each document in a fresh opaque frame and validates what
   assert.deepEqual(extract.message.bytes, new Uint8Array([37, 80, 68, 70]))
   assert.equal(extract.message.workerSource, "// worker")
   assert.equal(extract.message.recognition, true)
+  assert.equal(extract.message.pageImages, 0, "pictures are only rendered on request")
   assert.deepEqual(extract.transfer, [extract.message.bytes.buffer])
 
   send(frame, { type: "asset", requestId: 1, kind: "cMapUrl", filename: "Identity-H.bcmap" })
@@ -146,23 +147,26 @@ test("a sandbox that never starts, or never finishes, is torn down on its deadli
   assert.equal(frames[0].removed, true)
 })
 
-test("cloud OCR reports actual page numbers, preserves paragraphs and abort removes the parser", async t => {
+test("page pictures arrive with their page numbers, and abort removes the parser", async t => {
   const { frames, send, listeners } = frameHarness(t, { fetched: { "https://shell.test/app/pdf/pdf.worker.js": workerSource } })
   const abort = new AbortController(), pages = [], progress = []
   const port = createPdfTextPort({ sandboxUrl: "https://shell.test/app/pdf-sandbox.html", workerUrl })
   const extraction = port.extract(new Uint8Array([37, 80, 68, 70]), undefined, {
     signal: abort.signal, onPage: (page, total) => progress.push([page, total]),
-    cloud: { async recognizeImage(_bytes, page) { pages.push(page); return { lines: ["first", "second"], paragraphs: ["first", "second"] } } }
+    pageImages: 16, onPageImage: (page, image) => pages.push([page, image.length])
   })
   await tick()
   const frame = frames[0]
   send(frame, { type: "ready", protocol: PDF_SANDBOX_PROTOCOL })
+  assert.equal(frame.sent[0].message.pageImages, 16)
+  assert.equal(frame.sent[0].message.recognition, false)
   send(frame, { type: "progress", page: 3, total: 5 })
-  send(frame, { type: "recognize", requestId: 1, page: 3, image: new Uint8Array([1, 2, 3]) })
+  send(frame, { type: "page-image", page: 3, image: new Uint8Array([1, 2, 3]) })
+  send(frame, { type: "page-image", page: 0, image: new Uint8Array([1]) })
+  send(frame, { type: "page-image", page: 4, image: "not bytes" })
   await tick()
   assert.deepEqual(progress, [[3, 5]])
-  assert.deepEqual(pages, [3])
-  assert.deepEqual(frame.sent.at(-1).message.result.paragraphs, ["first", "second"])
+  assert.deepEqual(pages, [[3, 3]], "malformed pictures are dropped")
   const rejected = assert.rejects(extraction, /cancelled/)
   abort.abort()
   await rejected

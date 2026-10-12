@@ -337,7 +337,7 @@ function runReaderTts(
   )
   bindDom({
     play, stop, back, forward, voiceSelect, voiceSettings, rateInput, rateValue,
-    segments, session, follow
+    article, segments, session, follow
   }, remember)
   populateVoiceOptions(voiceSelect, synth.getVoices(), preferences.voice)
   synth.addEventListener?.("voiceschanged", () => {
@@ -404,6 +404,7 @@ interface ReaderTtsDomBinding {
   voiceSettings: HTMLDetailsElement | null
   rateInput: HTMLInputElement
   rateValue: HTMLElement
+  article: HTMLElement
   segments: ReturnType<typeof createReaderSpeechSegments>
   session: ReaderSpeechSession
   follow: ReaderTtsFollow
@@ -415,7 +416,7 @@ function bindReaderTtsDom(
 ): void {
   const {
     play, stop, back, forward, voiceSelect, voiceSettings, rateInput, rateValue,
-    segments, session, follow
+    article, segments, session, follow
   } = binding
   // Choosing a reading position follows it again after the user scrolled away.
   play.addEventListener("click", () => { follow.resume(); session.toggle() })
@@ -438,18 +439,26 @@ function bindReaderTtsDom(
       voiceSettings.open = false
     }
   })
-  Array.from(new Set(segments.map((segment) => segment.element))).forEach((element) => {
+  markReaderSegments(segments)
+  // Delegated, so the segments rebuilt after a content change start reading as well.
+  article.addEventListener("click", (event) => {
+    // A tap on a link follows the link; it does not start reading.
+    if (!(event.target instanceof Element) || event.target.closest("a[href], area[href]")) return
+    let index = -1
+    for (let node: Element | null = event.target; node && node !== article && index < 0; node = node.parentElement) {
+      index = segments.findIndex((segment) => segment.element === node)
+    }
+    if (index < 0) return
+    follow.resume()
+    session.start(index)
+  })
+}
+
+function markReaderSegments(segments: ReturnType<typeof createReaderSpeechSegments>): void {
+  for (const element of new Set(segments.map((segment) => segment.element))) {
     element.classList.add("tts-segment")
     element.title = "Start reading here"
-    element.addEventListener("click", (event) => {
-      // A tap on a link follows the link; it does not start reading.
-      if (event.target instanceof Element && event.target.closest("a[href], area[href]")) return
-      const index = segments.findIndex((segment) => segment.element === element)
-      if (index < 0) return
-      follow.resume()
-      session.start(index)
-    })
-  })
+  }
 }
 
 function applyExternalControl(
@@ -549,6 +558,7 @@ function bindReaderContentUpdates(session: ReaderSpeechSession, segments: Return
   document.addEventListener("once-reader-content-changed", () => {
     session.stop()
     segments.splice(0, segments.length, ...createSegments(article))
+    markReaderSegments(segments)
     session.replaceTexts(segments.map(segment => segment.text))
   })
 }

@@ -24,7 +24,7 @@ export const PDF_SANDBOX_LIMITS = {
 export type PdfAssetKind = "cMapUrl" | "standardFontDataUrl" | "wasmUrl"
 
 export type HostToPdfSandbox =
-  | { type: "extract"; protocol: number; bytes: Uint8Array; workerSource: string; recognition: boolean }
+  | { type: "extract"; protocol: number; bytes: Uint8Array; workerSource: string; recognition: boolean; pageImages: number }
   | { type: "asset"; requestId: number; bytes?: Uint8Array; error?: string }
   | { type: "recognized"; requestId: number; result?: RecognizedText; error?: string }
 
@@ -33,6 +33,7 @@ export type PdfSandboxToHost =
   | { type: "asset"; requestId: number; kind: PdfAssetKind; filename: string }
   | { type: "progress"; page: number; total: number }
   | { type: "recognize"; requestId: number; image: Uint8Array; page?: number }
+  | { type: "page-image"; image: Uint8Array; page: number }
   | { type: "result"; result: PdfTextResult }
   | { type: "error"; message: string }
 
@@ -90,6 +91,10 @@ export function readPdfSandboxMessage(value: unknown): PdfSandboxToHost | null {
       if (!finite(value.requestId) || !(value.image instanceof Uint8Array)) return null
       if (!value.image.byteLength || value.image.byteLength > PDF_SANDBOX_LIMITS.imageBytes) return null
       return { type: "recognize", requestId: value.requestId, image: value.image, ...(value.page !== undefined ? { page: Number(value.page) } : {}) }
+    case "page-image":
+      if (!Number.isInteger(value.page) || Number(value.page) < 1 || Number(value.page) > PDF_SANDBOX_LIMITS.pages) return null
+      if (!(value.image instanceof Uint8Array) || !value.image.byteLength || value.image.byteLength > PDF_SANDBOX_LIMITS.imageBytes) return null
+      return { type: "page-image", image: value.image, page: Number(value.page) }
     case "result": {
       if (!record(value.result) || !Array.isArray(value.result.pages) || value.result.pages.length > PDF_SANDBOX_LIMITS.pages) return null
       const pages: PdfTextPage[] = []
@@ -114,7 +119,8 @@ export function readPdfHostMessage(value: unknown): HostToPdfSandbox | null {
   switch (value.type) {
     case "extract":
       if (!finite(value.protocol) || !(value.bytes instanceof Uint8Array) || typeof value.workerSource !== "string") return null
-      return { type: "extract", protocol: value.protocol, bytes: value.bytes, workerSource: value.workerSource, recognition: value.recognition === true }
+      return { type: "extract", protocol: value.protocol, bytes: value.bytes, workerSource: value.workerSource, recognition: value.recognition === true,
+        pageImages: Number.isInteger(value.pageImages) ? Math.max(0, Math.min(PDF_SANDBOX_LIMITS.pages, Number(value.pageImages))) : 0 }
     case "asset":
       if (!finite(value.requestId)) return null
       return { type: "asset", requestId: value.requestId, ...(value.bytes instanceof Uint8Array ? { bytes: value.bytes } : {}), ...(typeof value.error === "string" ? { error: value.error } : {}) }

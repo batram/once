@@ -30,6 +30,22 @@ export function installReaderTtsControls(
   voice.onchange = () =>
     controller.send({ type: "ui-set-voice", voice: voice.value })
 
+  const ai = required<HTMLButtonElement>('[data-host-ai="rewrite"]')
+  const undo = required<HTMLButtonElement>('[data-host-ai="undo"]')
+  const aiStatus = required("#reader_ai_status")
+  ai.onclick = () => controller.send({ type: "ui-ai", action: "rewrite" })
+  undo.onclick = () => controller.send({ type: "ui-ai", action: "undo" })
+  const showAi = (state = { running: false, canUndo: false, status: "", madeBy: "" }): void => {
+    ai.textContent = state.running ? "Cancel" : "AI"
+    ai.setAttribute("aria-label", state.running ? "Cancel AI rewrite" : "Rewrite with AI")
+    ai.title = state.madeBy ? `Rewritten by ${state.madeBy}` : ""
+    undo.hidden = !state.canUndo
+    undo.disabled = state.running
+    // Progress while running; afterwards only an error remains.
+    aiStatus.textContent = state.status
+    aiStatus.dataset.error = String(!state.running && !!state.status)
+  }
+
   for (const rate of [1, 1.25, 1.5, 2, 3]) {
     const button = document.createElement("button")
     button.type = "button"
@@ -55,6 +71,7 @@ export function installReaderTtsControls(
       voice.append(new Option(`${item.name} (${item.lang})`, item.voiceURI))
     }
     voice.value = state.voice || selected
+    showAi(state.ai)
   })
 
   const hide = (): void => {
@@ -73,6 +90,7 @@ export function installReaderTtsControls(
       // Nothing may linger from the previous tab when the new one never spoke.
       play.textContent = "▶"
       play.setAttribute("aria-label", "Play article")
+      showAi()
     },
     stop() {
       controller.send({ type: "ui-stop" })

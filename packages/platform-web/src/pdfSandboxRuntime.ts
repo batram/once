@@ -12,11 +12,14 @@ type TextItem = import("pdfjs-dist/types/src/display/api").TextItem
 const MAX_PAGES = 200
 /** Rasterization for OCR is bounded to this longest side. */
 const MAX_RENDER_PIXELS = 2600
+/** Page images for a vision model: its own input is downscaled past this side, so more pixels only cost bytes. */
+const PAGE_IMAGE_PIXELS = 1568
 
 interface Host {
   asset(kind: PdfAssetKind, filename: string): Promise<Uint8Array>
   progress(page: number, total: number): void
   recognize(image: Uint8Array, page: number): Promise<RecognizedText>
+  pageImage(image: Uint8Array, page: number): void
 }
 
 export function startPdfSandboxRuntime(scope: Window): void {
@@ -44,7 +47,8 @@ export function startPdfSandboxRuntime(scope: Window): void {
       const reply = await request<HostToPdfSandbox & { type: "recognized" }>({ type: "recognize", image, page }, [image.buffer])
       if (!reply.result) throw new Error(reply.error || "Image text recognition failed")
       return reply.result
-    }
+    },
+    pageImage: (image, page) => post({ type: "page-image", image, page }, [image.buffer])
   }
 
   scope.addEventListener("message", event => {
@@ -58,7 +62,7 @@ export function startPdfSandboxRuntime(scope: Window): void {
         post({ type: "error", message: "PDF sandbox protocol mismatch" })
         return
       }
-      extract(message.bytes, message.workerSource, message.recognition, host).then(
+      extract(message.bytes, message.workerSource, message.recognition, message.pageImages, host).then(
         result => post({ type: "result", result }),
         error => post({ type: "error", message: error instanceof Error ? error.message : String(error) })
       )
@@ -72,8 +76,11 @@ export function startPdfSandboxRuntime(scope: Window): void {
   post({ type: "ready", protocol: PDF_SANDBOX_PROTOCOL })
 }
 
-/** Page-by-page extraction: preserve embedded text, OCR only pages without a text layer. */
-async function extract(bytes: Uint8Array, workerSource: string, recognition: boolean, host: Host): Promise<PdfTextResult> {
+/**
+ * Page-by-page extraction: preserve embedded text, OCR only pages without a text layer.
+ * The first `pageImages` pages are also sent as pictures; a picture stands in for a page OCR cannot read.
+ */
+async function extract(bytes: Uint8Array, workerSource: string, recognition: boolean, pageImages: number, host: Host): Promise<PdfTextResult> {
   // The parser's code arrives from the shell, which fetched it from its own
   // origin: the frame's policy forbids loading anything itself. It becomes a
   // blob module; PDF.js starts it as a worker where the host allows one and
@@ -116,7 +123,10 @@ async function extract(bytes: Uint8Array, workerSource: string, recognition: boo
       try {
         const viewport = page.getViewport({ scale: 1 })
         const text = pdfTextLines(await textItems(page), matrix => pdfjs.Util.transform(viewport.transform, matrix))
+        const pictured = number <= pageImages ? await renderPage(page, PAGE_IMAGE_PIXELS, "image/jpeg") : null
+        if (pictured) host.pageImage(pictured, number)
         if (text.lines.some(line => /[\p{L}\p{N}]/u.test(line))) { pages.push({ ...text, method: "embedded" }); continue }
+        if (number <= pageImages) { pages.push({ lines: [], method: "embedded" }); continue }
         const image = await renderPage(page)
         if (!image) { pages.push({ lines: [], method: "embedded" }); continue }
         if (!recognition) throw new Error(`PDF page ${number} has no embedded text. OCR is not available on this platform yet.`)
@@ -141,10 +151,10 @@ async function textItems(page: PdfPage): Promise<TextItem[]> {
   return items
 }
 
-/** Rasterizes a page once; a uniform (blank) bitmap yields null instead of an image for OCR. */
-async function renderPage(page: PdfPage): Promise<Uint8Array | null> {
+/** Rasterizes a page once; a uniform (blank) bitmap yields null instead of an image. */
+async function renderPage(page: PdfPage, longestSide = MAX_RENDER_PIXELS, type = "image/png"): Promise<Uint8Array | null> {
   const base = page.getViewport({ scale: 1 })
-  const scale = Math.min(2.5, MAX_RENDER_PIXELS / Math.max(base.width, base.height))
+  const scale = Math.min(2.5, longestSide / Math.max(base.width, base.height))
   const viewport = page.getViewport({ scale })
   const canvas = document.createElement("canvas")
   canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height)
@@ -154,7 +164,7 @@ async function renderPage(page: PdfPage): Promise<Uint8Array | null> {
     // than animation frames, which a hidden frame never receives.
     await page.render({ canvas, viewport, background: "rgb(255,255,255)", intent: "print", annotationMode: pdfjs.AnnotationMode.DISABLE }).promise
     if (blank(canvas)) return null
-    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("PDF page could not be rendered")), "image/png"))
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("PDF page could not be rendered")), type, 0.85))
     return new Uint8Array(await blob.arrayBuffer())
   } finally { canvas.width = canvas.height = 0 }
 }

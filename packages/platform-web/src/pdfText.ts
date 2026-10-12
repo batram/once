@@ -74,7 +74,7 @@ async function extractInSandbox(
       if (error) reject(error); else resolve(result as PdfTextResult)
     }
     const expire = () => finish(new Error("PDF text extraction timed out"))
-    let deadline = setTimeout(expire, options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+    const deadline = setTimeout(expire, options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
     const aborted = () => finish(new Error("PDF extraction cancelled"))
     let readyDeadline: ReturnType<typeof setTimeout> | undefined = setTimeout(() => finish(new Error("PDF sandbox did not start")), READY_TIMEOUT_MS)
 
@@ -82,17 +82,19 @@ async function extractInSandbox(
       if (!frame.contentWindow || event.source !== frame.contentWindow) return
       const message = readPdfSandboxMessage(event.data)
       if (!message) return
-      if (job?.cloud) { clearTimeout(deadline); deadline = setTimeout(expire, 150_000) }
       switch (message.type) {
         case "ready": {
           clearTimeout(readyDeadline); readyDeadline = undefined
           if (message.protocol !== PDF_SANDBOX_PROTOCOL) { finish(new Error("PDF sandbox protocol mismatch")); return }
           const copy = bytes.slice()
-          post({ type: "extract", protocol: PDF_SANDBOX_PROTOCOL, bytes: copy, workerSource: source, recognition: Boolean(recognition || job?.cloud) }, [copy.buffer])
+          post({ type: "extract", protocol: PDF_SANDBOX_PROTOCOL, bytes: copy, workerSource: source, recognition: Boolean(recognition), pageImages: job?.onPageImage ? job.pageImages ?? 0 : 0 }, [copy.buffer])
           return
         }
         case "progress":
           job?.onPage?.(message.page, message.total)
+          return
+        case "page-image":
+          job?.onPageImage?.(message.page, message.image)
           return
         case "asset":
           void loadBytes(`${assets}${ASSET_DIRECTORIES[message.kind]}${message.filename}`, PDF_SANDBOX_LIMITS.assetBytes).then(
@@ -101,8 +103,8 @@ async function extractInSandbox(
           )
           return
         case "recognize":
-          if (!recognition && !job?.cloud) { post({ type: "recognized", requestId: message.requestId, error: "Image text recognition is not available on this platform yet" }); return }
-          void (job?.cloud?.recognizeImage(message.image, message.page) ?? recognition?.recognizeImage(message.image))?.then(
+          if (!recognition) { post({ type: "recognized", requestId: message.requestId, error: "Image text recognition is not available on this platform yet" }); return }
+          void recognition.recognizeImage(message.image).then(
             result => post({ type: "recognized", requestId: message.requestId, result }),
             (error: unknown) => post({ type: "recognized", requestId: message.requestId, error: error instanceof Error ? error.message : String(error) })
           )

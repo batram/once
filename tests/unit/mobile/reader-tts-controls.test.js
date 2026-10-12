@@ -40,6 +40,9 @@ test("host TTS bar is the single control surface in Reader mode", () => {
       <span id="reader_tts_rate_label"></span>
       <select id="reader_tts_voice"></select>
       <div id="reader_tts_rates"></div>
+      <button data-host-ai="rewrite"></button>
+      <button data-host-ai="undo" hidden></button>
+      <p id="reader_ai_status"></p>
     </div>
   `)
   const sent = []
@@ -60,6 +63,9 @@ test("host TTS bar is the single control surface in Reader mode", () => {
     { type: "ui-play-toggle" },
     { type: "ui-stop" }
   ])
+  document.querySelector('[data-host-ai="rewrite"]').click()
+  document.querySelector('[data-host-ai="undo"]').click()
+  assert.deepEqual(sent.splice(-2), [{ type: "ui-ai", action: "rewrite" }, { type: "ui-ai", action: "undo" }])
 
   controls.setReaderMode(false)
   assert.equal(pill.hidden, true)
@@ -78,6 +84,9 @@ test("hiding the bar or switching tabs keeps speech running; only stop and dismi
       <span id="reader_tts_rate_label"></span>
       <select id="reader_tts_voice"></select>
       <div id="reader_tts_rates"></div>
+      <button data-host-ai="rewrite"></button>
+      <button data-host-ai="undo" hidden></button>
+      <p id="reader_ai_status"></p>
     </div>
   `)
   const sent = []

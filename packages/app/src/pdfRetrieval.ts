@@ -15,14 +15,14 @@ export async function retrievePdf(response: Response, url: string, pdf: PdfTextP
 }
 
 /** The same, for bytes already read (a generic download whose content turned out to be a PDF). */
-export async function extractPdf(bytes: Uint8Array, url: string, pdf: PdfTextPort | undefined, recognition?: TextRecognitionPort, options?: DocumentRecognitionOptions): Promise<RetrievedDocument> {
+export async function extractPdf(bytes: Uint8Array, url: string, pdf: PdfTextPort | undefined, recognition?: TextRecognitionPort, options?: DocumentRecognitionOptions): Promise<Extract<RetrievedDocument, { kind: "text" }>> {
   if (!pdf) throw new Error("PDF text extraction is not available on this platform")
   options?.signal?.throwIfAborted()
   const result = await pdf.extract(bytes, recognition, options)
   options?.signal?.throwIfAborted()
   const paragraphs = result.pages.flatMap(page => ocrParagraphs(page))
   const lines = result.pages.flatMap(page => page.lines)
-  if (!paragraphs.length) throw new Error("No readable text was found in this PDF")
+  if (!paragraphs.length && !options?.pageImages) throw new Error("No readable text was found in this PDF")
   const used = new Set(result.pages.filter(page => page.lines.some(line => line.trim())).map(page => page.method))
   const method = used.size > 1 ? "mixed" : used.has("ocr") ? "ocr" : "embedded"
   return { kind: "text", text: paragraphs.join("\n\n"), lines, paragraphs, url, mediaType: "application/pdf", method, title: result.title }

@@ -31,7 +31,8 @@ export interface StoryAttachment {
 
 /** What the `content` attachment is and where it came from. */
 export interface StoredContentMeta {
-  ai?: import("../ai").AiProvenance
+  /** Content an earlier reader version generated with AI and saved. */
+  ai?: { operation: "formatting" | "ocr"; connection: string; provider: string; model: string; generatedAt: string }
   /** A feed included the text, or the page was fetched and extracted. */
   source: "feed" | "page"
   saved_at: number

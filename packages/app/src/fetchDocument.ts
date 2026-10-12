@@ -49,7 +49,7 @@ export async function retrieveDocument(
     throw new Error(`Reader mode cannot display ${contentType || "this content type"}`)
   }
   if (mediaType.startsWith("image/")) {
-    const result = await recognizeResponse(response, recognition, options?.cloud)
+    const result = await recognizeResponse(response, recognition)
     return recognizedDocument(result, response.url || parsed.toString(), mediaType)
   }
   if (!READABLE_MEDIA_TYPES.has(mediaType)) {

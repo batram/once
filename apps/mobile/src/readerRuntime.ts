@@ -1,4 +1,4 @@
-import { installReaderAi } from "@once/ui-web/reader/readerAiControls"
+import { installReaderAi, ReaderAiState } from "@once/ui-web/reader/readerAiControls"
 import { readerAiMessageBridge } from "@once/ui-web/reader/readerAiBridge"
 import { installReaderTts } from "@once/ui-web/reader/readerTts"
 import { captureReaderPositionInPage, restoreReaderPositionInPage } from "@once/app/tabsync/pageScripts"
@@ -19,7 +19,6 @@ import {
 } from "./readerTtsProtocol"
 
 installReaderTtsPolyfill(window, { force: true })
-installReaderAi(readerAiMessageBridge())
 installReaderFind(window)
 installReaderLinks(window)
 installReaderLinkMenu(window)
@@ -61,13 +60,24 @@ const storedPreferences = new Promise<ReaderTtsPreferences>((resolve) => {
 // Hide the legacy reader header as a unit so its duplicate TTS controls and
 // Original link do not consume article space.
 document.querySelector<HTMLElement>(".toolbar")?.setAttribute("hidden", "")
+// The speech bar carries the AI buttons too; both halves report in one UI state.
+let speechState: Omit<Extract<ReaderTtsRequestBody, { type: "ui-state" }>, "type" | "ai"> | undefined
+let aiState: ReaderAiState = { running: false, canUndo: false, status: "", madeBy: "" }
+const postState = (): void => { if (speechState) postToHost({ type: "ui-state", ...speechState, ai: aiState }) }
+installReaderAi(readerAiMessageBridge(), undefined, {
+  onState(state) { aiState = state; postState() },
+  subscribe(handler) {
+    controlListeners.add((message) => { if (message.type === "ui-ai") handler(message.action) })
+  }
+})
 void storedPreferences.then((preferences) => installReaderTts({
   preferences,
   onPreferencesChange(changed) {
     postToHost({ type: "save-preferences", preferences: changed })
   },
   onStateChange(state) {
-    postToHost({ type: "ui-state", ...state })
+    speechState = state
+    postState()
   },
   subscribeToControl(handler) {
     const listener = (message: ReaderTtsEvent): void => {

@@ -1995,6 +1995,42 @@
     background: var(--m-accent-bg);
   }
 
+  #reader_tts_pill > .reader_ai_button {
+    font-family: var(--m-sans);
+    font-weight: 600;
+  }
+
+  #reader_tts_pill > .reader_ai_button[hidden] {
+    display: none;
+  }
+
+  /* Progress, the model's name or an error, just above the bar. */
+  #reader_ai_status {
+    position: absolute;
+    right: var(--sp-2);
+    bottom: 100%;
+    max-width: calc(100% - 2 * var(--sp-2));
+    margin: 0 0 var(--sp-1);
+    padding: var(--sp-1) var(--sp-2);
+    overflow: hidden;
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: var(--m-card-bg);
+    font-family: var(--m-sans);
+    font-size: var(--fs-meta);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #reader_ai_status:empty {
+    display: none;
+  }
+
+  #reader_ai_status[data-error="true"] {
+    color: var(--error-color);
+    white-space: normal;
+  }
+
   #reader_tts_settings {
     position: relative;
   }

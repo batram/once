@@ -234,8 +234,8 @@ export interface OnceClient {
    * The token a source sends, kept on this device only. Absent reads as "";
    * setting "" removes it. Rejects when this shell has no secret store.
    */
-  formatReaderAi(blocks: import("@once/core").ReaderFormatBlock[], signal?: AbortSignal, model?: import("@once/core").AiResolvedModel): Promise<import("@once/core").ReaderFormatResult>
-  readDocumentAi(url: string, signal?: AbortSignal, progress?: (text: string) => void, model?: import("@once/core").AiResolvedModel): Promise<Extract<import("./textRetrieval").RetrievedDocument, { kind: "text" }>>
+  /** Sends the reader's extraction with everything the source offers (raw text, image, PDF text and pages) and returns the model's HTML. */
+  rewriteReaderAi(input: { sourceUrl: string; html?: string; title?: string }, signal?: AbortSignal, progress?: (text: string) => void): Promise<import("@once/core").ReaderRewriteResult>
   getAiSettings(): Promise<import("@once/core").AiSettings>
   saveAiSettings(settings: import("@once/core").AiSettings): Promise<void>
   saveAiToken(id: string, endpoint: string, token: string): Promise<void>
