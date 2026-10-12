@@ -29,17 +29,23 @@ declare global {
 export function installImageTextOverlay({ textLayer = false } = {}): void {
   window.__onceStartImageText = (src, x, y, token) => {
     window.__onceImageText?.close()
-    const candidates = [...document.images].filter((image) => (image.currentSrc || image.src) === src)
-    const hit = Number.isFinite(x) && Number.isFinite(y)
-      ? document.elementsFromPoint(x, y).find((element) => candidates.includes(element as HTMLImageElement))
-      : undefined
-    // Without a usable point (a touch menu may not report one), take the copy in view.
-    const image = hit as HTMLImageElement | undefined ?? (candidates.length === 1 ? candidates[0] : candidates.find(inView))
-    if (!image || !image.complete || !image.naturalWidth) return false
+    const image = findImage(src, x, y)
+    if (!image) return false
     const session = createSelection(image, token, textLayer)
     window.__onceImageText = session
     return true
   }
+}
+
+/** The loaded image the native menu was opened on: by source, at the menu's point when it has one. */
+export function findImage(src: string, x: number, y: number): HTMLImageElement | null {
+  const candidates = [...document.images].filter((image) => (image.currentSrc || image.src) === src)
+  const hit = Number.isFinite(x) && Number.isFinite(y)
+    ? document.elementsFromPoint(x, y).find((element) => candidates.includes(element as HTMLImageElement))
+    : undefined
+  // Without a usable point (a touch menu may not report one), take the copy in view.
+  const image = hit as HTMLImageElement | undefined ?? (candidates.length === 1 ? candidates[0] : candidates.find(inView))
+  return image && image.complete && image.naturalWidth ? image : null
 }
 
 function inView(image: HTMLImageElement): boolean {
@@ -48,7 +54,7 @@ function inView(image: HTMLImageElement): boolean {
 }
 
 /** The overlay's styles, inside its shadow root. */
-const OVERLAY_CSS = `
+export const OVERLAY_CSS = `
   :host { all: initial; position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -197,7 +203,7 @@ function createSelection(image: HTMLImageElement, token: string, textLayer: bool
 }
 
 /** Where the image's content box and its drawn picture are this frame. */
-function imageFit(image: HTMLImageElement): ImageTextFit {
+export function imageFit(image: HTMLImageElement): ImageTextFit {
   const rect = image.getBoundingClientRect()
   const style = getComputedStyle(image)
   const borderX = parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft)
@@ -276,7 +282,7 @@ function placeBar(bar: HTMLElement, box: Box, wordRects: () => DOMRect[], render
  * scrolling element reports it in standards and quirks mode alike; a
  * standalone image document is a quirks-mode page.
  */
-function viewport() {
+export function viewport() {
   const root = document.scrollingElement ?? document.documentElement
   return { width: root.clientWidth || innerWidth, height: root.clientHeight || innerHeight }
 }
@@ -308,7 +314,7 @@ function visibleImageBox(image: HTMLElement, left: number, top: number, width: n
   return box
 }
 
-function renderWords(container: HTMLElement, result: ImageTextResult, width: number, height: number): void {
+export function renderWords(container: HTMLElement, result: ImageTextResult, width: number, height: number): void {
   container.replaceChildren()
   for (const [lineIndex, line] of result.lines.entries()) {
     for (const word of line) {

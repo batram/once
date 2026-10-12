@@ -19,6 +19,12 @@ module.exports = {
       import: "./src/imageTextInjection.ts",
       library: { type: "var", name: "__onceImageTextBundle" }
     },
+    // Read-only probe run in an isolated world of a tab: where the image
+    // whose text is being selected is drawn (see browser/ImageTextOverlay.ts).
+    "image-text-probe": {
+      import: "./src/imageTextProbe.ts",
+      library: { type: "var", name: "__onceImageTextProbeBundle" }
+    },
     // Standalone browser-world bundle the main process injects into tabs
     // with executeJavaScript to run the source picker overlay.
     "picker-injection": {

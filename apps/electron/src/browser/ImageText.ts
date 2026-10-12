@@ -2,6 +2,7 @@ import { type ContextMenuParams, type WebContents } from "electron"
 import { readFileSync } from "node:fs"
 import { randomUUID } from "node:crypto"
 import path from "node:path"
+import { ImageTextOverlay } from "./ImageTextOverlay"
 import { nativeTextRecognitionAvailable, recognize } from "./NativeTextRecognition"
 import type { ImageTextResult } from "@once/ui-web/imageText/imageTextTypes"
 
@@ -24,23 +25,39 @@ export async function selectImageText(contents: WebContents, params: ContextMenu
   }
   contents.once("destroyed", cancel)
   contents.on("did-start-navigation", navigating)
-  const finish = async (result: ImageTextResult | null, message?: string) => {
+  let showImage: (bytes: Buffer) => void = () => undefined
+  let finish = async (result: ImageTextResult | null, message?: string) => {
     if (contents.isDestroyed() || frame.detached || controller.signal.aborted) return
     await frame.executeJavaScript(`if(window.__onceImageText?.token === ${JSON.stringify(token)}) {
       window.__onceImageText.finish(${JSON.stringify(result)}, ${JSON.stringify(message ?? "")})
     }`)
   }
   try {
-    injection ??= readFileSync(path.join(__dirname, "image-text-injection.js"), "utf8")
-    await frame.executeJavaScript(injection)
-    const started = await frame.executeJavaScript(`window.__onceStartImageText(${JSON.stringify(params.srcURL)},
-      ${Number(params.x)}, ${Number(params.y)}, ${JSON.stringify(token)})`, true)
-    if (!started) return
+    // Main-frame images get the overlay in app-owned views over the tab, so
+    // nothing enters the page; Electron offers isolated worlds for the main
+    // frame only, so images in subframes keep the in-page overlay for now.
+    if (frame === contents.mainFrame) {
+      const overlay = await ImageTextOverlay.open(contents, params.srcURL, params.x, params.y, token)
+      if (!overlay) return
+      overlay.onClose(cancel)
+      controller.signal.addEventListener("abort", overlay.close)
+      finish = async (result, message) => {
+        if (!controller.signal.aborted) overlay.finish(result, message)
+      }
+      showImage = (bytes) => overlay.setImage(bytes)
+    } else {
+      injection ??= readFileSync(path.join(__dirname, "image-text-injection.js"), "utf8")
+      await frame.executeJavaScript(injection)
+      const started = await frame.executeJavaScript(`window.__onceStartImageText(${JSON.stringify(params.srcURL)},
+        ${Number(params.x)}, ${Number(params.y)}, ${JSON.stringify(token)})`, true)
+      if (!started) return
+    }
     const scheme = new URL(params.srcURL).protocol
     if (!["http:", "https:", "data:"].includes(scheme)) throw new Error("Unsupported image URL")
     const bytes = scheme === "data:"
       ? decodeImageData(params.srcURL)
       : await fetchImage(contents, params.srcURL, url, controller.signal)
+    showImage(bytes)
     await finish(await recognize(bytes, controller.signal))
   } catch (error) {
     if (!controller.signal.aborted) {

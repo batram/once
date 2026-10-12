@@ -13,6 +13,7 @@
       "picker/sourcePicker": ["dist/picker/sourcePicker.d.ts"],
       "imageText/imageTextOverlay": ["dist/imageText/imageTextOverlay.d.ts"],
       "imageText/imageTextTypes": ["dist/imageText/imageTextTypes.d.ts"],
+      "imageText/imageTextView": ["dist/imageText/imageTextView.d.ts"],
       "gesture/touchGestureLock": ["dist/gesture/touchGestureLock.d.ts"],
       "addons/conversationPage": ["dist/addons/conversationPage.d.ts"],
       "addons/pageActionHost": ["dist/addons/pageActionHost.d.ts"],
@@ -36,6 +37,10 @@
     "./imageText/imageTextTypes": {
       "types": "./dist/imageText/imageTextTypes.d.ts",
       "default": "./dist/imageText/imageTextTypes.js"
+    },
+    "./imageText/imageTextView": {
+      "types": "./dist/imageText/imageTextView.d.ts",
+      "default": "./dist/imageText/imageTextView.js"
     },
     "./reader/readerDocument": {
       "types": "./dist/reader/readerDocument.d.ts",

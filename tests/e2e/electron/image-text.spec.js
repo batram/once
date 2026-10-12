@@ -15,6 +15,42 @@ async function inPage(app, script) {
   }, { url: `${server.origin}/`, script })
 }
 
+/** The overlay's views: words over the image, the bar beside it (see browser/ImageTextOverlay.ts). */
+async function inOverlay(app, script, view = "words") {
+  return app.evaluate(({ webContents }, { script, view }) => {
+    const overlay = webContents.getAllWebContents()
+      .find(c => c.getURL().includes("image_text_overlay") && c.getURL().endsWith("#bar") === (view === "bar"))
+    return overlay ? overlay.executeJavaScript(script) : null
+  }, { script, view })
+}
+
+/** The tab's and the overlay views' bounds in the window; an overlay view off screen is missing. */
+async function viewBounds(app) {
+  return app.evaluate(({ BrowserWindow, WebContentsView }, url) => {
+    const win = BrowserWindow.getAllWindows().find(w => w.contentView.children.some(v => v.webContents?.getURL() === url))
+    const views = win.contentView.children.filter(v => v instanceof WebContentsView)
+    const find = test => views.find(v => test(v.webContents.getURL()))?.getBounds()
+    return { tab: find(u => u === url), words: find(u => u.includes("image_text_overlay") && !u.endsWith("#bar")),
+      bar: find(u => u.endsWith("#bar")) }
+  }, `${server.origin}/`)
+}
+
+/** Sends input to the words view; points are in the page's viewport, as geometry() reports them. */
+async function overlayInput(app, events) {
+  const { tab, words } = await viewBounds(app)
+  await app.evaluate(async ({ webContents }, { events, dx, dy }) => {
+    const overlay = webContents.getAllWebContents().find(c => c.getURL().includes("image_text_overlay") && !c.getURL().endsWith("#bar"))
+    for (const event of events) {
+      overlay.sendInputEvent("x" in event ? { ...event, x: Math.round(event.x - dx), y: Math.round(event.y - dy) } : event)
+      if (event.type === "mouseMove") await new Promise(resolve => setTimeout(resolve, 16))
+    }
+  }, { events, dx: words.x - tab.x, dy: words.y - tab.y })
+}
+
+async function overlayOpen(app) {
+  return Boolean(await app.evaluate(({ webContents }) => webContents.getAllWebContents().some(c => c.getURL().includes("image_text_overlay"))))
+}
+
 async function startRecognition(app) {
   await app.evaluate(async ({ webContents, Menu }, url) => {
     const page = webContents.getAllWebContents().find(c => c.getURL() === url)
@@ -35,27 +71,35 @@ async function startRecognition(app) {
     if (!action) throw new Error("Missing native image text action")
     action.click()
   }, `${server.origin}/`)
-  await expect.poll(() => inPage(app, "document.querySelector('[data-once-image-text]')?.shadowRoot.querySelector('[role=status]').textContent"))
+  await expect.poll(() => inOverlay(app, "document.querySelector('[data-once-image-text]')?.shadowRoot.querySelector('[role=status]').textContent", "bar"))
     .toContain(`Drag to select text · ${process.platform === "darwin" ? "⌘C" : "Ctrl+C"} to copy`)
 }
 
+/** The page's image, and the overlay's words, highlight and bar, all in the page's viewport. */
 async function geometry(app) {
-  return inPage(app, `(() => {
+  const bounds = await viewBounds(app)
+  const page = await inPage(app, `(() => ({image:document.querySelector('img').getBoundingClientRect().toJSON(),
+    viewport:{width:innerWidth,height:innerHeight,clientWidth:document.scrollingElement.clientWidth}}))()`)
+  const shift = (rect, view) => rect && { ...rect, left: rect.left + view.x - bounds.tab.x, right: rect.right + view.x - bounds.tab.x,
+    top: rect.top + view.y - bounds.tab.y, bottom: rect.bottom + view.y - bounds.tab.y, x: rect.x + view.x - bounds.tab.x, y: rect.y + view.y - bounds.tab.y }
+  const words = bounds.words ? await inOverlay(app, `(() => {
     const shadow=document.querySelector('[data-once-image-text]').shadowRoot;
-    const image=document.querySelector('img'), r=image.getBoundingClientRect();
-    const words=[...shadow.querySelectorAll('.word')].map(e=>({text:e.textContent, ...e.getBoundingClientRect().toJSON()}));
-    const bar=shadow.querySelector('.bar');
     const highlight=shadow.querySelector('.highlights path');
-    return {image:r.toJSON(), words, bar:bar.getBoundingClientRect().toJSON(), hidden:getComputedStyle(bar).display==='none',
-      highlight:highlight?.getAttribute('d'), highlightBox:highlight?.getBoundingClientRect().toJSON(),
-      background:getComputedStyle(bar).backgroundColor,
-      viewport:{width:innerWidth,height:innerHeight,clientWidth:document.scrollingElement.clientWidth}};
-  })()`)
+    return {words:[...shadow.querySelectorAll('.word')].map(e=>({text:e.textContent, ...e.getBoundingClientRect().toJSON()})),
+      highlight:highlight?.getAttribute('d'), highlightBox:highlight?.getBoundingClientRect().toJSON()};
+  })()`) : { words: [] }
+  const bar = bounds.bar ? await inOverlay(app, `(() => {
+    const bar=document.querySelector('[data-once-image-text]').shadowRoot.querySelector('.bar');
+    return {rect:bar.getBoundingClientRect().toJSON(), background:getComputedStyle(bar).backgroundColor};
+  })()`, "bar") : null
+  return { ...page, hidden: !bounds.words || !bounds.bar, highlight: words.highlight,
+    words: words.words.map(word => shift(word, bounds.words)), highlightBox: shift(words.highlightBox, bounds.words),
+    bar: bar && shift(bar.rect, bounds.bar), background: bar?.background }
 }
 
 async function selectAndCopy(app) {
   return app.evaluate(async ({ webContents, clipboard }, url) => {
-    const page = webContents.getAllWebContents().find(c => c.getURL() === url)
+    const page = webContents.getAllWebContents().find(c => c.getURL().includes("image_text_overlay") && !c.getURL().endsWith("#bar"))
     const previous = await clipboard.readText()
     try {
       const selected = await page.executeJavaScript(`(() => {
@@ -77,12 +121,28 @@ async function selectAndCopy(app) {
   }, `${server.origin}/`)
 }
 
+/** The tab with the overlay's views over it, as the window shows them. */
 async function capture(app, name) {
-  const bytes = await app.evaluate(async ({ webContents }, url) => {
-    const page = webContents.getAllWebContents().find(c => c.getURL() === url)
-    page.invalidate()
-    await page.executeJavaScript("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
-    return (await page.capturePage()).toPNG().toString("base64")
+  const bytes = await app.evaluate(async ({ BrowserWindow, WebContentsView }, url) => {
+    const win = BrowserWindow.getAllWindows().find(w => w.contentView.children.some(v => v.webContents?.getURL() === url))
+    const views = win.contentView.children.filter(v => v instanceof WebContentsView &&
+      (v.webContents.getURL() === url || v.webContents.getURL().includes("image_text_overlay")))
+    const layers = []
+    for (const view of views) {
+      view.webContents.invalidate()
+      await view.webContents.executeJavaScript("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
+      layers.push({ bounds: view.getBounds(), src: (await view.webContents.capturePage()).toDataURL() })
+    }
+    return win.webContents.executeJavaScript(`(async () => {
+      const layers=${JSON.stringify(layers)}, tab=layers[0].bounds, scale=devicePixelRatio, canvas=document.createElement('canvas');
+      canvas.width=tab.width*scale; canvas.height=tab.height*scale;
+      const context=canvas.getContext('2d'); context.scale(scale,scale);
+      for (const layer of layers) {
+        const image=new Image(); image.src=layer.src; await image.decode();
+        context.drawImage(image, layer.bounds.x-tab.x, layer.bounds.y-tab.y, layer.bounds.width, layer.bounds.height);
+      }
+      return canvas.toDataURL('image/png').split(',')[1];
+    })()`)
   }, `${server.origin}/`)
   await fs.writeFile(test.info().outputPath(name), Buffer.from(bytes, "base64"))
 }
@@ -96,8 +156,8 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     await startRecognition(app)
     // The reading flourish plays once over the found words, then removes itself.
     const scanning = "Boolean(document.querySelector('[data-once-image-text]').shadowRoot.querySelector('canvas.scan'))"
-    await expect.poll(() => inPage(app, scanning)).toBe(true)
-    await expect.poll(() => inPage(app, scanning), { timeout: 8_000 }).toBe(false)
+    await expect.poll(() => inOverlay(app, scanning)).toBe(true)
+    await expect.poll(() => inOverlay(app, scanning), { timeout: 8_000 }).toBe(false)
     expect(await selectAndCopy(app)).toBe("Select these words")
     await expect.poll(async () => (await geometry(app)).highlight?.match(/M/g)?.length).toBe(1)
     const initial = await geometry(app)
@@ -152,18 +212,23 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     expect(narrow.words[0].left - narrow.image.left).toBeGreaterThan(20)
     expect(narrow.words[0].left - narrow.image.left).toBeLessThan(29)
     for (const theme of ["light", "dark"]) {
-      await app.evaluate(async ({ webContents }, { theme, url }) => {
-        const page = webContents.getAllWebContents().find(c => c.getURL() === url)
-        if (!page.debugger.isAttached()) page.debugger.attach("1.3")
-        await page.debugger.sendCommand("Emulation.setEmulatedMedia", {
+      // The bar is the app's, so it follows the app's theme, not the page's.
+      await app.evaluate(async ({ webContents }, { theme }) => {
+        const bar = webContents.getAllWebContents().find(c => c.getURL().includes("image_text_overlay") && c.getURL().endsWith("#bar"))
+        if (!bar.debugger.isAttached()) bar.debugger.attach("1.3")
+        await bar.debugger.sendCommand("Emulation.setEmulatedMedia", {
           features: [{ name: "prefers-color-scheme", value: theme }]
         })
-      }, { theme, url: `${server.origin}/` })
+      }, { theme })
       await expect.poll(async () => (await geometry(app)).background).toBe(theme === "light" ? "rgb(255, 255, 255)" : "rgb(37, 41, 48)")
       await capture(app, `image-selection-${theme}.png`)
     }
-    await inPage(app, "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))")
-    expect(await inPage(app, "Boolean(document.querySelector('[data-once-image-text]'))")).toBe(false)
+    // Escape closes it from the page too, and nothing of the overlay was ever in the page.
+    expect(await inPage(app, "Boolean(document.querySelector('[data-once-image-text]')) || '__onceImageText' in window")).toBe(false)
+    await app.evaluate(({ webContents }, url) => {
+      webContents.getAllWebContents().find(c => c.getURL() === url).sendInputEvent({ type: "keyDown", keyCode: "Escape" })
+    }, `${server.origin}/`)
+    await expect.poll(() => overlayOpen(app)).toBe(false)
     // Exercise the authenticated-session fetch path separately from data URLs.
     const dataUrl = await inPage(app, "document.querySelector('img').src")
     server.setImage(Buffer.from(dataUrl.split(",")[1], "base64"))
@@ -176,12 +241,14 @@ test("native OCR selects and copies image words with stable geometry and cleanup
       image.parentElement.before(scroller); scroller.append(image.parentElement);
       scroller.scrollTop=120;
     })()`)
-    await expect.poll(() => inPage(app, `(() => {
-      const clip=document.querySelector('[data-once-image-text]').shadowRoot.querySelector('.clip');
-      return parseFloat(getComputedStyle(clip).clipPath.slice(6));
-    })()`)).toBeGreaterThan(100)
+    // The words view covers only what the scroller leaves visible of the image.
+    const scroller = await inPage(app, "document.getElementById('image-scroll').getBoundingClientRect().toJSON()")
+    await expect.poll(async () => {
+      const { tab, words } = await viewBounds(app)
+      return words && Math.abs(words.y - tab.y - scroller.top) <= 1 && words.height <= 101
+    }).toBe(true)
     await inPage(app, "document.querySelector('img').remove()")
-    await expect.poll(() => inPage(app, "Boolean(document.querySelector('[data-once-image-text]'))")).toBe(false)
+    await expect.poll(() => overlayOpen(app)).toBe(false)
   } finally { await closeApp(app, userData) }
 })
 
@@ -201,21 +268,14 @@ test("triple-click selects a reflowed paragraph and copy joins its wrapped lines
       const image=document.querySelector('img'); image.onload=()=>resolve(true); image.src=canvas.toDataURL('image/png');
     })`)
     await startRecognition(app)
-    await app.evaluate(async ({ webContents }, url) => {
-      const page = webContents.getAllWebContents().find(c => c.getURL() === url)
-      const point = await page.executeJavaScript(`(() => {
-        const word=[...document.querySelector('[data-once-image-text]').shadowRoot.querySelectorAll('.word')]
-          .find(w=>w.textContent.trim()==='second');
-        const r=word.getBoundingClientRect(); return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)};
-      })()`)
-      page.focus()
-      page.sendInputEvent({ type: "mouseDown", ...point, button: "left", clickCount: 3 })
-      page.sendInputEvent({ type: "mouseUp", ...point, button: "left", clickCount: 3 })
-    }, `${server.origin}/`)
+    const second = (await geometry(app)).words.find(w => w.text.trim() === "second")
+    const point = { x: second.left + second.width / 2, y: second.top + second.height / 2 }
+    await overlayInput(app, [{ type: "mouseDown", ...point, button: "left", clickCount: 3 },
+      { type: "mouseUp", ...point, button: "left", clickCount: 3 }])
     const paragraph = "The first paragraph wraps onto a second line of text."
-    await expect.poll(() => inPage(app, "getSelection().toString().replace(/\\s+/g,' ').trim()")).toBe(paragraph)
-    const copied = await app.evaluate(async ({ webContents, clipboard }, url) => {
-      const page = webContents.getAllWebContents().find(c => c.getURL() === url)
+    await expect.poll(() => inOverlay(app, "getSelection().toString().replace(/\\s+/g,' ').trim()")).toBe(paragraph)
+    const copied = await app.evaluate(async ({ webContents, clipboard }) => {
+      const page = webContents.getAllWebContents().find(c => c.getURL().includes("image_text_overlay") && !c.getURL().endsWith("#bar"))
       const previous = await clipboard.readText()
       clipboard.writeText("")
       try {
@@ -223,11 +283,11 @@ test("triple-click selects a reflowed paragraph and copy joins its wrapped lines
         for (let attempt = 0; attempt < 40 && !(await clipboard.readText()); attempt++) await new Promise(resolve => setTimeout(resolve, 25))
         return await clipboard.readText()
       } finally { clipboard.writeText(previous) }
-    }, `${server.origin}/`)
+    })
     expect(copied).toBe(paragraph)
-    // The context menu's Copy runs the page's copy command, so the reflow applies there too.
-    const menuCopied = await app.evaluate(async ({ webContents, clipboard, Menu }, url) => {
-      const page = webContents.getAllWebContents().find(c => c.getURL() === url)
+    // The overlay's context menu Copy runs its copy command, so the reflow applies there too.
+    const menuCopied = await app.evaluate(async ({ webContents, clipboard, Menu }) => {
+      const page = webContents.getAllWebContents().find(c => c.getURL().includes("image_text_overlay") && !c.getURL().endsWith("#bar"))
       const previous = await clipboard.readText()
       clipboard.writeText("")
       const original = Menu.buildFromTemplate
@@ -237,7 +297,7 @@ test("triple-click selects a reflowed paragraph and copy joins its wrapped lines
         return { popup() {} }
       }
       try {
-        page.emit("context-menu", {}, { x: 10, y: 10, frame: page.mainFrame, pageURL: url, linkURL: "", editFlags: {},
+        page.emit("context-menu", {}, { x: 10, y: 10, frame: page.mainFrame, pageURL: page.getURL(), linkURL: "", editFlags: {},
           isEditable: false, hasImageContents: false, misspelledWord: "", dictionarySuggestions: [],
           selectionText: "The first paragraph wraps onto\na second line of text." })
       } finally { Menu.buildFromTemplate = original }
@@ -247,7 +307,7 @@ test("triple-click selects a reflowed paragraph and copy joins its wrapped lines
         for (let attempt = 0; attempt < 40 && !(await clipboard.readText()); attempt++) await new Promise(resolve => setTimeout(resolve, 25))
         return await clipboard.readText()
       } finally { clipboard.writeText(previous) }
-    }, `${server.origin}/`)
+    })
     expect(menuCopied).toBe(paragraph)
   } finally { await closeApp(app, userData) }
 })
@@ -264,29 +324,19 @@ test("dragging across the image sweeps text instead of dragging, zooming or foll
     // From the image's empty margin left of the first line to the middle of the third.
     const from = { x: Math.round(first.left - 12), y: Math.round(first.top + first.height / 2) }
     const to = { x: Math.round(last.left + last.width / 2), y: Math.round(last.top + last.height / 2) }
-    await app.evaluate(async ({ webContents }, { url, from, to }) => {
-      const page = webContents.getAllWebContents().find(c => c.getURL() === url)
-      page.focus()
-      page.sendInputEvent({ type: "mouseDown", ...from, button: "left", clickCount: 1 })
-      for (let step = 1; step <= 8; step++) {
-        page.sendInputEvent({ type: "mouseMove", x: Math.round(from.x + (to.x - from.x) * step / 8),
-          y: Math.round(from.y + (to.y - from.y) * step / 8), button: "left", modifiers: ["leftButtonDown"] })
-        await new Promise(resolve => setTimeout(resolve, 16))
-      }
-      page.sendInputEvent({ type: "mouseUp", ...to, button: "left", clickCount: 1 })
-    }, { url: `${server.origin}/`, from, to })
-    await expect.poll(() => inPage(app, "getSelection().toString().replace(/\\s+/g,' ').trim()"))
+    await overlayInput(app, [{ type: "mouseDown", ...from, button: "left", clickCount: 1 },
+      ...Array.from({ length: 8 }, (_, index) => ({ type: "mouseMove", x: from.x + (to.x - from.x) * (index + 1) / 8,
+        y: from.y + (to.y - from.y) * (index + 1) / 8, button: "left", modifiers: ["leftButtonDown"] })),
+      { type: "mouseUp", ...to, button: "left", clickCount: 1 }])
+    await expect.poll(() => inOverlay(app, "getSelection().toString().replace(/\\s+/g,' ').trim()"))
       .toMatch(/^Select these words Native Apple Vision Copy 12345 an?$/)
     // The press landed on the linked image's area: no navigation, the overlay stays.
     expect(await window.evaluate(async () => (await window.onceElectron.tabs.getAll()).find(t => t.active)?.url)).toBe(`${server.origin}/`)
-    expect(await inPage(app, "Boolean(document.querySelector('[data-once-image-text]'))")).toBe(true)
+    expect(await overlayOpen(app)).toBe(true)
     // Ctrl+A selects all recognized text while the overlay holds the selection.
-    await app.evaluate(({ webContents }, url) => {
-      const page = webContents.getAllWebContents().find(c => c.getURL() === url)
-      page.sendInputEvent({ type: "keyDown", keyCode: "A", modifiers: ["control"] })
-      page.sendInputEvent({ type: "keyUp", keyCode: "A", modifiers: ["control"] })
-    }, `${server.origin}/`)
-    await expect.poll(() => inPage(app, "getSelection().toString().replace(/\\s+/g,' ').trim()"))
+    await overlayInput(app, [{ type: "keyDown", keyCode: "A", modifiers: ["control"] },
+      { type: "keyUp", keyCode: "A", modifiers: ["control"] }])
+    await expect.poll(() => inOverlay(app, "getSelection().toString().replace(/\\s+/g,' ').trim()"))
       .toBe("Select these words Native Apple Vision Copy 12345 and punctuation.")
   } finally { await closeApp(app, userData) }
 })
@@ -300,20 +350,14 @@ test("smooth selection respects partial words, reverse dragging, and line breaks
     await startRecognition(app)
     // Real pointer selection can expose different shadow-DOM ranges from
     // setBaseAndExtent, so exercise both before inspecting partial ranges.
-    await app.evaluate(async ({ webContents }, url) => {
-      const page = webContents.getAllWebContents().find(c => c.getURL() === url)
-      const point = await page.executeJavaScript(`(() => {
-        const word=document.querySelector('[data-once-image-text]').shadowRoot.querySelector('.word');
-        const r=word.getBoundingClientRect(); return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)};
-      })()`)
-      page.focus()
-      page.sendInputEvent({ type: "mouseDown", ...point, button: "left", clickCount: 2 })
-      page.sendInputEvent({ type: "mouseUp", ...point, button: "left", clickCount: 2 })
-    }, `${server.origin}/`)
+    const word = (await geometry(app)).words[0]
+    const point = { x: word.left + word.width / 2, y: word.top + word.height / 2 }
+    await overlayInput(app, [{ type: "mouseDown", ...point, button: "left", clickCount: 2 },
+      { type: "mouseUp", ...point, button: "left", clickCount: 2 }])
     // Chromium on Windows extends a double-click word selection over the trailing space.
-    await expect.poll(() => inPage(app, "getSelection().toString().trimEnd()")).toBe("Select")
+    await expect.poll(() => inOverlay(app, "getSelection().toString().trimEnd()")).toBe("Select")
     await expect.poll(async () => (await geometry(app)).highlight?.match(/M/g)?.length).toBe(1)
-    const selected = await inPage(app, `(() => {
+    const selected = await inOverlay(app, `(() => {
       const words=document.querySelector('[data-once-image-text]').shadowRoot.querySelectorAll('.word');
       getSelection().setBaseAndExtent(words[0].firstChild,3,words[2].firstChild,2);
       return getSelection().toString();
@@ -327,18 +371,18 @@ test("smooth selection respects partial words, reverse dragging, and line breaks
     const forward = await geometry(app)
     expect(forward.highlightBox.left).toBeGreaterThan(forward.words[0].left + 2)
     expect(forward.highlightBox.right).toBeLessThan(forward.words[2].right - 2)
-    await inPage(app, `(() => {
+    await inOverlay(app, `(() => {
       const words=document.querySelector('[data-once-image-text]').shadowRoot.querySelectorAll('.word');
       getSelection().setBaseAndExtent(words[2].firstChild,2,words[0].firstChild,3);
     })()`)
     await expect.poll(async () => (await geometry(app)).highlight).toBe(forward.highlight)
-    await inPage(app, `(() => {
+    await inOverlay(app, `(() => {
       const words=document.querySelector('[data-once-image-text]').shadowRoot.querySelectorAll('.word');
       getSelection().setBaseAndExtent(words[0].firstChild,0,words[9].firstChild,4);
     })()`)
     await expect.poll(async () => (await geometry(app)).highlight?.match(/M/g)?.length).toBe(3)
     await capture(app, "smooth-multiline-selection.png")
-    await inPage(app, "getSelection().removeAllRanges()")
+    await inOverlay(app, "getSelection().removeAllRanges()")
     await expect.poll(async () => (await geometry(app)).highlight).toBe("")
   } finally { await closeApp(app, userData) }
 })
