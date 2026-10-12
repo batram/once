@@ -9,18 +9,22 @@ const { version } = require("../../package.json")
 // icon so they are distinguishable and installable next to a release build.
 const isDevChannel = process.env.ONCE_BUILD_CHANNEL === "dev"
 
-// ONCE_MACOS_SIGN_IDENTITY names another identity, or "-" forces ad-hoc.
+// The identity local macOS packages are signed with: ONCE_MACOS_SIGN_IDENTITY
+// ("-" forces ad-hoc), else the first valid Apple Development identity in the
+// Keychain, else ad-hoc. Only an Apple-issued certificate carries a Team ID,
+// and the Keychain's partition list names a team-less app by the hash of that
+// exact build, so anything else asks for the login password after each package.
 function macSigningIdentity() {
-  const identity = process.env.ONCE_MACOS_SIGN_IDENTITY || "Once Local Code Signing"
-  if (identity === "-") return identity
-  const found = spawnSync("security", ["find-certificate", "-c", identity], { stdio: "ignore" })
-  if (found.status === 0) return identity
-  console.log(
-    `No "${identity}" signing identity; signing ad-hoc. Run ` +
-    "apps/electron/scripts/create-macos-signing-identity.sh for a stable one."
-  )
+  if (process.env.ONCE_MACOS_SIGN_IDENTITY) return process.env.ONCE_MACOS_SIGN_IDENTITY
+  const listed = spawnSync("security", ["find-identity", "-v", "-p", "codesigning"], {
+    encoding: "utf8"
+  })
+  const match = /^\s*\d+\) ([0-9A-F]{40}) "Apple Development: /m.exec(listed.stdout || "")
+  if (match) return match[1]
+  console.log("No Apple Development signing identity; signing ad-hoc.")
   return "-"
 }
+
 const iconBase = path.resolve(
   __dirname,
   "../../packages/ui-web/public/static/imgs/icons/mipmap-mdpi",
@@ -58,11 +62,10 @@ module.exports = {
   },
   hooks: {
     // Packaging rewrites Info.plist and the resources, which invalidates the
-    // ad-hoc signature Electron ships with, so the bundle is re-signed. With
-    // the local identity from scripts/create-macos-signing-identity.sh every
-    // package keeps the same signing identity, and the safeStorage Keychain
-    // item stays trusted across rebuilds; without it the bundle is signed
-    // ad-hoc, which the Keychain treats as a new app on every package. A real
+    // ad-hoc signature Electron ships with, so the bundle is re-signed. Signed
+    // with an Apple Development identity, every package keeps the same Team
+    // ID and the safeStorage Keychain item stays trusted across rebuilds; an
+    // ad-hoc signature is a new app to the Keychain on every package. A real
     // Developer ID signature is a separate, later step.
     postPackage: async (_config, { platform, outputPaths }) => {
       if (platform !== "darwin") return

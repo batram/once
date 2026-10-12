@@ -242,14 +242,17 @@ in the repository; after editing either, reload the MCP connection before
   Reader and SponsorBlock); `ONCE_PDF_TEST_DARK_READER=<dir>` adds an unpacked
   Dark Reader to the PDF viewer spec.
 
-Run `apps/electron/scripts/create-macos-signing-identity.sh` once to put a
-self-signed "Once Local Code Signing" identity in the login Keychain; packaging
-signs with it whenever it is present (`ONCE_MACOS_SIGN_IDENTITY` names another
-identity, `-` forces ad-hoc). Answer the first Keychain prompt of such a build
-with "Always Allow" and later rebuilds no longer ask.
+Packaging signs macOS builds with the first valid "Apple Development" identity
+in the Keychain (a free Apple account's certificate from Xcode will do;
+`ONCE_MACOS_SIGN_IDENTITY` names another identity, `-` forces ad-hoc). Its Team
+ID stays the same across rebuilds, so after answering the first Keychain prompt
+with "Always Allow" later packages no longer ask. A self-signed certificate is
+not enough: it has no Team ID, and the Keychain's partition list then names the
+app by the hash of each build, asking for the login password after every
+package.
 
-Without it, packaged macOS builds are only ad-hoc signed, and each `package`
-produces a new code signature. Electron's `safeStorage` keeps its key in a Keychain item
+Without such an identity, packaged macOS builds are only ad-hoc signed, and
+each `package` produces a new code signature. Electron's `safeStorage` keeps its key in a Keychain item
 (`<app name> Safe Storage`) that trusts only the signature that created it, so
 a rebuilt package is refused the key, either with a Keychain password prompt or
 silently. The app then logs a warning and keeps the sync URL and source tokens
