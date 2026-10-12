@@ -5,7 +5,6 @@
 
 .comment_thread {
   --comment-indent: 14px;
-  --comment-rail-size: 14px;
   /* Text lines up with the author: past the toggle and the header's gap. */
   --comment-text-inset: calc(var(--sp-4) + var(--sp-2));
   /* From a comment's top to its text: the main's padding, the header line, the text's gap. */
@@ -133,10 +132,9 @@
   font-size: var(--fs-caption);
 }
 
-/* A chevron while open; collapsed it shows its "[+N]" count of hidden
-   replies instead, or a closed chevron when it hides none. The button holds
-   no text while it shows a chevron: mobile webviews enforce a minimum font
-   size, so text shrunk to nothing still shows. */
+/* A chevron that points down while open and swivels to point right when
+   collapsed. The button holds no text: mobile webviews enforce a minimum
+   font size, so text shrunk to nothing still shows. */
 .comment_toggle {
   display: inline-grid;
   flex: none;
@@ -149,7 +147,6 @@
   background: none;
   color: inherit;
   font: inherit;
-  font-family: ui-monospace, monospace;
   cursor: pointer;
 }
 
@@ -159,12 +156,28 @@
   block-size: 5px;
   border: solid currentColor;
   border-width: 0 1.5px 1.5px 0;
+  /* The shift keeps the turned corner's visual center on the button's. */
   transform: translateY(-1px) rotate(45deg);
+  transition: transform 70ms ease-out;
 }
 
-.comment_toggle:hover {
-  background: color-mix(in srgb, currentColor 14%, transparent);
-  color: var(--text-high-color);
+.comment.is-collapsed > .comment_main .comment_toggle::before {
+  transform: translateX(-1px) rotate(-45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comment_toggle::before {
+    transition: none;
+  }
+}
+
+/* Only for a real pointer: a tap leaves :hover stuck until the next tap elsewhere. */
+@media (hover: hover) {
+  .comment_toggle:hover,
+  .comment:has(> .comment_rail:hover) > .comment_main .comment_toggle {
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    color: var(--text-high-color);
+  }
 }
 
 .comment_avatar {
@@ -220,12 +233,8 @@
   margin-block-end: 0;
 }
 
-/* Hacker News sends the first paragraph as a bare text node and only the
-   rest as <p>, so space goes above each paragraph, never below. */
-.comment_thread .comment_body > p {
-  margin-block: var(--sp-1-5) 0;
-}
-
+/* Space goes above each paragraph, never below; the first has none, so the
+   text starts right under the header on every site. */
 .comment_body p {
   margin-block: var(--sp-1-5) 0;
 }
@@ -267,19 +276,20 @@
 }
 
 .comment_replies {
-  position: relative;
   margin-block-start: var(--sp-0-5);
   /* Puts the rail under the toggle's center: the main's padding plus half the toggle. */
   margin-inline-start: var(--sp-3);
   padding-inline-start: var(--sp-1);
 }
 
-/* The rail along the replies, as on Reddit; clicking it collapses the comment. */
+/* The rail, as on Reddit: the whole gutter left of the text, from the text's
+   top down past the replies, and a click on it collapses the comment. The
+   replies are painted over it, so down there it is the strip left of them. */
 .comment_rail {
   position: absolute;
-  inset-block: 0;
-  inset-inline-start: calc(var(--sp-1-5) * -1);
-  inline-size: var(--comment-rail-size);
+  inset-block: var(--comment-line-top) var(--sp-1);
+  inset-inline-start: 0;
+  inline-size: var(--comment-text-inset);
   padding: 0;
   border: 0;
   background: none;
@@ -291,6 +301,12 @@
    with depth so siblings far apart still line up. */
 .comment {
   --comment-rail-color: color-mix(in srgb, var(--cursor-color) 16%, transparent);
+  --comment-line-top: var(--comment-line-start);
+}
+
+/* Past the top-level comment's own padding. */
+.comment_list > .comment {
+  --comment-line-top: calc(var(--sp-1) + var(--comment-line-start));
 }
 
 .comment[data-depth="1"] {
@@ -301,14 +317,26 @@
   --comment-rail-color: color-mix(in srgb, var(--warning-color) 16%, transparent);
 }
 
-.comment:has(> .comment_replies > .comment_rail:hover) {
-  --comment-rail-color: var(--text-muted-color);
+/* The toggle and the gutter do the same thing, so pointing at either lights
+   both; a comment without replies shows its line only then. */
+@media (hover: hover) {
+  .comment:has(> .comment_rail:hover, > .comment_main .comment_toggle:hover) {
+    --comment-rail-color: color-mix(in srgb, var(--text-muted-color) 50%, transparent);
+  }
+
+  .comment:not(.is-collapsed):has(> .comment_rail:hover, > .comment_main .comment_toggle:hover)::before {
+    content: "";
+  }
 }
 
 .comment:not(.is-collapsed):has(> .comment_replies > .comment)::before {
   content: "";
+}
+
+.comment:not(.is-collapsed):has(> .comment_replies > .comment)::before,
+.comment:not(.is-collapsed):has(> .comment_rail:hover, > .comment_main .comment_toggle:hover)::before {
   position: absolute;
-  inset-block: var(--comment-line-start) var(--sp-1);
+  inset-block: var(--comment-line-top) var(--sp-1);
   /* The main's padding plus half the toggle, less half the line. */
   inset-inline-start: calc(var(--sp-1) + var(--sp-2) - 1px);
   inline-size: 2px;
@@ -316,27 +344,7 @@
   pointer-events: none;
 }
 
-.comment_list > .comment:not(.is-collapsed):has(> .comment_replies > .comment)::before {
-  /* Past the top-level comment's own padding. */
-  inset-block-start: calc(var(--sp-1) + var(--comment-line-start));
-}
-
-/* Collapsed: the header, its "[+N]" count, and the text cut to a one-line preview. */
-.comment.is-collapsed > .comment_main .comment_toggle:not(:empty) {
-  inline-size: auto;
-  padding-inline: var(--sp-0-5);
-  color: var(--text-high-color);
-  font-size: var(--fs-caption);
-}
-
-.comment.is-collapsed > .comment_main .comment_toggle:not(:empty)::before {
-  content: none;
-}
-
-.comment.is-collapsed > .comment_main .comment_toggle:empty::before {
-  transform: translateX(-1px) rotate(-45deg);
-}
-
+/* Collapsed: the header, and the text cut to a one-line preview. */
 .comment.is-collapsed > .comment_main > .comment_body {
   overflow: hidden;
   margin-block-start: 0;
@@ -366,6 +374,7 @@
 }
 
 .comment.is-collapsed > .comment_main > .comment_more,
+.comment.is-collapsed > .comment_rail,
 .comment.is-collapsed > .comment_replies {
   display: none;
 }

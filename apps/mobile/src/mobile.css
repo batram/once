@@ -1859,32 +1859,17 @@
     --comment-line-start: calc(var(--sp-1) + var(--sp-5) + var(--sp-1));
   }
 
-  /* The shell's touch-button size and font would make every header 44px tall
-     and the "[+N]" count larger than the name beside it. The toggle keeps
-     the header's type and a full touch target around its small box. */
+  /* The shell's touch-button size would make every header 44px tall. The
+     toggle keeps a full touch target around its small box instead. */
   .reading_comment_thread .comment_toggle {
     position: relative;
     min-height: 0;
-    font: inherit;
-    font-family: ui-monospace, monospace;
-    line-height: 1;
   }
 
   .reading_comment_thread .comment_toggle::after {
     content: "";
     position: absolute;
     inset: calc((var(--touch) - var(--sp-4)) / -2);
-  }
-
-  /* A tap leaves :hover on the toggle until the next tap elsewhere. */
-  .reading_comment_thread .comment_toggle:hover {
-    background: none;
-    color: inherit;
-  }
-
-  .reading_comment_thread .comment.is-collapsed > .comment_main .comment_toggle:not(:empty) {
-    color: var(--text-muted-color);
-    font-size: inherit;
   }
 
   #reading_find_bar {

@@ -46,7 +46,19 @@ test("renders nested comments with header, body and permalink", () => {
   const headLinks = Array.from(first.querySelectorAll(":scope > .comment_main > .comment_head > a"), a => a.className)
   assert.deepEqual(headLinks, ["comment_author", "comment_permalink"], "no separate link label")
   assert.equal(first.querySelector(".comment_body").textContent, "comment a")
-  assert.ok(first.querySelector(":scope > .comment_replies > .comment_rail"))
+  assert.ok(first.querySelector(":scope > .comment_rail"))
+  assert.ok(articles[4].querySelector(":scope > .comment_rail"), "a comment without replies has its gutter too")
+})
+
+test("every site's first paragraph is a <p>, so all start at the same height", () => {
+  const { view } = render([
+    node("hn", [], { html: "first <i>line</i><p>second</p><pre>code</pre>" }),
+    node("lo", [], { html: "<p>first</p><p>second</p>" })
+  ])
+  const shape = id => Array.from(view.root.querySelector(`[data-id="${id}"] .comment_body`).childNodes, n => n.nodeName)
+  assert.deepEqual(shape("hn"), ["P", "P", "PRE"])
+  assert.equal(view.root.querySelector('[data-id="hn"] .comment_body > p').innerHTML, "first <i>line</i>")
+  assert.deepEqual(shape("lo"), ["P", "P"])
 })
 
 test("sanitizes comment bodies", () => {
@@ -72,7 +84,9 @@ test("keyboard moves follow the userscript and collapse hides replies", () => {
   const a1 = view.root.querySelector('[data-id="a1"]')
   assert.ok(a1.classList.contains("is-collapsed"))
   assert.equal(a1.getAttribute("aria-expanded"), "false")
-  assert.equal(a1.querySelector(".comment_toggle").textContent, "[+1]", "counts only the hidden replies")
+  const a1Toggle = a1.querySelector(".comment_toggle")
+  assert.equal(a1Toggle.textContent, "", "the chevron turns; no count is shown")
+  assert.equal(a1Toggle.getAttribute("aria-label"), "Expand comment, 1 reply hidden", "counts only the hidden replies")
   assert.deepEqual(ids(), ["a2"], "moves on to the next expanded comment")
   view.previous()
   view.collapse()
@@ -84,13 +98,22 @@ test("keyboard moves follow the userscript and collapse hides replies", () => {
   assert.equal(view.root.querySelector('[data-id="a"]').classList.contains("is-collapsed"), false)
 })
 
-test("a collapsed comment without replies shows no count", () => {
+test("a collapsed comment without replies names no count", () => {
   const { view } = render([node("a")])
   const toggle = view.root.querySelector(".comment_toggle")
-  assert.equal(toggle.textContent, "")
+  assert.equal(toggle.getAttribute("aria-label"), "Collapse comment")
   toggle.dispatchEvent(Object.assign(new Event("click", { bubbles: true, cancelable: true }), { clientX: 0, clientY: 0, detail: 1 }))
   assert.ok(view.root.querySelector('[data-id="a"]').classList.contains("is-collapsed"))
   assert.equal(toggle.textContent, "")
+  assert.equal(toggle.getAttribute("aria-label"), "Expand comment")
+})
+
+test("the gutter collapses a comment without replies too", () => {
+  const { view } = render([node("a"), node("b")])
+  view.root.querySelector('[data-id="b"] > .comment_rail')
+    .dispatchEvent(Object.assign(new Event("click", { bubbles: true, cancelable: true }), { clientX: 0, clientY: 0, detail: 1 }))
+  assert.ok(view.root.querySelector('[data-id="b"]').classList.contains("is-collapsed"))
+  assert.equal(view.root.querySelector('[data-id="a"]').classList.contains("is-collapsed"), false)
 })
 
 function clicker(view) {
@@ -147,12 +170,22 @@ test("one click anywhere on a collapsed comment opens it, and the rest of that d
   assert.ok(event.defaultPrevented)
 })
 
-test("a double click on the toggle toggles once, while each key press on it counts", () => {
+test("every click on the toggle or the rail flips it, however fast, and so does each key press", () => {
   const { view } = render([node("a", [node("a1")])])
-  const { click, collapsed } = clicker(view)
-  click("a", ".comment_toggle")
+  const { click, away, collapsed } = clicker(view)
   click("a", ".comment_toggle")
   assert.equal(collapsed("a"), true)
+  click("a", ".comment_toggle")
+  assert.equal(collapsed("a"), false, "a quick second click opens it again")
+  click("a", ".comment_toggle")
+  assert.equal(collapsed("a"), true)
+  view.root.querySelector('[data-id="a"] > .comment_rail')
+    .dispatchEvent(Object.assign(new Event("click", { bubbles: true, cancelable: true }), { clientX: 0, clientY: 10, detail: 2 }))
+  assert.equal(collapsed("a"), false, "the rail counts each click too")
+  away()
+  click("a", ".comment_head")
+  click("a", ".comment_toggle")
+  assert.equal(collapsed("a"), true, "a click on the header just before does not swallow the toggle's")
   click("a", ".comment_toggle", { detail: 0 })
   assert.equal(collapsed("a"), false)
   click("a", ".comment_toggle", { detail: 0 })
@@ -171,6 +204,8 @@ test("a click that lands on another comment after the thread moved stays part of
   click("a", ".comment_head")
   click("b", ".comment_head")
   assert.equal(collapsed("b"), true, "b slid under the pointer; the third click must not open it")
+  click("b", ".comment_toggle")
+  assert.equal(collapsed("b"), true, "nor when it lands on b's toggle")
 })
 
 test("links open through the shell, and the permalink key opens the selected comment", () => {

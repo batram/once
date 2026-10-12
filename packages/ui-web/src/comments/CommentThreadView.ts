@@ -37,6 +37,8 @@ interface ClickChain {
   count: number
   /** Whether this run of clicks already collapsed or expanded a comment. */
   toggled: boolean
+  /** Whether the toggle or the rail did it, where every click counts on its own. */
+  byControl?: boolean
 }
 
 const keyboardTarget: { view: CommentThreadView | null } = { view: null }
@@ -175,10 +177,10 @@ export class CommentThreadView {
     entry.element.setAttribute("aria-expanded", String(!collapsed))
     const toggle = entry.element.querySelector<HTMLButtonElement>(":scope > .comment_main .comment_toggle")
     if (toggle) {
-      // Only the replies it hides; a comment without any shows the closed chevron.
+      // The chevron turns on screen; a screen reader also hears how many replies it hides.
       const hiddenReplies = countAll(entry.node.children)
-      toggle.textContent = collapsed && hiddenReplies ? `[+${hiddenReplies}]` : ""
-      toggle.setAttribute("aria-label", collapsed ? "Expand comment" : "Collapse comment")
+      toggle.setAttribute("aria-label", !collapsed ? "Collapse comment"
+        : hiddenReplies ? `Expand comment, ${hiddenReplies} ${hiddenReplies === 1 ? "reply" : "replies"} hidden` : "Expand comment")
     }
   }
 
@@ -189,8 +191,8 @@ export class CommentThreadView {
 
   // Pointer rules: a double click (or tap) on an open comment's header line
   // collapses it, one click anywhere on a collapsed comment opens it, and the
-  // toggle and the rail work on one click. The text stays the browser's, for
-  // selecting words to quote, and a whole double click toggles at most once.
+  // toggle and the rail work on every click. The text stays the browser's, for
+  // selecting words to quote, and a header double click toggles at most once.
   private onClick(event: MouseEvent): void {
     const target = event.target as Element | null
     const link = target?.closest?.("a[href]") as HTMLAnchorElement | null
@@ -216,6 +218,7 @@ export class CommentThreadView {
     const toggle = oneClick ? click.count === 1 : click.count === 2 && !!target?.closest?.(".comment_head")
     if (!toggle) return
     click.toggled = true
+    click.byControl = !!control
     this.setCollapsed(index, !this.entries[index].collapsed)
     this.reveal(index)
   }
@@ -224,10 +227,13 @@ export class CommentThreadView {
   private countClick(event: MouseEvent, control: boolean): ClickChain {
     const now = Date.now()
     const last = this.clicks
-    // A keyboard press on the toggle has no place on screen; every one counts alone.
-    const keyboard = control && event.detail === 0
+    // A key press on the toggle has no place on screen, and clicking the toggle
+    // or rail again flips it again: each counts alone. Only the rest of a
+    // header double click that toggled, landing on a toggle that slid under
+    // the pointer, stays part of that run.
+    const alone = control && (event.detail === 0 || !last?.toggled || !!last.byControl)
     const near = !!last && Math.hypot(event.clientX - last.x, event.clientY - last.y) < MULTI_CLICK_PX
-    if (last && near && !keyboard && now - last.time < MULTI_CLICK_MS) {
+    if (last && near && !alone && now - last.time < MULTI_CLICK_MS) {
       Object.assign(last, { time: now, x: event.clientX, y: event.clientY, count: last.count + 1 })
       return last
     }
@@ -280,16 +286,15 @@ export class CommentThreadView {
     const main = element("div", "comment_main")
     main.append(this.renderHead(node), this.renderBody(node))
     if (node.more && node.more.count > 0) main.append(this.moreLink(node.more, node.more.count === 1 ? "more reply" : "more replies"))
-    article.append(main)
+    // The gutter beside the text and down the replies, as on Reddit: a click collapses the comment.
+    const rail = element("button", "comment_rail") as HTMLButtonElement
+    rail.type = "button"
+    rail.tabIndex = -1
+    rail.setAttribute("aria-label", "Collapse comment")
+    article.append(main, rail)
     if (node.children.length) {
       const replies = element("div", "comment_replies")
       replies.setAttribute("role", "group")
-      // Down the replies' gutter, as on Reddit: a click collapses the comment.
-      const rail = element("button", "comment_rail") as HTMLButtonElement
-      rail.type = "button"
-      rail.tabIndex = -1
-      rail.setAttribute("aria-label", "Collapse comment")
-      replies.append(rail)
       for (const child of node.children) replies.append(this.renderComment(child, depth + 1))
       article.append(replies)
     }
@@ -345,6 +350,7 @@ export class CommentThreadView {
     }
     const doc = sanitizedFragmentDocument(node.html, node.permalink)
     body.append(...Array.from(doc.body.childNodes))
+    wrapLeadingText(body)
     return body
   }
 
@@ -406,6 +412,26 @@ function element(tag: string, className: string, text?: string): HTMLElement {
   created.className = className
   if (text !== undefined) created.textContent = text
   return created
+}
+
+const BLOCKS = new Set(["P", "DIV", "PRE", "BLOCKQUOTE", "UL", "OL", "TABLE", "HR", "H1", "H2", "H3", "H4", "H5", "H6"])
+
+/**
+ * Hacker News sends a comment's first paragraph as bare text and only the
+ * rest as <p>; Lobsters and Reddit wrap every one. Wrapping the leading text
+ * gives every site the same shape, so the first paragraph starts at the same
+ * height everywhere and the rail line beside it can start there too.
+ */
+function wrapLeadingText(body: HTMLElement): void {
+  const leading: ChildNode[] = []
+  for (const child of Array.from(body.childNodes)) {
+    if (child.nodeType === 1 && BLOCKS.has((child as Element).tagName)) break
+    leading.push(child)
+  }
+  if (!leading.some(child => child.textContent?.trim() || (child.nodeType === 1 && (child as Element).tagName === "IMG"))) return
+  const paragraph = document.createElement("p")
+  body.insertBefore(paragraph, leading[0])
+  paragraph.append(...leading)
 }
 
 function link(className: string, text: string | undefined, href?: string): HTMLElement {
