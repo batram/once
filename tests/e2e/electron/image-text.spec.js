@@ -426,6 +426,24 @@ test("the overlay stays out of the page's way: covered edges, keys and autoscrol
   } finally { await closeApp(app, userData) }
 })
 
+test("switching tabs hides the overlay with its tab and brings it back on return", async () => {
+  const { electronApp: app, userData, window } = await launchApp()
+  try {
+    await window.locator("#urlfield").fill(`${server.origin}/`)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
+    await startRecognition(app)
+    await expect.poll(async () => (await geometry(app)).hidden).toBe(false)
+    await window.evaluate((url) => window.onceElectron.tabs.openUrl(url, "middle"), `${server.origin}/framed`)
+    await expect(window.locator(".electron-tab")).toHaveCount(2)
+    await window.locator(".electron-tab").last().click()
+    await expect.poll(async () => { const { words, bar } = await viewBounds(app); return Boolean(words || bar) }).toBe(false)
+    expect(await overlayOpen(app)).toBe(true)
+    await window.locator(".electron-tab").first().click()
+    await expect.poll(async () => (await geometry(app)).hidden).toBe(false)
+  } finally { await closeApp(app, userData) }
+})
+
 test("an image in a cross-site iframe gets the overlay, placed through the frame and following it", async () => {
   const { electronApp: app, userData, window } = await launchApp()
   const url = `${server.origin}/framed`

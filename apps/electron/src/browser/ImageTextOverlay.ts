@@ -132,7 +132,8 @@ export class ImageTextOverlay {
     const zoom = this.tab.getZoomFactor()
     const tab = this.tabView.getBounds()
     const box = fit.visibleBox
-    const visible = fit.visible && box.right > box.left && box.bottom > box.top
+    // Tabs switch with setVisible and stay attached, so a hidden tab hides its selection too.
+    const visible = this.tabView.getVisible() && fit.visible && box.right > box.left && box.bottom > box.top
     if (!visible) {
       this.show(false)
       return
