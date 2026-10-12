@@ -13,14 +13,20 @@ function load(platform = "android") {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
   }).outputText
   const presses = []
-  const selection = { calls: [], collapse(node, offset) { this.calls.push(["collapse", node, offset]) }, modify(...args) { this.calls.push(["modify", ...args]) } }
+  const selection = {
+    calls: [],
+    isCollapsed: true,
+    collapse(node, offset) { this.calls.push(["collapse", node, offset]); this.isCollapsed = true },
+    modify(...args) { this.calls.push(["modify", ...args]); if (args[0] === "extend") this.isCollapsed = !wordUnderTap }
+  }
+  let wordUnderTap = true
   const document = { caretPositionFromPoint: (x, y) => ({ offsetNode: `text@${x},${y}`, offset: 2 }) }
   const moduleObject = { exports: {} }
   Function("exports", "require", "window", "document", "Element", compiled)(moduleObject.exports, name => {
     if (name === "@capacitor/core") {
       return {
         Capacitor: { getPlatform: () => platform },
-        registerPlugin: () => ({ longPressAt: async options => { presses.push(options) } })
+        registerPlugin: () => ({ tapAt: async options => { presses.push(options) } })
       }
     }
     return {}
@@ -34,10 +40,10 @@ function load(platform = "android") {
     tap(second, pointerType)
     listeners.dblclick?.({ clientX: 10, clientY: 20 })
   }
-  return { presses, doubleTap, selection }
+  return { presses, doubleTap, selection, noWord: () => { wordUnderTap = false } }
 }
 
-test("a touch double tap on text selects the word at once and asks for a long press there in WebView pixels", () => {
+test("a touch double tap on text selects the word and asks for a tap on it in WebView pixels", () => {
   const { presses, doubleTap, selection } = load()
   doubleTap(new FakeElement(true), new FakeElement(true))
   assert.deepEqual(selection.calls, [
@@ -60,7 +66,14 @@ test("a double tap whose first tap opened a collapsed comment only opens it", ()
   assert.deepEqual(presses, [])
 })
 
-test("off Android the shell's browser already selects on a double tap", () => {
+test("no word under the double tap, no tap: it would only place a caret", () => {
+  const { presses, doubleTap, noWord } = load()
+  noWord()
+  doubleTap(new FakeElement(true), new FakeElement(true))
+  assert.deepEqual(presses, [])
+})
+
+test("off Android no tap is asked for", () => {
   const { presses, doubleTap } = load("ios")
   doubleTap(new FakeElement(true), new FakeElement(true))
   assert.deepEqual(presses, [])
