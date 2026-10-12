@@ -119,9 +119,15 @@
   gap: var(--sp-0-5) var(--sp-2);
   color: var(--text-muted-color);
   font-size: var(--fs-caption);
+  /* A click anywhere on the header line collapses or expands the comment. */
+  cursor: pointer;
+  user-select: none;
 }
 
-/* A chevron while open; collapsed it shows its "[+N]" count instead. */
+/* A chevron while open; collapsed it shows its "[+N]" count of hidden
+   replies instead, or a closed chevron when it hides none. The button holds
+   no text while it shows a chevron: mobile webviews enforce a minimum font
+   size, so text shrunk to nothing still shows. */
 .comment_toggle {
   display: inline-grid;
   flex: none;
@@ -135,7 +141,6 @@
   color: inherit;
   font: inherit;
   font-family: ui-monospace, monospace;
-  font-size: 0;
   cursor: pointer;
 }
 
@@ -310,15 +315,19 @@
 }
 
 /* Collapsed: the header, its "[+N]" count, and the text cut to a one-line preview. */
-.comment.is-collapsed > .comment_main .comment_toggle {
+.comment.is-collapsed > .comment_main .comment_toggle:not(:empty) {
   inline-size: auto;
   padding-inline: var(--sp-0-5);
   color: var(--text-high-color);
   font-size: var(--fs-caption);
 }
 
-.comment.is-collapsed > .comment_main .comment_toggle::before {
+.comment.is-collapsed > .comment_main .comment_toggle:not(:empty)::before {
   content: none;
+}
+
+.comment.is-collapsed > .comment_main .comment_toggle:empty::before {
+  transform: translateX(-1px) rotate(-45deg);
 }
 
 .comment.is-collapsed > .comment_main > .comment_body {

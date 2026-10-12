@@ -161,8 +161,9 @@ export class CommentThreadView {
     entry.element.setAttribute("aria-expanded", String(!collapsed))
     const toggle = entry.element.querySelector<HTMLButtonElement>(":scope > .comment_main .comment_toggle")
     if (toggle) {
-      const hiddenCount = countAll(entry.node.children) + 1
-      toggle.textContent = collapsed ? `[+${hiddenCount}]` : "[–]"
+      // Only the replies it hides; a comment without any shows the closed chevron.
+      const hiddenReplies = countAll(entry.node.children)
+      toggle.textContent = collapsed && hiddenReplies ? `[+${hiddenReplies}]` : ""
       toggle.setAttribute("aria-label", collapsed ? "Expand comment" : "Collapse comment")
     }
   }
@@ -184,13 +185,15 @@ export class CommentThreadView {
     if (target?.closest?.(".comment_thread_page")) return this.togglePage()
     const index = this.indexOf(target)
     if (index < 0) return
-    if (target?.closest?.(".comment_toggle, .comment_rail")) {
-      this.select(index, false)
+    const control = target?.closest?.(".comment_toggle, .comment_rail")
+    // Selecting text should not jump the selection around, or fold the comment away.
+    if (!control && window.getSelection()?.toString()) return
+    this.select(index, false)
+    // The whole header line toggles, as on Reddit; the text below is left to reading and quoting.
+    if (control || target?.closest?.(".comment_head")) {
       this.setCollapsed(index, !this.entries[index].collapsed)
-      return
+      this.reveal(index)
     }
-    // Selecting text should not jump the selection around.
-    if (!window.getSelection()?.toString()) this.select(index, false)
   }
 
   private onAuxClick(event: MouseEvent): void {
@@ -245,7 +248,7 @@ export class CommentThreadView {
 
   private renderHead(node: CommentNode): HTMLElement {
     const head = element("header", "comment_head")
-    const toggle = element("button", "comment_toggle", "[–]") as HTMLButtonElement
+    const toggle = element("button", "comment_toggle") as HTMLButtonElement
     toggle.type = "button"
     toggle.setAttribute("aria-label", "Collapse comment")
     head.append(toggle)

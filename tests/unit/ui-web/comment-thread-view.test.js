@@ -69,7 +69,7 @@ test("keyboard moves follow the userscript and collapse hides replies", () => {
   const a1 = view.root.querySelector('[data-id="a1"]')
   assert.ok(a1.classList.contains("is-collapsed"))
   assert.equal(a1.getAttribute("aria-expanded"), "false")
-  assert.equal(a1.querySelector(".comment_toggle").textContent, "[+2]")
+  assert.equal(a1.querySelector(".comment_toggle").textContent, "[+1]", "counts only the hidden replies")
   assert.deepEqual(ids(), ["a2"], "moves on to the next expanded comment")
   view.previous()
   view.collapse()
@@ -79,6 +79,33 @@ test("keyboard moves follow the userscript and collapse hides replies", () => {
   view.previous()
   view.expand()
   assert.equal(view.root.querySelector('[data-id="a"]').classList.contains("is-collapsed"), false)
+})
+
+test("a collapsed comment without replies shows no count", () => {
+  const { view } = render([node("a")])
+  const toggle = view.root.querySelector(".comment_toggle")
+  assert.equal(toggle.textContent, "")
+  toggle.dispatchEvent(new Event("click", { bubbles: true, cancelable: true }))
+  assert.ok(view.root.querySelector('[data-id="a"]').classList.contains("is-collapsed"))
+  assert.equal(toggle.textContent, "")
+})
+
+test("a click on the header line collapses and expands a comment, one on its text only selects it", () => {
+  const { view } = render([node("a", [node("a1")])])
+  const click = selector => view.root.querySelector(`[data-id="a"] > .comment_main ${selector}`)
+    .dispatchEvent(new Event("click", { bubbles: true, cancelable: true }))
+  const collapsed = () => view.root.querySelector('[data-id="a"]').classList.contains("is-collapsed")
+  click(".comment_body")
+  assert.equal(collapsed(), false)
+  assert.equal(view.selected, 0)
+  click(".comment_body")
+  assert.equal(collapsed(), false, "a double click on the text stays a word selection")
+  click(".comment_time")
+  assert.equal(collapsed(), true)
+  click(".comment_head")
+  assert.equal(collapsed(), false)
+  click(".comment_author")
+  assert.equal(collapsed(), false, "the author link opens instead")
 })
 
 test("links open through the shell, and the permalink key opens the selected comment", () => {
