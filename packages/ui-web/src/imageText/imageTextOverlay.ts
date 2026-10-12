@@ -281,12 +281,20 @@ function viewport() {
   return { width: root.clientWidth || innerWidth, height: root.clientHeight || innerHeight }
 }
 
-/** A fixed overlay must obey the image's scrolling/clipping ancestors too. */
+/**
+ * A fixed overlay must obey the image's scrolling/clipping ancestors too. The
+ * root's overflow (and body's, when propagated) belongs to the viewport, which
+ * is already applied: its clientHeight is the viewport's while its rect starts
+ * at -scrollY, so treating it as a clipper hides every image below the fold.
+ */
 function visibleImageBox(image: HTMLElement, left: number, top: number, width: number, height: number) {
   const view = viewport()
   const box = { left: Math.max(0, left), top: Math.max(0, top),
     right: Math.min(view.width, left + width), bottom: Math.min(view.height, top + height) }
-  for (let parent = image.parentElement; parent; parent = parent.parentElement) {
+  const root = document.documentElement
+  const viewportBody = getComputedStyle(root).overflow === "visible" ? document.body : null
+  for (let parent = image.parentElement; parent && parent !== root; parent = parent.parentElement) {
+    if (parent === viewportBody) continue
     const style = getComputedStyle(parent), rect = parent.getBoundingClientRect()
     if (/(hidden|clip|scroll|auto)/.test(style.overflowX)) {
       box.left = Math.max(box.left, rect.left + parent.clientLeft)

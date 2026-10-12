@@ -120,6 +120,18 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     await expect.poll(async () => (await geometry(app)).words[0].top).toBeCloseTo(initial.words[0].top - 80, 0)
     await inPage(app, "scrollTo(0,document.body.scrollHeight)")
     await expect.poll(async () => (await geometry(app)).hidden).toBe(true)
+    // A root with its own overflow (as some blogs set) scrolls the viewport, not a
+    // clipping box: an image below the fold stays selectable.
+    await inPage(app, `(() => {
+      document.documentElement.style.overflowY='scroll';
+      const spacer=document.createElement('div'); spacer.id='fold'; spacer.style.height='2000px'; document.body.prepend(spacer);
+      document.querySelector('img').scrollIntoView({block:'center'});
+    })()`)
+    await expect.poll(async () => {
+      const g = await geometry(app)
+      return !g.hidden && g.words[0].top > g.image.top && g.words[0].bottom < g.image.bottom
+    }).toBe(true)
+    await inPage(app, "document.getElementById('fold').remove(); document.documentElement.style.overflowY=''")
     // An image wider than the viewport: the bar keeps its one-line width instead
     // of shrinking against the right edge, and stays clear of the scrollbar.
     await inPage(app, "scrollTo(0,0); document.querySelector('img').style.width='1600px'")
