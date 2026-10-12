@@ -42,14 +42,36 @@ declare global {
 
 const GAP = 8
 
-/** Host styles, inline and important: the page's own sheets cannot move, hide or restyle them. */
-function hostStyle(declarations: string[]): string {
-  return ["all: initial", "display: block", "margin: 0", "padding: 0", "border: 0",
-    "pointer-events: none", ...declarations].map((declaration) => `${declaration} !important`).join("; ")
+/** Where a host goes and how it paints, which its own sheet (HOST_CSS) applies. */
+interface HostStyle { position: "absolute" | "fixed"; anchor: string; left: string; top: string; width: string; height: string; layer: string; display: string }
+const PLACED = { anchor: "auto", width: "auto", height: "auto", display: "block" }
+
+/**
+ * Hosts are styled by `:host` rules in their own closed shadow sheets, all
+ * important: between trees an important declaration from inside wins over the
+ * page's, inline ones included, so the page's sheets cannot move, hide or
+ * restyle them. Their values come in as custom properties, every one set on
+ * the host, so none is inherited from the page.
+ */
+const HOST_CSS = `
+  :host { all: initial !important; display: var(--once-display) !important; margin: 0 !important;
+    padding: 0 !important; border: 0 !important; pointer-events: none !important;
+    position: var(--once-position) !important; position-anchor: var(--once-anchor) !important;
+    left: var(--once-left) !important; top: var(--once-top) !important;
+    width: var(--once-width) !important; height: var(--once-height) !important;
+    z-index: var(--once-layer) !important; }
+`
+
+/** Styles a host, when its style changed since `last`. */
+function placeHostAt(host: HTMLElement, style: HostStyle, last: { key: string }): void {
+  const key = JSON.stringify(style)
+  if (key === last.key) return
+  last.key = key
+  for (const [name, value] of Object.entries(style)) host.style.setProperty(`--once-${name}`, value, "important")
 }
 
 /** The bar is the app's control and stays readable over everything. */
-const BAR_LAYER = "z-index: 2147483647"
+const BAR_LAYER = "2147483647"
 
 const FRAME_CSS = `
   iframe { position: absolute; display: block; border: 0; margin: 0; padding: 0; background: transparent;
@@ -117,9 +139,9 @@ class AnchoredSelection {
   // A name of its own, not the token: the page can read its image's styles.
   private readonly anchor = `--once-image-text-${Math.random().toString(36).slice(2)}`
   private readonly previous: { value: string; priority: string }
-  private readonly words = closedHost(FRAME_CSS)
+  private readonly words = closedHost(FRAME_CSS + HOST_CSS)
   private readonly frame = document.createElement("iframe")
-  private readonly bar = closedHost(OVERLAY_CSS + FRAME_CSS)
+  private readonly bar = closedHost(OVERLAY_CSS + FRAME_CSS + HOST_CSS)
   private readonly barElement = document.createElement("div")
   private readonly status = document.createElement("span")
   private readonly source: string
@@ -130,8 +152,9 @@ class AnchoredSelection {
   private lastFrame = ""
   private lastLayout = ""
   private lastBar = ""
-  private lastBarStyle = ""
-  private lastHost = ""
+  private readonly barStyle = { key: "" }
+  private readonly hostStyle = { key: "" }
+  private frameHidden = false
   private barMode: BarSpot["mode"] = "hidden"
   /** Recognized words, as fractions of the drawn picture, for keeping the bar off them. */
   private wordBoxes: Box[] = []
@@ -153,8 +176,8 @@ class AnchoredSelection {
     this.previous = { value: image.style.getPropertyValue("anchor-name"), priority: image.style.getPropertyPriority("anchor-name") }
     const existing = getComputedStyle(image).getPropertyValue("anchor-name").trim()
     image.style.setProperty("anchor-name", existing && existing !== "none" ? `${existing}, ${this.anchor}` : this.anchor, "important")
-    this.words.host.style.cssText = this.wordsStyle([...this.anchoredTo(), "left: anchor(left)", "top: anchor(top)",
-      "width: anchor-size(width)", "height: anchor-size(height)"])
+    placeHostAt(this.words.host, { ...PLACED, position: "absolute", anchor: this.anchor, left: "anchor(left)", top: "anchor(top)",
+      width: "anchor-size(width)", height: "anchor-size(height)", layer: this.layer }, this.hostStyle)
     this.frame.src = frameUrl
     this.frame.title = "Image text"
     this.words.shadow.append(this.frame)
@@ -200,7 +223,7 @@ class AnchoredSelection {
     const frame = this.frame.getBoundingClientRect(), bar = this.barElement.getBoundingClientRect()
     return {
       frame: { left: frame.left, top: frame.top, width: frame.width, height: frame.height },
-      clipPath: this.frame.style.clipPath, hidden: this.frame.style.visibility === "hidden",
+      clipPath: this.frame.style.clipPath, hidden: this.frameHidden,
       bar: this.barMode === "hidden" ? null : { left: bar.left, top: bar.top, right: bar.right, bottom: bar.bottom,
         text: this.status.textContent ?? "", background: getComputedStyle(this.barElement).backgroundColor, mode: this.barMode }
     }
@@ -216,14 +239,6 @@ class AnchoredSelection {
    */
   private mount(): void {
     if (this.words.host.previousSibling !== this.image) this.image.after(this.words.host)
-  }
-
-  private wordsStyle(declarations: string[]): string {
-    return hostStyle([`z-index: ${this.layer}`, ...declarations])
-  }
-
-  private anchoredTo(): string[] {
-    return ["position: absolute", `position-anchor: ${this.anchor}`]
   }
 
   /** The frame gets a port of its own: nothing the page posts reaches it, and the page sees none of its traffic. */
@@ -292,18 +307,13 @@ class AnchoredSelection {
       this.follow = true
       this.lastBar = ""
       // From its containing block's corner, which the next frame measures.
-      this.lastHost = this.words.host.style.cssText = this.wordsStyle(["position: absolute", "left: 0px", "top: 0px",
-        `width: ${rect.width}px`, `height: ${rect.height}px`])
-      return
+      this.followAt = { left: 0, top: 0 }
+    } else {
+      // Moved by how far it is off, wherever its containing block is and however it is transformed.
+      this.followAt = { left: this.followAt.left + rect.left - host.left, top: this.followAt.top + rect.top - host.top }
     }
-    // Moved by how far it is off, wherever its containing block is and however it is transformed.
-    this.followAt = { left: this.followAt.left + rect.left - host.left, top: this.followAt.top + rect.top - host.top }
-    const style = this.wordsStyle(["position: absolute", `left: ${round(this.followAt.left)}px`, `top: ${round(this.followAt.top)}px`,
-      `width: ${rect.width}px`, `height: ${rect.height}px`])
-    if (style !== this.lastHost) {
-      this.lastHost = style
-      this.words.host.style.cssText = style
-    }
+    placeHostAt(this.words.host, { ...PLACED, position: "absolute", left: `${round(this.followAt.left)}px`,
+      top: `${round(this.followAt.top)}px`, width: `${rect.width}px`, height: `${rect.height}px`, layer: this.layer }, this.hostStyle)
   }
 
   /**
@@ -327,6 +337,7 @@ class AnchoredSelection {
       .map(round).join() + hidden
     if (frameKey !== this.lastFrame) {
       this.lastFrame = frameKey
+      this.frameHidden = hidden
       Object.assign(this.frame.style, { left: `${fit.left - rect.left}px`, top: `${fit.top - rect.top}px`,
         width: `${fit.width}px`, height: `${fit.height}px`, visibility: hidden ? "hidden" : "visible",
         clipPath: `inset(${inset.top}px ${inset.right}px ${inset.bottom}px ${inset.left}px)` })
@@ -352,14 +363,12 @@ class AnchoredSelection {
     this.lastBar = key
     const spot = barSpot(fit, { w, h }, this.wordBoxes, !this.follow)
     this.barMode = spot.mode
-    const style = spot.mode === "hidden" ? hostStyle(["display: none"])
-      : spot.mode === "fixed" ? hostStyle([BAR_LAYER, "position: fixed", `left: ${round(spot.left)}px`, `top: ${round(spot.top)}px`])
+    const style: HostStyle = spot.mode === "hidden" ? { ...PLACED, position: "fixed", left: "0px", top: "0px", layer: BAR_LAYER, display: "none" }
+      : spot.mode === "fixed" ? { ...PLACED, position: "fixed", left: `${round(spot.left)}px`, top: `${round(spot.top)}px`, layer: BAR_LAYER }
         // Offsets from the image's border box, which the anchor follows: unchanged while the page scrolls.
-        : hostStyle([BAR_LAYER, ...this.anchoredTo(), `left: calc(anchor(left) + ${round(spot.left - rect.left)}px)`, `top: calc(anchor(top) + ${round(spot.top - rect.top)}px)`])
-    if (style !== this.lastBarStyle) {
-      this.lastBarStyle = style
-      this.bar.host.style.cssText = style
-    }
+        : { ...PLACED, position: "absolute", anchor: this.anchor, left: `calc(anchor(left) + ${round(spot.left - rect.left)}px)`,
+          top: `calc(anchor(top) + ${round(spot.top - rect.top)}px)`, layer: BAR_LAYER }
+    placeHostAt(this.bar.host, style, this.barStyle)
   }
 }
 

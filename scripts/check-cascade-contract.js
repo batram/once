@@ -135,7 +135,11 @@ for (const file of sourceFiles) {
       }
     }
     const setProperty = line.match(/\.style\.setProperty\(\s*["']([^"']+)/)
-    if (setProperty && !setProperty[1].startsWith("--")) {
+    // Image text selection names the page's own image as its anchor: a style
+    // on the page's element, not app UI, and taken off when the selection closes.
+    const pageAnchor = setProperty?.[1] === "anchor-name" &&
+      file === "packages/ui-web/src/imageText/imageTextAnchor.ts"
+    if (setProperty && !setProperty[1].startsWith("--") && !pageAnchor) {
       failures.push(`Only custom properties may use setProperty: ${file}:${index + 1}`)
     }
     if (/\.style\.cssText\s*=/.test(line)) {
