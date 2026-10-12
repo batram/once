@@ -14,13 +14,18 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ViolentmonkeyRelayPlugin.class);
         registerPlugin(ReaderMediaSessionPlugin.class);
         registerPlugin(WebInspectorPlugin.class);
+        registerPlugin(TouchSelectionPlugin.class);
         super.onCreate(savedInstanceState);
         getBridge().getWebView().setWebChromeClient(new RedactingChromeClient(getBridge()));
         getBridge().addWebViewListener(new ShellRenderRecovery(this));
     }
 
     @Override public boolean dispatchTouchEvent(MotionEvent event) {
-        if (event.getActionMasked() == MotionEvent.ACTION_DOWN) NativeSurfaceDialogs.touched(event.getRawX(), event.getRawY());
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            NativeSurfaceDialogs.touched(event.getRawX(), event.getRawY());
+            if (getBridge() != null && getBridge().getPlugin("TouchSelection") != null)
+                ((TouchSelectionPlugin) getBridge().getPlugin("TouchSelection").getInstance()).realTouchStarted();
+        }
         return super.dispatchTouchEvent(event);
     }
 

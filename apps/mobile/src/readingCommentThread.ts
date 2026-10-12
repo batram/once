@@ -3,6 +3,7 @@
 // with the site's page (still loaded underneath by the native surface) one
 // tap away. A thread that cannot be read leaves the page showing and says why.
 import { CommentThreadView, commentsFailureNote, getOnceClient } from "@once/ui-web"
+import { selectOnDoubleTap } from "./touchSelection"
 
 export interface ReadingCommentThreadHost {
   /** The native page must hide while the thread covers it. */
@@ -24,6 +25,9 @@ export class ReadingCommentThread {
     this.element.dataset.testid = "reading-comment-thread"
     this.element.hidden = true
     content.append(this.element)
+    // Words in an open comment's text, as on pages; links, headers and collapsed previews keep their taps.
+    selectOnDoubleTap(this.element, target =>
+      !!target.closest(".comment:not(.is-collapsed) > .comment_main > .comment_body") && !target.closest("a[href]"))
   }
 
   /** Whether the thread, rather than the page, is what comments mode shows. */
