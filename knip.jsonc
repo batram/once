@@ -76,11 +76,10 @@
         "src/pickerInjection.ts",
         // Standalone image selection runtime built by webpack.main.config.js.
         "src/imageTextInjection.ts",
-        // The image text overlay: a read-only probe run in a tab's isolated
-        // world, and a Forge entry for the app-owned views with their preload.
-        "src/imageTextProbe.ts",
+        // Image text selection: the host run in a tab's isolated world, and
+        // the Forge entry for the words frame it anchors to the image.
+        "src/imageTextAnchor.ts",
         "src/imageTextOverlayRenderer.ts",
-        "src/imageTextOverlayPreload.ts",
         "src/extensions/extensionPreload.ts",
         "src/extensions/contentPreload.ts",
         // The extensions menu window: a Forge entry with its own preload.

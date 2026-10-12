@@ -12,6 +12,7 @@ import { WindowEntry } from "./BrowserState"
 import { PageActions } from "./PageActions"
 import { sourceUrlFromReaderUrl } from "./reader-url"
 import { selectImageText } from "./ImageText"
+import { showImageTextMenu } from "./ImageTextOverlay"
 import { nativeTextRecognitionAvailable } from "./NativeTextRecognition"
 import { siteForUrl } from "@once/app/browsingSite"
 import { confirmClearSiteData } from "./BrowsingData"
@@ -122,6 +123,7 @@ export class NativeMenus {
     params: ContextMenuParams
   ): void {
     if (owner.window.isDestroyed() || contents.isDestroyed()) return
+    if (showImageTextMenu(contents, params)) return
     const template: MenuItemConstructorOptions[] = []
 
     // Spelling fixes lead the menu, as in Chrome. The spell checker reports a

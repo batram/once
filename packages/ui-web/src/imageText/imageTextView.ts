@@ -7,19 +7,15 @@ import { ImageTextPointer } from "./imageTextPointer"
 import { playRecognitionScan } from "./imageTextScan"
 
 /**
- * The image text overlay in a document of its own: the app lays a transparent
- * view over the page's image (see Electron's ImageTextOverlay.ts) instead of
- * injecting UI into the page, so page styles, scripts and stacking never reach
- * it. The words view covers the image's visible part and holds the selectable
- * words; the bar view, beside it, holds the status and Done.
+ * The image text overlay's words in a document of their own, so page styles
+ * and scripts never reach them: Electron's cross-origin frame anchored to the
+ * page's image (see imageTextAnchor.ts), Android's system WebView over it.
+ * The view is the image's content box and holds the selectable words.
  */
 
-// Each view is the overlay's whole viewport: the clip fills it and the bar
-// sits in its own view, inset so its shadow is not cut off. That view is sized
-// from the bar, so the bar must not size itself from the view.
+// The view is the overlay's whole viewport: the clip fills it.
 const VIEW_CSS = `
   .clip { left: 0; top: 0; width: 100%; height: 100%; }
-  .bar { position: relative; margin: 6px; max-width: 640px; }
 `
 
 function shadowHost(): ShadowRoot {
@@ -41,13 +37,13 @@ export function startImageTextWordsView(bridge: ImageTextViewBridge): void {
   words.className = "words"
   clip.append(words)
   shadow.append(clip)
-  // The picture itself, from the bytes recognition read: only the reading
-  // flourish looks at it (for its brightness); the page shows the image.
+  // The picture itself, as recognition read it: only the reading flourish
+  // looks at it (for its brightness); the page shows the image.
   const image = new Image()
   const highlights = new ImageTextHighlights(shadow, words)
   const blocks = new ImageTextBlocks(words, () => selectionRange(shadow))
   let layout: ImageTextViewLayout | null = null
-  // A sweep near the page's edge scrolls the page, which the app does for us.
+  // A sweep near the page's edge scrolls the page, which the host does for us.
   const pointer = new ImageTextPointer(shadow, clip, words, image,
     (sweeping) => bridge.send({ type: "sweeping", sweeping }), {
       edges: () => ({ top: layout?.pageTop ?? 0, bottom: layout?.pageBottom ?? innerHeight }),
@@ -67,7 +63,7 @@ export function startImageTextWordsView(bridge: ImageTextViewBridge): void {
       layout = message.layout
       place()
     } else if (message.type === "image") {
-      image.src = URL.createObjectURL(new Blob([message.bytes as Uint8Array<ArrayBuffer>]))
+      image.src = message.url
     } else if (message.type === "result") {
       const result = message.result
       if (!layout || !result?.lines.some((line) => line.length)) {
@@ -78,7 +74,7 @@ export function startImageTextWordsView(bridge: ImageTextViewBridge): void {
       highlights.attach(layout.naturalWidth, layout.naturalHeight)
       blocks.attach(result)
       place()
-      // The app keeps the bar off the words, wherever the picture moves.
+      // The host keeps the bar off the words, wherever the picture moves.
       const picture = words.getBoundingClientRect()
       bridge.send({ type: "words", boxes: wordRects().map((rect) => ({
         left: (rect.left - picture.left) / picture.width, top: (rect.top - picture.top) / picture.height,
@@ -92,12 +88,6 @@ export function startImageTextWordsView(bridge: ImageTextViewBridge): void {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") { event.preventDefault(); bridge.send({ type: "close" }) }
   })
-  // The view covers the image, so the page's scrolling is handed back to it.
-  addEventListener("wheel", (event) => {
-    if (event.ctrlKey) return
-    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerHeight : 1
-    bridge.send({ type: "wheel", x: event.clientX, y: event.clientY, deltaX: event.deltaX * unit, deltaY: event.deltaY * unit })
-  }, { passive: true })
   const frame = () => {
     highlights.update()
     pointer.update()
@@ -150,40 +140,4 @@ export function startImageTextLayerView(bridge: ImageTextViewBridge): { copyText
     }
   })
   return { copyText: () => blocks.copyText() }
-}
-
-export function startImageTextBarView(bridge: ImageTextViewBridge): void {
-  const shadow = shadowHost()
-  const bar = document.createElement("div")
-  bar.className = "bar"
-  bar.setAttribute("role", "region")
-  bar.setAttribute("aria-label", "Image text selection")
-  const status = document.createElement("span")
-  status.setAttribute("role", "status")
-  status.textContent = "Recognizing text…"
-  const done = document.createElement("button")
-  done.type = "button"
-  done.textContent = "Done"
-  done.onclick = () => bridge.send({ type: "close" })
-  bar.append(status, done)
-  shadow.append(bar)
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") { event.preventDefault(); bridge.send({ type: "close" }) }
-  })
-  // Measured on the spot, not by a ResizeObserver: the view starts empty and
-  // off the window, where no frames are rendered and observers never report.
-  let size = ""
-  const measure = () => {
-    const rect = bar.getBoundingClientRect()
-    const next = { width: Math.ceil(rect.width + 12), height: Math.ceil(rect.height + 12) }
-    if (JSON.stringify(next) === size) return
-    size = JSON.stringify(next)
-    bridge.send({ type: "size", ...next })
-  }
-  measure()
-  void document.fonts.ready.then(measure)
-  bridge.onMessage((message) => {
-    if (message.type === "status") { status.textContent = message.text; measure() }
-    else if (message.type === "sweeping") bar.classList.toggle("sweeping", message.sweeping)
-  })
 }

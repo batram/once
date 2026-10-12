@@ -31,6 +31,7 @@ import {
   configureErrorPageProtocol,
   errorPageScheme
 } from "./browser/ErrorPageProtocol"
+import { configureImageTextProtocol, imageTextScheme } from "./browser/ImageTextProtocol"
 import {
   installedAppUserModelId,
   windowsInstanceIdentity
@@ -64,7 +65,8 @@ protocol.registerSchemesAsPrivileged([
   errorPageScheme(),
   extensionScheme(),
   addonSandboxScheme(),
-  remoteTabsScheme()
+  remoteTabsScheme(),
+  imageTextScheme()
 ])
 
 if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
@@ -276,6 +278,7 @@ function configureBrowserSession(): Session {
   configureErrorPageProtocol(browserSession)
   configureAddonConversationProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
   configureRemoteTabsProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
+  configureImageTextProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
   browserSession.setPermissionCheckHandler((_webContents, permission) => {
     return permission === "fullscreen"
   })

@@ -37,26 +37,25 @@ export interface ImageTextViewLayout {
   viewLeft: number; viewTop: number
 }
 
-/** The app to an overlay view (Electron's out-of-page overlay). */
+/** The app to an overlay view (Electron's anchored frame, Android's system WebView). */
 export type ImageTextViewMessage =
   | { type: "layout"; layout: ImageTextViewLayout }
-  | { type: "image"; bytes: Uint8Array }
+  /** Where the view loads the picture recognition read, for the reading flourish's brightness. */
+  | { type: "image"; url: string }
   | { type: "result"; result: ImageTextResult | null; message?: string }
+  /** For Electron's bar, which its host in the page holds (see imageTextAnchor.ts). */
   | { type: "status"; text: string }
-  | { type: "sweeping"; sweeping: boolean }
 
 /** An overlay view to the app. */
 export type ImageTextViewEvent =
   | { type: "close" }
   /** The view's page has loaded and listens for messages. */
   | { type: "ready" }
-  | { type: "wheel"; x: number; y: number; deltaX: number; deltaY: number }
   | { type: "scroll"; deltaY: number }
   /** The recognized words' boxes as fractions of the drawn picture. */
   | { type: "words"; boxes: { left: number; top: number; right: number; bottom: number }[] }
   | { type: "sweeping"; sweeping: boolean }
   | { type: "status"; text: string }
-  | { type: "size"; width: number; height: number }
 
 export interface ImageTextViewBridge {
   send(event: ImageTextViewEvent): void

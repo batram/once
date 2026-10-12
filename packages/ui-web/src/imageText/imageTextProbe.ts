@@ -2,11 +2,11 @@ import { uncoveredBox } from "./imageTextCover"
 import { findImage, imageFit, viewport } from "./imageTextOverlay"
 import type { ImageTextFit } from "./imageTextTypes"
 
-// The app runs this where page scripts cannot see it: an isolated world on
-// Electron (see its browser/ImageTextProbes.ts), the bridge extension's
-// content script on Android. It only reads where the chosen image is drawn,
-// or, in each frame above the image's, where the iframe holding it is, and
-// adds nothing to the page. The overlay itself lives in app-owned views.
+// Android runs this where page scripts cannot see it: the bridge extension's
+// content script. It only reads where the chosen image is drawn, or, in each
+// frame above the image's, where the iframe holding it is, and adds nothing
+// to the page. The overlay itself lives in an app-owned view over GeckoView.
+// (Electron hangs its selection on the image instead: imageTextAnchor.ts.)
 
 export interface ImageTextProbeFit extends ImageTextFit {
   /** The image's natural size; an iframe's content size. */

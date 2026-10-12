@@ -453,10 +453,16 @@ and downsampling to a 4096 px longest side.
 
 Image text selection ("Select Text in Image" in Electron's context menu on
 macOS and Windows, "Select text in image" in Android's long-press menu) is one
-shared overlay, `packages/ui-web/src/imageText/`, which each app bundles as an
-`image-text-injection` script and evaluates in the image's document: Electron's
-main process from its frame, Android's shell (`apps/mobile/src/mobileImageText.ts`)
-through the surface's content-script bridge. Recognition stays native and only
+shared overlay, `packages/ui-web/src/imageText/`. Electron hangs it on the
+image from an isolated world of the image's frame (`imageTextAnchor.ts`, run
+by `apps/electron/src/browser/ImageTextHost.ts`): the words live in a
+cross-origin frame of the app's own scheme (`once-image-text:`, which bypasses
+the page's CSP and is served only while a selection is open), held to the
+image with CSS anchor positioning, so the page's compositor moves them in the
+same frame as the image through any scrollers; app-owned views over the tab
+trailed a scroll by a frame. The page sees two closed hosts and cannot read
+the words or the selection. Android's shell (`apps/mobile/src/mobileImageText.ts`)
+evaluates it through the surface's content-script bridge. Recognition stays native and only
 the chosen image is recognized: Electron sends its bytes to the helper, Android
 has Gecko fetch the image with the page's cookies and referrer (as Copy image
 does) and ML Kit adds word corners (`recognizeImage({ url, referrer })`). The

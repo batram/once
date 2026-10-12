@@ -15,41 +15,78 @@ async function inPage(app, script) {
   }, { url: `${server.origin}/`, script })
 }
 
-/** The overlay's views: words over the image, the bar beside it (see browser/ImageTextOverlay.ts). */
-async function inOverlay(app, script, view = "words") {
-  return app.evaluate(({ webContents }, { script, view }) => {
-    const overlay = webContents.getAllWebContents()
-      .find(c => c.getURL().includes("image_text_overlay") && c.getURL().endsWith("#bar") === (view === "bar"))
-    return overlay ? overlay.executeJavaScript(script) : null
-  }, { script, view })
-}
-
-/** The tab's and the overlay views' bounds in the window; an overlay view off screen is missing. */
-async function viewBounds(app) {
-  return app.evaluate(({ BrowserWindow, WebContentsView }, url) => {
-    const win = BrowserWindow.getAllWindows().find(w => w.contentView.children.some(v => v.webContents?.getURL() === url))
-    const views = win.contentView.children.filter(v => v instanceof WebContentsView)
-    const find = test => views.find(v => test(v.webContents.getURL()))?.getBounds()
-    return { tab: find(u => u === url), words: find(u => u.includes("image_text_overlay") && !u.endsWith("#bar")),
-      bar: find(u => u.endsWith("#bar")) }
-  }, `${server.origin}/`)
-}
-
-/** Sends input to the words view; points are in the page's viewport, as geometry() reports them. */
-async function overlayInput(app, events) {
-  const { tab, words } = await viewBounds(app)
-  await app.evaluate(async ({ webContents }, { events, dx, dy }) => {
-    const overlay = webContents.getAllWebContents().find(c => c.getURL().includes("image_text_overlay") && !c.getURL().endsWith("#bar"))
-    for (const event of events) {
-      overlay.sendInputEvent("x" in event ? { ...event, x: Math.round(event.x - dx), y: Math.round(event.y - dy) } : event)
-      if (event.type === "mouseMove") await new Promise(resolve => setTimeout(resolve, 16))
+/**
+ * Runs a script in the selection's words frame: the app's cross-origin frame
+ * anchored to the image (see browser/ImageTextOverlay.ts); null while none is open.
+ */
+async function inOverlay(app, script) {
+  return app.evaluate(({ webContents }, script) => {
+    for (const contents of webContents.getAllWebContents()) {
+      const frame = contents.mainFrame?.framesInSubtree.find(f => f.url.startsWith("once-image-text:"))
+      if (frame) return frame.executeJavaScript(script)
     }
-  }, { events, dx: words.x - tab.x, dy: words.y - tab.y })
+    return null
+  }, script)
+}
+
+/**
+ * Where the selection's parts are, from its host in the image's frame, in
+ * that frame's viewport: the words frame, its clip, and the bar; null while
+ * none is open.
+ */
+async function overlayState(app, url = `${server.origin}/`) {
+  return app.evaluate(({ webContents }, url) => {
+    const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
+    return tab ? globalThis.__onceImageTextState(tab) : null
+  }, url)
+}
+
+/** The part of the words frame its clip leaves, in the image frame's viewport. */
+function visibleOf(state) {
+  const [top, right, bottom, left] = (state.clipPath.match(/[\d.]+px/g) ?? ["0", "0", "0", "0"]).map(parseFloat)
+  return { left: state.frame.left + left, top: state.frame.top + top,
+    right: state.frame.left + state.frame.width - right, bottom: state.frame.top + state.frame.height - bottom }
+}
+
+/**
+ * Sends input to the tab, where the words frame takes it like any frame;
+ * points are in the page's viewport. Through the DevTools protocol, which
+ * routes input to the frame under the point as real input is:
+ * sendInputEvent hands it to the main frame only, never to a frame in
+ * another process, such as the words frame.
+ */
+async function overlayInput(app, events) {
+  await app.evaluate(async ({ webContents }, { url, events }) => {
+    const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
+    if (!tab.debugger.isAttached()) tab.debugger.attach("1.3")
+    const virtualKeys = { A: 65, Escape: 27, PageDown: 34 }
+    for (const event of events) {
+      const modifiers = (event.modifiers ?? []).includes("control") ? 2 : 0
+      if (event.type.startsWith("mouse")) {
+        const pressed = event.type === "mouseDown" || (event.modifiers ?? []).includes("leftButtonDown")
+        await tab.debugger.sendCommand("Input.dispatchMouseEvent", {
+          type: { mouseDown: "mousePressed", mouseUp: "mouseReleased", mouseMove: "mouseMoved" }[event.type],
+          x: Math.round(event.x), y: Math.round(event.y), button: event.button ?? "none", buttons: pressed ? 1 : 0,
+          clickCount: event.clickCount ?? 0, modifiers
+        })
+        if (event.type === "mouseMove") await new Promise(resolve => setTimeout(resolve, 16))
+      } else {
+        const key = event.keyCode
+        await tab.debugger.sendCommand("Input.dispatchKeyEvent", {
+          type: event.type === "keyDown" ? "rawKeyDown" : "keyUp", key: key.length === 1 ? key.toLowerCase() : key,
+          code: key.length === 1 ? `Key${key}` : key, windowsVirtualKeyCode: virtualKeys[key], modifiers
+        })
+      }
+    }
+  }, { url: `${server.origin}/`, events })
 }
 
 async function overlayOpen(app) {
-  return Boolean(await app.evaluate(({ webContents }) => webContents.getAllWebContents().some(c => c.getURL().includes("image_text_overlay"))))
+  return Boolean(await app.evaluate(({ webContents }) => webContents.getAllWebContents()
+    .some(c => c.mainFrame?.framesInSubtree.some(f => f.url.startsWith("once-image-text:")))))
 }
+
+const READY = `Drag to select text · ${process.platform === "darwin" ? "⌘C" : "Ctrl+C"} to copy`
 
 async function startRecognition(app) {
   await app.evaluate(async ({ webContents, Menu }, url) => {
@@ -71,78 +108,64 @@ async function startRecognition(app) {
     if (!action) throw new Error("Missing native image text action")
     action.click()
   }, `${server.origin}/`)
-  await expect.poll(() => inOverlay(app, "document.querySelector('[data-once-image-text]')?.shadowRoot.querySelector('[role=status]').textContent", "bar"))
-    .toContain(`Drag to select text · ${process.platform === "darwin" ? "⌘C" : "Ctrl+C"} to copy`)
+  await expect.poll(async () => (await overlayState(app))?.bar?.text).toContain(READY)
 }
 
 /** The page's image, and the overlay's words, highlight and bar, all in the page's viewport. */
 async function geometry(app) {
-  const bounds = await viewBounds(app)
+  const state = await overlayState(app)
   const page = await inPage(app, `(() => ({image:document.querySelector('img').getBoundingClientRect().toJSON(),
     viewport:{width:innerWidth,height:innerHeight,clientWidth:document.scrollingElement.clientWidth}}))()`)
-  const shift = (rect, view) => rect && { ...rect, left: rect.left + view.x - bounds.tab.x, right: rect.right + view.x - bounds.tab.x,
-    top: rect.top + view.y - bounds.tab.y, bottom: rect.bottom + view.y - bounds.tab.y, x: rect.x + view.x - bounds.tab.x, y: rect.y + view.y - bounds.tab.y }
-  const words = bounds.words ? await inOverlay(app, `(() => {
+  // The words frame's own coordinates, moved to where the frame is in the page.
+  const shift = (rect) => rect && state && { ...rect, left: rect.left + state.frame.left, right: rect.right + state.frame.left,
+    top: rect.top + state.frame.top, bottom: rect.bottom + state.frame.top, x: rect.x + state.frame.left, y: rect.y + state.frame.top }
+  const words = state ? await inOverlay(app, `(() => {
     const shadow=document.querySelector('[data-once-image-text]').shadowRoot;
     const highlight=shadow.querySelector('.highlights path');
     return {words:[...shadow.querySelectorAll('.word')].map(e=>({text:e.textContent, ...e.getBoundingClientRect().toJSON()})),
       highlight:highlight?.getAttribute('d'), highlightBox:highlight?.getBoundingClientRect().toJSON()};
-  })()`) : { words: [] }
-  const bar = bounds.bar ? await inOverlay(app, `(() => {
-    const bar=document.querySelector('[data-once-image-text]').shadowRoot.querySelector('.bar');
-    return {rect:bar.getBoundingClientRect().toJSON(), background:getComputedStyle(bar).backgroundColor};
-  })()`, "bar") : null
-  return { ...page, hidden: !bounds.words || !bounds.bar, highlight: words.highlight,
-    words: words.words.map(word => shift(word, bounds.words)), highlightBox: shift(words.highlightBox, bounds.words),
-    bar: bar && shift(bar.rect, bounds.bar), background: bar?.background }
+  })()`) ?? { words: [] } : { words: [] }
+  const bar = state?.bar && { ...state.bar, width: state.bar.right - state.bar.left, height: state.bar.bottom - state.bar.top }
+  return { ...page, hidden: !state || state.hidden || !bar, highlight: words.highlight,
+    words: words.words.map(word => shift(word)), highlightBox: shift(words.highlightBox),
+    bar, background: bar?.background }
 }
 
-async function selectAndCopy(app) {
+/** Copies through the tab, as the copy shortcut does: from the focused frame, the words frame. */
+async function copied(app, url = `${server.origin}/`) {
   return app.evaluate(async ({ webContents, clipboard }, url) => {
-    const page = webContents.getAllWebContents().find(c => c.getURL().includes("image_text_overlay") && !c.getURL().endsWith("#bar"))
+    const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
     const previous = await clipboard.readText()
+    clipboard.writeText("")
     try {
-      const selected = await page.executeJavaScript(`(() => {
-        const root=document.querySelector('[data-once-image-text]').shadowRoot;
-        const words=root.querySelectorAll('.word');
-        const range=document.createRange(); range.setStart(words[0].firstChild,0);
-        range.setEnd(words[2].firstChild,words[2].firstChild.length);
-        const selection=window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
-        return selection.toString();
-      })()`)
-      page.copy()
-      for (let attempt = 0; attempt < 40; attempt++) {
-        const copied = await clipboard.readText()
-        if (copied === selected) return copied
-        await new Promise(resolve => setTimeout(resolve, 25))
-      }
-      throw new Error("Browser copy did not place the selected OCR text on the clipboard")
+      tab.copy()
+      for (let attempt = 0; attempt < 40 && !(await clipboard.readText()); attempt++) await new Promise(resolve => setTimeout(resolve, 25))
+      return await clipboard.readText()
     } finally { clipboard.writeText(previous) }
-  }, `${server.origin}/`)
+  }, url)
 }
 
-/** The tab with the overlay's views over it, as the window shows them. */
+async function selectAndCopy(app, url = `${server.origin}/`) {
+  const selected = await inOverlay(app, `(() => {
+    const root=document.querySelector('[data-once-image-text]').shadowRoot;
+    const words=root.querySelectorAll('.word');
+    const range=document.createRange(); range.setStart(words[0].firstChild,0);
+    range.setEnd(words[2].firstChild,words[2].firstChild.length);
+    const selection=window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+    return selection.toString();
+  })()`)
+  const text = await copied(app, url)
+  if (text !== selected) throw new Error(`Browser copy placed ${JSON.stringify(text)}, not the selected OCR text`)
+  return text
+}
+
+/** The tab as the window shows it: the selection is part of the page. */
 async function capture(app, name) {
-  const bytes = await app.evaluate(async ({ BrowserWindow, WebContentsView }, url) => {
-    const win = BrowserWindow.getAllWindows().find(w => w.contentView.children.some(v => v.webContents?.getURL() === url))
-    const views = win.contentView.children.filter(v => v instanceof WebContentsView &&
-      (v.webContents.getURL() === url || v.webContents.getURL().includes("image_text_overlay")))
-    const layers = []
-    for (const view of views) {
-      view.webContents.invalidate()
-      await view.webContents.executeJavaScript("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
-      layers.push({ bounds: view.getBounds(), src: (await view.webContents.capturePage()).toDataURL() })
-    }
-    return win.webContents.executeJavaScript(`(async () => {
-      const layers=${JSON.stringify(layers)}, tab=layers[0].bounds, scale=devicePixelRatio, canvas=document.createElement('canvas');
-      canvas.width=tab.width*scale; canvas.height=tab.height*scale;
-      const context=canvas.getContext('2d'); context.scale(scale,scale);
-      for (const layer of layers) {
-        const image=new Image(); image.src=layer.src; await image.decode();
-        context.drawImage(image, layer.bounds.x-tab.x, layer.bounds.y-tab.y, layer.bounds.width, layer.bounds.height);
-      }
-      return canvas.toDataURL('image/png').split(',')[1];
-    })()`)
+  const bytes = await app.evaluate(async ({ webContents }, url) => {
+    const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
+    tab.invalidate()
+    await tab.executeJavaScript("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
+    return (await tab.capturePage()).toPNG().toString("base64")
   }, `${server.origin}/`)
   await fs.writeFile(test.info().outputPath(name), Buffer.from(bytes, "base64"))
 }
@@ -212,19 +235,24 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     expect(narrow.words[0].left - narrow.image.left).toBeGreaterThan(20)
     expect(narrow.words[0].left - narrow.image.left).toBeLessThan(29)
     for (const theme of ["light", "dark"]) {
-      // The bar is the app's, so it follows the app's theme, not the page's.
-      await app.evaluate(async ({ webContents }, { theme }) => {
-        const bar = webContents.getAllWebContents().find(c => c.getURL().includes("image_text_overlay") && c.getURL().endsWith("#bar"))
-        if (!bar.debugger.isAttached()) bar.debugger.attach("1.3")
-        await bar.debugger.sendCommand("Emulation.setEmulatedMedia", {
+      // The bar follows the system's theme, whatever the page styles itself.
+      await app.evaluate(async ({ webContents }, { url, theme }) => {
+        const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
+        if (!tab.debugger.isAttached()) tab.debugger.attach("1.3")
+        await tab.debugger.sendCommand("Emulation.setEmulatedMedia", {
           features: [{ name: "prefers-color-scheme", value: theme }]
         })
-      }, { theme })
+      }, { url: `${server.origin}/`, theme })
       await expect.poll(async () => (await geometry(app)).background).toBe(theme === "light" ? "rgb(255, 255, 255)" : "rgb(37, 41, 48)")
       await capture(app, `image-selection-${theme}.png`)
     }
-    // Escape closes it from the page too, and nothing of the overlay was ever in the page.
-    expect(await inPage(app, "Boolean(document.querySelector('[data-once-image-text]')) || '__onceImageText' in window")).toBe(false)
+    // The page sees only the closed hosts: no words, no way into them, nothing in its own world.
+    expect(await inPage(app, `(() => {
+      const hosts=[...document.querySelectorAll('[data-once-image-text]')];
+      return {hosts:hosts.length, open:hosts.some(host => host.shadowRoot), words:document.querySelectorAll('.word').length,
+        globals:'__onceImageText' in window || '__onceImageTextAnchor' in window, frames:[...document.querySelectorAll('iframe')].length};
+    })()`)).toEqual({ hosts: 2, open: false, words: 0, globals: false, frames: 0 })
+    // Escape closes it from the page too.
     await app.evaluate(({ webContents }, url) => {
       webContents.getAllWebContents().find(c => c.getURL() === url).sendInputEvent({ type: "keyDown", keyCode: "Escape" })
     }, `${server.origin}/`)
@@ -241,12 +269,16 @@ test("native OCR selects and copies image words with stable geometry and cleanup
       image.parentElement.before(scroller); scroller.append(image.parentElement);
       scroller.scrollTop=120;
     })()`)
-    // The words view covers only what the scroller leaves visible of the image.
+    // The words frame is clipped to what the scroller leaves visible of the image.
     const scroller = await inPage(app, "document.getElementById('image-scroll').getBoundingClientRect().toJSON()")
     await expect.poll(async () => {
-      const { tab, words } = await viewBounds(app)
-      return words && Math.abs(words.y - tab.y - scroller.top) <= 1 && words.height <= 101
+      const visible = visibleOf(await overlayState(app))
+      return Math.abs(visible.top - scroller.top) <= 1 && visible.bottom - visible.top <= 101
     }).toBe(true)
+    // It moves with the image as the scroller scrolls: anchored, it needs no word from the app.
+    const before = (await overlayState(app)).frame.top
+    await inPage(app, "document.getElementById('image-scroll').scrollTop=60")
+    await expect.poll(async () => (await overlayState(app)).frame.top).toBeCloseTo(before + 60, 0)
     await inPage(app, "document.querySelector('img').remove()")
     await expect.poll(() => overlayOpen(app)).toBe(false)
   } finally { await closeApp(app, userData) }
@@ -274,20 +306,11 @@ test("triple-click selects a reflowed paragraph and copy joins its wrapped lines
       { type: "mouseUp", ...point, button: "left", clickCount: 3 }])
     const paragraph = "The first paragraph wraps onto a second line of text."
     await expect.poll(() => inOverlay(app, "getSelection().toString().replace(/\\s+/g,' ').trim()")).toBe(paragraph)
-    const copied = await app.evaluate(async ({ webContents, clipboard }) => {
-      const page = webContents.getAllWebContents().find(c => c.getURL().includes("image_text_overlay") && !c.getURL().endsWith("#bar"))
-      const previous = await clipboard.readText()
-      clipboard.writeText("")
-      try {
-        page.copy()
-        for (let attempt = 0; attempt < 40 && !(await clipboard.readText()); attempt++) await new Promise(resolve => setTimeout(resolve, 25))
-        return await clipboard.readText()
-      } finally { clipboard.writeText(previous) }
-    })
-    expect(copied).toBe(paragraph)
-    // The overlay's context menu Copy runs its copy command, so the reflow applies there too.
-    const menuCopied = await app.evaluate(async ({ webContents, clipboard, Menu }) => {
-      const page = webContents.getAllWebContents().find(c => c.getURL().includes("image_text_overlay") && !c.getURL().endsWith("#bar"))
+    expect(await copied(app)).toBe(paragraph)
+    // The words frame's context menu Copy runs its copy command, so the reflow applies there too.
+    const menuCopied = await app.evaluate(async ({ webContents, clipboard, Menu }, url) => {
+      const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
+      const frame = tab.mainFrame.framesInSubtree.find(f => f.url.startsWith("once-image-text:"))
       const previous = await clipboard.readText()
       clipboard.writeText("")
       const original = Menu.buildFromTemplate
@@ -297,7 +320,7 @@ test("triple-click selects a reflowed paragraph and copy joins its wrapped lines
         return { popup() {} }
       }
       try {
-        page.emit("context-menu", {}, { x: 10, y: 10, frame: page.mainFrame, pageURL: page.getURL(), linkURL: "", editFlags: {},
+        tab.emit("context-menu", {}, { x: 10, y: 10, frame, pageURL: url, frameURL: frame.url, linkURL: "", editFlags: {},
           isEditable: false, hasImageContents: false, misspelledWord: "", dictionarySuggestions: [],
           selectionText: "The first paragraph wraps onto\na second line of text." })
       } finally { Menu.buildFromTemplate = original }
@@ -307,7 +330,7 @@ test("triple-click selects a reflowed paragraph and copy joins its wrapped lines
         for (let attempt = 0; attempt < 40 && !(await clipboard.readText()); attempt++) await new Promise(resolve => setTimeout(resolve, 25))
         return await clipboard.readText()
       } finally { clipboard.writeText(previous) }
-    })
+    }, `${server.origin}/`)
     expect(menuCopied).toBe(paragraph)
   } finally { await closeApp(app, userData) }
 })
@@ -352,8 +375,10 @@ test("smooth selection respects partial words, reverse dragging, and line breaks
     // setBaseAndExtent, so exercise both before inspecting partial ranges.
     const word = (await geometry(app)).words[0]
     const point = { x: word.left + word.width / 2, y: word.top + word.height / 2 }
-    await overlayInput(app, [{ type: "mouseDown", ...point, button: "left", clickCount: 2 },
-      { type: "mouseUp", ...point, button: "left", clickCount: 2 }])
+    // A whole double click, as a mouse makes one: over the word, a click, then the second.
+    await overlayInput(app, [{ type: "mouseMove", ...point },
+      { type: "mouseDown", ...point, button: "left", clickCount: 1 }, { type: "mouseUp", ...point, button: "left", clickCount: 1 },
+      { type: "mouseDown", ...point, button: "left", clickCount: 2 }, { type: "mouseUp", ...point, button: "left", clickCount: 2 }])
     // Chromium on Windows extends a double-click word selection over the trailing space.
     await expect.poll(() => inOverlay(app, "getSelection().toString().trimEnd()")).toBe("Select")
     await expect.poll(async () => (await geometry(app)).highlight?.match(/M/g)?.length).toBe(1)
@@ -395,8 +420,8 @@ test("the overlay stays out of the page's way: covered edges, keys and autoscrol
     await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
     await startRecognition(app)
     expect((await geometry(app)).hidden).toBe(false)
-    // A fixed header over the image's top: the words view starts below it, so
-    // the selection never shows through the page's own UI.
+    // A fixed header over the image's top: the words frame is clipped below it,
+    // so the selection never shows through the page's own UI.
     await inPage(app, `(() => {
       const header=document.createElement('div'); header.id='header';
       header.style.cssText='position:fixed;top:0;left:0;right:0;height:90px;background:#334;z-index:5';
@@ -404,30 +429,57 @@ test("the overlay stays out of the page's way: covered edges, keys and autoscrol
       scrollTo(0, document.querySelector('img').getBoundingClientRect().top + scrollY - 40);
     })()`)
     await expect.poll(async () => {
-      const { tab, words } = await viewBounds(app)
+      const visible = visibleOf(await overlayState(app))
       const image = await inPage(app, "document.querySelector('img').getBoundingClientRect().toJSON()")
-      return words && words.y - tab.y >= 89 && words.y - tab.y <= 92 && Math.abs(words.y + words.height - tab.y - (image.bottom - 2)) <= 2
+      return visible.top >= 89 && visible.top <= 92 && Math.abs(visible.bottom - (image.bottom - 2)) <= 2
     }).toBe(true)
-    await inPage(app, "document.getElementById('header').remove(); scrollTo(0,0)")
-    // Page keys pressed in the overlay scroll the page.
+    // The header paints over the selection itself, clip or no clip: the hosts
+    // take the image's layer, under what the page stacks above the image.
+    expect(await inPage(app, `(() => { const r=document.querySelector('img').getBoundingClientRect();
+      return document.elementFromPoint(r.left + r.width / 2, 60)?.id })()`)).toBe("header")
+    // Also a sticky header in one stacking context with the image, as GitHub's README box has.
+    await inPage(app, `(() => {
+      document.getElementById('header').remove();
+      const main=document.querySelector('main'); main.style.isolation='isolate';
+      const sticky=document.createElement('div'); sticky.id='sticky';
+      sticky.style.cssText='position:sticky;top:0;height:60px;background:#334;z-index:1'; main.prepend(sticky);
+      scrollTo(0, document.querySelector('img').getBoundingClientRect().top + scrollY - 30);
+    })()`)
+    await expect.poll(() => inPage(app, `(() => { const r=document.querySelector('img').getBoundingClientRect();
+      return document.elementFromPoint(r.left + r.width / 2, 40)?.id })()`)).toBe("sticky")
+    await inPage(app, "document.getElementById('sticky').remove(); document.querySelector('main').style.isolation=''; scrollTo(0,0)")
+    // Page keys pressed in the words frame scroll the page, as from any frame.
     await overlayInput(app, [{ type: "keyDown", keyCode: "PageDown" }, { type: "keyUp", keyCode: "PageDown" }])
     // PageDown scrolls smoothly by most of a viewport: let it land before scrolling back.
     await expect.poll(() => inPage(app, `new Promise(resolve => { const y=scrollY;
       setTimeout(() => resolve(y > innerHeight / 2 && scrollY === y), 200) })`)).toBe(true)
     await inPage(app, "scrollTo(0,0)")
-    await expect.poll(async () => (await viewBounds(app)).words?.y - (await viewBounds(app)).tab.y).toBeGreaterThan(100)
-    // A sweep held at the page's bottom edge scrolls the page.
-    const { words: first } = await geometry(app)
-    const { tab } = await viewBounds(app)
+    await expect.poll(async () => visibleOf(await overlayState(app)).top).toBeGreaterThan(100)
+    // A sweep held at the page's bottom edge scrolls the page. The image runs
+    // past that edge here: protocol input is hit-tested event by event and so
+    // never follows a sweep out of the words frame, as real input does once
+    // the frame captures the mouse (see imageTextPointer.ts).
+    await inPage(app, `(() => {
+      for (const place of ['prepend','append']) {
+        const room=document.createElement('div'); room.style.height='600px'; document.body[place](room);
+      }
+      scrollTo(0, document.querySelector('img').getBoundingClientRect().bottom + scrollY - innerHeight - 80);
+    })()`)
+    await expect.poll(async () => {
+      const state = await overlayState(app)
+      return state.frame.top + state.frame.height - (await inPage(app, "innerHeight"))
+    }).toBeGreaterThan(20)
+    const scrolledTo = await inPage(app, "scrollY")
+    const { words: first, viewport } = await geometry(app)
     const start = { x: first[0].left + 2, y: first[0].top + first[0].height / 2 }
-    await overlayInput(app, [{ type: "mouseDown", ...start, button: "left", clickCount: 1 },
-      { type: "mouseMove", x: start.x + 40, y: tab.height - 4, button: "left", modifiers: ["leftButtonDown"] }])
-    await expect.poll(() => inPage(app, "scrollY")).toBeGreaterThan(40)
-    await overlayInput(app, [{ type: "mouseUp", x: start.x + 40, y: tab.height - 4, button: "left", clickCount: 1 }])
+    await overlayInput(app, [{ type: "mouseMove", ...start }, { type: "mouseDown", ...start, button: "left", clickCount: 1 },
+      { type: "mouseMove", x: start.x + 40, y: viewport.height - 4, button: "left", modifiers: ["leftButtonDown"] }])
+    await expect.poll(() => inPage(app, "scrollY")).toBeGreaterThan(scrolledTo + 10)
+    await overlayInput(app, [{ type: "mouseUp", x: start.x + 40, y: viewport.height - 4, button: "left", clickCount: 1 }])
   } finally { await closeApp(app, userData) }
 })
 
-test("switching tabs hides the overlay with its tab and brings it back on return", async () => {
+test("the selection stays with its tab when switching away and back", async () => {
   const { electronApp: app, userData, window } = await launchApp()
   try {
     await window.locator("#urlfield").fill(`${server.origin}/`)
@@ -437,20 +489,24 @@ test("switching tabs hides the overlay with its tab and brings it back on return
     await expect.poll(async () => (await geometry(app)).hidden).toBe(false)
     await window.evaluate((url) => window.onceElectron.tabs.openUrl(url, "middle"), `${server.origin}/framed`)
     await expect(window.locator(".electron-tab")).toHaveCount(2)
+    // Part of the page, it hides and shows with the tab's own view.
     await window.locator(".electron-tab").last().click()
-    await expect.poll(async () => { const { words, bar } = await viewBounds(app); return Boolean(words || bar) }).toBe(false)
+    await expect.poll(() => window.evaluate(async () => (await window.onceElectron.tabs.getAll()).find(t => t.active)?.url))
+      .toBe(`${server.origin}/framed`)
     expect(await overlayOpen(app)).toBe(true)
     await window.locator(".electron-tab").first().click()
     await expect.poll(async () => (await geometry(app)).hidden).toBe(false)
+    expect(await selectAndCopy(app)).toBe("Select these words")
   } finally { await closeApp(app, userData) }
 })
 
-test("an image in a cross-site iframe gets the overlay, placed through the frame and following it", async () => {
+test("an image in a cross-site iframe gets the selection, anchored in its own frame", async () => {
   const { electronApp: app, userData, window } = await launchApp()
   const url = `${server.origin}/framed`
+  // The fixture's iframe, not the words frame the selection adds inside it.
   const child = () => app.evaluate(({ webContents }, url) => {
     const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
-    return tab.mainFrame.framesInSubtree.find(f => f !== tab.mainFrame)?.url ?? null
+    return tab.mainFrame.framesInSubtree.find(f => f !== tab.mainFrame && !f.url.startsWith("once-image-text:"))?.url ?? null
   }, url)
   try {
     await window.locator("#urlfield").fill(url)
@@ -459,12 +515,13 @@ test("an image in a cross-site iframe gets the overlay, placed through the frame
     await expect.poll(child).toMatch(/^http:\/\/localhost:/)
     const inFrame = (script) => app.evaluate(({ webContents }, { url, script }) => {
       const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
-      return tab.mainFrame.framesInSubtree.find(f => f !== tab.mainFrame).executeJavaScript(script)
+      return tab.mainFrame.framesInSubtree.find(f => f !== tab.mainFrame && !f.url.startsWith("once-image-text:")).executeJavaScript(script)
     }, { url, script })
-    await expect.poll(() => inFrame("document.querySelector('img').complete && document.querySelector('img').naturalWidth > 0")).toBe(true)
+    // The frame may still be loading (no image yet) when first asked.
+    await expect.poll(() => inFrame("Boolean(document.querySelector('img')?.complete && document.querySelector('img').naturalWidth > 0)")).toBe(true)
     await app.evaluate(async ({ webContents, Menu }, url) => {
       const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
-      const frame = tab.mainFrame.framesInSubtree.find(f => f !== tab.mainFrame)
+      const frame = tab.mainFrame.framesInSubtree.find(f => f !== tab.mainFrame && !f.url.startsWith("once-image-text:"))
       const params = await frame.executeJavaScript(`(() => { const i=document.querySelector('img'), r=i.getBoundingClientRect();
         return {srcURL:i.currentSrc, x:r.left+r.width/2, y:r.top+r.height/2} })()`)
       const original = Menu.buildFromTemplate
@@ -476,42 +533,24 @@ test("an image in a cross-site iframe gets the overlay, placed through the frame
       } finally { Menu.buildFromTemplate = original }
       action.click()
     }, url)
-    await expect.poll(() => inOverlay(app, "document.querySelector('[data-once-image-text]')?.shadowRoot.querySelector('[role=status]').textContent", "bar"))
-      .toContain("Drag to select text")
-    // The words view sits on the image: the iframe's content box (left 69, top 149) plus the image's place in it.
+    await expect.poll(async () => (await overlayState(app, url))?.bar?.text).toContain("Drag to select text")
+    // The words frame covers the image's content box (its border box less the 2px border), in the iframe's viewport.
     const placed = async () => {
-      const bounds = await app.evaluate(({ BrowserWindow, WebContentsView }, url) => {
-        const win = BrowserWindow.getAllWindows().find(w => w.contentView.children.some(v => v.webContents?.getURL() === url))
-        const views = win.contentView.children.filter(v => v instanceof WebContentsView)
-        return { tab: views.find(v => v.webContents.getURL() === url).getBounds(),
-          words: views.find(v => v.webContents.getURL().includes("image_text_overlay") && !v.webContents.getURL().endsWith("#bar"))?.getBounds() }
-      }, url)
+      const state = await overlayState(app, url)
       const image = await inFrame("document.querySelector('img').getBoundingClientRect().toJSON()")
-      const frameBox = await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url)
-        .executeJavaScript("(() => { const r=document.getElementById('frame').getBoundingClientRect(); return {left:r.left+9, top:r.top+9, bottom:r.bottom-9} })()"), url)
-      // The image's border box less its 2px border, as the words view covers its content box.
-      const left = frameBox.left + image.left + 2, top = frameBox.top + image.top + 2
-      return { bounds, left, top, frameBox }
+      return state && Math.abs(state.frame.left - (image.left + 2)) <= 1.5 && Math.abs(state.frame.top - (image.top + 2)) <= 1.5
     }
-    await expect.poll(async () => {
-      const { bounds, left, top } = await placed()
-      return bounds.words && Math.abs(bounds.words.x - bounds.tab.x - left) <= 1.5 && Math.abs(bounds.words.y - bounds.tab.y - top) <= 1.5
-    }).toBe(true)
-    expect(await selectAndCopy(app)).toBe("Select these words")
-    // Scrolling the outer page moves the iframe: the views follow.
+    await expect.poll(placed).toBe(true)
+    expect(await selectAndCopy(app, url)).toBe("Select these words")
+    // Scrolling the outer page moves the iframe and everything in it; scrolling inside it moves the image, and the words with it.
     await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url).executeJavaScript("scrollTo(0, 100)"), url)
-    await expect.poll(async () => {
-      const { bounds, top } = await placed()
-      return bounds.words && Math.abs(bounds.words.y - bounds.tab.y - top) <= 1.5
-    }).toBe(true)
-    // Scrolling inside the iframe clips the words view to the iframe's content box.
+    await expect.poll(placed).toBe(true)
     await inFrame("scrollTo(0, 200)")
-    await expect.poll(async () => {
-      const { bounds, frameBox } = await placed()
-      return bounds.words && Math.abs(bounds.words.y - bounds.tab.y - frameBox.top) <= 1.5
-    }).toBe(true)
-    // Nothing of the overlay is in either page.
-    expect(await inFrame("Boolean(document.querySelector('[data-once-image-text]')) || '__onceImageText' in window")).toBe(false)
+    await expect.poll(placed).toBe(true)
+    // The outer page sees nothing of it; the iframe's page sees only the closed hosts.
+    expect(await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url)
+      .executeJavaScript("Boolean(document.querySelector('[data-once-image-text]'))"), url)).toBe(false)
+    expect(await inFrame("[...document.querySelectorAll('[data-once-image-text]')].some(host => host.shadowRoot) || '__onceImageTextAnchor' in window")).toBe(false)
     // Removing the iframe ends the selection.
     await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url).executeJavaScript("document.getElementById('frame').remove()"), url)
     await expect.poll(() => overlayOpen(app)).toBe(false)

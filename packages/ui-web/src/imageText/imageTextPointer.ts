@@ -45,6 +45,7 @@ export class ImageTextPointer {
   private press: { x: number; y: number; at: number } | null = null
   private longPress = 0
   private lastPointerType = "mouse"
+  private mousePointer = 1
   private readonly handles: HTMLElement[]
 
   constructor(private readonly shadow: ShadowRoot, private readonly clip: HTMLElement,
@@ -156,6 +157,10 @@ export class ImageTextPointer {
     this.select(this.anchor, caret)
     this.dragging = true
     this.onDrag(true)
+    // The sweep keeps the mouse past the overlay's edge. Native selection would
+    // capture it implicitly, but the sweep replaces that, and a frame of its own
+    // (Electron's words frame) gets no moves outside itself without capture.
+    try { this.clip.setPointerCapture(this.mousePointer) } catch { /* the pointer is already up */ }
     this.track(event)
     window.addEventListener("mousemove", this.mousemove, true)
     window.addEventListener("mouseup", this.mouseup, true)
@@ -213,7 +218,7 @@ export class ImageTextPointer {
 
   private readonly pointerdown = (event: PointerEvent) => {
     this.lastPointerType = event.pointerType
-    if (event.pointerType === "mouse") return
+    if (event.pointerType === "mouse") { this.mousePointer = event.pointerId; return }
     this.press = { x: event.clientX, y: event.clientY, at: event.timeStamp }
     clearTimeout(this.longPress)
     this.longPress = window.setTimeout(() => {
@@ -308,7 +313,7 @@ function caretPosition(x: number, y: number, shadow: ShadowRoot): CaretPosition 
 }
 
 /** The image's nearest scrolling ancestor below the document, or null. */
-function scrollContainer(image: HTMLElement): HTMLElement | null {
+export function scrollContainer(image: HTMLElement): HTMLElement | null {
   for (let node = image.parentElement; node && node !== document.body && node !== document.documentElement; node = node.parentElement) {
     const style = getComputedStyle(node)
     if (/(auto|scroll)/.test(style.overflowY + style.overflowX) &&

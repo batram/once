@@ -133,13 +133,12 @@ module.exports = {
             name: "browser_menu",
             preload: { js: "./src/menus/browserMenuPreload.ts" }
           },
-          // The image text overlay's views, laid over a tab's image: the
-          // overlay never enters the page (see browser/ImageTextOverlay.ts).
+          // The image text selection's words frame, anchored to a tab's
+          // image and served cross-origin (see browser/ImageTextProtocol.ts).
           {
             html: "./src/image-text-overlay.html",
             js: "./src/imageTextOverlayRenderer.ts",
-            name: "image_text_overlay",
-            preload: { js: "./src/imageTextOverlayPreload.ts" }
+            name: "image_text_overlay"
           },
           {
             html: "./src/extensions/extension-menu.html",

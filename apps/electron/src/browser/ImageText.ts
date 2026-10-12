@@ -33,10 +33,10 @@ export async function selectImageText(contents: WebContents, params: ContextMenu
     }`)
   }
   try {
-    // The overlay lives in app-owned views over the tab, so nothing enters the
-    // page. Only when that cannot reach the image's frame (another DevTools
-    // protocol client holds the tab, and the image is in a subframe) does the
-    // overlay go into the page.
+    // The selection hangs on the image from an isolated world, its words in a
+    // cross-origin frame of the app's own. Only when that cannot reach the
+    // image's frame (another DevTools protocol client holds the tab, and the
+    // image is in a subframe) does the whole overlay go into the page.
     const overlay = await ImageTextOverlay.open(contents, frame, params.srcURL, params.x, params.y, token)
     if (overlay) {
       overlay.onClose(cancel)

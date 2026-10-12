@@ -15,6 +15,7 @@
       "imageText/imageTextTypes": ["dist/imageText/imageTextTypes.d.ts"],
       "imageText/imageTextView": ["dist/imageText/imageTextView.d.ts"],
       "imageText/imageTextProbe": ["dist/imageText/imageTextProbe.d.ts"],
+      "imageText/imageTextAnchor": ["dist/imageText/imageTextAnchor.d.ts"],
       "gesture/touchGestureLock": ["dist/gesture/touchGestureLock.d.ts"],
       "addons/conversationPage": ["dist/addons/conversationPage.d.ts"],
       "addons/pageActionHost": ["dist/addons/pageActionHost.d.ts"],
@@ -46,6 +47,10 @@
     "./imageText/imageTextProbe": {
       "types": "./dist/imageText/imageTextProbe.d.ts",
       "default": "./dist/imageText/imageTextProbe.js"
+    },
+    "./imageText/imageTextAnchor": {
+      "types": "./dist/imageText/imageTextAnchor.d.ts",
+      "default": "./dist/imageText/imageTextAnchor.js"
     },
     "./reader/readerDocument": {
       "types": "./dist/reader/readerDocument.d.ts",
