@@ -1,4 +1,4 @@
-import type { ImageTextFit, ImageTextResult } from "./imageTextTypes"
+import type { ImageTextFit, ImageTextPoint, ImageTextResult, ImageTextWord } from "./imageTextTypes"
 import { ImageTextBlocks } from "./imageTextBlocks"
 import { uncoveredBox } from "./imageTextCover"
 import { ImageTextHighlights, selectionRange } from "./imageTextHighlights"
@@ -80,17 +80,20 @@ export const OVERLAY_CSS = `
   /* Over Android's text layer the clip only carries the recognition flourish. */
   .clip.passive { pointer-events: none; }
   .words { position: absolute; transform-origin: 0 0; }
-  .word { position: absolute; display: inline-block; color: transparent;
-    font-family: Arial, sans-serif; white-space: pre; line-height: 1;
-    transform-origin: 0 0; cursor: text; pointer-events: auto;
+  /* One block per recognized line with its words inline in it, so find in
+     page matches across words as in page text (see renderWords). */
+  .line { position: absolute; white-space: pre; line-height: 1; transform-origin: 0 0;
+    font-family: Arial, sans-serif; color: transparent; }
+  .word { position: relative; vertical-align: top; cursor: text; pointer-events: auto;
+    letter-spacing: var(--once-word-spacing, 0); margin-left: var(--once-word-gap, 0);
     user-select: text; -webkit-user-select: text; -webkit-user-drag: none; }
+  .separator { user-select: text; -webkit-user-select: text; }
   /* Touch selects through the overlay's own model; native carets would leave it. */
-  @media (pointer: coarse) { .word { user-select: none; -webkit-user-select: none; } }
+  @media (pointer: coarse) { .word, .separator { user-select: none; -webkit-user-select: none; } }
   .handle { position: absolute; width: 20px; height: 20px; margin: 2px 0 0 -10px; border-radius: 50%;
     background: #3984ff; pointer-events: auto; touch-action: none; }
   .handle::before { content: ""; position: absolute; left: 9px; top: -14px; width: 2px; height: 14px; background: #3984ff; }
-  .word::selection, .word *::selection { color: transparent; background: transparent; }
-  .separator { font-size: 0; }
+  .word::selection, .separator::selection { color: transparent; background: transparent; }
   .scan { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .highlights { position: absolute; inset: 0; width: 100%; height: 100%;
     pointer-events: none; user-select: none; fill: #3984ff; fill-opacity: .36; }
@@ -348,33 +351,86 @@ function visibleImageBox(image: HTMLElement, left: number, top: number, width: n
   return box
 }
 
+/**
+ * Lays the recognized words over the picture, in its natural pixels. Each
+ * line is one block, turned to the line's angle, holding its words as plain
+ * inline text with a real space between them: find in page searches a block
+ * as one run of text, so "cost of" matches across two words as in page text.
+ * (A block of its own per word, as before, kept every match inside one word.)
+ * A word reaches its box through letter spacing (the glyphs are transparent;
+ * only where its characters fall matters), a left margin and a nudge across
+ * the line, since inline text cannot be transformed.
+ */
 export function renderWords(container: HTMLElement, result: ImageTextResult, width: number, height: number): void {
   container.replaceChildren()
+  const lines: ReturnType<typeof renderLine>[] = []
   for (const [lineIndex, line] of result.lines.entries()) {
-    for (const word of line) {
-      const span = document.createElement("span")
-      span.className = "word"
-      span.dataset.line = String(lineIndex)
-      span.textContent = word.text
-      const dx = (word.topRight.x - word.topLeft.x) * width
-      const dy = (word.topRight.y - word.topLeft.y) * height
-      const boxWidth = Math.hypot(dx, dy)
-      const boxHeight = Math.hypot((word.bottomLeft.x - word.topLeft.x) * width,
-        (word.bottomLeft.y - word.topLeft.y) * height)
-      Object.assign(span.style, { left: `${word.topLeft.x * width}px`, top: `${word.topLeft.y * height}px`,
-        fontSize: `${boxHeight}px`, height: `${boxHeight}px` })
-      container.append(span)
-      const measured = span.getBoundingClientRect().width
-      // Measure unscaled glyphs: the parent is already fitted to the displayed image.
-      const natural = span.offsetWidth || measured || 1
-      span.style.transform = `rotate(${Math.atan2(dy, dx)}rad) scaleX(${boxWidth / natural})`
-      // Keep copy separators in DOM order without extending the fitted glyph
-      // rectangle into the next word's selection highlight.
-      const separator = document.createElement("span")
-      separator.className = "separator"
-      separator.textContent = " "
-      span.append(separator)
+    if (line.length) {
+      const rendered = renderLine(line, lineIndex, width, height)
+      container.append(rendered.block)
+      lines.push(rendered)
     }
     container.append(document.createTextNode("\n"))
   }
+  // Every natural width in one layout, then every fit.
+  lines.map((rendered) => rendered.measure()).forEach((fit) => fit())
+}
+
+function renderLine(line: ImageTextWord[], lineIndex: number, width: number, height: number) {
+  const point = (corner: ImageTextPoint) => ({ x: corner.x * width, y: corner.y * height })
+  const origin = point(line[0].topLeft), towards = point(line[0].topRight)
+  const length = Math.hypot(towards.x - origin.x, towards.y - origin.y) || 1
+  // The line's direction, and across it, downwards on upright text.
+  const along = { x: (towards.x - origin.x) / length, y: (towards.y - origin.y) / length }
+  const across = { x: -along.y, y: along.x }
+  const boxes = line.map((word) => {
+    const topLeft = point(word.topLeft), topRight = point(word.topRight), bottomLeft = point(word.bottomLeft)
+    const offset = { x: topLeft.x - origin.x, y: topLeft.y - origin.y }
+    return { text: word.text, start: offset.x * along.x + offset.y * along.y, shift: offset.x * across.x + offset.y * across.y,
+      width: Math.hypot(topRight.x - topLeft.x, topRight.y - topLeft.y),
+      height: Math.hypot(bottomLeft.x - topLeft.x, bottomLeft.y - topLeft.y) }
+  })
+  const block = document.createElement("div")
+  block.className = "line"
+  Object.assign(block.style, { left: `${origin.x}px`, top: `${origin.y}px`,
+    // The spaces' size: the line's typical word height.
+    fontSize: `${boxes.reduce((sum, box) => sum + box.height, 0) / boxes.length}px`,
+    transform: `rotate(${Math.atan2(along.y, along.x)}rad)` })
+  const spans = boxes.map((box, index) => {
+    if (index) {
+      const separator = document.createElement("span")
+      separator.className = "separator"
+      separator.textContent = " "
+      block.append(separator)
+    }
+    const span = document.createElement("span")
+    span.className = "word"
+    span.dataset.line = String(lineIndex)
+    span.textContent = box.text
+    Object.assign(span.style, { fontSize: `${box.height}px`, top: `${box.shift}px` })
+    block.append(span)
+    return span
+  })
+  // A space after the line too: a selection running into the next line reads "words Native", not "wordsNative".
+  const trailing = document.createElement("span")
+  trailing.className = "separator"
+  trailing.textContent = " "
+  block.append(trailing)
+  // Measured once the caller has laid the block out; the fit it returns then writes.
+  const measure = () => {
+    const natural = spans.map((span) => span.offsetWidth)
+    const gaps = [...block.querySelectorAll<HTMLElement>(".separator")].map((separator) => separator.offsetWidth)
+    return () => {
+      let end = 0
+      spans.forEach((span, index) => {
+        const box = boxes[index]
+        // Spacing follows every character, the last one too: the word then ends where its box does.
+        // Set on every word, so none inherits a page's own value of the same name.
+        span.style.setProperty("--once-word-spacing", `${(box.width - natural[index]) / Math.max(1, [...box.text].length)}px`)
+        span.style.setProperty("--once-word-gap", `${index ? box.start - end - gaps[index - 1] : 0}px`)
+        end = box.start + box.width
+      })
+    }
+  }
+  return { block, measure }
 }

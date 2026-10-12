@@ -159,6 +159,24 @@ async function selectAndCopy(app, url = `${server.origin}/`) {
   return text
 }
 
+/** How many matches the app's find in page reports for `text`. */
+async function findMatches(app, text) {
+  return app.evaluate(({ webContents }, { url, text }) => new Promise((resolve, reject) => {
+    const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
+    const timer = setTimeout(() => reject(new Error(`No find result for ${text}`)), 5000)
+    const found = (_event, result) => {
+      if (!result.finalUpdate) return
+      tab.removeListener("found-in-page", found)
+      clearTimeout(timer)
+      tab.stopFindInPage("clearSelection")
+      resolve(result.matches)
+    }
+    tab.on("found-in-page", found)
+    // findNext starts a session; a fresh query without it reports nothing.
+    tab.findInPage(text, { findNext: true })
+  }), { url: `${server.origin}/`, text })
+}
+
 /** The tab as the window shows it: the selection is part of the page. */
 async function capture(app, name) {
   const bytes = await app.evaluate(async ({ webContents }, url) => {
@@ -199,6 +217,10 @@ test("native OCR selects and copies image words with stable geometry and cleanup
       expect(overlaps, `bar covers "${word.text.trim()}"`).toBe(false)
     }
     expect(initial.bar.top).toBeGreaterThanOrEqual(initial.image.bottom)
+    // Find in page matches across recognized words, as in page text, not just inside one.
+    expect(await findMatches(app, "punctuation")).toBe(1)
+    expect(await findMatches(app, "these words")).toBe(1)
+    expect(await findMatches(app, "Native Apple Vision")).toBe(1)
     await inPage(app, "scrollBy(0,80)")
     await expect.poll(async () => (await geometry(app)).words[0].top).toBeCloseTo(initial.words[0].top - 80, 0)
     await inPage(app, "scrollTo(0,document.body.scrollHeight)")
