@@ -1821,7 +1821,10 @@
     position: absolute;
     z-index: 1;
     inset: 0;
-    overflow: auto;
+    /* Vertical only: a comment following a swipe pokes past the right edge,
+       and iOS would pan and bounce the whole thread sideways with it, then
+       freeze off-screen when the swipe focuses the comment mid-bounce. */
+    overflow: hidden auto;
     overscroll-behavior: contain;
     background: var(--main-bg-color);
   }
