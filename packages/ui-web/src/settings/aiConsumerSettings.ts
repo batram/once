@@ -1,6 +1,6 @@
 import { OnceClient } from "@once/app"
 import { aiConsumers } from "./aiConsumers"
-import { feedback, linkRow, pageTitle, retainAiFocus, restoreAiFocus } from "./aiForm"
+import { button, card, feedback, linkRow, pageTitle, retainAiFocus, restoreAiFocus } from "./aiForm"
 import { modelSummary, openModelPicker } from "./aiModelPicker"
 import { registerSettingsOverview } from "./SettingsNavigation"
 
@@ -32,14 +32,16 @@ export function bindConsumerModel(client: OnceClient, parent: HTMLElement, consu
   queueMicrotask(() => void refresh())
 }
 export function bindReaderSettings(client: OnceClient, root: HTMLElement): void {
-  const overview = document.createElement("section"); overview.className = "settings_rows"; root.append(overview)
+  const overview = document.createElement("section"); overview.className = "settings_rows ai_overview"; root.append(overview)
+  const intro = document.createElement("p"); intro.className = "ai_intro"; intro.textContent = "The model Reader AI uses to rewrite pages, images and PDFs."; overview.append(intro)
   for (const consumer of aiConsumers().filter(item => item.owner === "reader")) {
-    const group = document.createElement("section"); group.className = "settings_rows"
-    const heading = document.createElement("h4"); heading.className = "settings_subheading"; heading.textContent = consumer.name
-    group.append(heading); overview.append(group)
+    const group = card(overview, consumer.name)
     // Use the owning page as navigation root while each section retains its label.
     bindConsumerModel(client, root, consumer.id, consumer.name)
     const holder = root.lastElementChild; if (holder) group.append(holder)
   }
+  const note = document.createElement("p"); note.className = "ai_sync_note"
+  const link = button("Open AI & Search", () => document.querySelector<HTMLButtonElement>('[data-settings-target="ai"]')?.click()); link.className = "ai_inline_link"
+  note.append("Connections and the default model are set in AI & Search · ", link); overview.append(note)
   registerSettingsOverview(root, () => { pageTitle(root, "Reader"); for (const child of root.children) (child as HTMLElement).hidden = child !== overview })
 }

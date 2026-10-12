@@ -41,8 +41,359 @@
 .ai_editor[hidden],
 .ai_overview[hidden],
 .ai_editor [hidden] { display: none; }
-.ai_editor details > summary { padding-block: var(--sp-3); cursor: pointer; }
-.ai_editor .settings_actions { margin-block: var(--sp-4); }
 .ai_editor input,
 .ai_editor select { min-width: 0; max-width: 100%; }
-.ai_overview .settings_actions { margin-block: var(--sp-3); }
+
+/* Pages are a column of cards: each heading names the box under it, so runs
+   that mean different things (what you chose, what you can connect, what uses
+   it) no longer read as one flat list. */
+#settings_panel :is(.ai_overview, .ai_editor) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding-block: var(--sp-1-5) var(--sp-6);
+}
+
+#settings_panel :is(.ai_overview, .ai_editor)[hidden] { display: none; }
+
+.ai_intro {
+  margin: 0;
+  padding: 0 var(--sp-1);
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+  line-height: 1.5;
+}
+
+.ai_group { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+#settings_panel .ai_group > .settings_subheading {
+  margin: 0;
+  padding: 0 var(--sp-1);
+  border: 0;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.ai_card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--text-high-color) 14%, transparent);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--text-high-color) 4%, transparent);
+}
+
+/* Inside a card the rows divide with a faint rule; the card's own edge ends the run. */
+#settings_panel .ai_card .settings_link_row {
+  grid-template-columns: [main] minmax(0, 1fr) [badge] auto [arrow] 16px;
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-0-5);
+  min-height: 56px;
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-high-color) 10%, transparent);
+}
+
+#settings_panel .ai_card .settings_link_row.settings_link_row_icon {
+  grid-template-columns: [icon] 32px [main] minmax(0, 1fr) [badge] auto [arrow] 16px;
+}
+
+#settings_panel .ai_card :is(.settings_link_row, .settings_row):last-child,
+#settings_panel .ai_card .ai_consumer_model:last-child .settings_link_row { border-bottom: 0; }
+
+#settings_panel .ai_card .settings_link_row:hover,
+#settings_panel .ai_card .settings_link_row:focus-visible {
+  background: color-mix(in srgb, var(--text-high-color) 7%, transparent);
+}
+
+#settings_panel .ai_card .settings_link_row:focus-visible {
+  outline: 2px solid var(--cursor-color);
+  outline-offset: -2px;
+}
+
+.ai_card .settings_link_row > strong { grid-column: main; color: light-dark(black, #eef0f5); }
+.ai_card .settings_link_row > .settings_link_summary { grid-column: main; font-size: var(--fs-meta); }
+
+.ai_card .settings_link_arrow {
+  grid-column: arrow;
+  justify-self: center;
+  color: var(--text-muted-color);
+  font-size: var(--icon-md);
+}
+
+/* The provider's initial, tinted per provider, so two connections tell apart at a glance. */
+.ai_provider_icon {
+  --tint: #b0b6c4;
+  grid-column: icon;
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-xl);
+  color: light-dark(color-mix(in srgb, var(--tint) 55%, black), var(--tint));
+  background: color-mix(in srgb, var(--tint) 20%, transparent);
+  font-weight: 700;
+}
+
+.ai_provider_icon[data-provider="anthropic"] { --tint: #f0a878; }
+.ai_provider_icon[data-provider="openai"] { --tint: #7fd6c0; }
+.ai_provider_icon[data-provider="compatible"] { --tint: #7fb4f0; }
+.ai_provider_icon[data-provider="tavily"] { --tint: #b79cf0; }
+.ai_provider_icon[data-provider="searxng"] { --tint: #e88fb4; }
+
+/* State in words, coloured as well: filled when healthy or needing attention,
+   outlined when it is only a fact. Green and amber also differ in lightness. */
+.ai_badge {
+  grid-column: badge;
+  grid-row: 1 / span 2;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1-5);
+  height: 22px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ai_badge:is([data-tone="ok"], [data-tone="warn"])::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ai_badge[data-tone="ok"] { color: light-dark(#1f6b3c, #8fe0ad); background: light-dark(#dcefe2, #23402f); }
+.ai_badge[data-tone="warn"] { color: light-dark(#7a4d00, #f2c48d); background: light-dark(#f6e6c8, #4a3720); }
+
+.ai_badge[data-tone="plain"] {
+  border: 1px solid color-mix(in srgb, var(--text-high-color) 22%, transparent);
+  color: var(--text-high-color);
+  font-weight: 400;
+}
+
+#settings_panel .ai_add_row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--sp-4);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: light-dark(#2f3f9c, #9fb0ff);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ai_add_row > svg {
+  width: 32px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+#settings_panel .ai_add_row:hover { background: color-mix(in srgb, var(--text-high-color) 7%, transparent); }
+#settings_panel .ai_add_row:focus-visible { outline: 2px solid var(--cursor-color); outline-offset: -2px; }
+
+.ai_card > .settings_rows_hint { margin: 0; padding: var(--sp-3) var(--sp-4); color: var(--text-muted-color); }
+
+/* A sentence, not a flex row: the status flows after the link and wraps as
+   text, even where the link keeps a touch-sized box. */
+.ai_sync_note {
+  margin: 0;
+  line-height: 1.5;
+  padding: 0 var(--sp-1);
+  color: var(--text-muted-color);
+  font-size: var(--fs-meta);
+}
+
+#settings_panel .ai_inline_link {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  min-height: 0;
+  padding: var(--sp-0-5) var(--sp-1);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: light-dark(#2f3f9c, #9fb0ff);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* Form rows in a card: a fixed name column so every field starts on one line
+   and takes the rest of the width. */
+#settings_panel .ai_card .settings_row {
+  grid-template-columns: minmax(110px, 170px) minmax(0, 1fr);
+  grid-template-areas: "name control";
+  column-gap: var(--sp-4);
+  box-sizing: border-box;
+  min-height: 52px;
+  margin: 0;
+  padding: var(--sp-2) var(--sp-4);
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--text-high-color) 10%, transparent);
+}
+
+#settings_panel .ai_card > section.settings_rows:not([hidden]) { display: contents; }
+#settings_panel .ai_card .settings_row_name { align-self: center; color: light-dark(black, #eef0f5); }
+
+#settings_panel .ai_card .settings_row > :is(input, select),
+#settings_panel .ai_token_control > input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  height: 36px;
+  padding: 0 var(--sp-2);
+  border: 1px solid color-mix(in srgb, var(--text-high-color) 28%, transparent);
+  border-radius: var(--radius-lg);
+  background: light-dark(white, #22242f);
+  color: var(--text-high-color);
+  font: inherit;
+  font-size: var(--fs-dense);
+}
+
+#settings_panel .ai_card .settings_row > select {
+  appearance: none;
+  padding-right: var(--sp-6);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%239297a3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: right 10px center;
+  background-repeat: no-repeat;
+  background-size: 12px;
+}
+
+#settings_panel .ai_card :is(input, select):focus-visible { outline: 2px solid var(--cursor-color); outline-offset: 1px; }
+
+/* An address is the one value long enough to need the whole line. */
+#settings_panel .ai_card .settings_row:has(> input[type="url"]) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "name" "control";
+  row-gap: var(--sp-2);
+  padding-block: var(--sp-3);
+}
+
+#settings_panel .ai_card .settings_row > input[type="url"] { font-family: Consolas, "Cascadia Mono", monospace; font-size: var(--fs-meta); }
+
+.ai_token_control { grid-area: control; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); min-width: 0; }
+.ai_token_control > input { flex: 1 1 auto; min-width: 0; }
+.ai_token_view { display: flex; flex: 1 1 auto; align-items: center; gap: var(--sp-2); min-width: 0; height: 36px; color: var(--text-muted-color); font-size: var(--fs-meta); }
+.ai_token_dots { color: var(--text-high-color); letter-spacing: 2px; }
+.ai_token_removing .ai_token_view { color: var(--warning-color); }
+
+/* A narrow panel (a phone, a slim sidebar) stacks the name over a full-width
+   control, and the token's state takes its own line above its buttons. */
+@container settings-panel (max-width: 520px) {
+  #settings_panel .ai_card .settings_row {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "name" "control";
+    row-gap: var(--sp-2);
+    padding-block: var(--sp-3);
+  }
+
+  .ai_token_view { flex-basis: 100%; }
+}
+
+#settings_panel :is(.ai_token_control, .ai_card_bar, .ai_editor > .settings_actions, .ai_danger) .button {
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border: 1px solid color-mix(in srgb, var(--text-high-color) 28%, transparent);
+  border-radius: var(--radius-lg);
+  background: var(--btn-bg-color);
+  color: var(--text-high-color);
+  font: inherit;
+  font-size: var(--fs-dense);
+  cursor: pointer;
+}
+
+#settings_panel :is(.ai_token_control, .ai_card_bar) .button { flex: none; height: 28px; padding: 0 var(--sp-3); font-size: var(--fs-meta); }
+#settings_panel .ai_token_control > .ai_token_remove,
+#settings_panel .ai_danger .button {
+  border-color: color-mix(in srgb, var(--error-color) 45%, transparent);
+  background: transparent;
+  color: var(--error-color);
+}
+
+#settings_panel .ai_danger .button:hover { background: color-mix(in srgb, var(--error-color) 12%, transparent); }
+
+/* Advanced folds into a card of its own; its header says what is inside. */
+#settings_panel .ai_advanced > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 48px;
+  padding: 0 var(--sp-4);
+  color: light-dark(black, #eef0f5);
+  font-weight: 700;
+  list-style: none;
+  cursor: pointer;
+}
+
+#settings_panel .ai_advanced > summary::-webkit-details-marker { display: none; }
+
+#settings_panel .ai_advanced > summary::before {
+  content: "›";
+  width: 16px;
+  color: var(--text-muted-color);
+  font-size: var(--icon-md);
+  text-align: center;
+  transition: transform 0.15s;
+}
+
+#settings_panel .ai_advanced[open] > summary::before { transform: rotate(90deg); }
+#settings_panel .ai_advanced[open] > summary { border-bottom: 1px solid color-mix(in srgb, var(--text-high-color) 10%, transparent); }
+#settings_panel .ai_advanced > summary:focus-visible { border-radius: var(--radius-xl); outline: 2px solid var(--cursor-color); outline-offset: -2px; }
+.ai_advanced_hint { margin-left: auto; color: var(--text-muted-color); font-size: var(--fs-meta); font-weight: 400; }
+
+.ai_card_bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: var(--sp-1-5) var(--sp-4);
+  border-top: 1px solid color-mix(in srgb, var(--text-high-color) 10%, transparent);
+  background: color-mix(in srgb, var(--text-high-color) 3%, transparent);
+}
+
+#settings_panel .ai_card_bar > .settings_rows_hint { flex: 1 1 200px; margin: 0; font-size: var(--fs-meta); }
+.ai_card_bar:not(:has(> p:not(:empty))):not(:has(> .button:not([hidden]))) { display: none; }
+#settings_panel .ai_card > .ai_card_note:not(:empty) { margin: 0; padding: var(--sp-2) var(--sp-4) var(--sp-3); font-size: var(--fs-meta); }
+
+#settings_panel .ai_editor > .ai_status { margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-xl); color: light-dark(#7a4d00, #f2c48d); background: light-dark(#f6e6c8, #4a3720); font-size: var(--fs-meta); }
+#settings_panel .ai_editor > .ai_status:empty { display: none; }
+#settings_panel .ai_editor > .settings_actions { display: flex; gap: var(--sp-2); margin: 0; }
+
+/* White on the accent, as the add-on page's primary action. */
+#settings_panel .ai_editor .ai_primary:not(:disabled) {
+  padding-inline: var(--sp-5);
+  border-color: var(--cursor-color);
+  background: var(--cursor-color);
+  color: white;
+  font-weight: 700;
+}
+
+.ai_danger {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-1) 0;
+  border-top: 1px solid color-mix(in srgb, var(--text-high-color) 10%, transparent);
+  color: var(--text-muted-color);
+  font-size: var(--fs-meta);
+}
+
+.ai_danger > span { flex: 1 1 200px; }

@@ -243,7 +243,8 @@
   .addon_primary_action.button,
   .userscripts_add.button,
   .userscript_primary.button:not(:disabled),
-  .tab_sync_offer_primary.button {
+  .tab_sync_offer_primary.button,
+  .ai_primary.button:not(:disabled) {
     border-color: var(--cursor-color);
     background: var(--cursor-color);
   }
@@ -251,8 +252,17 @@
   .addon_primary_action.button:active,
   .userscripts_add.button:active,
   .userscript_primary.button:not(:disabled):active,
-  .tab_sync_offer_primary.button:active {
+  .tab_sync_offer_primary.button:active,
+  .ai_primary.button:not(:disabled):active {
     background: color-mix(in srgb, var(--cursor-color) 85%, black);
+  }
+
+  /* The same reset turned the AI pages' destructive actions back into
+     ordinary buttons; they keep the error colour ai-settings.css gives them. */
+  .ai_token_remove.button,
+  .ai_danger .button {
+    border-color: color-mix(in srgb, var(--error-color) 45%, transparent);
+    color: var(--error-color);
   }
 
   /* Glyph-only controls keep the finger-sized target but not the box: a
