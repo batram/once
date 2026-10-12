@@ -1836,6 +1836,77 @@
     display: none;
   }
 
+  /* A phone is too narrow for the desktop thread's insets: text runs under
+     the toggle rather than past it, and each reply level steps in 16px. */
+  .reading_comment_thread .comment_thread {
+    --comment-text-inset: 0px;
+    padding-inline: var(--sp-1);
+  }
+
+  .reading_comment_thread .comment_thread_head {
+    padding: var(--sp-2) var(--sp-1) var(--sp-1-5);
+  }
+
+  /* As compact as the story card's buttons above it. */
+  .reading_comment_thread .comment_thread_actions .button {
+    width: 36px;
+    min-width: 0;
+    height: 36px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+  }
+
+  .reading_comment_thread .comment_list > .comment {
+    padding-block: var(--sp-1);
+  }
+
+  .reading_comment_thread .comment_main {
+    padding: var(--sp-1);
+  }
+
+  .reading_comment_thread .comment_head {
+    min-block-size: var(--sp-5);
+  }
+
+  .reading_comment_thread .comment_body {
+    margin-block-start: var(--sp-1);
+  }
+
+  /* The rail stays under the toggle's center: the main's padding plus half the toggle. */
+  .reading_comment_thread .comment_replies {
+    margin-inline-start: var(--sp-3);
+    padding-inline-start: var(--sp-1);
+  }
+
+  /* The shell's touch-button size and font would make every header 44px tall
+     and the "[+N]" count larger than the name beside it. The toggle keeps
+     the header's type and a full touch target around its small box. */
+  .reading_comment_thread .comment_toggle {
+    position: relative;
+    min-height: 0;
+    font: inherit;
+    font-family: ui-monospace, monospace;
+    line-height: 1;
+  }
+
+  .reading_comment_thread .comment_toggle::after {
+    content: "";
+    position: absolute;
+    inset: calc((var(--touch) - var(--sp-4)) / -2);
+  }
+
+  /* A tap leaves :hover on the toggle until the next tap elsewhere. */
+  .reading_comment_thread .comment_toggle:hover {
+    background: none;
+    color: inherit;
+  }
+
+  .reading_comment_thread .comment.is-collapsed > .comment_main .comment_toggle:not(:empty) {
+    color: var(--text-muted-color);
+    font-size: inherit;
+  }
+
   #reading_find_bar {
     position: relative;
     z-index: 2;
