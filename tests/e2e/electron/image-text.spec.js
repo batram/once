@@ -159,22 +159,22 @@ async function selectAndCopy(app, url = `${server.origin}/`) {
   return text
 }
 
-/** How many matches the app's find in page reports for `text`. */
-async function findMatches(app, text) {
-  return app.evaluate(({ webContents }, { url, text }) => new Promise((resolve, reject) => {
+/** How many matches the app's find in page reports for `text`; `keep` leaves the session open. */
+async function findMatches(app, text, { keep = false } = {}) {
+  return app.evaluate(({ webContents }, { url, text, keep }) => new Promise((resolve, reject) => {
     const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
     const timer = setTimeout(() => reject(new Error(`No find result for ${text}`)), 5000)
     const found = (_event, result) => {
       if (!result.finalUpdate) return
       tab.removeListener("found-in-page", found)
       clearTimeout(timer)
-      tab.stopFindInPage("clearSelection")
+      if (!keep) tab.stopFindInPage("clearSelection")
       resolve(result.matches)
     }
     tab.on("found-in-page", found)
     // findNext starts a session; a fresh query without it reports nothing.
     tab.findInPage(text, { findNext: true })
-  }), { url: `${server.origin}/`, text })
+  }), { url: `${server.origin}/`, text, keep })
 }
 
 /** The tab as the window shows it: the selection is part of the page. */
@@ -221,6 +221,17 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     expect(await findMatches(app, "punctuation")).toBe(1)
     expect(await findMatches(app, "these words")).toBe(1)
     expect(await findMatches(app, "Native Apple Vision")).toBe(1)
+    // With the image scrolled away, find still goes to its words: Chromium
+    // runs no scroll for a match in an off-screen cross-origin frame, so the
+    // app brings the image back for it.
+    await inPage(app, "scrollTo(0, document.scrollingElement.scrollHeight)")
+    await expect.poll(() => inPage(app, "document.querySelector('img').getBoundingClientRect().bottom < 0")).toBe(true)
+    expect(await findMatches(app, "Native Apple", { keep: true })).toBe(1)
+    await expect.poll(() => inPage(app, `(() => { const r=document.querySelector('img').getBoundingClientRect();
+      return r.bottom > 0 && r.top < innerHeight })()`)).toBe(true)
+    await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url)
+      .stopFindInPage("clearSelection"), `${server.origin}/`)
+    await inPage(app, "scrollTo(0,0)")
     await inPage(app, "scrollBy(0,80)")
     await expect.poll(async () => (await geometry(app)).words[0].top).toBeCloseTo(initial.words[0].top - 80, 0)
     await inPage(app, "scrollTo(0,document.body.scrollHeight)")

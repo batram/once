@@ -202,6 +202,7 @@ class AnchoredSelection {
   message(message: ImageTextViewMessage): void {
     if (this.closed) return
     if (message.type === "status") { this.status.textContent = message.text; this.lastBar = "" }
+    else if (message.type === "reveal") this.reveal()
     else if (this.port) this.port.postMessage(message)
     else this.pending.push(message)
   }
@@ -266,6 +267,20 @@ class AnchoredSelection {
         right: Number(box.right) || 0, bottom: Number(box.bottom) || 0 }))
       this.lastBar = ""
     } else if (event.type === "scroll") this.autoscroll(Number(event.deltaY) || 0)
+  }
+
+  /**
+   * Find in page made a match in the words its active one, with the image out
+   * of view. Chromium queues the scroll to a match as an animation frame task
+   * of the match's frame (TextFinder::FindInternal), and runs no such tasks
+   * for a cross-origin frame that does not intersect the viewport
+   * (LocalFrameView::CanThrottleRendering, PageAnimator): the scroll would
+   * wait for a frame that only it could bring into view, while the match is
+   * counted anyway. Bringing the image into view lets that queued scroll run
+   * and centre the match itself.
+   */
+  private reveal(): void {
+    if (!imageFit(this.image).visible) this.image.scrollIntoView({ block: "center", inline: "nearest" })
   }
 
   /**

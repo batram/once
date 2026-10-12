@@ -45,6 +45,8 @@ export type ImageTextViewMessage =
   | { type: "result"; result: ImageTextResult | null; message?: string }
   /** For Electron's bar, which its host in the page holds (see imageTextAnchor.ts). */
   | { type: "status"; text: string }
+  /** For Electron's host: find in page holds a match in the words, so bring the image into view. */
+  | { type: "reveal" }
 
 /** An overlay view to the app. */
 export type ImageTextViewEvent =

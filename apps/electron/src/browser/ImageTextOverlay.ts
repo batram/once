@@ -36,6 +36,7 @@ export class ImageTextOverlay {
     host.onClose(this.close)
     tab.on("before-input-event", this.escape)
     tab.on("did-start-navigation", this.navigating)
+    tab.on("found-in-page", this.found)
     tab.once("destroyed", this.close)
   }
 
@@ -79,6 +80,7 @@ export class ImageTextOverlay {
     if (overlays.get(this.tab) === this) overlays.delete(this.tab)
     this.tab.removeListener("before-input-event", this.escape)
     this.tab.removeListener("did-start-navigation", this.navigating)
+    this.tab.removeListener("found-in-page", this.found)
     this.tab.removeListener("destroyed", this.close)
     this.host.close()
     this.served.close()
@@ -87,6 +89,17 @@ export class ImageTextOverlay {
 
   private readonly navigating = (event: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
     if (!event.isSameDocument && (event.isMainFrame || event.frame === this.frame)) this.close()
+  }
+
+  /**
+   * Find in page counts the words' matches like any frame's, but cannot
+   * scroll to one while the image is out of view (see the host's `reveal`).
+   * Chromium makes the frame of each active match the focused frame, so a
+   * final result with the words frame focused is a match in them.
+   */
+  private readonly found = (_event: Electron.Event, result: Electron.Result) => {
+    if (!result.finalUpdate || !result.activeMatchOrdinal || this.tab.isDestroyed()) return
+    if (this.tab.focusedFrame?.url === this.served.url) this.host.send({ type: "reveal" })
   }
 
   /** Escape closes it, from the page or the words frame alike. */
