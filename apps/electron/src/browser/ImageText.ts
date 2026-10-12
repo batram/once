@@ -33,25 +33,25 @@ export async function selectImageText(contents: WebContents, params: ContextMenu
     }`)
   }
   try {
-    // Main-frame images get the overlay in app-owned views over the tab, so
-    // nothing enters the page; Electron offers isolated worlds for the main
-    // frame only, so images in subframes keep the in-page overlay for now.
-    if (frame === contents.mainFrame) {
-      const overlay = await ImageTextOverlay.open(contents, params.srcURL, params.x, params.y, token)
-      if (!overlay) return
+    // The overlay lives in app-owned views over the tab, so nothing enters the
+    // page. Only when that cannot reach the image's frame (another DevTools
+    // protocol client holds the tab, and the image is in a subframe) does the
+    // overlay go into the page.
+    const overlay = await ImageTextOverlay.open(contents, frame, params.srcURL, params.x, params.y, token)
+    if (overlay) {
       overlay.onClose(cancel)
       controller.signal.addEventListener("abort", overlay.close)
       finish = async (result, message) => {
         if (!controller.signal.aborted) overlay.finish(result, message)
       }
       showImage = (bytes) => overlay.setImage(bytes)
-    } else {
+    } else if (frame !== contents.mainFrame) {
       injection ??= readFileSync(path.join(__dirname, "image-text-injection.js"), "utf8")
       await frame.executeJavaScript(injection)
       const started = await frame.executeJavaScript(`window.__onceStartImageText(${JSON.stringify(params.srcURL)},
         ${Number(params.x)}, ${Number(params.y)}, ${JSON.stringify(token)})`, true)
       if (!started) return
-    }
+    } else return
     const scheme = new URL(params.srcURL).protocol
     if (!["http:", "https:", "data:"].includes(scheme)) throw new Error("Unsupported image URL")
     const bytes = scheme === "data:"

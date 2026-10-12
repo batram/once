@@ -1,46 +1,94 @@
 import { findImage, imageFit, viewport } from "@once/ui-web/imageText/imageTextOverlay"
 import type { ImageTextFit } from "@once/ui-web/imageText/imageTextTypes"
 
-// Run by the main process in an isolated world of the tab's main frame (see
-// browser/ImageTextOverlay.ts): it only reads where the chosen image is drawn.
-// It adds nothing to the page, and the page's own scripts cannot see or patch
-// what it uses. The overlay itself lives in app-owned views over the tab.
+// Run by the main process in an isolated world (see browser/ImageTextProbes.ts):
+// it only reads where the chosen image is drawn, or, in each frame above the
+// image's, where the iframe holding it is. It adds nothing to the page, and
+// the page's own scripts cannot see or patch what it uses. The overlay itself
+// lives in app-owned views over the tab.
 
 export interface ImageTextProbeFit extends ImageTextFit {
+  /** The image's natural size; an iframe's content size. */
   naturalWidth: number
   naturalHeight: number
-  /** The page's viewport without scrollbars, in CSS pixels. */
+  /** This frame's viewport without scrollbars, and its layout width, in its CSS pixels. */
   viewportWidth: number
   viewportHeight: number
+  innerWidth: number
 }
+
+/** What a probe pushes through the app's binding: its element's fit, or null once that is gone. */
+export interface ImageTextProbeReport { token: string; fit: ImageTextProbeFit | null }
 
 declare global {
   interface Window {
     __onceImageTextProbe?: {
       start(src: string, x: number, y: number, token: string): ImageTextProbeFit | null
+      frame(owner: HTMLIFrameElement, token: string): ImageTextProbeFit | null
       measure(token: string): ImageTextProbeFit | null
       stop(token: string): void
     }
+    /** Installed in this world only by the app (a DevTools protocol binding), when it listens for changes. */
+    __onceImageTextPush?: (payload: string) => void
   }
 }
 
-let current: { token: string; image: HTMLImageElement; source: string } | null = null
+interface Tracked { token: string; element: HTMLImageElement | HTMLIFrameElement; source: string }
+
+let current: Tracked | null = null
+let frame = 0
+let last = ""
 
 function measure(token: string): ImageTextProbeFit | null {
   if (current?.token !== token) return null
-  const { image, source } = current
-  if (!image.isConnected || (image.currentSrc || image.src) !== source || !image.naturalWidth) return null
+  const { element, source } = current
+  if (!element.isConnected) return null
+  const image = element instanceof HTMLImageElement ? element : null
+  if (image && ((image.currentSrc || image.src) !== source || !image.naturalWidth)) return null
   const view = viewport()
-  const fit = imageFit(image)
-  const visibleBox = fit.visible ? uncovered(image, fit.visibleBox) : fit.visibleBox
+  const fit = imageFit(element)
+  const visibleBox = fit.visible ? uncovered(element, fit.visibleBox) : fit.visibleBox
   return { ...fit, visibleBox, visible: visibleBox.bottom > visibleBox.top && visibleBox.right > visibleBox.left,
-    naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight, viewportWidth: view.width, viewportHeight: view.height }
+    naturalWidth: image?.naturalWidth ?? fit.width, naturalHeight: image?.naturalHeight ?? fit.height,
+    viewportWidth: view.width, viewportHeight: view.height, innerWidth }
+}
+
+/** With the app listening, reports each animation frame in which the element moved, changed or went away. */
+function track(next: Tracked | null): ImageTextProbeFit | null {
+  cancelAnimationFrame(frame)
+  current = next
+  last = ""
+  if (!next) return null
+  const push = window.__onceImageTextPush
+  const report = () => {
+    const fit = measure(next.token)
+    const payload = JSON.stringify({ token: next.token, fit } satisfies ImageTextProbeReport)
+    if (payload !== last) {
+      last = payload
+      push?.(payload)
+    }
+    if (fit && current === next) frame = requestAnimationFrame(report)
+  }
+  if (push) frame = requestAnimationFrame(report)
+  return measure(next.token)
+}
+
+window.__onceImageTextProbe ??= {
+  start(src, x, y, token) {
+    const image = findImage(src, x, y)
+    return track(image ? { token, element: image, source: image.currentSrc || image.src } : null)
+  },
+  frame(owner, token) {
+    return track(owner instanceof HTMLIFrameElement ? { token, element: owner, source: "" } : null)
+  },
+  measure,
+  stop(token) { if (current?.token === token) track(null) }
 }
 
 type Box = ImageTextFit["visibleBox"]
 
-/** Whether the image is what shows at a viewport point, rather than something the page draws over it. */
-function showsImage(image: HTMLImageElement, x: number, y: number): boolean {
+/** Whether the element is what shows at a viewport point, rather than something the page draws over it. */
+function showsImage(image: Element, x: number, y: number): boolean {
   const top = document.elementFromPoint(x, y)
   // An ancestor answers for an image with pointer-events: none.
   return Boolean(top && (top === image || top.contains(image)))
@@ -54,7 +102,7 @@ function showsImage(image: HTMLImageElement, x: number, y: number): boolean {
  * so a small badge in one corner keeps the box whole; when no sample shows
  * the image at all, something transparent covers it and the box stays.
  */
-function uncovered(image: HTMLImageElement, box: Box): Box {
+function uncovered(image: Element, box: Box): Box {
   const result = { ...box }
   const lines = (from: number, to: number) => [0.2, 0.5, 0.8].map((at) => from + (to - from) * at)
   // The first point from `start` towards `end` where the image shows, or null.
@@ -93,14 +141,4 @@ function uncovered(image: HTMLImageElement, box: Box): Box {
   if (left !== null) result.left = Math.max(box.left, Math.floor(left))
   if (right !== null) result.right = Math.min(box.right, Math.ceil(right + inset))
   return result
-}
-
-window.__onceImageTextProbe ??= {
-  start(src, x, y, token) {
-    const image = findImage(src, x, y)
-    current = image ? { token, image, source: image.currentSrc || image.src } : null
-    return measure(token)
-  },
-  measure,
-  stop(token) { if (current?.token === token) current = null }
 }

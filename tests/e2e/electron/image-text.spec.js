@@ -425,3 +425,76 @@ test("the overlay stays out of the page's way: covered edges, keys and autoscrol
     await overlayInput(app, [{ type: "mouseUp", x: start.x + 40, y: tab.height - 4, button: "left", clickCount: 1 }])
   } finally { await closeApp(app, userData) }
 })
+
+test("an image in a cross-site iframe gets the overlay, placed through the frame and following it", async () => {
+  const { electronApp: app, userData, window } = await launchApp()
+  const url = `${server.origin}/framed`
+  const child = () => app.evaluate(({ webContents }, url) => {
+    const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
+    return tab.mainFrame.framesInSubtree.find(f => f !== tab.mainFrame)?.url ?? null
+  }, url)
+  try {
+    await window.locator("#urlfield").fill(url)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Framed image text fixture")
+    await expect.poll(child).toMatch(/^http:\/\/localhost:/)
+    const inFrame = (script) => app.evaluate(({ webContents }, { url, script }) => {
+      const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
+      return tab.mainFrame.framesInSubtree.find(f => f !== tab.mainFrame).executeJavaScript(script)
+    }, { url, script })
+    await expect.poll(() => inFrame("document.querySelector('img').complete && document.querySelector('img').naturalWidth > 0")).toBe(true)
+    await app.evaluate(async ({ webContents, Menu }, url) => {
+      const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
+      const frame = tab.mainFrame.framesInSubtree.find(f => f !== tab.mainFrame)
+      const params = await frame.executeJavaScript(`(() => { const i=document.querySelector('img'), r=i.getBoundingClientRect();
+        return {srcURL:i.currentSrc, x:r.left+r.width/2, y:r.top+r.height/2} })()`)
+      const original = Menu.buildFromTemplate
+      let action
+      Menu.buildFromTemplate = template => { action = template.find(item => item.label === "Select Text in Image"); return { popup() {} } }
+      try {
+        tab.emit("context-menu", {}, { ...params, frame, hasImageContents: true, isEditable: false, selectionText: "",
+          linkURL: "", editFlags: {}, pageURL: url })
+      } finally { Menu.buildFromTemplate = original }
+      action.click()
+    }, url)
+    await expect.poll(() => inOverlay(app, "document.querySelector('[data-once-image-text]')?.shadowRoot.querySelector('[role=status]').textContent", "bar"))
+      .toContain("Drag to select text")
+    // The words view sits on the image: the iframe's content box (left 69, top 149) plus the image's place in it.
+    const placed = async () => {
+      const bounds = await app.evaluate(({ BrowserWindow, WebContentsView }, url) => {
+        const win = BrowserWindow.getAllWindows().find(w => w.contentView.children.some(v => v.webContents?.getURL() === url))
+        const views = win.contentView.children.filter(v => v instanceof WebContentsView)
+        return { tab: views.find(v => v.webContents.getURL() === url).getBounds(),
+          words: views.find(v => v.webContents.getURL().includes("image_text_overlay") && !v.webContents.getURL().endsWith("#bar"))?.getBounds() }
+      }, url)
+      const image = await inFrame("document.querySelector('img').getBoundingClientRect().toJSON()")
+      const frameBox = await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url)
+        .executeJavaScript("(() => { const r=document.getElementById('frame').getBoundingClientRect(); return {left:r.left+9, top:r.top+9, bottom:r.bottom-9} })()"), url)
+      // The image's border box less its 2px border, as the words view covers its content box.
+      const left = frameBox.left + image.left + 2, top = frameBox.top + image.top + 2
+      return { bounds, left, top, frameBox }
+    }
+    await expect.poll(async () => {
+      const { bounds, left, top } = await placed()
+      return bounds.words && Math.abs(bounds.words.x - bounds.tab.x - left) <= 1.5 && Math.abs(bounds.words.y - bounds.tab.y - top) <= 1.5
+    }).toBe(true)
+    expect(await selectAndCopy(app)).toBe("Select these words")
+    // Scrolling the outer page moves the iframe: the views follow.
+    await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url).executeJavaScript("scrollTo(0, 100)"), url)
+    await expect.poll(async () => {
+      const { bounds, top } = await placed()
+      return bounds.words && Math.abs(bounds.words.y - bounds.tab.y - top) <= 1.5
+    }).toBe(true)
+    // Scrolling inside the iframe clips the words view to the iframe's content box.
+    await inFrame("scrollTo(0, 200)")
+    await expect.poll(async () => {
+      const { bounds, frameBox } = await placed()
+      return bounds.words && Math.abs(bounds.words.y - bounds.tab.y - frameBox.top) <= 1.5
+    }).toBe(true)
+    // Nothing of the overlay is in either page.
+    expect(await inFrame("Boolean(document.querySelector('[data-once-image-text]')) || '__onceImageText' in window")).toBe(false)
+    // Removing the iframe ends the selection.
+    await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url).executeJavaScript("document.getElementById('frame').remove()"), url)
+    await expect.poll(() => overlayOpen(app)).toBe(false)
+  } finally { await closeApp(app, userData) }
+})

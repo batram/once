@@ -202,8 +202,12 @@ function createSelection(image: HTMLImageElement, token: string, textLayer: bool
   }
 }
 
-/** Where the image's content box and its drawn picture are this frame. */
-export function imageFit(image: HTMLImageElement): ImageTextFit {
+/**
+ * Where an image's content box and its drawn picture are this frame. An
+ * iframe (Electron's overlay places images inside frames through their
+ * owners) fills its content box.
+ */
+export function imageFit(image: HTMLImageElement | HTMLIFrameElement): ImageTextFit {
   const rect = image.getBoundingClientRect()
   const style = getComputedStyle(image)
   const borderX = parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft)
@@ -217,12 +221,13 @@ export function imageFit(image: HTMLImageElement): ImageTextFit {
   const visibleBox = visibleImageBox(image, left, top, width * sx, height * sy)
   const clipPath = `inset(${Math.max(0, visibleBox.top - top)}px ${Math.max(0, left + width * sx - visibleBox.right)}px ` +
     `${Math.max(0, top + height * sy - visibleBox.bottom)}px ${Math.max(0, visibleBox.left - left)}px)`
-  const contain = Math.min(width / image.naturalWidth, height / image.naturalHeight)
-  const cover = Math.max(width / image.naturalWidth, height / image.naturalHeight)
-  const fit = style.objectFit
+  const natural = "naturalWidth" in image ? { width: image.naturalWidth, height: image.naturalHeight } : null
+  const fit = natural ? style.objectFit : "fill"
+  const contain = natural ? Math.min(width / natural.width, height / natural.height) : 1
+  const cover = natural ? Math.max(width / natural.width, height / natural.height) : 1
   const scale = fit === "cover" ? cover : fit === "none" ? 1 : fit === "scale-down" ? Math.min(1, contain) : contain
-  const dw = fit === "fill" ? width : image.naturalWidth * scale
-  const dh = fit === "fill" ? height : image.naturalHeight * scale
+  const dw = fit === "fill" || !natural ? width : natural.width * scale
+  const dh = fit === "fill" || !natural ? height : natural.height * scale
   const positions = style.objectPosition.split(" ")
   const offset = (value: string, remaining: number) => value.endsWith("%") ? parseFloat(value) / 100 * remaining : parseFloat(value) || 0
   return { left, top, width: width * sx, height: height * sy, clipPath, visibleBox,

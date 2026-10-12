@@ -1,18 +1,14 @@
-import { BrowserWindow, Menu, type IpcMainEvent, type Rectangle, type WebContents, WebContentsView } from "electron"
-import { readFileSync } from "node:fs"
-import path from "node:path"
+import { BrowserWindow, Menu, type IpcMainEvent, type Rectangle, type WebContents, WebContentsView, type WebFrameMain } from "electron"
 import type { ImageTextResult, ImageTextViewEvent, ImageTextViewMessage } from "@once/ui-web/imageText/imageTextTypes"
 import type { ImageTextProbeFit } from "../imageTextProbe"
+import { type ImageTextProbes, openImageTextProbes } from "./ImageTextProbes"
 
 declare const IMAGE_TEXT_OVERLAY_WEBPACK_ENTRY: string
 declare const IMAGE_TEXT_OVERLAY_PRELOAD_WEBPACK_ENTRY: string
 
-/** The isolated world the probe runs in; extension content scripts start at 1000. */
-const PROBE_WORLD = 917
 const GAP = 8
 /** The margin around the bar inside its view, for its shadow (see imageTextView.ts). */
 const BAR_INSET = 6
-let probeSource: string | undefined
 /** Keys that move around the page, by DOM key, as sendInputEvent names them. */
 const PAGE_KEYS: Record<string, string> = {
   ArrowUp: "Up", ArrowDown: "Down", ArrowLeft: "Left", ArrowRight: "Right",
@@ -22,10 +18,10 @@ const overlays = new WeakMap<WebContents, ImageTextOverlay>()
 
 /**
  * Image text selection in app-owned views over a tab: nothing of the overlay
- * enters the page. A read-only probe in an isolated world of the tab's main
- * frame reports where the image is drawn and which part of it is visible; the
- * words view covers exactly that part and the bar view sits beside it. Both
- * follow the image every frame until the selection closes.
+ * enters the page. Read-only probes (ImageTextProbes.ts) report where the
+ * image is drawn and which part of it is visible, through any frames holding
+ * it; the words view covers exactly that part and the bar view sits beside
+ * it. Both follow the image until the selection closes.
  */
 export class ImageTextOverlay {
   private readonly words = createView()
@@ -36,13 +32,15 @@ export class ImageTextOverlay {
   private lastBar = ""
   private shown = false
   private closed = false
+  private watchdog: ReturnType<typeof setInterval> | undefined
   private readonly closeHandlers: (() => void)[] = []
 
   private constructor(
     private readonly window: BrowserWindow,
     private readonly tabView: WebContentsView,
     private readonly tab: WebContents,
-    private readonly token: string,
+    private readonly frame: WebFrameMain,
+    private readonly probes: ImageTextProbes,
     private fit: ImageTextProbeFit
   ) {
     this.words.webContents.on("before-input-event", this.forwardKey)
@@ -57,29 +55,41 @@ export class ImageTextOverlay {
       ]).popup()
     })
     this.ready = Promise.all([load(this.words, ""), load(this.bar, "#bar")])
-    overlays.get(tab)?.close()
     overlays.set(tab, this)
     tab.on("before-input-event", this.escape)
     tab.on("did-start-navigation", this.navigating)
     tab.once("destroyed", this.close)
     window.once("closed", this.close)
+    probes.onChange((fit) => {
+      if (this.closed) return
+      if (!fit) this.close()
+      else this.apply(fit)
+    })
     void this.ready.then(() => {
       if (this.closed) return
       this.apply(this.fit)
       this.words.webContents.focus()
-      void this.track()
+      // The page reports its own changes; the tab moving, zooming or hiding does not change the page.
+      this.watchdog = setInterval(() => {
+        if (this.tab.isDestroyed() || this.window.isDestroyed() || !this.window.contentView.children.includes(this.tabView)) this.close()
+        else this.apply(this.fit)
+      }, 100)
     })
   }
 
-  /** Opens over the image the menu was opened on, or resolves null when the tab's main frame has no such image. */
-  static async open(tab: WebContents, src: string, x: number, y: number, token: string): Promise<ImageTextOverlay | null> {
+  /**
+   * Opens over the image the menu was opened on, in `frame`; resolves null
+   * when the image is not found there, or its frame cannot be probed.
+   */
+  static async open(tab: WebContents, frame: WebFrameMain, src: string, x: number, y: number, token: string): Promise<ImageTextOverlay | null> {
     const owner = viewOf(tab)
     if (!owner) return null
-    probeSource ??= readFileSync(path.join(__dirname, "image-text-probe.js"), "utf8")
-    await tab.executeJavaScriptInIsolatedWorld(PROBE_WORLD, [{ code: probeSource }])
-    const fit = await probe<ImageTextProbeFit | null>(tab,
-      `window.__onceImageTextProbe.start(${JSON.stringify(src)}, ${Number(x)}, ${Number(y)}, ${JSON.stringify(token)})`)
-    return fit ? new ImageTextOverlay(owner.window, owner.view, tab, token, fit) : null
+    // One selection per tab: the previous one lets go of the tab's probes first.
+    overlays.get(tab)?.close()
+    const opened = await openImageTextProbes(tab, frame, src, x, y, token)
+    if (!opened) return null
+    if (tab.isDestroyed() || owner.window.isDestroyed()) { opened.probes.close(); return null }
+    return new ImageTextOverlay(owner.window, owner.view, tab, frame, opened.probes, opened.fit)
   }
 
   onClose(handler: () => void): void {
@@ -108,28 +118,10 @@ export class ImageTextOverlay {
       if (!this.window.isDestroyed() && this.window.contentView.children.includes(view)) this.window.contentView.removeChildView(view)
       if (!view.webContents.isDestroyed()) view.webContents.close()
     }
-    if (!this.tab.isDestroyed()) {
-      void probe(this.tab, `window.__onceImageTextProbe?.stop(${JSON.stringify(this.token)})`).catch(() => undefined)
-      if (focused) this.tab.focus()
-    }
+    clearInterval(this.watchdog)
+    this.probes.close()
+    if (!this.tab.isDestroyed() && focused) this.tab.focus()
     for (const handler of this.closeHandlers.splice(0)) handler()
-  }
-
-  /** Follows the image each frame; the selection closes once it is gone or its tab is hidden. */
-  private async track(): Promise<void> {
-    while (!this.closed) {
-      await new Promise((resolve) => setTimeout(resolve, 16))
-      if (this.closed) return
-      if (this.tab.isDestroyed() || this.window.isDestroyed() || !this.window.contentView.children.includes(this.tabView)) {
-        this.close()
-        return
-      }
-      const fit = await probe<ImageTextProbeFit | null>(this.tab,
-        `window.__onceImageTextProbe?.measure(${JSON.stringify(this.token)}) ?? null`).catch(() => null)
-      if (this.closed) return
-      if (!fit) { this.close(); return }
-      this.apply(fit)
-    }
   }
 
   /** Lays the views over the image, in window pixels: page CSS pixels times the tab's zoom. */
@@ -229,7 +221,7 @@ export class ImageTextOverlay {
   }
 
   private readonly navigating = (event: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
-    if (event.isMainFrame && !event.isSameDocument) this.close()
+    if (!event.isSameDocument && (event.isMainFrame || event.frame === this.frame)) this.close()
   }
 
   /**
@@ -272,10 +264,6 @@ function createView(): WebContentsView {
 
 function load(view: WebContentsView, hash: string): Promise<void> {
   return view.webContents.loadURL(`${IMAGE_TEXT_OVERLAY_WEBPACK_ENTRY}${hash}`)
-}
-
-function probe<T>(tab: WebContents, code: string): Promise<T> {
-  return tab.executeJavaScriptInIsolatedWorld(PROBE_WORLD, [{ code }]) as Promise<T>
 }
 
 /** The window and view showing a tab. */

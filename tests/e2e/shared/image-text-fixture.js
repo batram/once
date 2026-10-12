@@ -32,6 +32,14 @@ async function startImageTextServer(port = 0) {
       return
     }
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+    // The fixture again inside a cross-site iframe (localhost vs 127.0.0.1),
+    // which runs out of process: offset, bordered and in a scrolled page.
+    if (request.url === "/framed") {
+      response.end(`<!doctype html><title>Framed image text fixture</title><body style="margin:0;height:2000px">
+        <iframe id="frame" src="http://localhost:${server.address().port}/"
+          style="position:absolute;left:60px;top:140px;width:640px;height:520px;border:9px solid #456"></iframe></body>`)
+      return
+    }
     response.end(html)
   })
   await new Promise(resolve => server.listen(port, "127.0.0.1", resolve))
