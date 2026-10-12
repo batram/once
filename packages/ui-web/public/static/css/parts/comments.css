@@ -106,13 +106,23 @@
   transition: none;
 }
 
-.comment.is-current > .comment_main {
-  background-color: color-mix(in srgb, var(--cursor-color) 9%, transparent);
-  box-shadow: inset 0 0 0 var(--bw) color-mix(in srgb, var(--cursor-color) 35%, transparent);
+/* The current comment's header and text get a soft tint from the author's
+   column on, leaving the toggle and the rail lines outside it. The main's
+   transform keeps the tint above the thread's background. */
+.comment.is-current > .comment_main::before,
+.comment:focus-visible > .comment_main::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-block: 0;
+  inset-inline: calc(var(--sp-1) + var(--comment-text-inset) - var(--sp-1-5)) 0;
+  background: color-mix(in srgb, var(--cursor-color) 7%, transparent);
+  pointer-events: none;
 }
 
-.comment:focus-visible > .comment_main {
-  box-shadow: inset 0 0 0 calc(var(--bw) * 2) var(--cursor-color);
+/* The keyboard's place reads a step stronger. */
+.comment:focus-visible > .comment_main::before {
+  background: color-mix(in srgb, var(--cursor-color) 10%, transparent);
 }
 
 .comment_head {
