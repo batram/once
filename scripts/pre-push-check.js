@@ -1,6 +1,6 @@
-// Runs `npm run check:static` against what is being pushed, so a
-// dead export or a file over the structural limit fails here in seconds
-// instead of on CI minutes later. Wired as the pre-push hook by
+// Runs `npm run check:static` and the unit tests against what is being pushed,
+// so a dead export, a file over the structural limit or a broken unit test
+// fails here instead of on CI minutes later. Wired as the pre-push hook by
 // install-git-hooks.js; `git push --no-verify` skips it.
 //
 // The checks run on the pushed commit, not on the working tree: parallel work
@@ -29,10 +29,11 @@ const pushed = [...new Set(fs.readFileSync(0, "utf8").split("\n")
   .filter(sha => sha && !zero.test(sha)))]
 
 // Workspace packages export their built dist, so knip needs a build of the
-// pushed sources to follow imports between packages, as on CI.
+// pushed sources to follow imports between packages, as on CI. The unit tests
+// come last: the static checks fail in seconds, the tests take about a minute.
 function runChecks(cwd) {
   const failed = []
-  for (const check of ["build:packages", ...checks]) {
+  for (const check of ["build:packages", ...checks, "test:unit"]) {
     const result = spawnSync(`npm run -s ${check}`, { cwd, stdio: "inherit", shell: true })
     if (result.status !== 0) failed.push(check)
   }
@@ -102,7 +103,7 @@ const locallyExcluded = git(["ls-files", "--others", "--exclude-standard"]) !==
 const clean = git(["status", "--porcelain"]) === "" && !locallyExcluded
 let failed = []
 for (const sha of pushed) {
-  console.log(`pre-push: static checks on ${sha.slice(0, 8)}${sha === head && clean ? "" : " (clean worktree)"}`)
+  console.log(`pre-push: static checks and unit tests on ${sha.slice(0, 8)}${sha === head && clean ? "" : " (clean worktree)"}`)
   failed = failed.concat(sha === head && clean ? runChecks(root) : checkInWorktree(sha))
 }
 if (failed.length > 0) {
