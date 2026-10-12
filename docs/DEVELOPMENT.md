@@ -37,6 +37,21 @@ documented in [ARCHITECTURE.md](ARCHITECTURE.md).
 so the root app scripts run the package build first. If generated package files
 become stale, use `npm run clean:packages` before rebuilding.
 
+## Git hooks on macOS
+
+The pre-commit hook runs staged-file static checks. The pre-push hook builds the
+packages, then runs static checks and the full unit suite against the commit
+being pushed (using an isolated worktree when necessary).
+
+On macOS, two unit tests compile small Swift harnesses. They use
+`xcrun --sdk macosx swiftc` so the compiler and host SDK come from the selected
+Apple developer installation. An implicit `xcrun swiftc` can mix Xcode's compiler
+with a separately updated Command Line Tools SDK. Do not work around that by
+setting a repository-wide `SDKROOT` or skipping these tests. The explicit SDK
+selection applies to direct test runs and hook runs, and still respects the
+selected developer installation (`DEVELOPER_DIR` / `xcode-select`). These native
+harnesses remain skipped on non-macOS hosts.
+
 ## Install and validate
 
 ```bash

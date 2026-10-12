@@ -67,7 +67,8 @@ print("PiP surface lifecycle passed")
     const file = path.join(temporary, "main.swift")
     const executable = path.join(temporary, "pip-surface-test")
     fs.writeFileSync(file, harness)
-    execFileSync("xcrun", ["swiftc", file, "-o", executable], { encoding: "utf8", timeout: 60_000 })
+    // Select the SDK with the compiler; implicit lookup can mix Xcode and Command Line Tools.
+    execFileSync("xcrun", ["--sdk", "macosx", "swiftc", file, "-o", executable], { encoding: "utf8", timeout: 60_000 })
     assert.match(execFileSync(executable, { encoding: "utf8", timeout: 10_000 }), /PiP surface lifecycle passed/)
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true })
