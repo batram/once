@@ -37,7 +37,14 @@ export function attachCommentFolding(root: HTMLElement): CommentFolding {
     stack[stack.length - 1]?.classList.remove("is-focused")
     stack.push(comment)
     show()
-    comment.querySelector(":scope > .comment_main")?.scrollIntoView({ block: "start" })
+    const main = comment.querySelector<HTMLElement>(":scope > .comment_main")
+    const scroller = scrollerOf(root)
+    // Vertically only: the swipe that focused it is still easing the comment
+    // back from the right, and scrollIntoView would follow it sideways.
+    if (main && scroller) {
+      const margin = parseFloat(getComputedStyle(main).scrollMarginBlockStart) || 0
+      scroller.scrollTop += main.getBoundingClientRect().top - scroller.getBoundingClientRect().top - margin
+    }
   }
 
   /** Back one focus, keeping the comment that was focused where it is on screen. */
