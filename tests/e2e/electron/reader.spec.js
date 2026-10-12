@@ -108,25 +108,16 @@ test("duplicates a reader tab into a second reader tab", async () => {
     await address.fill("once-reader://https://example.com/never-opened")
     await address.press("Enter")
     await expect(window.locator("#url_error")).toBeHidden()
-    await expect(window.locator(".electron-tab-title").nth(2)).toHaveText("Failed to load")
+    // A failed extraction opens a reader page that states the error, in the same tab.
+    await expect(window.locator(".electron-tab-title").nth(2)).toHaveText("Reader mode")
     await expect(address).toHaveValue("once-reader://https://example.com/never-opened")
-    await expect.poll(() => window.evaluate(async () => {
-      const active = (await window.onceElectron.tabs.getAll()).find((tab) => tab.active)
-      return active?.loadError
-    })).toContain("Reader mode failed: Network fetches are disabled")
     await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
       const contents = webContents
         .getAllWebContents()
-        .find((candidate) => candidate.getURL().startsWith("once-error://"))
+        .find((candidate) => candidate.getURL().startsWith("once-reader://") && candidate.getURL().includes("never-opened"))
       if (!contents) return null
-      return contents.executeJavaScript(`({
-        text: document.body.innerText,
-        retryCount: document.querySelectorAll(".retry").length
-      })`)
-    })).toEqual({
-      text: expect.stringContaining("Reader mode failed: Network fetches are disabled"),
-      retryCount: 1
-    })
+      return contents.executeJavaScript("document.querySelector('[data-reader-error]')?.textContent ?? null")
+    })).toContain("Network fetches are disabled")
   } finally {
     await closeApp(electronApp, userData)
   }

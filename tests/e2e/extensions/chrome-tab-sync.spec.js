@@ -169,13 +169,15 @@ test("the Chrome background reads a media position when its tab is left", async 
     await page.goto(`${media.origin}/listen`)
     await expect.poll(() => page.evaluate(() => document.querySelector("audio").duration || 0)).toBeGreaterThan(50)
     await page.evaluate(() => { document.querySelector("audio").currentTime = 21 })
+    const listening = async () => {
+      const [doc] = (await couch.devices("once")).filter((item) => item.platform === "chrome")
+      return doc?.windows.flatMap((window) => window.tabs).find((item) => item.url === `${media.origin}/listen`)
+    }
+    // The background publishes only after its sync compatibility check; a tab left before that is never read.
+    await expect.poll(async () => Boolean(await listening()), { timeout: 15_000 }).toBe(true)
     const other = await context.newPage()
     await other.goto(`${media.origin}/elsewhere`)
-    await expect.poll(async () => {
-      const [doc] = (await couch.devices("once")).filter((item) => item.platform === "chrome")
-      const tab = doc?.windows.flatMap((window) => window.tabs).find((item) => item.url === `${media.origin}/listen`)
-      return Math.round(tab?.state?.media?.data.currentTime ?? -1)
-    }, { timeout: 30_000 }).toBe(21)
+    await expect.poll(async () => Math.round((await listening())?.state?.media?.data.currentTime ?? -1), { timeout: 30_000 }).toBe(21)
   } finally {
     await context.close()
     await media.close()

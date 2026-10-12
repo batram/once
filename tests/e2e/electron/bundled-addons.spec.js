@@ -20,7 +20,8 @@ test("the shipped AI addon is installed on first start, stays removed across res
     const installed = window.locator(`#addon_installed [data-addon-id="${ID}"]`)
     // "Ready" is the sandbox with the script loaded and verified, waiting for a story.
     await expect(installed.locator(".addon_runtime_status")).toHaveText("Ready")
-    await expect(window.getByTestId(`addon-option-${ID}-provider`)).toBeVisible()
+    // Its model comes from AI & Search, picked here.
+    await expect(window.getByRole("button", { name: /^AI model:/ })).toBeVisible()
     await installed.getByRole("button", { name: "Remove", exact: true }).click()
     await expect(window.locator("#addon_overview")).toBeVisible()
     await expect(row()).toHaveCount(0)
