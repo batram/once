@@ -1830,6 +1830,12 @@
     display: none;
   }
 
+  /* The covered page is hidden, so its load is only verified once it is shown:
+     the session stays loading under the thread, which has its own status. */
+  #reading_content:has(> .reading_comment_thread:not([hidden])) > #reading_browser_loading {
+    display: none;
+  }
+
   #reading_find_bar {
     position: relative;
     z-index: 2;

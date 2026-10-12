@@ -29,7 +29,7 @@ function createSurface() {
     async reload() { calls.push(["reload"]) },
     async goBack() { calls.push(["goBack"]) },
     async setBounds(bounds) { calls.push(["setBounds", bounds]) },
-    async setVisible(visible) { calls.push(["setVisible", visible]) },
+    async setVisible(visible, covered) { calls.push(covered === undefined ? ["setVisible", visible] : ["setVisible", visible, covered]) },
     async showMenu() { return null },
     async showPrompt() { return null },
     async evaluateJavaScript() { return null },
@@ -182,6 +182,27 @@ test("reading surface coordinator owns bounds and native visibility", async () =
   await flushCoordinator()
   assert.deepEqual(surface.calls.at(-1), ["setVisible", false])
   coordinator.setDialogOpen(false)
+  await flushCoordinator()
+  assert.deepEqual(surface.calls.at(-1), ["setVisible", true])
+})
+
+test("a comment thread hides the page as a lasting cover, so it loads as a background page", async () => {
+  const { ReadingSurfaceCoordinator } = await loadCoordinator()
+  const session = new ReadingSession(), surface = createSurface()
+  const coordinator = new ReadingSurfaceCoordinator(session, surface, createReader(), {
+    getBoundingClientRect: () => ({ x: 0, y: 0, width: 320, height: 500 })
+  })
+  coordinator.setReadingPanelVisible(true)
+  coordinator.setThreadOpen(true)
+  session.navigate("https://news.example.test/item?id=1")
+  await flushCoordinator()
+  assert.deepEqual(surface.calls.at(-1), ["setVisible", false, true])
+  // A menu over the thread is still the thread's lasting cover underneath.
+  coordinator.setMenuOpen(true)
+  await flushCoordinator()
+  assert.deepEqual(surface.calls.at(-1), ["setVisible", false, true])
+  coordinator.setMenuOpen(false)
+  coordinator.setThreadOpen(false)
   await flushCoordinator()
   assert.deepEqual(surface.calls.at(-1), ["setVisible", true])
 })

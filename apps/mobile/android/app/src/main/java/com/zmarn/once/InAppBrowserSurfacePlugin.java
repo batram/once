@@ -142,7 +142,6 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @Override
     protected boolean ownsForeground() { return owner == null ? selectedTab == null : tabId.equals(owner.selectedTab); }
-
     @Override
     protected GeckoSession createWindow(String url) {
         if (!ReadingAddress.embeddable(url)) { openExternal(url); return null; }
@@ -402,7 +401,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     public void setVisible(PluginCall call) {
         if (!route(call, Missing.RESOLVE, tab -> tab.setVisible(call))) return;
         getActivity().runOnUiThread(() -> {
-            setSurfaceVisible(call.getBoolean("visible", false));
+            display.show(call.getBoolean("visible", false), call.getBoolean("covered", false));
             call.resolve();
         });
     }

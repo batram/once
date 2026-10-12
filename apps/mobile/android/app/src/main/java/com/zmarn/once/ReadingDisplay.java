@@ -126,6 +126,16 @@ final class ReadingDisplay {
             + " size=" + (h.surface == null ? "none" : h.surface.getWidth() + "x" + h.surface.getHeight()));
     }
 
+    /** The shell's setVisible; `covered`: hidden under a view of its own that stays up (a comment thread). */
+    void show(boolean visible, boolean covered) {
+        h.coveredByShell = !visible && covered;
+        h.setSurfaceVisible(visible);
+        // A page that stopped while on screen waits for a health reply the
+        // hidden page no longer gets; under a lasting cover it is done.
+        if (h.coveredByShell && !h.navigationCompleted && h.activeNavigation != 0 && h.stoppedNavigation == h.activeNavigation
+            && h.session != null && h.session.isOpen()) h.documentReady();
+    }
+
     void requestHealthCheck() {
         h.nextHealthAt = 0;
         h.handler.removeCallbacks(h.watchdog);

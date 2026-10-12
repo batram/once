@@ -450,7 +450,7 @@ export class ReadingSurfaceCoordinator {
       }
     }
     if (this.disposed || generation !== this.surfaceGeneration) return
-    await this.surface.setVisible(this.readingPanelVisible && !this.covered())
+    await this.setSurfaceVisible(this.readingPanelVisible && !this.covered())
     document.body.classList.toggle(
       "once-native-reading-surface",
       this.surface.available
@@ -466,8 +466,16 @@ export class ReadingSurfaceCoordinator {
       !this.covered()
     await this.enqueue(async () => {
       if (!this.browserOpened) return
-      await this.surface.setVisible(visible)
+      await this.setSurfaceVisible(visible)
     })
+  }
+
+  /**
+   * A thread stays over the page for as long as it is read, unlike a menu or
+   * dialog; the page under it finishes loading unseen, as a background tab's.
+   */
+  private setSurfaceVisible(visible: boolean): Promise<void> {
+    return !visible && this.threadOpen ? this.surface.setVisible(false, true) : this.surface.setVisible(visible)
   }
 
   private bounds() {

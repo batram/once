@@ -281,7 +281,11 @@ export interface InAppBrowserSurface {
   /** Answers contextMenuRequested with the shell's items for that menu. */
   setContextMenuItems?(requestId: string, items: ContextMenuItem[]): Promise<void>
   setBounds(bounds: BrowserSurfaceBounds): Promise<void>
-  setVisible(visible: boolean): Promise<void>
+  /**
+   * `covered`: hidden under a view of Once's own that stays up (a comment
+   * thread), so the page cannot be verified on screen and loads as a background tab's.
+   */
+  setVisible(visible: boolean, covered?: boolean): Promise<void>
   showMenu(options: NativeOverlayMenuOptions): Promise<string | null>
   /** Closes a browser sheet a `holdsSheet` row left up, when no menu followed it. */
   closeBrowserMenu?(): Promise<void>
@@ -337,7 +341,7 @@ interface NativeInAppBrowserPlugin {
   showContextMenu(options: ReaderContextMenuTarget): Promise<void>
   setContextMenuItems(options: { requestId: string; items: ContextMenuItem[] }): Promise<void>
   setBounds(options: BrowserSurfaceBounds): Promise<void>
-  setVisible(options: { visible: boolean }): Promise<void>
+  setVisible(options: { visible: boolean; covered?: boolean }): Promise<void>
   showMenu(options: NativeOverlayMenuOptions): Promise<{ id?: string }>
   closeBrowserMenu(): Promise<void>
   showPrompt(
@@ -477,7 +481,7 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
     showContextMenu: (target) => plugin.showContextMenu(target),
     setContextMenuItems: (requestId, items) => plugin.setContextMenuItems({ requestId, items }),
     setBounds: (bounds) => plugin.setBounds(normalizeBounds(bounds)),
-    setVisible: (visible) => plugin.setVisible({ visible }),
+    setVisible: (visible, covered) => plugin.setVisible(covered ? { visible, covered } : { visible }),
     async showMenu(options) {
       const result = await plugin.showMenu({
         ...options,
