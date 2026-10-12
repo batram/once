@@ -2,6 +2,7 @@ const fs = require("fs")
 const path = require("path")
 const webpack = require("webpack")
 const rules = require("./webpack.rules")
+const { CacheNamePlugin, esbuildMinimizer, filesystemCache } = require("./webpack.shared")
 const { devBuildIdentifier } = require("../../scripts/build-identifier")
 
 // The app icon, inlined for the tab preload's "Add to Once" badge on the
@@ -53,7 +54,10 @@ module.exports = {
   resolve: {
     extensions: [".js", ".ts", ".jsx", ".tsx", ".css"]
   },
+  cache: filesystemCache(__filename),
+  optimization: { minimizer: [esbuildMinimizer()] },
   plugins: [
+    new CacheNamePlugin("main"),
     new webpack.DefinePlugin({
       __ONCE_BUILD_CHANNEL__: JSON.stringify(
         process.env.ONCE_BUILD_CHANNEL === "dev" ? "dev" : "release"

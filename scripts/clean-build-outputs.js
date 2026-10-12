@@ -20,6 +20,7 @@ if (!packagesOnly) {
     path.join(root, "apps", "firefox-extension", "dist"),
     path.join(root, "apps", "electron", ".webpack"),
     path.join(root, "apps", "electron", "out"),
+    path.join(root, "node_modules", ".cache", "once-electron-webpack"),
     path.join(root, "apps", "mobile", "dist"),
     path.join(root, "apps", "mobile", "android", ".gradle"),
     path.join(root, "apps", "mobile", "android", "build"),

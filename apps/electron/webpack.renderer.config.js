@@ -2,6 +2,7 @@ const path = require("path")
 const CopyPlugin = require("copy-webpack-plugin")
 const webpack = require("webpack")
 const rules = require("./webpack.rules")
+const { CacheNamePlugin, esbuildMinimizer, filesystemCache, PrebuiltMinifiedAssetsPlugin } = require("./webpack.shared")
 const { bundledAddons } = require("../../scripts/bundled-addons")
 const { importMetaUrlDefine } = require("../../scripts/import-meta-url")
 
@@ -26,7 +27,11 @@ module.exports = {
     extensions: [".js", ".ts", ".jsx", ".tsx", ".css"],
     fallback: { path: false }
   },
+  cache: filesystemCache(__filename),
+  optimization: { minimizer: [esbuildMinimizer()] },
   plugins: [
+    new CacheNamePlugin("renderer"),
+    new PrebuiltMinifiedAssetsPlugin(/^pdf[\\/]/),
     new webpack.DefinePlugin({
       __ONCE_BUNDLED_ADDONS__: JSON.stringify(bundledAddons()),
       ...importMetaUrlDefine
