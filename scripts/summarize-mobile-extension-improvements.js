@@ -40,7 +40,7 @@ evidence.sourceSHA256 = Object.fromEntries([
   "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift",
   "apps/mobile/ios/App/App/ExtensionSupport.swift", "apps/mobile/ios/App/App/WebExtensionHost.swift"
 ].map(file => [file, createHash("sha256").update(fs.readFileSync(file)).digest("hex")]))
-evidence.methodology.ios = "Four fresh-process all-extension launches on Iphi, selective background loading with uBO readiness awaited. Same fixture and persistent-storage conditioning as baseline. Behavior suite separately run on iOS 26.5 simulator; filter regression on physical Iphi."
+evidence.methodology.ios = "Four fresh-process all-extension launches on a physical iPhone 16 Pro Max, selective background loading with uBO readiness awaited. Same fixture and persistent-storage conditioning as baseline. Behavior suite separately run on iOS 26.5 simulator; filter regression on physical Iphi."
 evidence.limitations = ["Sequential before/after sessions, not randomized paired trials; emulator host load varies.", "No physical Android or battery/energy measurements.", "iOS rule timings precede the final off-main-actor hash scheduling change; final native filter regression covers that change.", "Android generic and wildcard rules retain a linear fallback; domain benchmark does not establish arbitrary-list performance.", "No representative ad-heavy browsing, matching video performance, or full app startup measurement."]
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "once-benchmark-summary-"))
 try {

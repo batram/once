@@ -2,7 +2,7 @@
   "date": "2026-10-04",
   "revision": "517a24ba1e05be953ec2997573288505797cdd76",
   "environment": {
-    "ios": "iPhi, physical iPhone 16 Pro Max, iOS 27.0.1, Release Swift -O",
+    "ios": "physical iPhone 16 Pro Max, iOS 27.0.1, Release Swift -O",
     "android": "Android 16 API 36 arm64 emulator, GeckoView 155.0.20260903215306, debug harness",
     "host": "Apple M4 Pro, macOS 26.6.2"
   },

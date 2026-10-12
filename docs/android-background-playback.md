@@ -43,7 +43,7 @@ The iOS reading surface explicitly permits WebKit PiP. Its page-media observer
 tracks PiP in every frame and exempts active PiP from the normal
 pause-on-background policy. WebKit owns page audio; Once activates its native
 audio session only for reader speech. Activating both sessions caused repeated
-system interruptions and paused YouTube playback on the connected iPhone.
+system interruptions and paused YouTube playback on a physical iPhone.
 WebKit and the site's player decide whether to expose PiP controls.
 
 Switching to Stories keeps a PiP source attached behind the shell, without touch
@@ -180,7 +180,7 @@ content, but Android's cross-fade does not completely cover this renderer handof
 Treat one-tap entry and continuous playback as verified; the animation still has
 this visual limitation.
 
-On the connected iPhone 16 Pro Max, YouTube PiP played continuously with
+On a physical iPhone 16 Pro Max, YouTube PiP played continuously with
 background playback disabled, survived switching between Reading and Stories,
 and remained open while paused. Stories scrolled normally, with no horizontal
 overflow, in light and dark themes. Exiting PiP while Stories was open hid the
@@ -214,7 +214,7 @@ preference and wakes the emulator in its cleanup path. Run only on an explicitly
 emulator:
 
 ```text
-adb -s emulator-5560 shell am instrument -w -r -e class com.zmarn.once.BackgroundMediaTest com.zmarn.once.dev.test/androidx.test.runner.AndroidJUnitRunner
+adb -s <emulator-serial> shell am instrument -w -r -e class com.zmarn.once.BackgroundMediaTest com.zmarn.once.dev.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
 The separately opted-in `youtubeLiveControls` smoke uses a public YouTube video

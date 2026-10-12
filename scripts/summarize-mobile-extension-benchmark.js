@@ -66,7 +66,7 @@ for (const name of ["ublock-origin", "violentmonkey", "ublock-origin-lite", "ios
 }
 const evidence = {
   date: "2026-10-04", revision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
-  environment: { ios: "iPhi, physical iPhone 16 Pro Max, iOS 27.0.1, Release Swift -O", android: "Android 16 API 36 arm64 emulator, GeckoView 155.0.20260903215306, debug harness", host: "Apple M4 Pro, macOS 26.6.2" },
+  environment: { ios: "physical iPhone 16 Pro Max, iOS 27.0.1, Release Swift -O", android: "Android 16 API 36 arm64 emulator, GeckoView 155.0.20260903215306, debug harness", host: "Apple M4 Pro, macOS 26.6.2" },
   methodology: { ios: "Four fresh-process launches per extension mode, persistent storage preconditioned; four HTML-string page loads per launch. Userscript modes have three launches.", android: "Four fresh-process launches per mode using separate persistent Gecko profiles. Round 0 excluded from summaries; retained in raw runs. Four HTTP fixture loads per launch; 100 concurrent 16 KiB fetches per page; process-group PSS snapshot afterward.", fixture: "1500 paragraphs, 400 CSS rules; 1 second settling then 90 animation frames, 50 DOM mutations and one layout read per frame. No installed VM scripts, no SponsorBlock video match, no third-party ad requests. Figures are not cross-platform comparisons or full Once app launch timings." },
   summary, bundles, iosRules: fs.existsSync(path.join(input, "ios-rules.json")) ? JSON.parse(fs.readFileSync(path.join(input, "ios-rules.json"), "utf8")) : null, runs
 }

@@ -10,7 +10,7 @@ The bundled iOS extensions add about 290 ms to the measured first-page initializ
 
 ## Scope and measurement method
 
-- **iOS:** iPhi, physical iPhone 16 Pro Max, iOS 27.0.1; development-signed Release harness compiled with `-O`. Four fresh-process launches per extension configuration and four page loads per launch. Extension storage was initialized by a pilot before this matrix. All recorded thermal states were nominal and Low Power Mode was off.
+- **iOS:** physical iPhone 16 Pro Max, iOS 27.0.1; development-signed Release harness compiled with `-O`. Four fresh-process launches per extension configuration and four page loads per launch. Extension storage was initialized by a pilot before this matrix. All recorded thermal states were nominal and Low Power Mode was off.
 - **Android:** Android 16, API 36, arm64 emulator on an Apple M4 Pro with macOS 26.6.2; GeckoView `155.0.20260903215306`, debug harness. Separate persistent Gecko profiles for each configuration. Four launches per configuration; round zero conditions each profile and is excluded from summary figures. Both Once's bridge and third-party extension assets are the real repository bundles.
 - **Fixture:** 1,500 paragraphs, 400 style rules, one second to settle after navigation, then 90 animation frames with 50 DOM mutations and a forced layout read per frame. Android also requests 100 local resources concurrently, each 16 KiB, with caching disabled. Every successful batch transfers 1,638,400 bytes. The traffic intentionally does not match the supplemental rules, exercising their full search rather than short-circuiting at the first match.
 - **Isolation:** separate benchmark application identifiers and containers. Neither Once's existing data nor its extension settings were modified. The iOS host is compiled unchanged. The Android engine is copied with only per-configuration profile selection and bundle-selection ablations; its initialization, engine options and built-in loading calls are retained. The benchmark reproduces the production requirement to open a session before waiting for the bridge's settings acknowledgement.
@@ -49,7 +49,7 @@ Apple documents that [`loadBackgroundContent`](https://developer.apple.com/docum
 
 The benchmark calls the actual [IOSContentBlockerExporter](../../apps/mobile/ios/App/App/ExtensionSupport.swift) and the device's `WKContentRuleListStore`. Only Capacitor's `JSObject` alias is substituted in the standalone build.
 
-| Input | Native result on iPhi |
+| Input | Native result on the iPhone |
 | --- | --- |
 | Empty list, exported as `[]` | Rejected: `Empty extension` |
 | `||ads.example^` | Rejected: `Invalid or unsupported regular expression` |

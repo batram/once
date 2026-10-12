@@ -24,18 +24,18 @@ Safe domain-anchored rules are indexed by hostname. Requests check their hostnam
 
 All enabled contexts still load. The host explicitly awaits uBlock Origin Lite's background readiness before first navigation, while Dark Reader, SponsorBlock and Violentmonkey use WebKit's event-driven background loading. The policy was benchmarked in an isolated build before adoption, then the native behavior suite was rerun against the final production source.
 
-The native suite passed on iOS 26.5 simulator, covering Dark Reader, SponsorBlock video seeking, first-page userscript execution, background recovery and GM storage without duplicate execution, extension tool navigation, and uBO tools. Iphi supplied physical-device timing and the filter regression. The timing fixture does not contain a matching video or an installed VM script, so those features have functional coverage but no representative workload performance claim.
+The native suite passed on iOS 26.5 simulator, covering Dark Reader, SponsorBlock video seeking, first-page userscript execution, background recovery and GM storage without duplicate execution, extension tool navigation, and uBO tools. The physical iPhone supplied device timing and the filter regression. The timing fixture does not contain a matching video or an installed VM script, so those features have functional coverage but no representative workload performance claim.
 
 ## Measurements
 
-These are sequential before/after sessions, not randomized paired trials or full Once app launch measurements. See the original report for fixture details. iOS uses a release harness on physical Iphi (iPhone 16 Pro Max, iOS 27.0.1). Android emulator measurements use Android 16 / API 36 arm64 and GeckoView 155.0.20260903215306. Each launch loads four pages.
+These are sequential before/after sessions, not randomized paired trials or full Once app launch measurements. See the original report for fixture details. iOS uses a release harness on a physical iPhone 16 Pro Max (iOS 27.0.1). Android emulator measurements use Android 16 / API 36 arm64 and GeckoView 155.0.20260903215306. Each launch loads four pages.
 
 | Metric | Before | After | Interpretation |
 | --- | ---: | ---: | --- |
-| Iphi, all-extension host preparation | 288.6 ms | 160.7 ms | 44% lower median; 4 launches per version |
-| Iphi, first page finished, including surface preparation | 387.7 ms | 298.2 ms | 89.5 ms / 23% lower median |
-| Iphi, later navigation | 37.1 ms | 32.7 ms | 12 later pages per version; secondary metric |
-| Iphi, frame interval p95 | 17 ms | 17 ms | No change in this fixture |
+| iPhone, all-extension host preparation | 288.6 ms | 160.7 ms | 44% lower median; 4 launches per version |
+| iPhone, first page finished, including surface preparation | 387.7 ms | 298.2 ms | 89.5 ms / 23% lower median |
+| iPhone, later navigation | 37.1 ms | 32.7 ms | 12 later pages per version; secondary metric |
+| iPhone, frame interval p95 | 17 ms | 17 ms | No change in this fixture |
 | Android emulator, empty bridge, 100 requests | 693 ms | 595 ms | Listener removal; sequential-session noise applies |
 | Android emulator, 10,000 domain rules, 100 requests | 2,098 ms | 801 ms | 62% lower median |
 | Android emulator, all default extensions, 100 requests | 717 ms | 823 ms | No general default-extension speedup established |
@@ -44,7 +44,7 @@ Android request figures use the last three pages of each retained launch. Round 
 
 ### Physical Android before/after
 
-The connected SM-G780G (Android 13, arm64) completed 16 launches per version: bare, empty bridge, 10,000 domain rules, and default extensions, with four rounds each. Bridge catalogs confirm version 1.1.0 before and 1.1.1 after. Round zero is retained as conditioning and excluded from summaries. The default set is the Once bridge, uBlock Origin and Violentmonkey, with no installed VM scripts.
+A physical SM-G780G (Android 13, arm64) completed 16 launches per version: bare, empty bridge, 10,000 domain rules, and default extensions, with four rounds each. Bridge catalogs confirm version 1.1.0 before and 1.1.1 after. Round zero is retained as conditioning and excluded from summaries. The default set is the Once bridge, uBlock Origin and Violentmonkey, with no installed VM scripts.
 
 | Configuration | Request batch before | Request batch after | Process PSS before | Process PSS after |
 | --- | ---: | ---: | ---: | ---: |
@@ -76,9 +76,9 @@ All controls and sizes compiled successfully. The original exporter failed on th
 - All 126 mobile unit tests pass, including portable filter semantics, empty-list listener lifecycle and stale-settings handling.
 - Targeted JavaScript lint, structural limits and `git diff --check` pass.
 - The final `Once Dev` iOS simulator application build and release physical-device harness build pass.
-- Final native extension behavior passes on iOS 26.5 simulator; final native filter regression passes on Iphi.
+- Final native extension behavior passes on iOS 26.5 simulator; final native filter regression passes on the physical iPhone.
 - Android benchmark builds use the real GeckoEngine and extension assets, in an isolated package.
-- Follow-up timing evidence covers 48 configuration launches and 192 page loads: 32 launches on physical Android, 12 on the Android emulator, and four on physical Iphi. Native filter/extension functional tests are additional.
+- Follow-up timing evidence covers 48 configuration launches and 192 page loads: 32 launches on physical Android, 12 on the Android emulator, and four on the physical iPhone. Native filter/extension functional tests are additional.
 - Isolated benchmark apps and the physical Android reverse tunnel were removed after collecting evidence.
 
 Build harnesses with `node tests/e2e/mobile/build-extension-benchmark-ios.js` or `node tests/e2e/mobile/build-extension-benchmark-android.js`, then use Xcode or the cached Android Gradle wrapper to compile them. The runners require an explicit device identifier. `ONCE_BENCH_OUTPUT` selects a separate artifact directory; `ONCE_BENCH_MODES` selects modes. On physical Android, use `adb reverse tcp:18765 tcp:18765` and `ONCE_BENCH_BASE=http://127.0.0.1:18765`; the emulator default is `http://10.0.2.2:18765`.
