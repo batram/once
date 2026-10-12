@@ -119,9 +119,6 @@
   gap: var(--sp-0-5) var(--sp-2);
   color: var(--text-muted-color);
   font-size: var(--fs-caption);
-  /* A click anywhere on the header line collapses or expands the comment. */
-  cursor: pointer;
-  user-select: none;
 }
 
 /* A chevron while open; collapsed it shows its "[+N]" count of hidden
@@ -345,6 +342,17 @@
   margin: 0;
   padding: 0;
   border: 0;
+}
+
+/* One click anywhere on a collapsed comment opens it, so it reads as one control. */
+.comment.is-collapsed > .comment_main {
+  cursor: pointer;
+}
+
+/* A link cut off in the preview only opens the comment; it should not look followable. */
+.comment.is-collapsed > .comment_main > .comment_body a {
+  color: inherit;
+  text-decoration-line: none;
 }
 
 .comment.is-collapsed > .comment_main > .comment_more,

@@ -85,27 +85,89 @@ test("a collapsed comment without replies shows no count", () => {
   const { view } = render([node("a")])
   const toggle = view.root.querySelector(".comment_toggle")
   assert.equal(toggle.textContent, "")
-  toggle.dispatchEvent(new Event("click", { bubbles: true, cancelable: true }))
+  toggle.dispatchEvent(Object.assign(new Event("click", { bubbles: true, cancelable: true }), { clientX: 0, clientY: 0, detail: 1 }))
   assert.ok(view.root.querySelector('[data-id="a"]').classList.contains("is-collapsed"))
   assert.equal(toggle.textContent, "")
 })
 
-test("a click on the header line collapses and expands a comment, one on its text only selects it", () => {
+function clicker(view) {
+  let x = 0
+  const click = (id, selector, { at = x, detail = 1 } = {}) => {
+    x = at
+    const event = new Event("click", { bubbles: true, cancelable: true })
+    view.root.querySelector(`[data-id="${id}"] > .comment_main ${selector}`)
+      .dispatchEvent(Object.assign(event, { clientX: at, clientY: 10, detail }))
+    return event
+  }
+  // Far enough from the last click, in place, to start a new run of clicks.
+  const away = () => { x += 100 }
+  const collapsed = id => view.root.querySelector(`[data-id="${id}"]`).classList.contains("is-collapsed")
+  return { click, away, collapsed }
+}
+
+test("a double click on the header line collapses a comment; one click, or any on the text, only selects it", () => {
   const { view } = render([node("a", [node("a1")])])
-  const click = selector => view.root.querySelector(`[data-id="a"] > .comment_main ${selector}`)
-    .dispatchEvent(new Event("click", { bubbles: true, cancelable: true }))
-  const collapsed = () => view.root.querySelector('[data-id="a"]').classList.contains("is-collapsed")
-  click(".comment_body")
-  assert.equal(collapsed(), false)
+  const { click, away, collapsed } = clicker(view)
+  click("a", ".comment_time")
+  assert.equal(collapsed("a"), false)
   assert.equal(view.selected, 0)
-  click(".comment_body")
-  assert.equal(collapsed(), false, "a double click on the text stays a word selection")
-  click(".comment_time")
-  assert.equal(collapsed(), true)
-  click(".comment_head")
-  assert.equal(collapsed(), false)
-  click(".comment_author")
-  assert.equal(collapsed(), false, "the author link opens instead")
+  away()
+  click("a", ".comment_body")
+  click("a", ".comment_body")
+  assert.equal(collapsed("a"), false, "a double click on the text stays a word selection")
+  away()
+  click("a", ".comment_head")
+  click("a", ".comment_time")
+  assert.equal(collapsed("a"), true)
+})
+
+test("one click anywhere on a collapsed comment opens it, and the rest of that double click does nothing", () => {
+  const { view, opened } = render([node("a", [node("a1")], { html: '<p>see <a href="https://x.test/">x</a></p>' })])
+  const { click, away, collapsed } = clicker(view)
+  click("a", ".comment_head")
+  click("a", ".comment_head")
+  assert.equal(collapsed("a"), true)
+  click("a", ".comment_head")
+  assert.equal(collapsed("a"), true, "a third click of the same run does not reopen it")
+  away()
+  click("a", ".comment_body")
+  assert.equal(collapsed("a"), false, "the preview line opens it")
+  click("a", ".comment_head")
+  assert.equal(collapsed("a"), false, "double clicking a collapsed comment does not fold it straight back")
+  away()
+  click("a", ".comment_head")
+  click("a", ".comment_head")
+  away()
+  const event = click("a", ".comment_body a")
+  assert.equal(collapsed("a"), false, "a link cut off in the preview opens the comment")
+  assert.deepEqual(opened, [])
+  assert.ok(event.defaultPrevented)
+})
+
+test("a double click on the toggle toggles once, while each key press on it counts", () => {
+  const { view } = render([node("a", [node("a1")])])
+  const { click, collapsed } = clicker(view)
+  click("a", ".comment_toggle")
+  click("a", ".comment_toggle")
+  assert.equal(collapsed("a"), true)
+  click("a", ".comment_toggle", { detail: 0 })
+  assert.equal(collapsed("a"), false)
+  click("a", ".comment_toggle", { detail: 0 })
+  assert.equal(collapsed("a"), true)
+})
+
+test("a click that lands on another comment after the thread moved stays part of the double click", () => {
+  const { view } = render([node("a", [node("a1")]), node("b")])
+  const { click, away, collapsed } = clicker(view)
+  away()
+  click("b", ".comment_head")
+  click("b", ".comment_head")
+  assert.equal(collapsed("b"), true)
+  away()
+  click("a", ".comment_head")
+  click("a", ".comment_head")
+  click("b", ".comment_head")
+  assert.equal(collapsed("b"), true, "b slid under the pointer; the third click must not open it")
 })
 
 test("links open through the shell, and the permalink key opens the selected comment", () => {

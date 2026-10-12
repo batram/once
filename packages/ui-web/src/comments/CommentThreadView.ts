@@ -26,6 +26,18 @@ interface Entry {
 
 /** Top-level comments drawn per frame, so a long thread shows its start at once. */
 const BATCH = 20
+/** Clicks this close in time and place are one double (or triple) click, wherever the comments moved. */
+const MULTI_CLICK_MS = 400
+const MULTI_CLICK_PX = 24
+
+interface ClickChain {
+  time: number
+  x: number
+  y: number
+  count: number
+  /** Whether this run of clicks already collapsed or expanded a comment. */
+  toggled: boolean
+}
 
 const keyboardTarget: { view: CommentThreadView | null } = { view: null }
 
@@ -43,6 +55,7 @@ export class CommentThreadView {
   private current = -1
   private frame = 0
   private disposeSwipe: () => void = () => {}
+  private clicks: ClickChain | null = null
 
   constructor(private readonly thread: CommentThread, private readonly options: CommentThreadViewOptions) {
     this.root = element("section", "comment_thread")
@@ -54,6 +67,7 @@ export class CommentThreadView {
     this.root.append(this.header(), this.list)
     if (thread.comments.length === 0) this.list.append(element("p", "comment_thread_empty", "No comments yet."))
     if (thread.more) this.root.append(this.moreLink(thread.more, "more comments"))
+    this.root.addEventListener("mousedown", event => this.onMouseDown(event))
     this.root.addEventListener("click", event => this.onClick(event))
     this.root.addEventListener("auxclick", event => this.onAuxClick(event))
     this.disposeSwipe = attachCommentSwipe(this.root, {
@@ -173,27 +187,63 @@ export class CommentThreadView {
     return article instanceof HTMLElement ? this.byElement.get(article) ?? -1 : -1
   }
 
+  // Pointer rules: a double click (or tap) on an open comment's header line
+  // collapses it, one click anywhere on a collapsed comment opens it, and the
+  // toggle and the rail work on one click. The text stays the browser's, for
+  // selecting words to quote, and a whole double click toggles at most once.
   private onClick(event: MouseEvent): void {
     const target = event.target as Element | null
     const link = target?.closest?.("a[href]") as HTMLAnchorElement | null
-    if (link && this.root.contains(link)) {
+    // A link inside a collapsed comment's one-line preview is cut off and unreadable: the click opens the comment.
+    const previewLink = link?.closest(".comment.is-collapsed > .comment_main > .comment_body")
+    if (link && this.root.contains(link) && !previewLink) {
       event.preventDefault()
       this.options.openUrl(link.href, event.ctrlKey || event.metaKey ? "middle" : "current")
       return
     }
+    if (previewLink) event.preventDefault()
     if (target?.closest?.(".comment_thread_reload")) return this.reload()
     if (target?.closest?.(".comment_thread_page")) return this.togglePage()
     const index = this.indexOf(target)
     if (index < 0) return
     const control = target?.closest?.(".comment_toggle, .comment_rail")
-    // Selecting text should not jump the selection around, or fold the comment away.
-    if (!control && window.getSelection()?.toString()) return
+    const click = this.countClick(event, !!control)
+    // A drag that selected text, or a shift-click extending it, is not a click on the comment.
+    if (!control && (event.shiftKey || window.getSelection()?.toString())) return
     this.select(index, false)
-    // The whole header line toggles, as on Reddit; the text below is left to reading and quoting.
-    if (control || target?.closest?.(".comment_head")) {
-      this.setCollapsed(index, !this.entries[index].collapsed)
-      this.reveal(index)
+    if (click.toggled) return
+    const oneClick = control || this.entries[index].collapsed
+    const toggle = oneClick ? click.count === 1 : click.count === 2 && !!target?.closest?.(".comment_head")
+    if (!toggle) return
+    click.toggled = true
+    this.setCollapsed(index, !this.entries[index].collapsed)
+    this.reveal(index)
+  }
+
+  /** Counted here rather than from dblclick, which touch webviews fire unevenly for a double tap. */
+  private countClick(event: MouseEvent, control: boolean): ClickChain {
+    const now = Date.now()
+    const last = this.clicks
+    // A keyboard press on the toggle has no place on screen; every one counts alone.
+    const keyboard = control && event.detail === 0
+    const near = !!last && Math.hypot(event.clientX - last.x, event.clientY - last.y) < MULTI_CLICK_PX
+    if (last && near && !keyboard && now - last.time < MULTI_CLICK_MS) {
+      Object.assign(last, { time: now, x: event.clientX, y: event.clientY, count: last.count + 1 })
+      return last
     }
+    this.clicks = { time: now, x: event.clientX, y: event.clientY, count: 1, toggled: false }
+    return this.clicks
+  }
+
+  /** Keeps a double click that toggles from also selecting the word under it. */
+  private onMouseDown(event: MouseEvent): void {
+    if (event.detail < 2) return
+    const target = event.target as Element | null
+    if (!target?.closest?.(".comment") || target.closest("a[href]")) return
+    const toggled = !!this.clicks?.toggled && Date.now() - this.clicks.time < MULTI_CLICK_MS
+    // On the header the double click is the collapse; drag still selects the
+    // author or the age. After a toggle, the second press lands on text that just moved.
+    if (toggled || target.closest(".comment_head")) event.preventDefault()
   }
 
   private onAuxClick(event: MouseEvent): void {
