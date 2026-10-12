@@ -9,7 +9,7 @@
   /* Text lines up with the author: past the toggle and the header's gap. */
   --comment-text-inset: calc(var(--sp-4) + var(--sp-2));
   box-sizing: border-box;
-  padding: 0 var(--sp-2) var(--sp-6);
+  padding: 0 var(--sp-1) var(--sp-6);
   /* The reader's body color: --text-color is a mid grey in both themes and reads as disabled. */
   color: var(--text-high-color);
   font-size: var(--fs-body);
@@ -43,7 +43,7 @@
   display: grid;
   grid-template-columns: 1fr auto;
   column-gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-1-5) var(--sp-2);
+  padding: var(--sp-2) var(--sp-1) var(--sp-1-5);
   border-block-end: var(--bw) solid var(--divider-color);
 }
 
@@ -86,7 +86,7 @@
 
 /* Each top-level thread is its own block, set off by a hairline. */
 .comment_list > .comment {
-  padding-block: var(--sp-2);
+  padding-block: var(--sp-1);
   border-block-end: var(--bw) solid var(--divider-color);
 }
 
@@ -95,7 +95,7 @@
 }
 
 .comment_main {
-  padding: var(--sp-1-5) var(--sp-2);
+  padding: var(--sp-1);
   transform: translateX(var(--comment-swipe-shift, 0));
   transition: transform 150ms ease-out;
 }
@@ -186,23 +186,10 @@
   text-decoration-line: underline;
 }
 
-.comment_permalink,
-.comment_time {
+/* The age links to the comment; it reads as the age until pointed at. */
+.comment_permalink {
   color: inherit;
   text-decoration-line: none;
-}
-
-/* Only on the comment being looked at; every header repeating "link" is noise. */
-.comment_permalink {
-  margin-inline-start: auto;
-  opacity: 0;
-  transition: opacity 120ms;
-}
-
-.comment_main:hover .comment_permalink,
-.comment.is-current > .comment_main .comment_permalink,
-.comment_permalink:focus-visible {
-  opacity: 1;
 }
 
 .comment_body {
@@ -271,8 +258,8 @@
   position: relative;
   margin-block-start: var(--sp-0-5);
   /* Puts the rail under the toggle's center: the main's padding plus half the toggle. */
-  margin-inline-start: var(--sp-4);
-  padding-inline-start: var(--sp-3);
+  margin-inline-start: var(--sp-3);
+  padding-inline-start: var(--sp-1);
 }
 
 /* The rail runs down the replies, as on Reddit; clicking it collapses the

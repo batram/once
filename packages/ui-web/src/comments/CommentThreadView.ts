@@ -1,6 +1,6 @@
 // A discussion Once read itself (see the collectors' comments capability),
 // laid out the way the aggregators do it: each comment a header (collapse
-// toggle, author, age, score, permalink) over its text, replies nested below.
+// toggle, author, age linking to the comment, score) over its text, replies nested below.
 // The view keeps the comments as a flat list in reading order too, which is
 // what keyboard and swipe navigation move through.
 import { CommentNode, CommentThread, humanTime } from "@once/core"
@@ -318,16 +318,18 @@ export class CommentThreadView {
       op.title = "Original poster"
       head.append(op)
     }
+    // The age is the permalink, as on the sites themselves.
+    const permalink = link("comment_permalink", node.time ? undefined : "link", node.permalink)
     if (node.time) {
       const time = element("time", "comment_time", humanTime(node.time)) as HTMLTimeElement
       time.dateTime = new Date(node.time).toISOString()
       time.title = new Date(node.time).toLocaleString()
-      head.append(time)
+      permalink.append(time)
     }
+    if (permalink.firstChild) head.append(permalink)
     if (node.score !== undefined) {
       head.append(element("span", "comment_score", points(node.score)))
     }
-    head.append(link("comment_permalink", "link", node.permalink))
     return head
   }
 
@@ -406,7 +408,7 @@ function element(tag: string, className: string, text?: string): HTMLElement {
   return created
 }
 
-function link(className: string, text: string, href?: string): HTMLElement {
+function link(className: string, text: string | undefined, href?: string): HTMLElement {
   if (!href) return element("span", className, text)
   const anchor = element("a", className, text) as HTMLAnchorElement
   anchor.href = href

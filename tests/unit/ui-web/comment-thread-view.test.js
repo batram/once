@@ -42,6 +42,9 @@ test("renders nested comments with header, body and permalink", () => {
   assert.equal(first.querySelector(".comment_author").textContent, "user_a")
   assert.equal(first.querySelector(".comment_time").textContent, "1 hour ago")
   assert.equal(first.querySelector(".comment_permalink").getAttribute("href"), "https://site.test/c/a")
+  assert.ok(first.querySelector(".comment_permalink > .comment_time"), "the age is the permalink")
+  const headLinks = Array.from(first.querySelectorAll(":scope > .comment_main > .comment_head > a"), a => a.className)
+  assert.deepEqual(headLinks, ["comment_author", "comment_permalink"], "no separate link label")
   assert.equal(first.querySelector(".comment_body").textContent, "comment a")
   assert.ok(first.querySelector(":scope > .comment_replies > .comment_rail"))
 })
@@ -108,7 +111,7 @@ function clicker(view) {
 test("a double click on the header line collapses a comment; one click, or any on the text, only selects it", () => {
   const { view } = render([node("a", [node("a1")])])
   const { click, away, collapsed } = clicker(view)
-  click("a", ".comment_time")
+  click("a", ".comment_head")
   assert.equal(collapsed("a"), false)
   assert.equal(view.selected, 0)
   away()
@@ -117,7 +120,7 @@ test("a double click on the header line collapses a comment; one click, or any o
   assert.equal(collapsed("a"), false, "a double click on the text stays a word selection")
   away()
   click("a", ".comment_head")
-  click("a", ".comment_time")
+  click("a", ".comment_head")
   assert.equal(collapsed("a"), true)
 })
 
@@ -173,9 +176,10 @@ test("a click that lands on another comment after the thread moved stays part of
 test("links open through the shell, and the permalink key opens the selected comment", () => {
   const { view, opened } = render([node("a")])
   view.root.querySelector(".comment_author").dispatchEvent(new Event("click", { bubbles: true, cancelable: true }))
+  view.root.querySelector(".comment_time").dispatchEvent(new Event("click", { bubbles: true, cancelable: true }))
   view.next()
   view.openPermalink()
-  assert.deepEqual(opened, [["https://site.test/u/a", "current"], ["https://site.test/c/a", "current"]])
+  assert.deepEqual(opened, [["https://site.test/u/a", "current"], ["https://site.test/c/a", "current"], ["https://site.test/c/a", "current"]])
 })
 
 test("marks the story author's comments as OP", () => {
