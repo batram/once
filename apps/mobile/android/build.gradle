@@ -15,14 +15,16 @@ buildscript {
     }
 }
 
-apply from: "variables.gradle"
-
 allprojects {
+    // Every project declares the versions itself: the Capacitor plugins' own
+    // project.hasProperty(...) checks would otherwise resolve them from the
+    // root project, an implicit lookup Gradle 10 turns into an error.
+    apply from: rootProject.file('variables.gradle')
     repositories {
         google()
         mavenCentral()
         // GeckoView is published by Mozilla, not on Maven Central.
-        maven { url "https://maven.mozilla.org/maven2/" }
+        maven { url = "https://maven.mozilla.org/maven2/" }
     }
 }
 

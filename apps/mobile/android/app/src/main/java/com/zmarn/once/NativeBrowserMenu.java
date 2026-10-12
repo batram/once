@@ -118,7 +118,9 @@ final class NativeBrowserMenu {
         android.graphics.Paint measure = new android.graphics.Paint();
         for (int index = 0; index < navigation.getChildCount(); index++) {
             Button tile = (Button) navigation.getChildAt(index);
-            measure.setTextSize(labelSize * activity.getResources().getDisplayMetrics().scaledDensity);
+            // In sp like setTextSize, so Android 14's nonlinear font scaling measures alike.
+            measure.setTextSize(android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, labelSize, activity.getResources().getDisplayMetrics()));
             float width = measure.measureText(tile.getText().toString());
             if (width > tileWidth) labelSize = labelSize * tileWidth / width;
         }

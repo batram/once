@@ -159,8 +159,12 @@ abstract class ReadingSurfaceHost extends Plugin {
         reloadSession();
     }
 
-    /** Android can reclaim hidden browsing state without keeping a renderer pinned. */
-    void trimMemory(int level) {
+    /**
+     * Android can reclaim hidden browsing state without keeping a renderer pinned.
+     * The RUNNING levels are deprecated because Android 14 stopped sending them;
+     * the older platforms minSdk still covers do.
+     */
+    @SuppressWarnings("deprecation") void trimMemory(int level) {
         boolean pressure = level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW ||
             level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL || level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND;
         if (!pressure) return;
