@@ -33,6 +33,26 @@ async function captureFailure(driver, phase, error, requests) {
   await fs.writeFile(path.join(directory, "state.json"), JSON.stringify(evidence, null, 2))
 }
 
+// The AI add-on runs on the default model from AI & Search, which holds the token.
+async function configureCentralAi(driver, origin, waitFor, setValue) {
+  const visible = selector => driver.executeScript("return [...document.querySelectorAll(arguments[0])].find(item => item.offsetParent !== null) ?? null", selector)
+  for (let level = 0; level < 5 && !(await visible('[data-settings-target="ai"]')); level++) await driver.findElement(By.css("#settings_section_back")).click()
+  await (await visible('[data-settings-target="ai"]')).click()
+  await driver.executeScript("[...document.querySelectorAll('#ai_settings button')].find(item => item.textContent === 'Add connection').click()")
+  await setValue(await waitFor(() => visible('[data-testid="ai-connection-name"]'), 5_000, "AI connection editor open"), "Fixture AI")
+  await setValue(await visible('[data-testid="ai-connection-provider"]'), "compatible")
+  await setValue(await driver.findElement(By.css('#ai_settings .ai_editor:not([hidden]) [data-testid="ai-connection-endpoint"]')), `${origin}/ai-addon/v1/chat/completions`)
+  await setValue(await visible('[data-testid="ai-connection-token"]'), "fixture-token")
+  await (await visible('[data-testid="ai-editor-save"]')).click()
+  await waitFor(() => visible('#ai_settings button[aria-label^="Default model:"]'), 5_000, "AI connection saved")
+  await (await visible('#ai_settings button[aria-label^="Default model:"]')).click()
+  const connection = await waitFor(() => visible('[data-testid="ai-model-connection"]'), 5_000, "AI model picker open")
+  await setValue(connection, await driver.executeScript("return [...arguments[0].options].find(option => option.textContent === 'Fixture AI').value", connection))
+  await setValue(await visible('[data-testid="ai-model-id"]'), "fixture")
+  await (await visible('[data-testid="ai-editor-save"]')).click()
+  await waitFor(() => visible('#ai_settings button[aria-label="Default model: Fixture AI · fixture"]'), 5_000, "AI default model saved")
+}
+
 // A fresh Firefox install runs scripts in its packaged opaque-origin sandbox,
 // without configuring a URL or serving any sandbox resources from the fixture.
 test("Firefox runs scripted add-ons in its packaged sandbox without setup", { timeout: budget(120_000) }, async () => {
@@ -157,16 +177,8 @@ test("Firefox runs scripted add-ons in its packaged sandbox without setup", { ti
     const aiEditor = await openSettingsSection(driver, "addons", "#addons_area")
     await setValue(aiEditor, JSON.stringify([ai.manifest(source.origin)]))
     await driver.findElement(By.css('[data-testid="save-addons"]')).click()
-    const token = await waitFor(until.elementLocated(By.css('[data-testid="addon-option-what-wait-who-why-compatibleToken"]')), 10_000, "AI options rendered")
-    await driver.findElement(By.css("#settings_section_back")).click()
-    await waitFor(until.elementLocated(By.css('.addon_list_row[data-addon-id="what-wait-who-why"]')), 10_000, "AI settings row present").click()
-    await token.sendKeys("fixture-token")
-    await driver.executeScript("arguments[0].parentElement.querySelector('button').click()", token)
-    // Saving options re-renders the settings control; poll its current node.
-    await waitFor(() => driver.executeScript(`
-      return document.querySelector('[data-testid="addon-option-what-wait-who-why-compatibleToken"]')
-        ?.parentElement.textContent.includes("Token saved on this device") ?? false
-    `), 10_000, "AI token saved")
+    await waitFor(until.elementLocated(By.css('.addon_list_row[data-addon-id="what-wait-who-why"]')), 10_000, "AI add-on installed")
+    await configureCentralAi(driver, source.origin, waitFor, setValue)
     await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
     const aiButton = await waitFor(until.elementLocated(By.css('[data-addon-tray-button="addon:what-wait-who-why/assistant"]')), 10_000, "AI tray button present")
     await aiButton.click()
