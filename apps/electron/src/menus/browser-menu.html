@@ -19,10 +19,13 @@
         <button type="button" class="icon-button" id="fullscreen" data-action="fullscreen" aria-label="Full screen" title="Full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
       </div>
       <hr id="site-divider">
+      <button type="button" role="menuitem" id="send-tab" aria-haspopup="menu" aria-expanded="false"><span>Send tab to device</span><svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 7l5 5-5 5"/></svg></button>
       <button type="button" role="menuitem" id="clear-site" data-action="clear-site"><span id="clear-site-label">Clear site data…</span></button>
       <hr>
       <button type="button" role="menuitem" data-action="close-tab"><span>Close tab</span><kbd data-shortcut="close-tab"></kbd></button>
     </div>
+    <!-- The same page serves the device submenu, as #devices. -->
+    <div id="devices" role="menu" aria-label="Send tab to device" hidden></div>
     <p id="error" role="alert" hidden></p>
   </body>
 </html>

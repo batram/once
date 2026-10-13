@@ -99,5 +99,22 @@ hr {
   margin-left: var(--sp-2);
 }
 
+.chevron {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.7;
+}
+
+/* The row stays lit while its submenu is open, as native menus do. */
+#send-tab[aria-expanded="true"] { background: light-dark(#f1f3f4, #3c4043); }
+
+#devices[hidden], #menu[hidden] { display: none; }
+#devices [role="menuitem"] > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 #error { margin: var(--sp-1) var(--sp-3); color: light-dark(#b3261e, #f2b8b5); }
 }

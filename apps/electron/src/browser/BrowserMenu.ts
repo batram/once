@@ -7,6 +7,7 @@ import { confirmClearSiteData } from "./BrowsingData"
 import { BrowserMenuAction, BrowserMenuCommand, BrowserMenuState } from "../menus/browserMenuTypes"
 import { sourceUrlFromReaderUrl } from "./reader-url"
 import { applyZoomStep, shellRect } from "./Zoom"
+import { handleDeviceFlyout } from "./BrowserMenuFlyout"
 
 declare const BROWSER_MENU_WEBPACK_ENTRY: string
 declare const BROWSER_MENU_PRELOAD_WEBPACK_ENTRY: string
@@ -31,7 +32,8 @@ export function showBrowserMenu(
   owner: WindowEntry,
   anchor: ElectronRect,
   shortcuts: BrowserMenuState["shortcuts"],
-  activeTab: () => WebContents | null
+  activeTab: () => WebContents | null,
+  sending: { targets(): BrowserMenuState["devices"]; send(deviceId: string): void }
 ): Promise<BrowserMenuCommand | null> {
   const window = owner.window
   const previous = openMenus.get(window)
@@ -63,10 +65,12 @@ export function showBrowserMenu(
   const state = (): BrowserMenuState => {
     const tab = activeTab()
     const url = tab?.getURL() ?? ""
+    const site = tab ? siteForUrl(sourceUrlFromReaderUrl(url) ?? url) : null
     return {
       zoom: tab ? tab.getZoomFactor() : null,
-      site: tab ? siteForUrl(sourceUrlFromReaderUrl(url) ?? url) : null,
+      site,
       fullscreen: window.isFullScreen(),
+      devices: site ? sending.targets() : [],
       shortcuts
     }
   }
@@ -85,6 +89,7 @@ export function showBrowserMenu(
     panel.setContentSize(WIDTH, fitted)
     panel.show()
   })
+  const devices = handleDeviceFlyout(panel, area, state, (deviceId) => { finish(); sending.send(deviceId) })
   panel.webContents.ipc.handle("browser-menu:action", (_event, action: BrowserMenuAction) => {
     const tab = activeTab()
     if (action === "zoom-in" || action === "zoom-out" || action === "zoom-reset") {
@@ -110,7 +115,11 @@ export function showBrowserMenu(
     if (!panel.isDestroyed()) panel.webContents.send("browser-menu:state-changed", state())
   })
   tab?.on("zoom-changed", zoomed)
-  panel.on("blur", () => setImmediate(close))
+  // Focus moving into the device submenu stays inside the menu.
+  panel.on("blur", () => setImmediate(() => {
+    const flyout = devices.current()
+    if (!flyout || BrowserWindow.getFocusedWindow() !== flyout) close()
+  }))
   window.on("move", close)
   window.on("resize", close)
   window.on("closed", close)
@@ -118,6 +127,7 @@ export function showBrowserMenu(
     panel.once("closed", () => {
       if (openMenus.get(window) === panel) openMenus.delete(window)
       closedAt.set(window, Date.now())
+      devices.close()
       window.removeListener("move", close)
       window.removeListener("resize", close)
       window.removeListener("closed", close)
@@ -151,6 +161,12 @@ export function registerBrowserMenuHandlers(coordinator: BrowserCoordinator): vo
     const activeTab = () => {
       try { return owner.activeId ? coordinator.tabContents(owner, owner.activeId) : null } catch { return null }
     }
-    return showBrowserMenu(owner, rect, readShortcuts(shortcuts), activeTab)
+    // The tab active when the menu opened, so a device picked later sends that one.
+    const tabId = owner.activeId
+    return showBrowserMenu(owner, rect, readShortcuts(shortcuts), activeTab, {
+      targets: () => tabId ? coordinator.menus.sendTargets : [],
+      // The shell sends it, as for the tab strip's "Send Tab to Device".
+      send: (deviceId) => { if (tabId && !owner.window.isDestroyed()) owner.window.webContents.send(ELECTRON_IPC.tabSyncSendTab, tabId, deviceId) }
+    })
   })
 }
