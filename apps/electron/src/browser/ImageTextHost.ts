@@ -1,7 +1,7 @@
 import type { Debugger, WebContents, WebFrameMain } from "electron"
 import { readFileSync } from "node:fs"
 import path from "node:path"
-import type { ImageTextAnchorReport, ImageTextAnchorState, ImageTextRevealed } from "@once/ui-web/imageText/imageTextAnchor"
+import type { ImageTextAnchorReport, ImageTextAnchorState, ImageTextInView, ImageTextRevealed } from "@once/ui-web/imageText/imageTextAnchor"
 import type { ImageTextViewMessage } from "@once/ui-web/imageText/imageTextTypes"
 
 /**
@@ -18,10 +18,19 @@ export interface ImageTextHost {
   send(message: ImageTextViewMessage): void
   /** Brings the image into the tab's view, for find in page's match in the words (see the anchor's `reveal`). */
   reveal(): void
+  /**
+   * The picture the page shows, from the renderer's own copy: never a request
+   * of the app's, which a site's hotlink rules, cookies or content
+   * negotiation could answer differently than the page's own load.
+   */
+  picture(): Promise<ImageTextPicture | null>
   /** For the app's tests. */
   state(): Promise<ImageTextAnchorState | null>
   close(): void
 }
+
+/** An image's bytes; `part` says where in its picture they lie, when they show only part of it. */
+export interface ImageTextPicture { bytes: Buffer; part?: ImageTextInView["part"] }
 
 const WORLD = "once-image-text"
 const BINDING = "__onceImageTextPush"
@@ -67,8 +76,8 @@ class ProtocolHost implements ImageTextHost {
    * frame's id and the parent's session, which holds its iframe element.
    */
   private constructor(private readonly tab: WebContents, private readonly debug: Debugger,
-    private readonly token: string, private readonly session: string, private readonly context: number,
-    private readonly owner: { frame: string; session: string } | null) {
+    private readonly token: string, private readonly session: string, private readonly frameId: string,
+    private readonly context: number, private readonly owner: { frame: string; session: string } | null) {
     debug.on("message", this.message)
     debug.on("detach", this.detached)
   }
@@ -94,7 +103,7 @@ class ProtocolHost implements ImageTextHost {
           { contextId: context, returnByValue: true, expression: call("start", token, ...start) }, candidate.session)
         if (result?.value !== true) continue
         const parent = frames.find((known) => known.id === candidate.parentId)
-        const host = new ProtocolHost(tab, debug, token, candidate.session, context,
+        const host = new ProtocolHost(tab, debug, token, candidate.session, candidate.id, context,
           parent ? { frame: candidate.id, session: parent.session } : null)
         // Reports the world going away with its frame (an iframe removed, a navigation), which it cannot report itself.
         await send("Runtime.enable", {}, candidate.session)
@@ -134,6 +143,25 @@ class ProtocolHost implements ImageTextHost {
       await send("DOM.scrollIntoViewIfNeeded", { backendNodeId, rect: { x: model.content[0] - model.border[0] + shown.left,
         y: model.content[1] - model.border[1] + shown.top, width: shown.width, height: shown.height } })
     })().catch(() => undefined)
+  }
+
+  /**
+   * The bytes the image's frame loaded, out of its renderer's memory: the
+   * picture the page decoded, whatever its scheme (blob: too) or format.
+   * The resource is only served while the session's Page domain is enabled.
+   */
+  async picture(): Promise<ImageTextPicture | null> {
+    const url = await this.evaluate(call("source", this.token))
+    if (typeof url !== "string" || !url || !this.debug.isAttached()) return null
+    const send = <T>(method: string, params: object = {}) => this.debug.sendCommand(method, params, this.session || undefined) as Promise<T>
+    await send("Page.enable")
+    try {
+      const { content, base64Encoded } = await send<{ content: string; base64Encoded: boolean }>("Page.getResourceContent",
+        { frameId: this.frameId, url })
+      return { bytes: Buffer.from(content, base64Encoded ? "base64" : "utf8") }
+    } finally {
+      if (this.debug.isAttached()) await send("Page.disable").catch(() => undefined)
+    }
   }
 
   async state(): Promise<ImageTextAnchorState | null> {
@@ -232,20 +260,32 @@ class IsolatedWorldHost implements ImageTextHost {
   private closed = false
   private readonly poll: ReturnType<typeof setInterval>
 
-  private constructor(private readonly tab: WebContents, private readonly token: string) {
+  private constructor(private readonly tab: WebContents, private readonly token: string,
+    private readonly shot: ImageTextPicture | null) {
     this.poll = setInterval(() => {
       void this.evaluate(call("alive", token)).then((alive) => { if (alive === false && !this.closed) this.handler() })
     }, 250)
   }
 
+  /**
+   * The picture is captured as the tab shows it, before the selection hangs
+   * anything on it: without the protocol, no renderer hands over its bytes.
+   */
   static async open(tab: WebContents, start: unknown[], token: string) {
-    await tab.executeJavaScriptInIsolatedWorld(IsolatedWorldHost.WORLD_ID, [{ code: source() }])
-    const found = await tab.executeJavaScriptInIsolatedWorld(IsolatedWorldHost.WORLD_ID, [{ code: call("start", token, ...start) }])
-    return found === true ? new IsolatedWorldHost(tab, token) : null
+    const run = (code: string) => tab.executeJavaScriptInIsolatedWorld(IsolatedWorldHost.WORLD_ID, [{ code }])
+    await run(source())
+    const shown = await run(`window.__onceImageTextAnchor?.locate(${start.slice(0, 3).map((value) => JSON.stringify(value)).join(", ")})`) as ImageTextInView | null
+    const shot = shown ? await capture(tab, shown).catch(() => null) : null
+    const found = await run(call("start", token, ...start))
+    return found === true ? new IsolatedWorldHost(tab, token, shot) : null
   }
 
   onClose(handler: () => void): void {
     this.handler = handler
+  }
+
+  picture(): Promise<ImageTextPicture | null> {
+    return Promise.resolve(this.shot)
   }
 
   send(message: ImageTextViewMessage): void {
@@ -272,4 +312,13 @@ class IsolatedWorldHost implements ImageTextHost {
     if (this.tab.isDestroyed()) return null
     return this.tab.executeJavaScriptInIsolatedWorld(IsolatedWorldHost.WORLD_ID, [{ code }]).catch(() => null)
   }
+}
+
+/** The main frame's CSS pixels are the view's at its zoom; the capture is in device pixels. */
+async function capture(tab: WebContents, shown: ImageTextInView): Promise<ImageTextPicture | null> {
+  const zoom = tab.getZoomFactor()
+  const left = Math.floor(shown.left * zoom), top = Math.floor(shown.top * zoom)
+  const image = await tab.capturePage({ x: left, y: top,
+    width: Math.ceil((shown.left + shown.width) * zoom) - left, height: Math.ceil((shown.top + shown.height) * zoom) - top })
+  return image.isEmpty() ? null : { bytes: image.toPNG(), part: shown.part }
 }

@@ -23,6 +23,12 @@ export interface ImageTextAnchorReport { token: string; closed: true }
 /** Where the image is in its frame's viewport, when it was in view there already (see `reveal`). */
 export interface ImageTextRevealed { left: number; top: number; width: number; height: number }
 
+/**
+ * The part of an image's drawn picture in view, in viewport pixels, and where
+ * that part sits in the picture, as fractions of it.
+ */
+export interface ImageTextInView { left: number; top: number; width: number; height: number; part: { left: number; top: number; width: number; height: number } }
+
 /** For the app's tests: where the parts are, in the viewport. */
 export interface ImageTextAnchorState {
   frame: { left: number; top: number; width: number; height: number }
@@ -35,6 +41,10 @@ declare global {
   interface Window {
     __onceImageTextAnchor?: {
       start(token: string, src: string, x: number, y: number, frameUrl: string): boolean
+      /** Where the image `start` would take is in view, before anything is hung on it. */
+      locate(src: string, x: number, y: number): ImageTextInView | null
+      /** The URL the selection's image was loaded from (its `currentSrc`). */
+      source(token: string): string | null
       message(token: string, message: ImageTextViewMessage): void
       reveal(token: string): ImageTextRevealed | null
       alive(token: string): boolean
@@ -151,7 +161,8 @@ class AnchoredSelection {
   private readonly bar = closedHost(OVERLAY_CSS + FRAME_CSS + HOST_CSS)
   private readonly barElement = document.createElement("div")
   private readonly status = document.createElement("span")
-  private readonly source: string
+  /** The URL the image was loaded from, which the app reads its bytes by. */
+  readonly source: string
   private port: MessagePort | null = null
   private readonly pending: ImageTextViewMessage[] = []
   private closed = false
@@ -433,6 +444,15 @@ class AnchoredSelection {
   }
 }
 
+function inView(fit: ImageTextFit): ImageTextInView | null {
+  const x = fit.left + fit.imageLeft, y = fit.top + fit.imageTop, box = fit.visibleBox
+  const left = Math.max(x, box.left), top = Math.max(y, box.top)
+  const right = Math.min(x + fit.imageWidth, box.right), bottom = Math.min(y + fit.imageHeight, box.bottom)
+  if (right - left < 1 || bottom - top < 1) return null
+  return { left, top, width: right - left, height: bottom - top, part: { left: (left - x) / fit.imageWidth,
+    top: (top - y) / fit.imageHeight, width: (right - left) / fit.imageWidth, height: (bottom - top) / fit.imageHeight } }
+}
+
 export function installImageTextAnchor(): void {
   window.__onceImageTextAnchor ??= {
     start(token, src, x, y, frameUrl) {
@@ -442,6 +462,11 @@ export function installImageTextAnchor(): void {
       current = new AnchoredSelection(image, token, frameUrl)
       return true
     },
+    locate(src, x, y) {
+      const image = findImage(src, x, y)
+      return image?.naturalWidth ? inView(imageFit(image)) : null
+    },
+    source(token) { return current?.token === token ? current.source : null },
     message(token, message) { if (current?.token === token) current.message(message) },
     reveal(token) { return current?.token === token ? current.reveal() : null },
     alive(token) { return current?.token === token },

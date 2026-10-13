@@ -308,12 +308,29 @@ test("native OCR selects and copies image words with stable geometry and cleanup
       webContents.getAllWebContents().find(c => c.getURL() === url).sendInputEvent({ type: "keyDown", keyCode: "Escape" })
     }, `${server.origin}/`)
     await expect.poll(() => overlayOpen(app)).toBe(false)
-    // Exercise the authenticated-session fetch path separately from data URLs.
+    // An http image is read as the tab holds it, out of its renderer's memory: never loaded again.
     const dataUrl = await inPage(app, "document.querySelector('img').src")
     server.setImage(Buffer.from(dataUrl.split(",")[1], "base64"))
     await inPage(app, `new Promise(resolve=>{const image=document.querySelector('img');image.onload=()=>resolve(true);image.src=${JSON.stringify(`${server.origin}/image.png`)};})`)
     await startRecognition(app)
     expect(await selectAndCopy(app)).toBe("Select these words")
+    expect(server.imageLoads()).toBe(1)
+    // With another protocol client on the tab, the picture is captured as the tab shows it.
+    // The selection's own client lets go of the tab's debugger as it closes.
+    await app.evaluate(({ webContents }, url) => {
+      webContents.getAllWebContents().find(c => c.getURL() === url).sendInputEvent({ type: "keyDown", keyCode: "Escape" })
+    }, `${server.origin}/`)
+    await expect.poll(() => overlayOpen(app)).toBe(false)
+    const debuggerOf = (attach) => app.evaluate(({ webContents }, { url, attach }) => {
+      const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
+      if (attach) tab.debugger.attach("1.3")
+      return tab.debugger.isAttached()
+    }, { url: `${server.origin}/`, attach })
+    await expect.poll(() => debuggerOf(false)).toBe(false)
+    expect(await debuggerOf(true)).toBe(true)
+    await startRecognition(app)
+    expect(await selectAndCopy(app)).toBe("Select these words")
+    expect(server.imageLoads()).toBe(1)
     await inPage(app, `(() => {
       const image=document.querySelector('img'), scroller=document.createElement('div');
       scroller.id='image-scroll'; scroller.style.cssText='height:100px;overflow:auto';

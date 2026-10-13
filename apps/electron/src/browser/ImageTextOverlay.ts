@@ -1,7 +1,7 @@
 import { type ContextMenuParams, Menu, type WebContents, type WebFrameMain } from "electron"
 import type { ImageTextAnchorState } from "@once/ui-web/imageText/imageTextAnchor"
 import type { ImageTextResult } from "@once/ui-web/imageText/imageTextTypes"
-import { type ImageTextHost, openImageTextHost } from "./ImageTextHost"
+import { type ImageTextHost, type ImageTextPicture, openImageTextHost } from "./ImageTextHost"
 import { IMAGE_TEXT_SCHEME, openImageTextFrame } from "./ImageTextProtocol"
 
 const overlays = new WeakMap<WebContents, ImageTextOverlay>()
@@ -63,6 +63,11 @@ export class ImageTextOverlay {
   onClose(handler: () => void): void {
     if (this.closed) handler()
     else this.closeHandlers.push(handler)
+  }
+
+  /** The picture as the tab has it (see the host's `picture`). */
+  picture(): Promise<ImageTextPicture | null> {
+    return this.host.picture()
   }
 
   setImage(bytes: Buffer): void {

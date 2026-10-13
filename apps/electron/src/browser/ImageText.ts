@@ -1,5 +1,7 @@
 import { type ContextMenuParams, type WebContents } from "electron"
 import { randomUUID } from "node:crypto"
+import type { ImageTextResult } from "@once/ui-web/imageText/imageTextTypes"
+import type { ImageTextPicture } from "./ImageTextHost"
 import { ImageTextOverlay } from "./ImageTextOverlay"
 import { nativeTextRecognitionAvailable, recognize } from "./NativeTextRecognition"
 
@@ -14,7 +16,6 @@ export async function selectImageText(contents: WebContents, params: ContextMenu
   const controller = new AbortController()
   active.set(contents, controller)
   const token = randomUUID()
-  const url = frame.url
   const cancel = () => controller.abort()
   const navigating = (event: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
     if (!event.isSameDocument && (event.isMainFrame || event.frame === frame)) cancel()
@@ -31,14 +32,15 @@ export async function selectImageText(contents: WebContents, params: ContextMenu
     if (!overlay) return
     overlay.onClose(cancel)
     controller.signal.addEventListener("abort", overlay.close)
-    const scheme = new URL(params.srcURL).protocol
-    if (!["http:", "https:", "data:"].includes(scheme)) throw new Error("Unsupported image URL")
-    const bytes = scheme === "data:"
-      ? decodeImageData(params.srcURL)
-      : await fetchImage(contents, params.srcURL, url, controller.signal)
-    overlay.setImage(bytes)
-    const result = await recognize(bytes, controller.signal)
-    if (!controller.signal.aborted) overlay.finish(result)
+    // The image as the tab already has it, never fetched again (see the host's `picture`).
+    const picture: ImageTextPicture | null = params.srcURL.startsWith("data:")
+      ? { bytes: decodeImageData(params.srcURL) }
+      : await overlay.picture()
+    if (!picture?.bytes.length) throw new Error("The tab holds no copy of the image")
+    if (picture.bytes.length > MAX_BYTES) throw new Error("Image too large")
+    overlay.setImage(picture.bytes)
+    const result = await recognize(picture.bytes, controller.signal)
+    if (!controller.signal.aborted) overlay.finish(picture.part ? inPicture(result, picture.part) : result)
   } catch (error) {
     if (!controller.signal.aborted) {
       console.warn("Image text recognition failed", error instanceof Error ? error.message : String(error))
@@ -62,22 +64,9 @@ function decodeImageData(url: string): Buffer {
   return bytes
 }
 
-async function fetchImage(contents: WebContents, src: string, referrer: string, signal: AbortSignal): Promise<Buffer> {
-  const response = await contents.session.fetch(src, {
-    signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]), headers: { Referer: referrer }
-  })
-  if (!response.ok || !response.body) throw new Error("Image unavailable")
-  const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []
-  let size = 0
-  try {
-    for (;;) {
-      const { value, done } = await reader.read()
-      if (done) break
-      size += value.length
-      if (size > MAX_BYTES) throw new Error("Image too large")
-      chunks.push(value)
-    }
-  } finally { await reader.cancel() }
-  return Buffer.concat(chunks)
+/** Words read from part of the picture, placed as fractions of the whole of it. */
+function inPicture(result: ImageTextResult, part: NonNullable<ImageTextPicture["part"]>): ImageTextResult {
+  const at = (point: { x: number; y: number }) => ({ x: part.left + point.x * part.width, y: part.top + point.y * part.height })
+  return { ...result, lines: result.lines.map((line) => line.map((word) =>
+    ({ ...word, topLeft: at(word.topLeft), topRight: at(word.topRight), bottomLeft: at(word.bottomLeft) }))) }
 }

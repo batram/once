@@ -29,10 +29,13 @@ document.querySelector('img').src = canvas.toDataURL('image/png');
 
 async function startImageTextServer(port = 0) {
   let raster = null
+  let loads = 0
   let text = SAMPLE
   const server = http.createServer((request, response) => {
     if (request.url === "/image.png" && raster) {
-      response.writeHead(200, { "content-type": "image/png" })
+      loads++
+      // Uncached, so any load past the page's own reaches the server and is counted.
+      response.writeHead(200, { "content-type": "image/png", "cache-control": "no-store" })
       response.end(raster)
       return
     }
@@ -49,7 +52,9 @@ async function startImageTextServer(port = 0) {
   })
   await new Promise(resolve => server.listen(port, "127.0.0.1", resolve))
   return { origin: `http://127.0.0.1:${server.address().port}`,
-    setImage: (bytes) => { raster = bytes },
+    setImage: (bytes) => { raster = bytes; loads = 0 },
+    /** How often `/image.png` was loaded since `setImage`. */
+    imageLoads: () => loads,
     /** What the page's image shows from its next load: `{ width, height, font, lines: [[text, x, y]] }`; null for the sample. */
     setText: (drawn) => { text = drawn ? { ...SAMPLE, ...drawn } : SAMPLE },
     close: () => new Promise(resolve => server.close(resolve)) }
