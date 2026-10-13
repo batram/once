@@ -34,6 +34,8 @@ export interface ImageTextAnchorState {
   frame: { left: number; top: number; width: number; height: number }
   clipPath: string
   hidden: boolean
+  /** Held to the image by its anchor, not followed by script (see `follow`). */
+  anchored: boolean
   bar: { left: number; top: number; right: number; bottom: number; text: string; background: string; mode: string } | null
 }
 
@@ -61,16 +63,23 @@ interface HostStyle { position: "absolute" | "fixed"; anchor: string; left: stri
 const PLACED = { anchor: "auto", width: "auto", height: "auto", display: "block" }
 
 /**
- * Hosts are styled by `:host` rules in their own closed shadow sheets, all
+ * Hosts are placed by `:host` rules in their own closed shadow sheets, all
  * important: between trees an important declaration from inside wins over the
  * page's, inline ones included, so the page's sheets cannot move, hide or
  * restyle them. Their values come in as custom properties, every one set on
  * the host, so none is inherited from the page.
+ *
+ * Two declarations are inline and important instead, which no page sheet
+ * outranks either, layered or not. `position-anchor`: anchor names are tree
+ * scoped, so from the shadow sheet (var() or not) it finds no anchor, the
+ * hosts sit unplaced and the bar's static spot below the page pops a
+ * scrollbar until the words fall back to following. And `all: initial`,
+ * which from the shadow sheet would override that inline anchor too.
  */
 const HOST_CSS = `
-  :host { all: initial !important; display: var(--once-display) !important; margin: 0 !important;
+  :host { display: var(--once-display) !important; margin: 0 !important;
     padding: 0 !important; border: 0 !important; pointer-events: none !important;
-    position: var(--once-position) !important; position-anchor: var(--once-anchor) !important;
+    position: var(--once-position) !important;
     left: var(--once-left) !important; top: var(--once-top) !important;
     width: var(--once-width) !important; height: var(--once-height) !important;
     z-index: var(--once-layer) !important; }
@@ -81,7 +90,10 @@ function placeHostAt(host: HTMLElement, style: HostStyle, last: { key: string })
   const key = JSON.stringify(style)
   if (key === last.key) return
   last.key = key
-  for (const [name, value] of Object.entries(style)) host.style.setProperty(`--once-${name}`, value, "important")
+  for (const [name, value] of Object.entries(style)) {
+    if (name === "anchor") host.style.setProperty("position-anchor", value, "important")
+    else host.style.setProperty(`--once-${name}`, value, "important")
+  }
 }
 
 /** The bar is the app's control and stays readable over everything. */
@@ -110,6 +122,8 @@ function ownElement(element: Element): boolean {
 function closedHost(css: string): { host: HTMLElement; shadow: ShadowRoot } {
   const host = document.createElement("div")
   host.dataset.onceImageText = ""
+  // First, so the host's own declarations (its anchor) come after it.
+  host.style.setProperty("all", "initial", "important")
   const shadow = host.attachShadow({ mode: "closed" })
   const sheet = new CSSStyleSheet()
   sheet.replaceSync(css)
@@ -240,7 +254,7 @@ class AnchoredSelection {
     const frame = this.frame.getBoundingClientRect(), bar = this.barElement.getBoundingClientRect()
     return {
       frame: { left: frame.left, top: frame.top, width: frame.width, height: frame.height },
-      clipPath: this.frame.style.clipPath, hidden: this.frameHidden,
+      clipPath: this.frame.style.clipPath, hidden: this.frameHidden, anchored: !this.follow,
       bar: this.barMode === "hidden" ? null : { left: bar.left, top: bar.top, right: bar.right, bottom: bar.bottom,
         text: this.status.textContent ?? "", background: getComputedStyle(this.barElement).backgroundColor, mode: this.barMode }
     }

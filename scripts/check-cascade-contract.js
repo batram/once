@@ -137,7 +137,9 @@ for (const file of sourceFiles) {
     const setProperty = line.match(/\.style\.setProperty\(\s*["']([^"']+)/)
     // Image text selection names the page's own image as its anchor: a style
     // on the page's element, not app UI, and taken off when the selection closes.
-    const pageAnchor = setProperty?.[1] === "anchor-name" &&
+    // Its hosts refer to that name inline (and reset all else inline before it):
+    // anchor names are tree scoped, so their shadow sheets cannot.
+    const pageAnchor = ["anchor-name", "position-anchor", "all"].includes(setProperty?.[1]) &&
       file === "packages/ui-web/src/imageText/imageTextAnchor.ts"
     if (setProperty && !setProperty[1].startsWith("--") && !pageAnchor) {
       failures.push(`Only custom properties may use setProperty: ${file}:${index + 1}`)

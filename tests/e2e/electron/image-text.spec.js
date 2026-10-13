@@ -343,6 +343,7 @@ test("native OCR selects and copies image words with stable geometry and cleanup
       return Math.abs(visible.top - scroller.top) <= 1 && visible.bottom - visible.top <= 101
     }).toBe(true)
     // It moves with the image as the scroller scrolls: anchored, it needs no word from the app.
+    expect((await overlayState(app)).anchored).toBe(true)
     const before = (await overlayState(app)).frame.top
     await inPage(app, "document.getElementById('image-scroll').scrollTop=60")
     await expect.poll(async () => (await overlayState(app)).frame.top).toBeCloseTo(before + 60, 0)
