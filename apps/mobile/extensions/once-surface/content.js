@@ -20,6 +20,22 @@ if (window === window.top) {
   globalThis.__onceImageTextPush = payload => {
     port?.postMessage({ type: "image-text", payload: String(payload) })
   }
+  // Double-tapping an image selects its text, as "Select text in image" does.
+  // Counted from two trusted clicks rather than dblclick, which Gecko does not
+  // fire for taps; where the page zooms on double tap, or a linked image
+  // navigates, the page wins.
+  let lastTap = null
+  window.addEventListener("click", event => {
+    const image = event.target
+    const tap = { image, at: event.timeStamp, x: event.clientX, y: event.clientY }
+    const previous = lastTap
+    lastTap = event.isTrusted && image instanceof HTMLImageElement ? tap : null
+    if (!lastTap || previous?.image !== image || tap.at - previous.at > 400 ||
+      Math.hypot(tap.x - previous.x, tap.y - previous.y) > 40) return
+    lastTap = null
+    const src = image.currentSrc || image.src
+    if (src) port?.postMessage({ type: "image-text-request", image: src, referrer: document.baseURI })
+  }, true)
   const disconnect = () => {
     if (retry !== null) clearTimeout(retry)
     retry = null

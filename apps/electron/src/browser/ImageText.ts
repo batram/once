@@ -1,6 +1,7 @@
-import { type ContextMenuParams, type WebContents } from "electron"
+import { type ContextMenuParams, ipcMain, type WebContents } from "electron"
 import { randomUUID } from "node:crypto"
 import type { ImageTextResult } from "@once/ui-web/imageText/imageTextTypes"
+import { IMAGE_TEXT_IPC } from "./imageTextIpc"
 import { ImageTextOverlay } from "./ImageTextOverlay"
 import type { ImageTextPicture } from "./ImageTextPicture"
 import { nativeTextRecognitionAvailable, recognize } from "./NativeTextRecognition"
@@ -8,8 +9,27 @@ import { nativeTextRecognitionAvailable, recognize } from "./NativeTextRecogniti
 const MAX_BYTES = 32 * 1024 * 1024
 const active = new WeakMap<WebContents, AbortController>()
 
+type ImageTextTarget = Pick<ContextMenuParams, "frame" | "srcURL" | "x" | "y" | "hasImageContents">
+
+/**
+ * Double-clicking an image selects its text, as the menu item does. The frame
+ * preload reports the image from its isolated world, for trusted double clicks
+ * only, so the page's own scripts can neither start nor see it; a page that
+ * handles the clicks itself (or a link that navigates) simply wins. Only tabs
+ * load that preload; their session may be an extension profile's, not the
+ * browsing partition's.
+ */
+export function selectImageTextOnDoubleClick(): void {
+  ipcMain.on(IMAGE_TEXT_IPC.request, (event, request: { src?: unknown; x?: unknown; y?: unknown }) => {
+    const { src, x, y } = request ?? {}
+    if (!event.senderFrame) return
+    if (typeof src !== "string" || src.length > MAX_BYTES * 1.4 || !Number.isFinite(x) || !Number.isFinite(y)) return
+    void selectImageText(event.sender, { frame: event.senderFrame, srcURL: src, x: x as number, y: y as number, hasImageContents: true })
+  })
+}
+
 /** User-initiated, on-device recognition; no bridge is exposed to remote pages. */
-export async function selectImageText(contents: WebContents, params: ContextMenuParams): Promise<void> {
+export async function selectImageText(contents: WebContents, params: ImageTextTarget): Promise<void> {
   const frame = params.frame
   if (!nativeTextRecognitionAvailable || !frame || !params.hasImageContents) return
   active.get(contents)?.abort()

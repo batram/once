@@ -4,6 +4,15 @@ import { IMAGE_TEXT_IPC } from "./browser/imageTextIpc"
 
 declare global { interface Window { __onceImageTextPush?: (payload: string) => void } }
 
+// Double-clicking an image selects its text (ImageText.ts). Listened for in
+// this isolated world, so only the user's own double clicks count.
+window.addEventListener("dblclick", (event) => {
+  const image = event.target
+  if (!event.isTrusted || event.button !== 0 || !(image instanceof HTMLImageElement)) return
+  const src = image.currentSrc || image.src
+  if (src) ipcRenderer.send(IMAGE_TEXT_IPC.request, { src, x: event.clientX, y: event.clientY })
+}, true)
+
 // No contextBridge export: only main can issue commands to this frame's preload.
 let installed = false
 ipcRenderer.on(IMAGE_TEXT_IPC.command, (_event, request: { id: string; token: string; method: string; values: unknown[] }) => {

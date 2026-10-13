@@ -452,8 +452,10 @@ image OCR until they supply a backend. Recognition runs on device, with a
 and downsampling to a 4096 px longest side.
 
 Image text selection ("Select Text in Image" in Electron's context menu on
-macOS and Windows, "Select text in image" in Android's long-press menu) is one
-shared overlay, `packages/ui-web/src/imageText/`. Electron hangs it on the
+macOS and Windows, "Select text in image" in Android's long-press menu, or a
+double click or double tap on an image: Electron's frame preload and Android's
+bridge content script report trusted ones only, and a page or link that takes
+the clicks first wins) is one shared overlay, `packages/ui-web/src/imageText/`. Electron hangs it on the
 image from an isolated world of the image's frame (`imageTextAnchor.ts`, run
 by `apps/electron/src/browser/ImageTextHost.ts`): the words live in a
 cross-origin frame of the app's own scheme (`once-image-text:`, which bypasses

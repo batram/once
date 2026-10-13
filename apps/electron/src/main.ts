@@ -32,6 +32,7 @@ import {
   configureErrorPageProtocol,
   errorPageScheme
 } from "./browser/ErrorPageProtocol"
+import { selectImageTextOnDoubleClick } from "./browser/ImageText"
 import { configureImageTextProtocol, imageTextScheme } from "./browser/ImageTextProtocol"
 import {
   installedAppUserModelId,
@@ -283,6 +284,7 @@ function configureBrowserSession(): Session {
   configureAddonConversationProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
   configureRemoteTabsProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
   configureImageTextProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
+  selectImageTextOnDoubleClick()
   browserSession.setPermissionCheckHandler((_webContents, permission) => {
     return permission === "fullscreen"
   })

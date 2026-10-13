@@ -325,7 +325,8 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     /** This tab's image text selection, as far as the app shows it natively (its bar). */
     private final ImageTextOverlays imageTexts = new ImageTextOverlays(this::getActivity, () -> surfaceContent, () -> visible ? surface : null,
-        () -> bridgePort, scripts::post, scripts::request);
+        () -> bridgePort, scripts::post, scripts::request, image -> notifyListeners("contextMenuAction", new JSObject()
+            .put("id", LinkContextMenu.IMAGE_TEXT).put("image", image.optString("image")).put("referrer", image.optString("referrer"))));
 
     @PluginMethod
     public void imageTextOverlay(PluginCall call) {

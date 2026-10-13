@@ -34,6 +34,8 @@ final class ImageTextOverlays {
     private final BiConsumer<String, WebExtension.Port> evaluate;
     /** Runs a script there and hands its JSON-encoded value (null when it failed) back. */
     private final ScriptRequest request;
+    /** A double-tapped image in the current page, `{ image, referrer }`: the shell selects its text. */
+    private final Consumer<JSONObject> requested;
     private ImageTextOverlay current;
     private ImageTextBar bar;
     private String barToken;
@@ -46,8 +48,10 @@ final class ImageTextOverlays {
     interface ScriptRequest { void run(String script, WebExtension.Port port, Consumer<String> answer); }
 
     ImageTextOverlays(Supplier<Activity> activity, Supplier<FrameLayout> container, Supplier<View> page,
-                      Supplier<WebExtension.Port> port, BiConsumer<String, WebExtension.Port> evaluate, ScriptRequest request) {
+                      Supplier<WebExtension.Port> port, BiConsumer<String, WebExtension.Port> evaluate, ScriptRequest request,
+                      Consumer<JSONObject> requested) {
         this.port = port;
+        this.requested = requested;
         this.activity = activity;
         this.container = container;
         this.page = page;
@@ -77,8 +81,15 @@ final class ImageTextOverlays {
         call.resolve();
     }
 
-    /** Takes a page port's image text reports: `{ token, bar }` or `{ token, fit }`. False for other messages. */
+    /**
+     * Takes a page port's image text reports: `{ token, bar }` or `{ token, fit }`, and
+     * double-tapped images (content.js), from the current page only. False for other messages.
+     */
     boolean receive(JSONObject message, WebExtension.Port from) {
+        if ("image-text-request".equals(message.optString("type"))) {
+            if (from == port.get() && !message.optString("image").isEmpty()) requested.accept(message);
+            return true;
+        }
         if (!"image-text".equals(message.optString("type"))) return false;
         String payload = message.optString("payload");
         JSONObject report;
