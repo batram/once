@@ -665,7 +665,7 @@ test("Settings shell defaults yield to mobile navigation geometry", async ({ pag
       <button type="button" class="settings_section_row">
         <span class="settings_section_row_text">Sources</span>
         <span class="settings_section_summary">5 configured</span>
-        <span class="settings_section_arrow">â€º</span>
+        <span class="settings_section_arrow">›</span>
       </button>
     `)
   })
@@ -681,7 +681,7 @@ test("Settings shell defaults yield to mobile navigation geometry", async ({ pag
       <button type="button" class="settings_section_row">
         <span class="settings_section_row_text">Sources</span>
         <span class="settings_section_summary">5 configured</span>
-        <span class="settings_section_arrow">â€º</span>
+        <span class="settings_section_arrow">›</span>
       </button>
     `)
   })
