@@ -14,6 +14,7 @@ const moduleStub = { exports: {} }
 Function("exports", "require", compiled)(moduleStub.exports, name => {
   if (name === "@once/platform-electron/bridge") return { ELECTRON_IPC: {} }
   if (name === "./Zoom") return { handleZoomKey: () => false, bindWheelZoom: () => {} }
+  if (name === "./windowCloak") return { showWithoutFlash: (window, show = () => window.show()) => show() }
   throw new Error(`Unexpected import: ${name}`)
 })
 const { WindowLifecycle } = moduleStub.exports
