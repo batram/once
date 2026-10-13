@@ -22,7 +22,7 @@ import {
 } from "./storyRowMarkup"
 import { renderSubstories } from "./storyRowSubstories"
 import { attachStorySwipe, SwipePreview } from "./swipe/gesture"
-import { springRowHome } from "./swipe/track"
+import { clearRowOffset, springRowHome } from "./swipe/track"
 import { storyRowFingerprint } from "./storyRowFingerprint"
 
 // How long a released swipe waits for its row's exit before springing home.
@@ -163,7 +163,7 @@ export class StoryListItem extends HTMLElement {
 
     const held = this.takeSwipeHold()
     const settle = () => {
-      if (held !== 0) this.style.transform = ""
+      if (held !== 0) clearRowOffset(this)
     }
     if (!this.parentElement) {
       //not attached to dom, no need to sort or animate anything, no on will see

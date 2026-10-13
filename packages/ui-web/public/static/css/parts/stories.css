@@ -84,8 +84,14 @@
   flex-wrap: wrap;
   width: 100%;
   box-sizing: border-box;
-  will-change: transform;
+  /* No standing will-change: a promoted row keeps its raster across transform
+     changes and could be left with blurred, doubled text and icons. A drag
+     promotes its row while it lasts (swipe/track.ts). */
   transform: translateX(0);
+}
+
+.story.swipe_dragging {
+  will-change: transform;
 }
 
 /* Out of flow on purpose: an in-flow reveal reflows the whole list the moment

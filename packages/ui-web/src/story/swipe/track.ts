@@ -9,10 +9,20 @@ import { createSwipeStageLock } from "./stageLock"
  */
 const SWIPE_RELEASE_TIMING: KeyframeAnimationOptions = { duration: 200, easing: "cubic-bezier(.2, .8, .2, 1)" }
 
-/** Move a row that rests `from` px off its place back home. */
-export function springRowHome(row: HTMLElement, from: number): void {
+/**
+ * Put a dragged row back in its place for good, ending the layer promotion
+ * the drag took, so the row is drawn crisp again rather than from a raster
+ * made at a fractional offset.
+ */
+export function clearRowOffset(row: HTMLElement): void {
   row.style.transition = ""
   row.style.transform = ""
+  row.classList.remove("swipe_dragging")
+}
+
+/** Move a row that rests `from` px off its place back home. */
+export function springRowHome(row: HTMLElement, from: number): void {
+  clearRowOffset(row)
   // spring back rather than snapping, so the release reads as a release
   if (from !== 0) {
     row.animate(
@@ -142,6 +152,7 @@ export function createSwipeTracker(
       // list patterns: thresholds select an action but never move the row on
       // the user's behalf.
       row.style.transition = "none"
+      row.classList.add("swipe_dragging")
       row.style.transform = `translateX(${drag_offset}px)`
       onTravel(drag_offset)
     },
