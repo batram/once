@@ -82,6 +82,13 @@ module.exports = {
         if (result.status !== 0) {
           throw new Error(`codesign with "${identity}" failed for ${appBundle}`)
         }
+        // The OCR executable has its own App Sandbox; a deep re-sign must not erase it.
+        for (const args of [
+          ["--force", "--sign", identity, "--identifier", "app.once.image-text", "--entitlements", path.resolve(__dirname, "native/image-text.entitlements.plist"), path.join(appBundle, "Contents/Resources/once-image-text")],
+          ["--force", "--sign", identity, appBundle]
+        ]) {
+          if (spawnSync("codesign", args, { stdio: "inherit" }).status !== 0) throw new Error("Could not sign the OCR sandbox")
+        }
       }
     }
   },

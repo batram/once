@@ -12,7 +12,7 @@ export interface RecognizedText {
 
 /** Implement on platforms with OCR. Image bytes never leave the device. */
 export interface TextRecognitionPort {
-  recognizeImage(bytes: Uint8Array): Promise<RecognizedText>
+  recognizeImage(bytes: Uint8Array, signal?: AbortSignal): Promise<RecognizedText>
 }
 
 export interface DocumentRecognitionOptions {

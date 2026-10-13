@@ -67,6 +67,38 @@ function frameHarness(t, { fetched = {} } = {}) {
 
 const workerSource = new TextEncoder().encode("// worker")
 
+test("a PDF sandbox cannot flood OCR and cancellation reaches its outstanding job", async t => {
+  const { frames, send } = frameHarness(t, { fetched: { "https://shell.test/app/pdf/pdf.worker.js": workerSource } })
+  const signals = []
+  const recognition = { recognizeImage(_bytes, signal) { signals.push(signal); return new Promise(() => {}) } }
+  const extraction = createPdfTextPort({ sandboxUrl: "https://shell.test/app/pdf-sandbox.html", workerUrl }).extract(new Uint8Array([1]), recognition)
+  await tick()
+  send(frames[0], { type: "ready", protocol: PDF_SANDBOX_PROTOCOL })
+  send(frames[0], { type: "recognize", requestId: 1, image: new Uint8Array([1]) })
+  const rejected = assert.rejects(extraction, /recognition budget/)
+  send(frames[0], { type: "recognize", requestId: 2, image: new Uint8Array([1]) })
+  await rejected
+  assert.equal(signals.length, 1)
+  assert.equal(signals[0].aborted, true)
+  assert.equal(frames[0].removed, true)
+})
+
+test("PDF OCR rejects replayed IDs after completion", async t => {
+  const { frames, send } = frameHarness(t, { fetched: { "https://shell.test/app/pdf/pdf.worker.js": workerSource } })
+  let calls = 0
+  const extraction = createPdfTextPort({ sandboxUrl: "https://shell.test/app/pdf-sandbox.html", workerUrl }).extract(new Uint8Array([1]), {
+    async recognizeImage() { calls++; return { lines: ["Text"] } }
+  })
+  await tick()
+  send(frames[0], { type: "ready", protocol: PDF_SANDBOX_PROTOCOL })
+  send(frames[0], { type: "recognize", requestId: 1, image: new Uint8Array([1]) })
+  await tick()
+  const rejected = assert.rejects(extraction, /recognition budget/)
+  send(frames[0], { type: "recognize", requestId: 1, image: new Uint8Array([1]) })
+  await rejected
+  assert.equal(calls, 1)
+})
+
 test("the PDF port runs each document in a fresh opaque frame and validates what comes back", async t => {
   const { frames, send, listeners } = frameHarness(t, { fetched: {
     "https://shell.test/app/pdf/pdf.worker.js": workerSource,

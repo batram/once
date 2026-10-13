@@ -1,4 +1,5 @@
 import "../readerAiPreload"
+import "../imageTextPreload"
 // Registered on the browser session as a frame preload, so it runs in every
 // frame of every tab before the page's own scripts. It asks main which
 // extensions have content scripts for this frame, gives each one an

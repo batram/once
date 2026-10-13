@@ -16,12 +16,6 @@ module.exports = {
   entry: {
     // The main process bundle; package.json "main" resolves to index.js.
     index: "./src/main.ts",
-    // Run in an isolated world of a tab's frame: hangs the image text
-    // selection on the image (see browser/ImageTextHost.ts).
-    "image-text-anchor": {
-      import: "./src/imageTextAnchor.ts",
-      library: { type: "var", name: "__onceImageTextAnchorBundle" }
-    },
     // Standalone browser-world bundle the main process injects into tabs
     // with executeJavaScript to run the source picker overlay.
     "picker-injection": {

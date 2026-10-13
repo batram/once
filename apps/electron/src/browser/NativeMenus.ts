@@ -176,10 +176,8 @@ export class NativeMenus {
     }
 
     if (nativeTextRecognitionAvailable && params.hasImageContents) {
-      const isolatedFrameAvailable = !contents.debugger.isAttached() || params.frame === contents.mainFrame
       template.push({ type: "separator" }, {
-        label: isolatedFrameAvailable ? "Select Text in Image" : "Select Text in Image (close DevTools first)",
-        enabled: isolatedFrameAvailable,
+        label: "Select Text in Image",
         click: () => void selectImageText(contents, params)
       })
     }

@@ -1,8 +1,8 @@
 import { type ContextMenuParams, type WebContents } from "electron"
 import { randomUUID } from "node:crypto"
 import type { ImageTextResult } from "@once/ui-web/imageText/imageTextTypes"
-import type { ImageTextPicture } from "./ImageTextHost"
 import { ImageTextOverlay } from "./ImageTextOverlay"
+import type { ImageTextPicture } from "./ImageTextPicture"
 import { nativeTextRecognitionAvailable, recognize } from "./NativeTextRecognition"
 
 const MAX_BYTES = 32 * 1024 * 1024
@@ -14,6 +14,7 @@ export async function selectImageText(contents: WebContents, params: ContextMenu
   if (!nativeTextRecognitionAvailable || !frame || !params.hasImageContents) return
   active.get(contents)?.abort()
   const controller = new AbortController()
+  const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)])
   active.set(contents, controller)
   const token = randomUUID()
   const cancel = () => controller.abort()
@@ -24,27 +25,25 @@ export async function selectImageText(contents: WebContents, params: ContextMenu
   contents.on("did-start-navigation", navigating)
   let overlay: ImageTextOverlay | null = null
   try {
-    // The selection hangs on the image from an isolated world, its words in a
-    // cross-origin frame of the app's own. A subframe cannot safely fall back
-    // to executeJavaScript when another DevTools client owns the debugger:
-    // that would put the recognized text in the remote page's script world.
-    overlay = await ImageTextOverlay.open(contents, frame, params.srcURL, params.x, params.y, token)
+    overlay = await ImageTextOverlay.open(contents, frame, params.srcURL, params.x, params.y, token, signal)
     if (!overlay) return
+    if (signal.aborted) { overlay.close(); return }
     overlay.onClose(cancel)
-    controller.signal.addEventListener("abort", overlay.close)
+    controller.signal.addEventListener("abort", overlay.close, { once: true })
     // The image as the tab already has it, never fetched again (see the host's `picture`).
     const picture: ImageTextPicture | null = params.srcURL.startsWith("data:")
       ? { bytes: decodeImageData(params.srcURL) }
-      : await overlay.picture()
+      : await overlay.picture(signal)
+    signal.throwIfAborted()
     if (!picture?.bytes.length) throw new Error("The tab holds no copy of the image")
     if (picture.bytes.length > MAX_BYTES) throw new Error("Image too large")
     overlay.setImage(picture.bytes)
-    const result = await recognize(picture.bytes, controller.signal)
-    if (!controller.signal.aborted) overlay.finish(picture.part ? inPicture(result, picture.part) : result)
+    const result = await recognize(picture.bytes, signal)
+    if (!signal.aborted) overlay.finish(picture.part ? inPicture(result, picture.part) : result)
   } catch (error) {
     if (!controller.signal.aborted) {
       console.warn("Image text recognition failed", error instanceof Error ? error.message : String(error))
-      overlay?.finish(null, "Couldn’t recognize this image. Try another image.")
+      overlay?.finish(null, signal.aborted ? "Image recognition timed out. Try again." : "Couldn’t recognize this image. Try another image.")
     }
   } finally {
     contents.removeListener("destroyed", cancel)

@@ -1,7 +1,8 @@
 import { type ContextMenuParams, Menu, type WebContents, type WebFrameMain } from "electron"
 import type { ImageTextAnchorState } from "@once/ui-web/imageText/imageTextAnchor"
 import type { ImageTextResult } from "@once/ui-web/imageText/imageTextTypes"
-import { type ImageTextHost, type ImageTextPicture, openImageTextHost } from "./ImageTextHost"
+import { type ImageTextHost, openImageTextHost } from "./ImageTextHost"
+import type { ImageTextPicture } from "./ImageTextPicture"
 import { IMAGE_TEXT_SCHEME, openImageTextFrame } from "./ImageTextProtocol"
 
 const overlays = new WeakMap<WebContents, ImageTextOverlay>()
@@ -44,15 +45,16 @@ export class ImageTextOverlay {
    * Opens over the image the menu was opened on, in `frame`; resolves null
    * when the image is not found there, or its frame cannot be reached.
    */
-  static async open(tab: WebContents, frame: WebFrameMain, src: string, x: number, y: number, token: string): Promise<ImageTextOverlay | null> {
+  static async open(tab: WebContents, frame: WebFrameMain, src: string, x: number, y: number, token: string, signal: AbortSignal): Promise<ImageTextOverlay | null> {
+    signal.throwIfAborted()
     // One selection per tab.
     overlays.get(tab)?.close()
     const served = openImageTextFrame(token)
-    const host = await openImageTextHost(tab, frame, src, x, y, token, served.url).catch((error: unknown) => {
+    const host = await openImageTextHost(tab, frame, src, x, y, token, served.url, signal).catch((error: unknown) => {
       console.warn("Image text selection could not start", error instanceof Error ? error.message : String(error))
       return null
     })
-    if (!host || tab.isDestroyed()) {
+    if (!host || tab.isDestroyed() || signal.aborted) {
       host?.close()
       served.close()
       return null
@@ -66,8 +68,8 @@ export class ImageTextOverlay {
   }
 
   /** The picture as the tab has it (see the host's `picture`). */
-  picture(): Promise<ImageTextPicture | null> {
-    return this.host.picture()
+  picture(signal: AbortSignal): Promise<ImageTextPicture | null> {
+    return this.host.picture(signal)
   }
 
   setImage(bytes: Buffer): void {

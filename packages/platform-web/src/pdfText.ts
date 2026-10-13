@@ -64,9 +64,14 @@ async function extractInSandbox(
 
   return new Promise<PdfTextResult>((resolve, reject) => {
     let settled = false
+    let started = false
+    let recognizing = false
+    const recognitionRequests = new Set<number>()
+    const recognitionLifetime = new AbortController()
     const finish = (error?: Error, result?: PdfTextResult) => {
       if (settled) return
       settled = true
+      recognitionLifetime.abort()
       clearTimeout(deadline); clearTimeout(readyDeadline)
       scope.removeEventListener("message", onMessage)
       job?.signal?.removeEventListener("abort", aborted)
@@ -84,6 +89,8 @@ async function extractInSandbox(
       if (!message) return
       switch (message.type) {
         case "ready": {
+          if (started) return
+          started = true
           clearTimeout(readyDeadline); readyDeadline = undefined
           if (message.protocol !== PDF_SANDBOX_PROTOCOL) { finish(new Error("PDF sandbox protocol mismatch")); return }
           const copy = bytes.slice()
@@ -104,10 +111,16 @@ async function extractInSandbox(
           )
           return
         case "recognize":
+          if (!started || recognizing || recognitionRequests.has(message.requestId) || recognitionRequests.size >= PDF_SANDBOX_LIMITS.pages) {
+            finish(new Error("PDF sandbox exceeded its recognition budget"))
+            return
+          }
+          recognitionRequests.add(message.requestId)
           if (!recognition) { post({ type: "recognized", requestId: message.requestId, error: "Image text recognition is not available on this platform yet" }); return }
-          void recognition.recognizeImage(message.image).then(
-            result => post({ type: "recognized", requestId: message.requestId, result }),
-            (error: unknown) => post({ type: "recognized", requestId: message.requestId, error: error instanceof Error ? error.message : String(error) })
+          recognizing = true
+          void recognition.recognizeImage(message.image, recognitionLifetime.signal).then(
+            result => { recognizing = false; if (!settled) post({ type: "recognized", requestId: message.requestId, result }) },
+            (error: unknown) => { recognizing = false; if (!settled) post({ type: "recognized", requestId: message.requestId, error: error instanceof Error ? error.message : String(error) }) }
           )
           return
         case "result":

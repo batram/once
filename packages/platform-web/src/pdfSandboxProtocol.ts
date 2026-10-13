@@ -89,9 +89,9 @@ export function readPdfSandboxMessage(value: unknown): PdfSandboxToHost | null {
         ? { type: "progress", page: Number(value.page), total: Number(value.total) } : null
     case "recognize":
       if (value.page !== undefined && (!Number.isInteger(value.page) || Number(value.page) < 1 || Number(value.page) > PDF_SANDBOX_LIMITS.pages)) return null
-      if (!finite(value.requestId) || !(value.image instanceof Uint8Array)) return null
+      if (!Number.isSafeInteger(value.requestId) || Number(value.requestId) < 1 || !(value.image instanceof Uint8Array)) return null
       if (!value.image.byteLength || value.image.byteLength > PDF_SANDBOX_LIMITS.imageBytes) return null
-      return { type: "recognize", requestId: value.requestId, image: value.image, ...(value.page !== undefined ? { page: Number(value.page) } : {}) }
+      return { type: "recognize", requestId: Number(value.requestId), image: value.image, ...(value.page !== undefined ? { page: Number(value.page) } : {}) }
     case "page-image":
       if (!Number.isInteger(value.page) || Number(value.page) < 1 || Number(value.page) > PDF_SANDBOX_LIMITS.pages) return null
       if (!(value.image instanceof Uint8Array) || !value.image.byteLength || value.image.byteLength > PDF_SANDBOX_LIMITS.imageBytes) return null

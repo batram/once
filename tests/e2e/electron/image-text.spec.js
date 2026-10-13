@@ -316,17 +316,16 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     expect(await selectAndCopy(app)).toBe("Select these words")
     expect(server.imageLoads()).toBe(1)
     // With another protocol client on the tab, the picture is captured as the tab shows it.
-    // The selection's own client lets go of the tab's debugger as it closes.
+    // The selection's own client holds the tab's debugger only while it reads the image.
     await app.evaluate(({ webContents }, url) => {
       webContents.getAllWebContents().find(c => c.getURL() === url).sendInputEvent({ type: "keyDown", keyCode: "Escape" })
     }, `${server.origin}/`)
     await expect.poll(() => overlayOpen(app)).toBe(false)
     const debuggerOf = (attach) => app.evaluate(({ webContents }, { url, attach }) => {
       const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
-      if (attach) tab.debugger.attach("1.3")
+      if (attach) { if (tab.debugger.isAttached()) tab.debugger.detach(); tab.debugger.attach("1.3") }
       return tab.debugger.isAttached()
     }, { url: `${server.origin}/`, attach })
-    await expect.poll(() => debuggerOf(false)).toBe(false)
     expect(await debuggerOf(true)).toBe(true)
     await startRecognition(app)
     expect(await selectAndCopy(app)).toBe("Select these words")
@@ -349,6 +348,61 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     await expect.poll(async () => (await overlayState(app)).frame.top).toBeCloseTo(before + 60, 0)
     await inPage(app, "document.querySelector('img').remove()")
     await expect.poll(() => overlayOpen(app)).toBe(false)
+  } finally { await closeApp(app, userData) }
+})
+
+test("OCR reads the full image without page pixels or new resource requests", async () => {
+  const { electronApp: app, userData, window } = await launchApp()
+  try {
+    await window.locator("#urlfield").fill(`${server.origin}/`)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
+    await expect.poll(() => inPage(app, "document.querySelector('img').naturalWidth")).toBe(1000)
+    const png = await inPage(app, "document.querySelector('img').src")
+    server.setImage(Buffer.from(png.split(",")[1], "base64"))
+    const crossOrigin = `${server.origin.replace("127.0.0.1", "localhost")}/image.png`
+    await inPage(app, `new Promise(resolve=>{const i=document.querySelector('img');i.onload=()=>resolve(true);i.src=${JSON.stringify(crossOrigin)}})`)
+    await inPage(app, `(() => {
+      const link=document.createElement('link');link.rel='manifest';link.href='/manifest.webmanifest';document.head.append(link);
+      const i=document.querySelector('img'),r=i.getBoundingClientRect(),d=document.createElement('div');
+      d.textContent='FOREIGN SECRET TEXT';d.style.cssText='position:fixed;z-index:9999;color:black;background:white;font:32px Arial;pointer-events:none;left:'+(r.left+20)+'px;top:'+(r.top+100)+'px';document.body.append(d);
+    })()`)
+    const before = server.manifestLoads()
+    await startRecognition(app)
+    const recognized = await inOverlay(app, "[...document.querySelector('[data-once-image-text]').shadowRoot.querySelectorAll('.word')].map(w=>w.textContent).join(' ')")
+    expect(recognized).toContain("Native Apple Vision")
+    expect(recognized).not.toContain("FOREIGN")
+    expect(server.imageLoads()).toBe(1)
+    expect(server.manifestLoads()).toBe(before)
+    await app.evaluate(({webContents}, url)=>webContents.getAllWebContents().find(c=>c.getURL()===url).sendInputEvent({type:"keyDown",keyCode:"Escape"}),`${server.origin}/`)
+    await expect.poll(()=>overlayOpen(app)).toBe(false)
+    await inPage(app, "new Promise(resolve=>{const i=document.querySelector('img');i.onload=()=>resolve(true);i.src='/image.svg'})")
+    await startRecognition(app)
+    expect(await selectAndCopy(app)).toBe("Select these words")
+  } finally { await closeApp(app, userData) }
+})
+
+test("same-URL sibling frames use the frame selected by the context menu", async () => {
+  const { electronApp: app, userData, window } = await launchApp()
+  try {
+    await window.locator("#urlfield").fill(`${server.origin}/`)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
+    await inPage(app, "Promise.all([0,1].map(n=>new Promise(resolve=>{const f=document.createElement('iframe');f.src='/same';f.onload=()=>resolve(true);document.body.prepend(f)})))")
+    await app.evaluate(async ({webContents,Menu},url)=>{
+      const tab=webContents.getAllWebContents().find(c=>c.getURL()===url)
+      const frame=tab.mainFrame.framesInSubtree.filter(f=>f.url===url+"same")[1]
+      const srcURL=await frame.executeJavaScript("document.querySelector('img').currentSrc")
+      const original=Menu.buildFromTemplate;let action
+      Menu.buildFromTemplate=items=>{action=items.find(i=>i.label==="Select Text in Image");return{popup(){}}}
+      try { tab.emit("context-menu",{}, {srcURL,x:20,y:20,frame,hasImageContents:true,isEditable:false,selectionText:"",linkURL:"",editFlags:{},pageURL:url}) }
+      finally { Menu.buildFromTemplate=original }
+      action.click()
+    },`${server.origin}/`)
+    await expect.poll(()=>app.evaluate(async({webContents},url)=>{
+      const tab=webContents.getAllWebContents().find(c=>c.getURL()===url)
+      return Promise.all(tab.mainFrame.framesInSubtree.filter(f=>f.url===url+"same").map(f=>f.executeJavaScript("Boolean(document.querySelector('[data-once-image-text]'))")))
+    },`${server.origin}/`)).toEqual([false,true])
   } finally { await closeApp(app, userData) }
 })
 

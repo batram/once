@@ -1,16 +1,16 @@
-import type { Debugger, WebContents, WebFrameMain } from "electron"
-import { readFileSync } from "node:fs"
-import path from "node:path"
-import type { ImageTextAnchorReport, ImageTextAnchorState, ImageTextInView, ImageTextRevealed } from "@once/ui-web/imageText/imageTextAnchor"
+import { ipcMain, type WebContents, type WebFrameMain } from "electron"
+import { randomUUID } from "node:crypto"
+import type { ImageTextAnchorState, ImageTextInView, ImageTextRevealed } from "@once/ui-web/imageText/imageTextAnchor"
 import type { ImageTextViewMessage } from "@once/ui-web/imageText/imageTextTypes"
+import { IMAGE_TEXT_IPC } from "./imageTextIpc"
+import { captureInView, type ImageTextPicture, readFrameResource } from "./ImageTextPicture"
 
 /**
- * The image text selection's host in the page (imageTextAnchor.ts), run in
- * an isolated world of the image's frame: the page's own scripts never see
- * it. It hangs the app's words frame and bar on the image, anchored so the
- * page's compositor moves them with it; the app talks to it through this.
- * Frames in other processes (cross-site iframes) are reached through their
- * own DevTools protocol sessions.
+ * The image text selection's host in the page (imageTextAnchor.ts), run by
+ * the frame preload in an isolated world of the image's frame: the page's
+ * own scripts never see it. It hangs the app's words frame and bar on the
+ * image, anchored so the page's compositor moves them with it; the app
+ * talks to it over IPC addressed to that one frame.
  */
 export interface ImageTextHost {
   /** Called once the selection closed in the page: Done, Escape, or the image went away. */
@@ -18,307 +18,117 @@ export interface ImageTextHost {
   send(message: ImageTextViewMessage): void
   /** Brings the image into the tab's view, for find in page's match in the words (see the anchor's `reveal`). */
   reveal(): void
-  /**
-   * The picture the page shows, from the renderer's own copy: never a request
-   * of the app's, which a site's hotlink rules, cookies or content
-   * negotiation could answer differently than the page's own load.
-   */
-  picture(): Promise<ImageTextPicture | null>
+  /** The picture the page shows, from the renderer's own copy (see ImageTextPicture.ts). */
+  picture(signal: AbortSignal): Promise<ImageTextPicture | null>
   /** For the app's tests. */
   state(): Promise<ImageTextAnchorState | null>
   close(): void
 }
 
-/** An image's bytes; `part` says where in its picture they lie, when they show only part of it. */
-export interface ImageTextPicture { bytes: Buffer; part?: ImageTextInView["part"] }
-
-const WORLD = "once-image-text"
-const BINDING = "__onceImageTextPush"
-let anchorSource: string | undefined
-
-function source(): string {
-  anchorSource ??= readFileSync(path.join(__dirname, "image-text-anchor.js"), "utf8")
-  return anchorSource
+/** Only a reply from the selected WebFrameMain can satisfy a request. Nothing is exported to page JavaScript. */
+function request(frame: WebFrameMain, token: string, method: string, values: unknown[] = [], signal?: AbortSignal): Promise<unknown> {
+  signal?.throwIfAborted()
+  if (frame.isDestroyed()) return Promise.reject(new Error("Image text frame unavailable"))
+  return new Promise((resolve, reject) => {
+    const id = randomUUID()
+    const finish = (error?: Error, value?: unknown) => {
+      clearTimeout(timer)
+      ipcMain.removeListener(IMAGE_TEXT_IPC.reply, reply)
+      signal?.removeEventListener("abort", abort)
+      if (error) reject(error); else resolve(value)
+    }
+    const reply = (event: Electron.IpcMainEvent, result: { id?: string; value?: unknown; error?: string }) => {
+      if (event.senderFrame !== frame || result?.id !== id) return
+      finish(result.error ? new Error("Image text frame unavailable") : undefined, result.value)
+    }
+    const abort = () => finish(new Error("Image text cancelled"))
+    const timer = setTimeout(() => finish(new Error("Image text frame timed out")), 5_000)
+    ipcMain.on(IMAGE_TEXT_IPC.reply, reply)
+    signal?.addEventListener("abort", abort, { once: true })
+    try { frame.send(IMAGE_TEXT_IPC.command, { id, token, method, values }) } catch { finish(new Error("Image text frame unavailable")) }
+  })
 }
-
-const call = (method: string, token: string, ...values: unknown[]) =>
-  `window.__onceImageTextAnchor?.${method}(${[token, ...values].map((value) => JSON.stringify(value)).join(", ")})`
 
 /**
- * Hangs the selection on the image the menu was opened on, in `frame`.
- * Resolves null when the image is not found there, or when the tab's
- * debugger is taken (another protocol client) and the image is in a
- * subframe, which only the protocol reaches.
+ * Hangs the selection on the image the menu was opened on, in `frame`;
+ * resolves null when the image is not found there. When another protocol
+ * client holds the tab's debugger, the main frame's picture is captured as
+ * the tab shows it before anything is hung on it (no renderer hands over
+ * its bytes then); a subframe's cannot be, and the selection reports that.
  */
 export async function openImageTextHost(tab: WebContents, frame: WebFrameMain, src: string, x: number, y: number,
-  token: string, frameUrl: string): Promise<ImageTextHost | null> {
-  if (!tab.debugger.isAttached()) {
-    try {
-      return await ProtocolHost.open(tab, frame, [src, x, y, frameUrl], token)
-    } catch (error) {
-      console.warn("Image text could not use the DevTools protocol", error instanceof Error ? error.message : String(error))
-      if (tab.debugger.isAttached()) tab.debugger.detach()
-    }
+  token: string, frameUrl: string, signal: AbortSignal): Promise<ImageTextHost | null> {
+  let shot: ImageTextPicture | null = null
+  if (tab.debugger.isAttached() && frame === tab.mainFrame) {
+    const shown = await request(frame, token, "locate", [src, x, y], signal) as ImageTextInView | null
+    shot = shown ? await captureInView(tab, shown).catch(() => null) : null
   }
-  return frame === tab.mainFrame ? IsolatedWorldHost.open(tab, [src, x, y, frameUrl], token) : null
+  const host = new FrameHost(tab, frame, token, shot)
+  try {
+    const found = await request(frame, token, "start", [src, x, y, frameUrl], signal)
+    signal.throwIfAborted()
+    if (found === true) return host
+    host.close()
+    return null
+  } catch (error) { host.close(); throw error }
 }
 
-interface Frame { id: string; session: string; parentId?: string; url: string }
-
-class ProtocolHost implements ImageTextHost {
-  private handler: () => void = () => undefined
+class FrameHost implements ImageTextHost {
   private closed = false
-  /** The host's world went away with its frame. */
-  private lost = false
+  private handler: () => void = () => undefined
 
-  /**
-   * `owner` is the image's frame as its parent sees it, for a subframe: the
-   * frame's id and the parent's session, which holds its iframe element.
-   */
-  private constructor(private readonly tab: WebContents, private readonly debug: Debugger,
-    private readonly token: string, private readonly session: string, private readonly frameId: string,
-    private readonly context: number, private readonly owner: { frame: string; session: string } | null) {
-    debug.on("message", this.message)
-    debug.on("detach", this.detached)
-  }
-
-  static async open(tab: WebContents, frame: WebFrameMain, start: unknown[], token: string) {
-    const debug = tab.debugger
-    debug.attach("1.3")
-    const send = <T>(method: string, params: object, session: string) =>
-      debug.sendCommand(method, params, session || undefined) as Promise<T>
-    try {
-      const frames = await frameTree(debug, send)
-      const root = frames.find((candidate) => !candidate.parentId && !candidate.session)
-      if (!root) throw new Error("No main frame")
-      // The menu names its frame by URL; the host that finds the image decides between equals.
-      const candidates = frame === tab.mainFrame ? [root] : frames.filter((candidate) => candidate !== root && candidate.url === frame.url)
-      for (const candidate of candidates) {
-        const { executionContextId: context } = await send<{ executionContextId: number }>("Page.createIsolatedWorld",
-          { frameId: candidate.id, worldName: WORLD, grantUniveralAccess: false }, candidate.session)
-        // Bound to this context only: the page's own world never sees it.
-        await send("Runtime.addBinding", { name: BINDING, executionContextId: context }, candidate.session)
-        await send("Runtime.evaluate", { expression: source(), contextId: context }, candidate.session)
-        const { result } = await send<{ result?: { value?: unknown } }>("Runtime.evaluate",
-          { contextId: context, returnByValue: true, expression: call("start", token, ...start) }, candidate.session)
-        if (result?.value !== true) continue
-        const parent = frames.find((known) => known.id === candidate.parentId)
-        const host = new ProtocolHost(tab, debug, token, candidate.session, candidate.id, context,
-          parent ? { frame: candidate.id, session: parent.session } : null)
-        // Reports the world going away with its frame (an iframe removed, a navigation), which it cannot report itself.
-        await send("Runtime.enable", {}, candidate.session)
-        return host
-      }
-      debug.detach()
-      return null
-    } catch (error) {
-      if (debug.isAttached()) debug.detach()
-      throw error
-    }
+  constructor(private readonly tab: WebContents, private readonly frame: WebFrameMain, private readonly token: string,
+    private readonly shot: ImageTextPicture | null) {
+    ipcMain.on(IMAGE_TEXT_IPC.closed, this.report)
   }
 
   onClose(handler: () => void): void {
     this.handler = handler
+    if (this.closed) handler()
+  }
+
+  private readonly report = (event: Electron.IpcMainEvent, payload: unknown) => {
+    if (this.closed || event.sender !== this.tab || event.senderFrame !== this.frame || typeof payload !== "string" || payload.length > 256) return
+    try {
+      const report = JSON.parse(payload) as { token?: string; closed?: boolean }
+      if (report.token === this.token && report.closed === true) { this.close(); this.handler() }
+    } catch { /* Ignore malformed reports from a renderer. */ }
   }
 
   send(message: ImageTextViewMessage): void {
-    void this.evaluate(call("message", this.token, message)).catch(() => undefined)
+    if (!this.closed) void request(this.frame, this.token, "message", [message]).catch(() => this.handler())
   }
 
-  /**
-   * The image's frame brings it into its own view, and Chromium carries that
-   * scroll up through the frames. An image already in its frame's view, in
-   * an iframe the page has scrolled away, is brought in by its iframe
-   * element, through the parent: its frame, out of sight and cross-origin,
-   * runs no find scroll of its own (see the anchor's `reveal`).
-   */
+  async picture(signal: AbortSignal): Promise<ImageTextPicture | null> {
+    if (this.shot) return this.shot
+    const url = await request(this.frame, this.token, "source", [], signal)
+    if (typeof url !== "string" || !url || this.closed) return null
+    const bytes = await readFrameResource(this.tab, this.frame, url, signal)
+    return bytes && !this.closed ? { bytes } : null
+  }
+
   reveal(): void {
     void (async () => {
-      const shown = (await this.evaluate(call("reveal", this.token))) as ImageTextRevealed | null
-      if (!shown || !this.owner || this.closed || !this.debug.isAttached()) return
-      const send = <T>(method: string, params: object) => this.debug.sendCommand(method, params, this.owner?.session || undefined) as Promise<T>
-      const { backendNodeId } = await send<{ backendNodeId: number }>("DOM.getFrameOwner", { frameId: this.owner.frame })
-      // The image's place in its frame's viewport is relative to the iframe's content box; the rect wants its border box.
-      const { model } = await send<{ model: { content: number[]; border: number[] } }>("DOM.getBoxModel", { backendNodeId })
-      await send("DOM.scrollIntoViewIfNeeded", { backendNodeId, rect: { x: model.content[0] - model.border[0] + shown.left,
-        y: model.content[1] - model.border[1] + shown.top, width: shown.width, height: shown.height } })
+      const shown = await request(this.frame, this.token, "reveal") as ImageTextRevealed | null
+      if (!shown || this.closed) return
+      // An image can be visible in its own frame while an ancestor iframe is offscreen.
+      for (let child = this.frame, parent = child.parent; parent && !this.closed; child = parent, parent = parent.parent) {
+        const index = parent.frames.indexOf(child)
+        if (index < 0) return
+        await request(parent, this.token, "reveal-child", [index])
+      }
     })().catch(() => undefined)
   }
 
-  /**
-   * The bytes the image's frame loaded, out of its renderer's memory: the
-   * picture the page decoded, whatever its scheme (blob: too) or format.
-   * The resource is only served while the session's Page domain is enabled.
-   */
-  async picture(): Promise<ImageTextPicture | null> {
-    const url = await this.evaluate(call("source", this.token))
-    if (typeof url !== "string" || !url || !this.debug.isAttached()) return null
-    const send = <T>(method: string, params: object = {}) => this.debug.sendCommand(method, params, this.session || undefined) as Promise<T>
-    await send("Page.enable")
-    try {
-      const { content, base64Encoded } = await send<{ content: string; base64Encoded: boolean }>("Page.getResourceContent",
-        { frameId: this.frameId, url })
-      return { bytes: Buffer.from(content, base64Encoded ? "base64" : "utf8") }
-    } finally {
-      if (this.debug.isAttached()) await send("Page.disable").catch(() => undefined)
-    }
-  }
-
   async state(): Promise<ImageTextAnchorState | null> {
-    return (await this.evaluate(call("state", this.token))) as ImageTextAnchorState | null
+    if (this.closed) return null
+    return await request(this.frame, this.token, "state").catch(() => null) as ImageTextAnchorState | null
   }
 
   close(): void {
     if (this.closed) return
     this.closed = true
-    this.debug.removeListener("message", this.message)
-    this.debug.removeListener("detach", this.detached)
-    if (this.tab.isDestroyed() || !this.debug.isAttached()) return
-    const detach = () => { if (!this.tab.isDestroyed() && this.debug.isAttached()) this.debug.detach() }
-    if (this.lost) setTimeout(detach, 0)
-    else void this.evaluate(call("stop", this.token)).catch(() => undefined).finally(detach)
+    ipcMain.removeListener(IMAGE_TEXT_IPC.closed, this.report)
+    void request(this.frame, this.token, "stop").catch(() => undefined)
   }
-
-  private async evaluate(expression: string): Promise<unknown> {
-    if (this.tab.isDestroyed() || !this.debug.isAttached()) return null
-    const { result } = await this.debug.sendCommand("Runtime.evaluate", { contextId: this.context, returnByValue: true, expression },
-      this.session || undefined) as { result?: { value?: unknown } }
-    return result?.value ?? null
-  }
-
-  private readonly message = (_event: Electron.Event, method: string,
-    params: { name?: string; payload?: string; executionContextId?: number; sessionId?: string }, session?: string) => {
-    if (this.closed) return
-    const ours = (session ?? "") === this.session
-    if ((method === "Runtime.executionContextDestroyed" && ours && params.executionContextId === this.context) ||
-      (method === "Runtime.executionContextsCleared" && ours) ||
-      (method === "Target.detachedFromTarget" && this.session && params.sessionId === this.session)) {
-      // The world is gone with its frame: nothing to stop there. Answered
-      // after this dispatch: sending to or detaching from a session while the
-      // protocol reports its end took the whole app down (Electron 45).
-      this.lost = true
-      setTimeout(() => { if (!this.closed) this.handler() }, 0)
-      return
-    }
-    if (method !== "Runtime.bindingCalled" || params.name !== BINDING) return
-    if (params.executionContextId !== this.context || !ours) return
-    let report: ImageTextAnchorReport
-    try { report = JSON.parse(String(params.payload)) as ImageTextAnchorReport } catch { return }
-    if (report.token === this.token && report.closed) this.handler()
-  }
-
-  private readonly detached = () => {
-    this.lost = true
-    setTimeout(() => { if (!this.closed) this.handler() }, 0)
-  }
-}
-
-/** Every frame of the tab, across the sessions of out-of-process frames, which auto-attach. */
-async function frameTree(debug: Debugger, send: <T>(method: string, params: object, session: string) => Promise<T>): Promise<Frame[]> {
-  const sessions: string[] = [""]
-  const pending: Promise<unknown>[] = []
-  const attached = (_event: Electron.Event, method: string, params: { sessionId?: string; targetInfo?: { type?: string } }) => {
-    if (method !== "Target.attachedToTarget" || params.targetInfo?.type !== "iframe" || !params.sessionId) return
-    sessions.push(params.sessionId)
-    // Frames in other processes may hold more of them.
-    pending.push(send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, params.sessionId).catch(() => undefined))
-  }
-  debug.on("message", attached)
-  try {
-    await send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, "")
-    for (let settled = 0; settled < pending.length;) {
-      const batch = pending.slice(settled)
-      settled = pending.length
-      await Promise.all(batch)
-    }
-  } finally {
-    debug.removeListener("message", attached)
-  }
-  interface Tree { frame: { id: string; parentId?: string; url: string }; childFrames?: Tree[] }
-  const frames: Frame[] = []
-  for (const session of sessions) {
-    const { frameTree: tree } = await send<{ frameTree: Tree }>("Page.getFrameTree", {}, session)
-    const walk = (node: Tree) => {
-      if (!frames.some((known) => known.id === node.frame.id)) {
-        frames.push({ id: node.frame.id, session, parentId: node.frame.parentId, url: node.frame.url })
-      }
-      node.childFrames?.forEach(walk)
-    }
-    walk(tree)
-  }
-  return frames
-}
-
-/**
- * Without the protocol (another client holds the tab's debugger): the main
- * frame's isolated world, reached through Electron, which has no binding
- * back, so the app asks now and then whether the selection is still open.
- */
-class IsolatedWorldHost implements ImageTextHost {
-  private static readonly WORLD_ID = 917
-  private handler: () => void = () => undefined
-  private closed = false
-  private readonly poll: ReturnType<typeof setInterval>
-
-  private constructor(private readonly tab: WebContents, private readonly token: string,
-    private readonly shot: ImageTextPicture | null) {
-    this.poll = setInterval(() => {
-      void this.evaluate(call("alive", token)).then((alive) => { if (alive === false && !this.closed) this.handler() })
-    }, 250)
-  }
-
-  /**
-   * The picture is captured as the tab shows it, before the selection hangs
-   * anything on it: without the protocol, no renderer hands over its bytes.
-   */
-  static async open(tab: WebContents, start: unknown[], token: string) {
-    const run = (code: string) => tab.executeJavaScriptInIsolatedWorld(IsolatedWorldHost.WORLD_ID, [{ code }])
-    await run(source())
-    const shown = await run(`window.__onceImageTextAnchor?.locate(${start.slice(0, 3).map((value) => JSON.stringify(value)).join(", ")})`) as ImageTextInView | null
-    const shot = shown ? await capture(tab, shown).catch(() => null) : null
-    const found = await run(call("start", token, ...start))
-    return found === true ? new IsolatedWorldHost(tab, token, shot) : null
-  }
-
-  onClose(handler: () => void): void {
-    this.handler = handler
-  }
-
-  picture(): Promise<ImageTextPicture | null> {
-    return Promise.resolve(this.shot)
-  }
-
-  send(message: ImageTextViewMessage): void {
-    void this.evaluate(call("message", this.token, message))
-  }
-
-  /** In the main frame, the image's own scroll is all it takes. */
-  reveal(): void {
-    void this.evaluate(call("reveal", this.token))
-  }
-
-  async state(): Promise<ImageTextAnchorState | null> {
-    return (await this.evaluate(call("state", this.token))) as ImageTextAnchorState | null
-  }
-
-  close(): void {
-    if (this.closed) return
-    this.closed = true
-    clearInterval(this.poll)
-    void this.evaluate(call("stop", this.token))
-  }
-
-  private async evaluate(code: string): Promise<unknown> {
-    if (this.tab.isDestroyed()) return null
-    return this.tab.executeJavaScriptInIsolatedWorld(IsolatedWorldHost.WORLD_ID, [{ code }]).catch(() => null)
-  }
-}
-
-/** The main frame's CSS pixels are the view's at its zoom; the capture is in device pixels. */
-async function capture(tab: WebContents, shown: ImageTextInView): Promise<ImageTextPicture | null> {
-  const zoom = tab.getZoomFactor()
-  const left = Math.floor(shown.left * zoom), top = Math.floor(shown.top * zoom)
-  const image = await tab.capturePage({ x: left, y: top,
-    width: Math.ceil((shown.left + shown.width) * zoom) - left, height: Math.ceil((shown.top + shown.height) * zoom) - top })
-  return image.isEmpty() ? null : { bytes: image.toPNG(), part: shown.part }
 }

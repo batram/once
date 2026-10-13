@@ -26,6 +26,23 @@ PouchDB.plugin(PouchDBFind)
 
 const OS_NAMES: Record<string, string> = { darwin: "macOS", win32: "Windows", linux: "Linux" }
 
+/** Native helpers: Apple Vision on macOS, Windows.Media.Ocr on Windows. A request is cancelled in main when its signal aborts. */
+function textRecognition(bridge: ElectronBridge): NonNullable<OncePlatformPorts["textRecognition"]> {
+  return {
+    async recognizeImage(bytes, signal) {
+      signal?.throwIfAborted()
+      const requestId = crypto.randomUUID()
+      const cancel = () => { void bridge.cancelImageRecognition(requestId).catch(() => undefined) }
+      signal?.addEventListener("abort", cancel, { once: true })
+      try {
+        const result = await bridge.recognizeImage(bytes, requestId)
+        signal?.throwIfAborted()
+        return result
+      } finally { signal?.removeEventListener("abort", cancel) }
+    }
+  }
+}
+
 export interface ElectronPlatformOptions {
   /** The PDF sandbox page, served under `once-addon://pdf/`. */
   pdfSandboxUrl?: string
@@ -121,10 +138,7 @@ export function createElectronPlatform(
       defaultName: `Once on ${OS_NAMES[buildInfo?.platform ?? ""] ?? "desktop"}`,
       appVersion: buildInfo?.version ?? ""
     },
-    // Native helpers: Apple Vision on macOS, Windows.Media.Ocr on Windows.
-    textRecognition: buildInfo?.platform === "darwin" || buildInfo?.platform === "win32"
-      ? { recognizeImage: bytes => bridge.recognizeImage(bytes) }
-      : undefined,
+    textRecognition: buildInfo?.platform === "darwin" || buildInfo?.platform === "win32" ? textRecognition(bridge) : undefined,
     ...(options.pdfSandboxUrl ? { pdfText: createPdfTextPort({ sandboxUrl: options.pdfSandboxUrl }) } : {}),
     fetch: fetchThroughMain,
     // Document bodies stream from main so retrieval can stop at its byte cap;

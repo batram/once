@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include "ImageTextSandbox.h"
 
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
@@ -30,7 +31,8 @@ using namespace winrt::Windows::Storage::Streams;
 namespace {
 
 constexpr size_t kMaxBytes = 32 * 1024 * 1024;
-constexpr double kMaxPixels = 80'000'000;
+constexpr double kMaxDeclaredPixels = 80'000'000;
+constexpr double kMaxPixels = 8'000'000;
 constexpr double kMaxSide = 4096;
 
 void appendString(std::string& out, hstring const& text) {
@@ -76,6 +78,8 @@ std::vector<uint8_t> readInput() {
   return data;
 }
 
+// The image is decoded here, in the AppContainer worker: the codecs run with
+// no capabilities, in a job that is killed on close.
 SoftwareBitmap decode(std::vector<uint8_t> const& data) {
   InMemoryRandomAccessStream stream;
   DataWriter writer(stream);
@@ -85,10 +89,10 @@ SoftwareBitmap decode(std::vector<uint8_t> const& data) {
   stream.Seek(0);
   const BitmapDecoder decoder = BitmapDecoder::CreateAsync(stream).get();
   const double width = decoder.PixelWidth(), height = decoder.PixelHeight();
-  if (width <= 0 || height <= 0 || width * height > kMaxPixels) throw std::runtime_error("invalid dimensions");
+  if (width <= 0 || height <= 0 || width * height > kMaxDeclaredPixels) throw std::runtime_error("invalid dimensions");
   // Scale is applied before EXIF orientation, so it uses the stored size;
-  // the returned bitmap is upright.
-  const double scale = std::min(1.0, kMaxSide / std::max(width, height));
+  // the returned bitmap is upright, within the side and pixel budgets.
+  const double scale = std::min({1.0, kMaxSide / std::max(width, height), std::sqrt(kMaxPixels / (width * height))});
   BitmapTransform transform;
   transform.ScaledWidth(std::max(1u, static_cast<uint32_t>(std::lround(width * scale))));
   transform.ScaledHeight(std::max(1u, static_cast<uint32_t>(std::lround(height * scale))));
@@ -149,13 +153,24 @@ std::string recognize(SoftwareBitmap const& bitmap) {
 
 }  // namespace
 
-int main() {
+int wmain(int argc, wchar_t* argv[]) {
   try {
+    if (!image_text_sandbox::contained()) {
+      if (argc == 1) return image_text_sandbox::run();
+      if (argc == 3 && std::wstring(argv[1]) == L"--sandbox-directory") return image_text_sandbox::run(argv[2]);
+      throw std::runtime_error("invalid sandbox arguments");
+    }
     init_apartment(apartment_type::multi_threaded);
     const std::string json = recognize(decode(readInput()));
     _setmode(_fileno(stdout), _O_BINARY);
     std::fwrite(json.data(), 1, json.size(), stdout);
     return 0;
+  } catch (std::exception const& error) {
+    std::fprintf(stderr, "%s\n", error.what());
+    return 1;
+  } catch (winrt::hresult_error const& error) {
+    std::fprintf(stderr, "Native OCR error: %08lx\n", static_cast<unsigned long>(error.code().value));
+    return 1;
   } catch (...) {
     std::fputs("Image text recognition failed.\n", stderr);
     return 1;

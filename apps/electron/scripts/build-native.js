@@ -16,14 +16,15 @@ const upToDate = (output, source) => fs.existsSync(output) && fs.statSync(output
 function buildMacImageText() {
   const source = path.resolve(__dirname, "../native/ImageText.swift")
   const output = path.join(directory, "once-image-text")
-  if (upToDate(output, source)) return
+  const entitlements = path.resolve(__dirname, "../native/image-text.entitlements.plist")
+  if (upToDate(output, source) && upToDate(output, entitlements)) return
   fs.mkdirSync(directory, { recursive: true })
   for (const arch of ["arm64", "x86_64"]) {
     run("xcrun", ["swiftc", "-O", "-target", `${arch}-apple-macosx12.0`,
       "-module-cache-path", path.join(directory, "module-cache"), source, "-o", `${output}-${arch}`])
   }
   run("xcrun", ["lipo", "-create", `${output}-arm64`, `${output}-x86_64`, "-output", output])
-  run("codesign", ["--force", "--sign", "-", output])
+  run("codesign", ["--force", "--sign", "-", "--identifier", "app.once.image-text", "--entitlements", entitlements, output])
 }
 
 /**
@@ -31,9 +32,9 @@ function buildMacImageText() {
  * the output free of a VC++ redistributable dependency. Rebuilt when the
  * source is newer or the target architecture changed.
  */
-function buildMsvc(name, arch, { source, output, flags = [], libs }) {
+function buildMsvc(name, arch, { source, output, flags = [], libs, dependencies = [] }) {
   const stamp = path.join(directory, `${name}.arch`)
-  if (upToDate(output, source) && fs.existsSync(stamp) && fs.readFileSync(stamp, "utf8") === arch) return
+  if ([source, ...dependencies].every(input => upToDate(output, input)) && fs.existsSync(stamp) && fs.readFileSync(stamp, "utf8") === arch) return
   const vswhere = path.join(process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "Microsoft Visual Studio", "Installer", "vswhere.exe")
   const found = spawnSync(vswhere, ["-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
     "-property", "installationPath"], { encoding: "utf8" })
@@ -62,7 +63,8 @@ function buildImageText(arch) {
     buildMsvc("once-image-text", arch, {
       source: path.resolve(__dirname, "../native/ImageText.cpp"),
       output: path.join(directory, "once-image-text.exe"),
-      libs: ["windowsapp.lib"]
+      dependencies: [path.resolve(__dirname, "../native/ImageTextSandbox.h")],
+      libs: ["windowsapp.lib", "userenv.lib", "advapi32.lib"]
     })
   }
 }

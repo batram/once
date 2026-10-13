@@ -30,8 +30,20 @@ document.querySelector('img').src = canvas.toDataURL('image/png');
 async function startImageTextServer(port = 0) {
   let raster = null
   let loads = 0
+  let manifests = 0
   let text = SAMPLE
   const server = http.createServer((request, response) => {
+    if (request.url === "/manifest.webmanifest") {
+      manifests++
+      response.writeHead(200, { "content-type": "application/manifest+json", "cache-control": "no-store" })
+      response.end("{}")
+      return
+    }
+    if (request.url === "/image.svg") {
+      response.writeHead(200, { "content-type": "image/svg+xml", "cache-control": "no-store" })
+      response.end('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="360"><rect width="1000" height="360" fill="white"/><text x="65" y="100" font-family="Arial" font-size="48">Select these words</text></svg>')
+      return
+    }
     if (request.url === "/image.png" && raster) {
       loads++
       // Uncached, so any load past the page's own reaches the server and is counted.
@@ -55,6 +67,7 @@ async function startImageTextServer(port = 0) {
     setImage: (bytes) => { raster = bytes; loads = 0 },
     /** How often `/image.png` was loaded since `setImage`. */
     imageLoads: () => loads,
+    manifestLoads: () => manifests,
     /** What the page's image shows from its next load: `{ width, height, font, lines: [[text, x, y]] }`; null for the sample. */
     setText: (drawn) => { text = drawn ? { ...SAMPLE, ...drawn } : SAMPLE },
     close: () => new Promise(resolve => server.close(resolve)) }
