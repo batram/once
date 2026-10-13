@@ -22,7 +22,11 @@ import {
 } from "./storyRowMarkup"
 import { renderSubstories } from "./storyRowSubstories"
 import { attachStorySwipe, SwipePreview } from "./swipe/gesture"
+import { springRowHome } from "./swipe/track"
 import { storyRowFingerprint } from "./storyRowFingerprint"
+
+// How long a released swipe waits for its row's exit before springing home.
+const SWIPE_HOLD_MS = 1000
 
 export class StoryListItem extends HTMLElement {
   static devToolsEnabled = false
@@ -38,6 +42,8 @@ export class StoryListItem extends HTMLElement {
   substories_el!: HTMLElement
   menu_btn!: HTMLElement
   private cancelReadAnimation?: () => void
+  // Where a released swipe left the row while its exit is on the way.
+  private swipeHold?: { offset: number; fallback: ReturnType<typeof setTimeout> }
   // The story as the row currently shows it; see storyRowFingerprint.
   private shownFingerprint = ""
   /** Set only on the swipe settings sample row; see SwipePreview. */
@@ -129,15 +135,44 @@ export class StoryListItem extends HTMLElement {
     }
   }
 
+  /**
+   * A swipe released into an action that moves the row away: the row stays
+   * `offset` px off its place until the exit starts from there, and springs
+   * home if none comes.
+   */
+  holdSwipeExit(offset: number): void {
+    if (this.swipeHold) springRowHome(this, this.takeSwipeHold())
+    if (offset === 0) return
+    this.swipeHold = {
+      offset,
+      fallback: setTimeout(() => springRowHome(this, this.takeSwipeHold()), SWIPE_HOLD_MS)
+    }
+  }
+
+  private takeSwipeHold(): number {
+    const hold = this.swipeHold
+    if (!hold) return 0
+    clearTimeout(hold.fallback)
+    this.swipeHold = undefined
+    return hold.offset
+  }
+
   animate_read(): void {
     this.cancelReadAnimation?.()
     this.cancelReadAnimation = undefined
 
+    const held = this.takeSwipeHold()
+    const settle = () => {
+      if (held !== 0) this.style.transform = ""
+    }
     if (!this.parentElement) {
       //not attached to dom, no need to sort or animate anything, no on will see
+      settle()
       return
     }
-    const anmim_class = this.story.read_state + "_anim"
+    // A held swipe leaves the way it was dragged: read_anim exits right,
+    // skipped_anim left, whatever the new state.
+    const anmim_class = held > 0 ? "read_anim" : held < 0 ? "skipped_anim" : this.story.read_state + "_anim"
     const resort = resortSingle(this)
     if (typeof resort == "function") {
       if (
@@ -147,13 +182,22 @@ export class StoryListItem extends HTMLElement {
         //consume user interaction
         this.read_btn.classList.remove("user_interaction")
         this.classList.add(anmim_class)
-        this.cancelReadAnimation = finishStoryExitTransition(this, () => {
+        const cancel = finishStoryExitTransition(this, () => {
           this.cancelReadAnimation = undefined
+          settle()
           resort()
         })
+        this.cancelReadAnimation = () => {
+          cancel()
+          settle()
+        }
       } else {
+        settle()
         resort()
       }
+    } else {
+      // Keeps its place after all: back home from where the swipe left it.
+      if (held !== 0) springRowHome(this, held)
     }
   }
 

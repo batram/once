@@ -21,6 +21,12 @@ export interface SwipePreview {
   onTravel?(offset: number): void
 }
 
+/** Whether `action` takes an unread row out of its place in the list. */
+function leavesUnread(row: StoryListItem, action: SwipeActionId): boolean {
+  if (row.story.read_state !== "unread") return false
+  return action === "skip" || action === "open" || action === "toggle-read"
+}
+
 /**
  * Anchors a mouse or pen drag on the press itself.
  *
@@ -100,15 +106,18 @@ export function attachStorySwipe(row: StoryListItem): void {
     e.stopPropagation()
 
     const committed = tracker.stage
-    const direction = tracker.direction
-    reset_swipe()
-    commit_swipe(committed, direction)
+    const action = geometry().actionAt(committed, tracker.direction)
+    // A release that sends the row away leaves it where the finger did, so
+    // the exit slide carries on from there instead of first springing home.
+    const leaves = !row.swipePreview && leavesUnread(row, action)
+    const released_from = reset_swipe(leaves)
+    if (leaves) row.holdSwipeExit(released_from)
+    commit_swipe(action, committed)
 
     return false
   }
 
-  const commit_swipe = (committed: SwipeStage, direction: number) => {
-    const action = geometry().actionAt(committed, direction)
+  const commit_swipe = (action: SwipeActionId, committed: SwipeStage) => {
     if (row.swipePreview) {
       // A sample row: say what would have happened, change nothing.
       row.swipePreview.onAction(action, committed)
@@ -140,14 +149,15 @@ export function attachStorySwipe(row: StoryListItem): void {
     row.parentElement?.addEventListener("scroll", end_swipe)
   }
 
-  const reset_swipe = () => {
-    tracker.reset()
+  const reset_swipe = (hold = false) => {
+    const released_from = tracker.reset(hold)
     document.body.style.cursor = ""
     for (const [type, handler] of followers) {
       document.removeEventListener(type, handler)
     }
     document.removeEventListener("pointermove", mouse_swipe)
     row.parentElement?.removeEventListener("scroll", end_swipe)
+    return released_from
   }
 
   row.addEventListener("touchmove", () => {

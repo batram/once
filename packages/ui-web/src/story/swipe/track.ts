@@ -9,6 +9,19 @@ import { createSwipeStageLock } from "./stageLock"
  */
 const SWIPE_RELEASE_TIMING: KeyframeAnimationOptions = { duration: 200, easing: "cubic-bezier(.2, .8, .2, 1)" }
 
+/** Move a row that rests `from` px off its place back home. */
+export function springRowHome(row: HTMLElement, from: number): void {
+  row.style.transition = ""
+  row.style.transform = ""
+  // spring back rather than snapping, so the release reads as a release
+  if (from !== 0) {
+    row.animate(
+      [{ transform: `translateX(${from}px)` }, { transform: "none" }],
+      SWIPE_RELEASE_TIMING
+    )
+  }
+}
+
 /**
  * Where a drag currently is and what releasing it would commit.
  *
@@ -32,8 +45,11 @@ export interface SwipeTracker {
   showReveal(): void
   /** Follow the pointer to `x`: redraw the reveal and move the row. */
   move(x: number): void
-  /** Spring the row home and drop all gesture state. */
-  reset(): void
+  /**
+   * Drop all gesture state and spring the row home, or with `hold` leave it
+   * where the drag left it. Returns that offset.
+   */
+  reset(hold?: boolean): number
 }
 
 /**
@@ -130,7 +146,7 @@ export function createSwipeTracker(
       onTravel(drag_offset)
     },
 
-    reset() {
+    reset(hold = false) {
       const released_from = drag_offset
       reveal.remove()
       lock.clear()
@@ -139,16 +155,10 @@ export function createSwipeTracker(
       drag_offset = 0
       visual_stage = 0
       stage = 0
-      row.style.transition = ""
-      row.style.transform = ""
-      // spring back rather than snapping, so the release reads as a release
-      if (released_from !== 0) {
-        row.animate(
-          [{ transform: `translateX(${released_from}px)` }, { transform: "none" }],
-          SWIPE_RELEASE_TIMING
-        )
-      }
+      if (hold) row.style.transition = ""
+      else springRowHome(row, released_from)
       onTravel(0)
+      return released_from
     }
   }
 }
