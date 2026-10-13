@@ -222,8 +222,23 @@ async function waitForAppReady(electronApp, window, appLog) {
   )
 }
 
+// Down on the first request, so reader mode fails once and a retry reads it.
+function serveAfterOutage(request, response, outage) {
+  if (request.url !== "/article-after-outage") return false
+  outage.requests += 1
+  if (outage.requests === 1) {
+    response.writeHead(503, { "content-type": "text/plain; charset=utf-8" })
+    response.end("Down for maintenance")
+  } else {
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+    response.end(articlePage("Recovered Article"))
+  }
+  return true
+}
+
 async function startPageServer(options = {}) {
   let origin = ""
+  const outage = { requests: 0 }
   const server = http.createServer((request, response) => {
     if (typeof options.onRequest === "function") {
       const startedAt = Date.now()
@@ -336,6 +351,7 @@ async function startPageServer(options = {}) {
       response.end(xhtmlArticlePage("XHTML Article"))
       return
     }
+    if (serveAfterOutage(request, response, outage)) return
     // Arrives slowly enough that the tab is still loading when a test reaches
     // for reader mode.
     if (request.url === "/slow-article") {

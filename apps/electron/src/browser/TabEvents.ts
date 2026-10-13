@@ -3,7 +3,7 @@ import { ELECTRON_IPC } from "@once/platform-electron/bridge"
 import { chordFromKey, chordFromParts, isModifiedChord, sameStoryDocument } from "@once/core"
 import { NativeMenus } from "./NativeMenus"
 import { NavigationErrors, sameUrl } from "./NavigationErrors"
-import { fallbackTabTitle } from "./reader-url"
+import { fallbackTabTitle, sourceUrlFromReaderUrl } from "./reader-url"
 import { TabEntry, WindowEntry } from "./BrowserState"
 import { TabPopups } from "./TabPopups"
 import { markActivity, markNavigated } from "./TabSyncTimes"
@@ -98,6 +98,15 @@ class TabNavigationEvents {
       )
     })
     contents.on("will-navigate", (event, url) => {
+      // A reader page linking to itself (an error page's "Try again") reads the article afresh;
+      // loading it would only serve the stored page again.
+      const readerSource = sourceUrlFromReaderUrl(url)
+      const owner = this.actions.ownerFor(entry)
+      if (readerSource && owner && readerSource === sourceUrlFromReaderUrl(contents.getURL())) {
+        event.preventDefault()
+        owner.window.webContents.send(ELECTRON_IPC.tabsRegenerateReader, readerSource, entry.id)
+        return
+      }
       try {
         const normalized = this.actions.normalizeUrl(url)
         const redirected = this.actions.applyRedirects(normalized)

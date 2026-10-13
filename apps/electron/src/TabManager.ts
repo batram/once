@@ -307,32 +307,6 @@ export class BrowserCoordinator {
     await this.openWith(state, readerUrl, disposition)
   }
 
-  showReaderError(
-    state: WindowEntry,
-    sourceUrl: string,
-    error: string,
-    tabId?: string
-  ): void {
-    if (typeof error !== "string" || error.length === 0 || error.length > 10_000) {
-      throw new Error("Invalid reader error")
-    }
-    const source = new URL(sourceUrl)
-    if (source.protocol !== "http:" && source.protocol !== "https:") {
-      throw new Error("Reader source must use HTTP or HTTPS")
-    }
-    const entry = this.readerTarget(state, tabId)
-    if (!entry) {
-      if (tabId) return
-      throw new Error("There is no active tab for the reader error")
-    }
-    this.navigationErrors.handleFailure(
-      entry,
-      `once-reader://${source.toString()}`,
-      error,
-      true
-    )
-  }
-
   // The tab a reader request belongs to. Fetching an article takes as long as
   // loading the page does, so by the time one arrives its tab may be gone; the
   // result is then dropped rather than pushed onto whatever is active now.

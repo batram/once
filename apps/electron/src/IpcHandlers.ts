@@ -333,13 +333,6 @@ function registerTabNavigation(coordinator: BrowserCoordinator): void {
       return coordinator.openReader(current.window, html, sourceUrl, target, tabId)
     }
   )
-  ipcMain.handle(
-    ELECTRON_IPC.tabsShowReaderError,
-    (event, sourceUrl: string, error: string, tabId?: string) => {
-      const current = browser(event, coordinator)
-      return coordinator.showReaderError(current.window, sourceUrl, error, tabId)
-    }
-  )
   ipcMain.handle(ELECTRON_IPC.tabsNavigate, (event, id: string, url: string) => {
     const current = browser(event, coordinator)
     return coordinator.navigate(current.window, id, url)

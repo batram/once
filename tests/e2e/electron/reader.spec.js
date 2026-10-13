@@ -123,6 +123,28 @@ test("duplicates a reader tab into a second reader tab", async () => {
   }
 })
 
+test("a reader error page's Try again reads the article afresh", async () => {
+  const { electronApp, userData, window } = await launchApp({
+    env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" }
+  })
+  try {
+    const address = window.locator("#urlfield")
+    await address.fill(`once-reader://${origin}/article-after-outage`)
+    await address.press("Enter")
+    const title = window.locator(".electron-tab-title")
+    await expect(title).toHaveText("Reader mode")
+    // The error page sits in the tab's own view, out of reach of the shell's locators.
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL().includes("article-after-outage"))
+      return contents ? contents.executeJavaScript("(link => { link?.click(); return Boolean(link) })(document.querySelector('[data-reader-retry]'))").catch(() => false) : false
+    })).toBe(true)
+    await expect(title).toHaveText("Recovered Article")
+    await expect(address).toHaveValue(`once-reader://${origin}/article-after-outage`)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("reads an article served as application/xhtml+xml", async () => {
   const { electronApp, userData, window } = await launchApp({
     env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" }
