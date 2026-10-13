@@ -40,11 +40,15 @@ jobs:
       - run: npm ci
       - run: npm run test:setup:ci
       - run: npm run test:extensions
+      # Not only on failure: a test that passed on its retry leaves its first
+      # attempt's trace and logs here, and green runs carry little else (each
+      # run's run.log). Without them a flake could not be looked into later.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: failure()
+        if: ${{ !cancelled() }}
         with:
           name: extension-test-results
           path: test-results
+          retention-days: 14
           if-no-files-found: ignore
 
   electron-contracts:
@@ -61,10 +65,11 @@ jobs:
       - run: npm run test:electron
       - run: npm run test:design-system
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: failure()
+        if: ${{ !cancelled() }}
         with:
           name: windows-contract-test-results
           path: test-results
+          retention-days: 14
           if-no-files-found: ignore
 
   electron-e2e:
@@ -136,10 +141,11 @@ jobs:
           retention-days: 14
           if-no-files-found: error
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: failure()
+        if: ${{ !cancelled() }}
         with:
-          name: electron-e2e-failures-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
+          name: electron-e2e-results-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
           path: test-results
+          retention-days: 14
           if-no-files-found: ignore
 
   # Preserve the existing required-check name, and reject failed/skipped jobs.
