@@ -230,6 +230,25 @@ test("the protocol serves extension files, the generated page, and nothing outsi
   assert.equal((await extensionProtocol.serveExtensionRequest("moz-extension://nobody/x", lookup)).status, 404)
 })
 
+test("extension pages carry Firefox's default policy unless the manifest declares one", async () => {
+  const extension = await loaded.loadUnpackedExtension(fixture, "en")
+  const lookup = (host) => (host === extension.host ? extension : undefined)
+  const serve = (p) => extensionProtocol.serveExtensionRequest(scheme.extensionUrl(extension.host, p), lookup)
+  const mv2Default = "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  assert.equal((await serve(loaded.GENERATED_BACKGROUND_PAGE)).headers.get("content-security-policy"), mv2Default)
+  assert.equal((await serve("background.js")).headers.get("content-security-policy"), mv2Default)
+
+  const policy = (rawManifest) => loaded.extensionPagePolicy({ ...extension, rawManifest })
+  assert.equal(policy({ manifest_version: 2, content_security_policy: "script-src 'self' 'unsafe-eval'" }),
+    "script-src 'self' 'unsafe-eval'")
+  assert.equal(policy({ manifest_version: 3 }), "script-src 'self'; upgrade-insecure-requests;")
+  assert.equal(policy({ manifest_version: 3, content_security_policy: { extension_pages: "script-src 'self'" } }),
+    "script-src 'self'")
+  // An MV2-style string means nothing to MV3, which keeps its default.
+  assert.equal(policy({ manifest_version: 3, content_security_policy: "script-src *" }),
+    "script-src 'self'; upgrade-insecure-requests;")
+})
+
 test("storage.local keeps items, reports changes, and survives a reload", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "once-ext-storage-"))
   const file = path.join(dir, "storage.json")

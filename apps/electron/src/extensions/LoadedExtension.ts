@@ -97,6 +97,25 @@ export function generatedBackgroundHtml(scripts: readonly string[], module = fal
   return `<!DOCTYPE html>\n<html><head><meta charset="utf-8"></head><body>\n${tags}\n</body></html>\n`
 }
 
+/**
+ * The policy Firefox gives the extension's own pages: the manifest's
+ * `content_security_policy` (MV2 string, MV3 `extension_pages`), else its
+ * default. MV2 keeps WebAssembly for compatibility, as Firefox does.
+ */
+export function extensionPagePolicy(extension: LoadedExtension): string {
+  const raw = (extension.rawManifest ?? {}) as { manifest_version?: unknown; content_security_policy?: unknown }
+  const declared = raw.content_security_policy
+  if (raw.manifest_version === 3) {
+    const pages = typeof declared === "object" && declared !== null
+      ? (declared as { extension_pages?: unknown }).extension_pages
+      : undefined
+    return typeof pages === "string" && pages.trim() ? pages : "script-src 'self'; upgrade-insecure-requests;"
+  }
+  return typeof declared === "string" && declared.trim()
+    ? declared
+    : "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+}
+
 function escapeAttribute(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")
 }

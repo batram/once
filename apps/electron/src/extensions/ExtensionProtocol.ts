@@ -5,6 +5,7 @@ import { parseExtensionUrl } from "./ExtensionScheme"
 import {
   GENERATED_BACKGROUND_PAGE,
   LoadedExtension,
+  extensionPagePolicy,
   generatedBackgroundHtml,
   mimeTypeFor,
   resolveExtensionFile
@@ -92,7 +93,10 @@ export async function serveExtensionRequest(
       return notFound("This extension has no generated background page")
     }
     return new Response(generatedBackgroundHtml(background.scripts, background.module), {
-      headers: { "content-type": "text/html; charset=utf-8" }
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "content-security-policy": extensionPagePolicy(extension)
+      }
     })
   }
 
@@ -103,7 +107,9 @@ export async function serveExtensionRequest(
     return new Response(body, {
       headers: {
         "content-type": mimeTypeFor(file),
-        "cache-control": "no-cache"
+        "cache-control": "no-cache",
+        // On every response: a worker takes its policy from its script's.
+        "content-security-policy": extensionPagePolicy(extension)
       }
     })
   } catch {
