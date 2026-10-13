@@ -31,7 +31,8 @@ export async function selectImageText(contents: WebContents, params: ContextMenu
     overlay.onClose(cancel)
     controller.signal.addEventListener("abort", overlay.close, { once: true })
     // The image as the tab already has it, never fetched again (see the host's `picture`).
-    const picture: ImageTextPicture | null = params.srcURL.startsWith("data:")
+    // An SVG is captured as shown (see openImageTextHost): the native helper cannot decode one.
+    const picture: ImageTextPicture | null = params.srcURL.startsWith("data:") && !params.srcURL.startsWith("data:image/svg+xml")
       ? { bytes: decodeImageData(params.srcURL) }
       : await overlay.picture(signal)
     signal.throwIfAborted()

@@ -51,19 +51,28 @@ function request(frame: WebFrameMain, token: string, method: string, values: unk
 
 /**
  * Hangs the selection on the image the menu was opened on, in `frame`;
- * resolves null when the image is not found there. When another protocol
- * client holds the tab's debugger, the main frame's picture is captured as
- * the tab shows it before anything is hung on it (no renderer hands over
- * its bytes then); a subframe's cannot be, and the selection reports that.
+ * resolves null when the image is not found there. The main frame's picture
+ * is captured as the tab shows it, before anything is hung on it, when
+ * another protocol client holds the tab's debugger (no renderer hands over
+ * its bytes then) or when its bytes are markup: an SVG, which the native
+ * helper's decoder cannot read. A subframe's cannot be, and the selection
+ * reports that.
  */
 export async function openImageTextHost(tab: WebContents, frame: WebFrameMain, src: string, x: number, y: number,
   token: string, frameUrl: string, signal: AbortSignal): Promise<ImageTextHost | null> {
   let shot: ImageTextPicture | null = null
-  if (tab.debugger.isAttached() && frame === tab.mainFrame) {
-    const shown = await request(frame, token, "locate", [src, x, y], signal) as ImageTextInView | null
-    shot = shown ? await captureInView(tab, shown).catch(() => null) : null
+  let read: Read | null = null
+  if (frame === tab.mainFrame) {
+    if (!src.startsWith("data:")) {
+      const bytes = await readFrameResource(tab, frame, src, signal).catch((error: unknown) => { if (signal.aborted) throw error; return null })
+      read = { url: src, bytes }
+    }
+    if (tab.debugger.isAttached() || src.startsWith("data:image/svg+xml") || isMarkup(read?.bytes)) {
+      const shown = await request(frame, token, "locate", [src, x, y], signal) as ImageTextInView | null
+      shot = shown ? await captureInView(tab, shown).catch(() => null) : null
+    }
   }
-  const host = new FrameHost(tab, frame, token, shot)
+  const host = new FrameHost(tab, frame, token, shot, read)
   try {
     const found = await request(frame, token, "start", [src, x, y, frameUrl], signal)
     signal.throwIfAborted()
@@ -73,12 +82,20 @@ export async function openImageTextHost(tab: WebContents, frame: WebFrameMain, s
   } catch (error) { host.close(); throw error }
 }
 
+/** The image's bytes as read before the selection was hung on it. */
+interface Read { url: string; bytes: Buffer | null }
+
+/** A tag first, past whitespace (\s covers a byte order mark): SVG or other XML, never a raster. */
+function isMarkup(bytes: Buffer | null | undefined): boolean {
+  return !!bytes && /^\s*</.test(bytes.subarray(0, 64).toString("utf8"))
+}
+
 class FrameHost implements ImageTextHost {
   private closed = false
   private handler: () => void = () => undefined
 
   constructor(private readonly tab: WebContents, private readonly frame: WebFrameMain, private readonly token: string,
-    private readonly shot: ImageTextPicture | null) {
+    private readonly shot: ImageTextPicture | null, private readonly read: Read | null) {
     ipcMain.on(IMAGE_TEXT_IPC.closed, this.report)
   }
 
@@ -103,7 +120,7 @@ class FrameHost implements ImageTextHost {
     if (this.shot) return this.shot
     const url = await request(this.frame, this.token, "source", [], signal)
     if (typeof url !== "string" || !url || this.closed) return null
-    const bytes = await readFrameResource(this.tab, this.frame, url, signal)
+    const bytes = this.read?.url === url && this.read.bytes ? this.read.bytes : await readFrameResource(this.tab, this.frame, url, signal)
     return bytes && !this.closed ? { bytes } : null
   }
 
