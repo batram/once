@@ -487,7 +487,7 @@ export class PouchSyncService {
     this.settingsReplicatedGeneration = 0
     const details = error instanceof SyncCompatibilityError ? error.compatibility : undefined
     const message = error instanceof Error && /^(Sync compatibility|Sync paused)/.test(error.message) ? error.message : "Sync paused. Could not verify compatibility with the database. Check your connection and try again."
-    this.report("sync.compatibility", message, new Error(message))
+    this.report("sync.compatibility", message, error)
     this.updateStatus({ state: details ? "update-required" : "error", message, ...(details ? { compatibility: details } : {}) })
     if (!details && !message.startsWith("Sync compatibility")) this.retryTimer = setTimeout(() => this.recheckCompatibility(), 3000)
   }

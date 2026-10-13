@@ -106,12 +106,15 @@ test("offline preflight and reconnect never start replication before compatibili
   const remote = compatibilityDatabase()
   const get = remote.get
   remote.get = (...args) => unavailable ? Promise.reject(new Error("network failed")) : get(...args)
-  const statuses = [], client = new PouchSyncService(local, () => {}, () => remote)
+  const statuses = [], diagnostics = [], client = new PouchSyncService(local, () => {}, () => remote)
   client.onStatus(status => statuses.push(status))
+  client.onDiagnostic(diagnostic => diagnostics.push(diagnostic))
   try {
     client.syncFrom(destination)
     await eventually(() => statuses.at(-1).state === "error")
     assert.match(statuses.at(-1).message, /Check your connection/)
+    assert.match(diagnostics.at(-1).details, /network failed/)
+    assert.doesNotMatch(diagnostics.at(-1).details, /pauseCompatibility/)
     assert.equal(count, 0)
     unavailable = false
     await remote.put({ _id: id, schema: 1, minSyncProtocol: 3 })
