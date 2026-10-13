@@ -1,5 +1,6 @@
 import { ErrorPageState, TabEntry, WindowEntry } from "./BrowserState"
 import { errorPageTheme, storeErrorPage } from "./ErrorPageProtocol"
+import { shellBackground } from "./themeBackground"
 
 interface NavigationErrorHost {
   ownerFor(entry: TabEntry): WindowEntry | undefined
@@ -37,7 +38,7 @@ export class NavigationErrors {
 
   show(entry: TabEntry, url: string, error: string, retryable: boolean): void {
     if (entry.view.webContents.isDestroyed()) return
-    const background = this.host.ownerFor(entry)?.backgroundColor || "#FFFFFF"
+    const background = this.host.ownerFor(entry)?.backgroundColor || shellBackground()
     const pageUrl = storeErrorPage(url, error, background, retryable)
     entry.errorPageUrl = pageUrl
     entry.errorPages.set(pageUrl, { url, error, retryable })

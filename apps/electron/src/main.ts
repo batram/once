@@ -23,6 +23,7 @@ import { registerBrowserMenuHandlers } from "./browser/BrowserMenu"
 import { recordBrowsingOrigins, registerBrowsingDataHandlers } from "./browser/BrowsingData"
 import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { OFFSCREEN_TEST_POSITION, isBackgroundMode } from "./browser/WindowLifecycle"
+import { shellBackground } from "./browser/themeBackground"
 import {
   configureReaderProtocol,
   readerScheme
@@ -251,6 +252,9 @@ function createShellWindow(bounds?: Rectangle): BrowserWindow {
     minWidth: 760,
     minHeight: 480,
     show: false,
+    // Painted until the shell's first frame, then replaced by the shell's
+    // own colour once it has resolved its theme.
+    backgroundColor: shellBackground(),
     // WS_EX_NOACTIVATE stops webContents.focus(), which tab activation calls,
     // from pulling the foreground away from the developer.
     focusable: !isBackgroundMode(),

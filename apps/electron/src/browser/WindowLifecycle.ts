@@ -3,6 +3,7 @@ import { ELECTRON_IPC, ElectronRect } from "@once/platform-electron/bridge"
 import { NativeMenus } from "./NativeMenus"
 import { TabEntry, WindowEntry } from "./BrowserState"
 import { bindWheelZoom, handleZoomKey } from "./Zoom"
+import { showWithoutFlash } from "./windowCloak"
 
 // Test runs otherwise put a real window on whatever virtual desktop the
 // developer is working on, and take the focus with it.
@@ -40,7 +41,7 @@ export function sendShellFocus(window: BrowserWindow): void {
 export function showWindow(window: BrowserWindow): void {
   if (window.isDestroyed()) return
   if (!isBackgroundMode()) {
-    window.show()
+    showWithoutFlash(window)
     return
   }
   window.setSkipTaskbar(true)

@@ -1,6 +1,8 @@
 import { BrowserWindow, Rectangle } from "electron"
 import { ElectronRect } from "@once/platform-electron/bridge"
 import { BrowserMenuState } from "../menus/browserMenuTypes"
+import { menuBackground } from "./themeBackground"
+import { showWithoutFlash } from "./windowCloak"
 
 declare const BROWSER_MENU_WEBPACK_ENTRY: string
 declare const BROWSER_MENU_PRELOAD_WEBPACK_ENTRY: string
@@ -60,7 +62,7 @@ export function openDeviceFlyout(options: {
     parent: panel, width: WIDTH, height: 80,
     frame: false, resizable: false, minimizable: false, maximizable: false,
     fullscreenable: false, skipTaskbar: true, show: false,
-    backgroundColor: "#ffffff",
+    backgroundColor: menuBackground(),
     webPreferences: {
       preload: BROWSER_MENU_PRELOAD_WEBPACK_ENTRY,
       contextIsolation: true, sandbox: true, nodeIntegration: false
@@ -78,7 +80,10 @@ export function openDeviceFlyout(options: {
     const x = right + WIDTH <= area.x + area.width ? right : Math.max(area.x, menu.x - WIDTH + 2)
     const y = Math.max(area.y, Math.min(Math.round(menu.y + row.y) - INSET, area.y + area.height - fitted))
     flyout.setContentBounds({ x, y, width: WIDTH, height: fitted })
-    if (options.focus) { flyout.show(); flyout.focus() } else flyout.showInactive()
+    if (options.focus) {
+      showWithoutFlash(flyout)
+      flyout.focus()
+    } else showWithoutFlash(flyout, () => flyout.showInactive())
   })
   flyout.webContents.ipc.handle("browser-menu:send", (_event, deviceId: unknown) => {
     if (!options.state().devices.some((device) => device.deviceId === deviceId)) throw new Error("Unknown device")

@@ -40,7 +40,8 @@ class PanelPage {
     private readonly closed: () => void
   ) {
     this.view = createTabView("about:blank", null, BROWSER_SESSION_PARTITION)
-    this.view.setBackgroundColor("#ffffff")
+    // Like a tab: the shell's colour rather than white while the page loads.
+    this.view.setBackgroundColor(owner.backgroundColor)
     this.view.setVisible(false)
     owner.window.contentView.addChildView(this.view)
     const contents = this.view.webContents

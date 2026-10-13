@@ -444,7 +444,7 @@ Android uses Google ML Kit text recognition (proprietary but free) with its
 bundled Latin model, through the same bridge method, so no Play services or
 model download is involved. Windows has the macOS arrangement with
 Windows.Media.Ocr: a C++/WinRT helper (`apps/electron/native/ImageText.cpp`,
-built by `scripts/build-image-text.js` with MSVC and shipped beside the asar)
+built by `scripts/build-native.js` with MSVC and shipped beside the asar)
 takes bytes on stdin and answers the Swift helper's JSON, so image text
 selection works there too. Linux and browser extensions report unavailable
 image OCR until they supply a backend. Recognition runs on device, with a

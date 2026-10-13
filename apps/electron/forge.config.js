@@ -54,9 +54,13 @@ module.exports = {
     // because its executable does not contain a Windows-style icon resource.
     extraResource: [
       path.resolve(__dirname, "../../vendor/extensions"),
-      // Native OCR helper (scripts/build-image-text.js): Apple Vision / Windows.Media.Ocr.
+      // Native helpers (scripts/build-native.js): the OCR helper (Apple Vision /
+      // Windows.Media.Ocr) and, on Windows, the window-cloak addon.
       ...(process.platform === "darwin" ? [path.resolve(__dirname, ".native/once-image-text")] : []),
-      ...(process.platform === "win32" ? [path.resolve(__dirname, ".native/once-image-text.exe")] : []),
+      ...(process.platform === "win32" ? [
+        path.resolve(__dirname, ".native/once-image-text.exe"),
+        path.resolve(__dirname, ".native/window-cloak.node")
+      ] : []),
       linuxWindowIcon
     ]
   },

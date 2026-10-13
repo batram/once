@@ -1,6 +1,8 @@
 import { BrowserWindow, screen } from "electron"
 import { ElectronExtensionInfo, ElectronRect, ElectronToolbarTool } from "@once/platform-electron/bridge"
 import { ExtensionMenuResult, ExtensionMenuState } from "./extensionMenuTypes"
+import { menuBackground } from "../browser/themeBackground"
+import { showWithoutFlash } from "../browser/windowCloak"
 
 declare const EXTENSION_MENU_WEBPACK_ENTRY: string
 declare const EXTENSION_MENU_PRELOAD_WEBPACK_ENTRY: string
@@ -33,7 +35,7 @@ export function showExtensionMenu(
     y: Math.max(area.y, Math.min(top, area.y + area.height - height)),
     frame: false, resizable: false, minimizable: false, maximizable: false,
     fullscreenable: false, skipTaskbar: true, show: false,
-    backgroundColor: "#ffffff",
+    backgroundColor: menuBackground(),
     webPreferences: {
       preload: EXTENSION_MENU_PRELOAD_WEBPACK_ENTRY,
       contextIsolation: true, sandbox: true, nodeIntegration: false
@@ -84,7 +86,7 @@ export function showExtensionMenu(
       resolve(result)
     })
     void panel.loadURL(EXTENSION_MENU_WEBPACK_ENTRY).then(() => {
-      if (!panel.isDestroyed()) panel.show()
+      if (!panel.isDestroyed()) showWithoutFlash(panel)
     }).catch(error => { reject(error); close() })
   })
 }

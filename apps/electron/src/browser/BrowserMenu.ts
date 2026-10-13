@@ -8,6 +8,8 @@ import { BrowserMenuAction, BrowserMenuCommand, BrowserMenuState } from "../menu
 import { sourceUrlFromReaderUrl } from "./reader-url"
 import { applyZoomStep, shellRect } from "./Zoom"
 import { handleDeviceFlyout } from "./BrowserMenuFlyout"
+import { menuBackground } from "./themeBackground"
+import { showWithoutFlash } from "./windowCloak"
 
 declare const BROWSER_MENU_WEBPACK_ENTRY: string
 declare const BROWSER_MENU_PRELOAD_WEBPACK_ENTRY: string
@@ -53,7 +55,7 @@ export function showBrowserMenu(
     y: Math.max(area.y, top),
     frame: false, resizable: false, minimizable: false, maximizable: false,
     fullscreenable: false, skipTaskbar: true, show: false,
-    backgroundColor: "#ffffff",
+    backgroundColor: menuBackground(),
     webPreferences: {
       preload: BROWSER_MENU_PRELOAD_WEBPACK_ENTRY,
       contextIsolation: true, sandbox: true, nodeIntegration: false
@@ -87,7 +89,7 @@ export function showBrowserMenu(
     if (panel.isDestroyed() || !Number.isFinite(height)) return
     const fitted = Math.min(Math.max(80, Math.ceil(height)), area.y + area.height - panel.getBounds().y)
     panel.setContentSize(WIDTH, fitted)
-    panel.show()
+    showWithoutFlash(panel)
   })
   const devices = handleDeviceFlyout(panel, area, state, (deviceId) => { finish(); sending.send(deviceId) })
   panel.webContents.ipc.handle("browser-menu:action", (_event, action: BrowserMenuAction) => {
@@ -136,7 +138,7 @@ export function showBrowserMenu(
     })
     void panel.loadURL(BROWSER_MENU_WEBPACK_ENTRY).then(() => {
       // Normally shown once the page has measured itself; never left invisible.
-      setTimeout(() => { if (!panel.isDestroyed() && !panel.isVisible()) panel.show() }, 500)
+      setTimeout(() => { if (!panel.isDestroyed() && !panel.isVisible()) showWithoutFlash(panel) }, 500)
     }).catch((error) => { reject(error); close() })
   })
 }
