@@ -373,8 +373,17 @@ export function renderWords(container: HTMLElement, result: ImageTextResult, wid
     container.append(rendered.block, document.createTextNode("\n"))
     return rendered
   })
-  // Every natural width in one layout, then every fit.
-  blocks.map((rendered) => rendered.measure()).forEach((fit) => fit())
+  // Every natural width in one layout, then every fit. The container and the
+  // blocks lie flat and unscaled while they are measured, so the rects are in
+  // image pixels: a turned block's rects are its bounds, and the container is
+  // already scaled to the drawn image when a selection reopens on it.
+  const scaled = container.style.transform
+  container.style.transform = "none"
+  blocks.forEach((rendered) => { rendered.block.style.transform = "none" })
+  const fits = blocks.map((rendered) => rendered.measure())
+  blocks.forEach((rendered) => { rendered.block.style.transform = rendered.rotation })
+  container.style.transform = scaled
+  fits.forEach((fit) => fit())
 }
 
 /** Lines' indices by paragraph, each paragraph cut where a line turns away from its first (a page bent in a photo). */
@@ -414,10 +423,10 @@ function renderFlow(lines: { line: number; words: ImageTextWord[] }[], width: nu
   }))
   const block = document.createElement("div")
   block.className = "line"
+  const rotation = `rotate(${Math.atan2(along.y, along.x)}rad)`
   Object.assign(block.style, { left: `${origin.x}px`, top: `${origin.y}px`,
     // The spaces' size: the paragraph's typical word height.
-    fontSize: `${boxes.reduce((sum, box) => sum + box.height, 0) / boxes.length}px`,
-    transform: `rotate(${Math.atan2(along.y, along.x)}rad)` })
+    fontSize: `${boxes.reduce((sum, box) => sum + box.height, 0) / boxes.length}px`, transform: rotation })
   const spans = boxes.map((box, index) => {
     // One space between words, and between a line and the next: "wraps onto" + "a line" reads "onto a line".
     if (index) {
@@ -439,10 +448,14 @@ function renderFlow(lines: { line: number; words: ImageTextWord[] }[], width: nu
   trailing.className = "separator"
   trailing.textContent = " "
   block.append(trailing)
-  // Measured once the caller has laid the block out; the fit it returns then writes.
+  // Measured once the caller has laid the block out, flat; the fit it returns then writes.
   const measure = () => {
-    const natural = spans.map((span) => span.offsetWidth)
-    const gaps = [...block.querySelectorAll<HTMLElement>(".separator")].map((separator) => separator.offsetWidth)
+    // Fractional widths (the caller has laid the block out flat and unscaled):
+    // offsetWidth rounds, and each word's place follows the one before, so
+    // twenty rounded words put a paragraph's later lines pixels off.
+    const width = (element: Element) => element.getBoundingClientRect().width
+    const natural = spans.map(width)
+    const gaps = [...block.querySelectorAll<HTMLElement>(".separator")].map(width)
     return () => {
       let end = 0
       spans.forEach((span, index) => {
@@ -455,5 +468,5 @@ function renderFlow(lines: { line: number; words: ImageTextWord[] }[], width: nu
       })
     }
   }
-  return { block, measure }
+  return { block, rotation, measure }
 }
