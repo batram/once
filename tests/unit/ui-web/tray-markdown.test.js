@@ -1,17 +1,23 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
-const { parseHTML } = require("linkedom")
+const { parseHTML, DOMParser } = require("linkedom")
 const { trayMarkdown } = require("../../../packages/ui-web/dist/addons/trayMarkdown")
 
+/** linkedom leaves a bare fragment out of <body>, where a browser's parser puts it. */
+class FragmentParser {
+  parseFromString(text, type) { return new DOMParser().parseFromString(`<html><body>${text}</body></html>`, type) }
+}
+
 function render(text) {
-  const previous = global.document
+  const previous = { document: global.document, DOMParser: global.DOMParser }
   const { document } = parseHTML("<html><body></body></html>")
   global.document = document
+  global.DOMParser = FragmentParser
   try {
     const root = document.createElement("div")
     root.append(trayMarkdown(text))
     return root
-  } finally { global.document = previous }
+  } finally { Object.assign(global, previous) }
 }
 
 test("assistant Markdown renders headings, emphasis, nested lists, quotes and code", () => {

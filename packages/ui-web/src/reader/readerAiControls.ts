@@ -36,18 +36,19 @@ export function installReaderAi(send: ReaderAiSend, sourceUrl?: string, external
   let localThrough = readPages(document.documentElement.dataset.readerPages)?.through ?? 0, aiThrough: number | undefined
   let controller: AbortController | undefined, generation = 0, statusText = "", madeBy = "", toEnd = false
   // One entry per AI step, so repeated rewrites undo step by step back to the extraction.
-  const history: { html: string; heading: string | null; title: string; madeBy: string; localThrough: number; aiThrough?: number }[] = []
+  const history: { content: Node[]; heading: string | null; title: string; madeBy: string; localThrough: number; aiThrough?: number }[] = []
   const paging = (): ReaderAiPaging | undefined => total ? { through: aiThrough ?? localThrough, total, ai: aiThrough !== undefined, toEnd } : undefined
   const state = (): ReaderAiState => ({ running: !!controller, canUndo: history.length > 0, status: statusText, madeBy, ...(total ? { pages: paging() } : {}) })
   const update = external ? () => external.onState(state()) : toolbarControls(action => act(action), state)
   const setStatus = (text: string) => { statusText = text; update() }
   const changing = () => { document.querySelector<HTMLButtonElement>("[data-tts-stop]")?.click(); window.speechSynthesis?.cancel(); document.dispatchEvent(new Event("once-reader-content-changing")) }
   const changed = () => document.dispatchEvent(new Event("once-reader-content-changed"))
-  const snapshot = () => ({ html: article.innerHTML, heading: heading?.textContent ?? null, title: document.title, madeBy, localThrough, aiThrough })
+  // A copy of the nodes, not markup: Undo never sends the page back through the HTML parser.
+  const snapshot = () => ({ content: Array.from(article.childNodes, node => node.cloneNode(true)), heading: heading?.textContent ?? null, title: document.title, madeBy, localThrough, aiThrough })
   function restore(): void {
     const previous = controller ? undefined : history.pop()
     if (!previous) return
-    changing(); article.innerHTML = previous.html; if (heading) heading.textContent = previous.heading; document.title = previous.title; changed()
+    changing(); article.replaceChildren(...previous.content); if (heading) heading.textContent = previous.heading; document.title = previous.title; changed()
     madeBy = previous.madeBy; localThrough = previous.localThrough; aiThrough = previous.aiThrough; setStatus("")
   }
   /** Stops the running request, and reading on to the end with it. */
@@ -175,10 +176,11 @@ function appendPart(article: HTMLElement, content: DocumentFragment): void {
   article.append(content)
 }
 
-/** The host sanitized the fragment before it reached the reader. */
+/** The host sanitized the fragment before it reached the reader; it is parsed inert, like a template. */
 function fragment(html: string): DocumentFragment {
-  const template = document.createElement("template"); template.innerHTML = html
-  return template.content
+  const content = document.createDocumentFragment()
+  content.append(...new DOMParser().parseFromString(html, "text/html").body.childNodes)
+  return content
 }
 
 /** A leading heading names the article; it leaves the fragment and becomes the title. */

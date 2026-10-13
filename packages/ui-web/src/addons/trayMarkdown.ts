@@ -15,9 +15,8 @@ function literal(text: string): Text { return document.createTextNode(text) }
 function decoded(text: string): string {
   if (!text.includes("&")) return text
   // Decode entities without ever passing a tag to the HTML parser.
-  const field = document.createElement("div")
-  field.innerHTML = text.replace(/</g, "&lt;").replace(/>/g, "&gt;")
-  return field.textContent ?? ""
+  const parsed = new DOMParser().parseFromString(text.replace(/</g, "&lt;").replace(/>/g, "&gt;"), "text/html")
+  return parsed.body.textContent ?? ""
 }
 
 function render(tokens: Token[], depth = 0): DocumentFragment {

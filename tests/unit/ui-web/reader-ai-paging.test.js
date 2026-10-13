@@ -1,6 +1,6 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
-const { parseHTML } = require("linkedom")
+const { parseHTML, DOMParser: LinkedomParser } = require("linkedom")
 
 const model = { connection: "c", provider: "anthropic", name: "Fixture", model: "vision", revision: "a".repeat(64) }
 
@@ -12,6 +12,8 @@ function readerPage() {
   globalThis.window = window
   globalThis.document = window.document
   globalThis.Event = window.Event
+  // linkedom leaves a bare fragment out of <body>, where a browser's parser puts it.
+  globalThis.DOMParser = class { parseFromString(text, type) { return new LinkedomParser().parseFromString(`<html><body>${text}</body></html>`, type) } }
   const requests = []
   const answers = []
   const send = async request => { requests.push(request); return answers.shift()?.(request) }
