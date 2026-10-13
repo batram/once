@@ -9,11 +9,13 @@
 
 interface Glyph { x: number; y: number; w: number; h: number }
 
-const WAVE = 700 // ms for the reading wave to travel from first to last word
-const RISE = 260 // ms for a word's glow to spring up
-const LINGER = 120 // ms it holds before melting
-const MELT = 520 // ms to melt away
-const SHEEN = 1000 // ms for the light to glide across the image
+// A blink, not a show: the words are ready to select at once, and anything
+// slower (it was 1.6 s) read as waiting after a double click or tap.
+const WAVE = 130 // ms for the reading wave to travel from first to last word
+const RISE = 80 // ms for a word's glow to spring up
+const LINGER = 0 // ms it holds before melting
+const MELT = 190 // ms to melt away
+const SHEEN = 285 // ms for the light to glide across the image
 // Iridescent ribbon along the reading order: blue, violet, pink, peach.
 const RIBBON = [[94, 155, 255], [167, 123, 255], [255, 126, 182], [255, 184, 107]]
 
