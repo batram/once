@@ -25,39 +25,34 @@ export function createWebExtActiveTab(
       windowApi.open(url, target)
     },
     onSelectedUrlChanged(handler) {
+      // Each event only says that the active tab may have changed; the tab is
+      // read again here, and only the newest event's reading is reported. The
+      // number is taken when the event arrives, before anything is awaited: one
+      // navigation fires several onUpdated events, and when each awaited its own
+      // lookups first, a late one about the page being left (its title, its
+      // load completing) could finish last and report that page as open.
       let generation = 0
-      const notifySelectedTab = async (tab: browser.tabs.Tab | undefined) => {
+      // Any tab's event re-reads the active one: skipping it after taking a
+      // number would drop the reading it superseded.
+      const notifyActiveTab = async () => {
         const request = ++generation
-        if (!tab?.url) return
+        const [tab] = await browserApi.tabs.query({ currentWindow: true, active: true })
+        if (request !== generation || !tab?.url) return
         const url = readerSourceUrl(browserApi, tab.url) ?? tab.url
         const context = await browserApi.runtime.sendMessage({ onceGetNavigation: tab.id, url }).catch(() => null)
         if (request === generation) handler(url, context ?? undefined)
       }
       const navigationListener = (message: { onceNavigationChanged?: number }) => {
-        if (typeof message?.onceNavigationChanged !== "number") return
-        void browserApi.tabs.query({ currentWindow: true, active: true }).then(tabs => {
-          if (tabs[0]?.id === message.onceNavigationChanged) void notifySelectedTab(tabs[0])
-        })
+        if (typeof message?.onceNavigationChanged === "number") void notifyActiveTab()
       }
       browserApi.runtime.onMessage.addListener(navigationListener)
-      const activatedListener = async (activeInfo: browser.tabs._OnActivatedActiveInfo) => {
-        const win = await browserApi.windows.getCurrent()
-        const tab = await browserApi.tabs.get(activeInfo.tabId)
-        if (tab.windowId == win.id) notifySelectedTab(tab)
-      }
-      const updatedListener = async (
-        _tabId: number,
-        _changeInfo: browser.tabs._OnUpdatedChangeInfo,
-        tab: browser.tabs.Tab
-      ) => {
-        const currentWindow = await browserApi.windows.getCurrent()
-        if (tab.active && tab.windowId == currentWindow.id) notifySelectedTab(tab)
+      const activatedListener = () => void notifyActiveTab()
+      const updatedListener = (_tabId: number, _changeInfo: browser.tabs._OnUpdatedChangeInfo, tab: browser.tabs.Tab) => {
+        if (tab.active) void notifyActiveTab()
       }
       browserApi.tabs.onActivated.addListener(activatedListener)
       browserApi.tabs.onUpdated.addListener(updatedListener)
-      void browserApi.tabs
-        .query({ currentWindow: true, active: true })
-        .then((tabs) => notifySelectedTab(tabs[0]))
+      void notifyActiveTab()
       return () => {
         generation += 1
         browserApi.runtime.onMessage.removeListener(navigationListener)

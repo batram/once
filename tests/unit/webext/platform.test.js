@@ -37,15 +37,64 @@ test("maps tab dispositions and tracks only the selected tab in the current wind
   ])
   assert.deepEqual(opened, [{ url: "https://example.com/window", target: "blank" }])
 
+  // Every event re-reads the active tab of the panel's own window.
+  let active = "https://example.com/initial"
+  api.tabs.query = async (filter) => {
+    assert.deepEqual(filter, { currentWindow: true, active: true })
+    return [{ windowId: 1, active: true, url: active }]
+  }
+  const settle = () => new Promise(resolve => setImmediate(resolve))
   const urls = []
   const cleanup = port.onSelectedUrlChanged((url) => urls.push(url))
-  await new Promise(resolve => setImmediate(resolve))
-  await activated.listeners[0]({ tabId: 2 })
-  await updated.listeners[0](2, {}, { active: true, windowId: 2, url: "https://example.com/other" })
+  await settle()
+  active = "https://example.com/activated"
+  activated.listeners[0]({ tabId: 2 })
+  await settle()
+  // A background tab's update is not the selected tab's.
+  updated.listeners[0](3, {}, { active: false, windowId: 1, url: "https://example.com/background" })
+  await settle()
   assert.deepEqual(urls, ["https://example.com/initial", "https://example.com/activated"])
   cleanup()
   assert.equal(activated.listeners.length, 0)
   assert.equal(updated.listeners.length, 0)
+})
+
+test("a late event about the page being left never reports it as open", async () => {
+  // One navigation fires several onUpdated events. The browser's lookups
+  // answer here newest first, so an older event's reading finishes last.
+  const story = "https://example.com/story"
+  const comments = "https://news.example.com/item?id=1"
+  let current = story
+  const pending = []
+  const later = (value) => new Promise(resolve => pending.push(() => resolve(value())))
+  const updated = event()
+  const api = {
+    tabs: {
+      onActivated: event(),
+      onUpdated: updated,
+      query: () => later(() => [{ id: 1, windowId: 1, active: true, url: current }]),
+      get: () => later(() => ({ id: 1, windowId: 1, active: true, url: current }))
+    },
+    runtime: { onMessage: event(), async sendMessage() { return null } },
+    windows: { getCurrent: () => later(() => ({ id: 1 })) }
+  }
+  const drainNewestFirst = async () => {
+    while (pending.length) {
+      pending.pop()()
+      await new Promise(resolve => setImmediate(resolve))
+    }
+  }
+  const urls = []
+  createWebExtActiveTab(api, {}).onSelectedUrlChanged(url => urls.push(url))
+  await drainNewestFirst()
+  urls.length = 0
+
+  // The story finishes loading as the toggle sends the tab to its comments.
+  updated.listeners[0](1, { status: "complete" }, { id: 1, windowId: 1, active: true, url: story })
+  current = comments
+  updated.listeners[0](1, { url: comments }, { id: 1, windowId: 1, active: true, url: comments })
+  await drainNewestFirst()
+  assert.deepEqual(urls, [comments])
 })
 
 test("accepts only undo and redo history commands and removes its listener", () => {
@@ -82,8 +131,10 @@ for (const scheme of ["moz-extension", "chrome-extension"]) {
     const urls = []
     const cleanup = createWebExtActiveTab(api, {}).onSelectedUrlChanged(url => urls.push(url))
     await new Promise(resolve => setImmediate(resolve))
-    await activated.listeners[0]({ tabId: 7 })
-    await updated.listeners[0](7, { status: "complete" }, tab())
+    // Each event settles before the next: a newer one supersedes a reading still under way.
+    activated.listeners[0]({ tabId: 7 })
+    await new Promise(resolve => setImmediate(resolve))
+    updated.listeners[0](7, { status: "complete" }, tab())
     await new Promise(resolve => setImmediate(resolve))
     assert.deepEqual(urls, [source, source, source])
     assert.ok(navigationRequests.every(message => message.url === source))

@@ -15,7 +15,20 @@ import type { StoryListItem } from "./StoryListItem"
 let selectedUrl = ""
 let selectedContext: StoryPageContext | undefined
 
+// A switch the command sent that the shell has not reported yet. The tab keeps
+// reporting the page being left until the navigation commits (its load
+// completing, its title), and those readings arrive after the switch was
+// recorded; taken as the open page, they made a second press switch to the
+// same side again. They are passed over until anything else is reported, for
+// a few seconds at most, so a navigation that never lands cannot pin it.
+let leaving: { url: string; until: number } | null = null
+const SWITCH_SETTLES_WITHIN_MS = 3_000
+
 export function setSelectedUrl(url: string, context?: StoryPageContext): void {
+  if (leaving) {
+    if (url === leaving.url && Date.now() < leaving.until) return
+    leaving = null
+  }
   selectedUrl = url
   selectedContext = context
 }
@@ -40,12 +53,14 @@ export function toggledStoryUrl(
 
 /**
  * The toggle command's step: the other side of the open story, recorded as
- * the open URL since the command is about to navigate there. The shell's
- * report of that navigation comes later, and a second press before it must
- * switch back, not to the same side again.
+ * the open URL since the command is about to navigate there, so a second
+ * press before the shell reports the navigation switches back.
  */
 export function switchToggledStoryUrl(doc: Document = document): string | null {
   const url = toggledStoryUrl(doc)
-  if (url) setSelectedUrl(url)
+  if (!url) return null
+  leaving = { url: selectedUrl, until: Date.now() + SWITCH_SETTLES_WITHIN_MS }
+  selectedUrl = url
+  selectedContext = undefined
   return url
 }

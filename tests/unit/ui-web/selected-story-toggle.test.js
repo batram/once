@@ -62,6 +62,39 @@ test("presses faster than the shell reports the navigation still alternate", () 
   })
 })
 
+test("readings of the page being left, reported after the switch, are passed over", () => {
+  // Chrome reports the story's load completing after the toggle recorded its
+  // comments; taken as the open page, the next press went to comments again.
+  withSelected(storyWithComments(), (doc) => {
+    setSelectedUrl(STORY_URL)
+    assert.equal(switchToggledStoryUrl(doc), COMMENTS_URL)
+    setSelectedUrl(STORY_URL)
+    assert.equal(toggledStoryUrl(doc), STORY_URL)
+  })
+})
+
+test("once the new page is reported, going back to the old one counts again", () => {
+  withSelected(storyWithComments(), (doc) => {
+    setSelectedUrl(STORY_URL)
+    switchToggledStoryUrl(doc)
+    setSelectedUrl(COMMENTS_URL)
+    setSelectedUrl(STORY_URL)
+    assert.equal(toggledStoryUrl(doc), COMMENTS_URL)
+  })
+})
+
+test("a switch that never lands stops holding the old page off", (t) => {
+  let now = 1_000
+  t.mock.method(Date, "now", () => now)
+  withSelected(storyWithComments(), (doc) => {
+    setSelectedUrl(STORY_URL)
+    switchToggledStoryUrl(doc)
+    now += 3_000
+    setSelectedUrl(STORY_URL)
+    assert.equal(toggledStoryUrl(doc), COMMENTS_URL)
+  })
+})
+
 test("a story without comments has nothing to switch to", () => {
   withSelected(storyWithComments(""), (doc) => {
     setSelectedUrl(STORY_URL)
