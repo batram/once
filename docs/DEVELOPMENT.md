@@ -292,7 +292,12 @@ probes are never part of CI. For deterministic built-app screenshots see
 On Windows, Electron E2E, story-debug, design-system Electron, native-rendering
 and Firefox runs happen on a private desktop through `scripts/run-hidden.js`,
 which requires `~/tools/agent-scripts/Invoke-OnHiddenDesktop.ps1`. Logs go to
-`artifacts/hidden-tests/` and `test-results/firefox-logs/`. Use
+`artifacts/hidden-tests/` and `test-results/firefox-logs/`; `run-hidden.js`
+echoes the log while the run goes. Hidden runs set `ONCE_HIDDEN_DESKTOP=1`:
+the Electron harness then launches with `--disable-gpu`, because the GPU
+process crash-loops there and a canvas drawn meanwhile reads back blank (OCR
+fixtures), and the `@interactive` specs run too, since no window can reach
+the visible desktop. Use
 `npm run test:electron:e2e:run -- <spec-path>` against an existing build, or
 `node scripts/run-hidden.js --visible node_modules/@playwright/test/cli.js test --config tests/e2e/electron/playwright.config.js`
 to watch. Firefox tests use a temporary profile and open the panel as a normal

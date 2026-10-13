@@ -445,7 +445,9 @@ async function launchApp(options = {}) {
     options.background !== false && process.env.ONCE_ELECTRON_E2E_INTERACTIVE !== "1"
   const electronApp = await electron.launch({
     executablePath,
-    args: [appPath],
+    // On the hidden desktop (scripts/run-hidden.js) the GPU process crash-loops,
+    // and a canvas drawn meanwhile reads back blank; software rendering does not.
+    args: process.env.ONCE_HIDDEN_DESKTOP === "1" ? [appPath, "--disable-gpu"] : [appPath],
     env: {
       ...process.env,
       ONCE_ELECTRON_TEST_USER_DATA: userData,

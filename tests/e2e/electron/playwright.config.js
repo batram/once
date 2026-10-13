@@ -4,10 +4,12 @@ const path = require("node:path")
 // Specs tagged @interactive drive the window itself — fullscreen, maximize,
 // title-bar drag regions. Those operations snap an off-screen background
 // window back onto a monitor, so running them locally throws a window onto
-// whatever virtual desktop the developer is working on. They are skipped
-// locally and always run on CI, where there is nobody to interrupt. Set
+// whatever virtual desktop the developer is working on. They run on CI and on
+// the hidden desktop (scripts/run-hidden.js, the npm default on Windows), where
+// there is nobody to interrupt, and are skipped in a visible local run. Set
 // ONCE_ELECTRON_E2E_INTERACTIVE=1 to run them by hand.
 const includeInteractive = Boolean(process.env.CI) ||
+  process.env.ONCE_HIDDEN_DESKTOP === "1" ||
   process.env.ONCE_ELECTRON_E2E_INTERACTIVE === "1"
 
 module.exports = defineConfig({

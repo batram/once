@@ -14,7 +14,6 @@ $wrapper = Join-Path $env:USERPROFILE 'tools/agent-scripts/Invoke-OnHiddenDeskto
 if (-not (Test-Path -LiteralPath $wrapper)) {
     throw "Hidden desktop launcher not found: $wrapper. Install it before running unattended GUI tests."
 }
-Write-Host "Running tests on the hidden desktop; output: $($command.log)"
+# run-hidden.js shows the log as it grows.
 $testExitCode = & $wrapper -FilePath (Get-Command powershell.exe).Source -ArgumentList '-NoProfile','-File',$PSCommandPath,'-Manifest',$Manifest,'-Child' -WorkingDirectory $command.cwd -TimeoutSeconds 3600
-if (Test-Path -LiteralPath $command.log) { Get-Content -LiteralPath $command.log -Encoding UTF8 }
 exit $testExitCode

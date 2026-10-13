@@ -17,7 +17,7 @@ test("enters and leaves fullscreen from an HTML video @interactive", async () =>
   // Window manipulation needs a normal, on-screen window: the background
   // mode used everywhere else parks the window off every monitor, and a
   // maximize restores onto a monitor rather than back to where it was.
-  // Safe here because @interactive specs only run on CI.
+  // Safe here because @interactive specs only run on CI or the hidden desktop.
   const { electronApp, userData, window } = await launchApp({ background: false })
   const videoUrl = `${origin}/video`
 
