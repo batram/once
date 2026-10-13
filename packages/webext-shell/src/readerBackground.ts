@@ -1,5 +1,5 @@
 import { installReaderAiRouting } from "./readerAiRouting"
-import { watchPdfSources } from "./pdfSource"
+import { PdfSources, trackPdfSources } from "./pdfSource"
 import { cancelSourceDownload } from "./sourceDownload"
 import {
   isReaderTtsRate,
@@ -14,10 +14,15 @@ interface StoredReaderDocument {
   sourceUrl: string
 }
 
+/** The background's PDF source tracker, live from startup (see trackPdfSources). */
+const pdfSources = new WeakMap<typeof browser, PdfSources>()
+
 export function installReaderBackground(
   browserApi: typeof browser = browser
 ): () => void {
   const releaseAi = browserApi.runtime.onConnect ? installReaderAiRouting(browserApi) : () => undefined
+  const sources = trackPdfSources(browserApi)
+  pdfSources.set(browserApi, sources)
   let activeReaderTabId: number | null = null
   const messageListener = (message: {
     onceCommand?: string
@@ -98,6 +103,8 @@ export function installReaderBackground(
   browserApi.tabs.onRemoved.addListener(removedListener)
   return () => {
     releaseAi()
+    sources.stop()
+    if (pdfSources.get(browserApi) === sources) pdfSources.delete(browserApi)
     browserApi.runtime.onMessage.removeListener(messageListener)
     browserApi.tabs.onRemoved.removeListener(removedListener)
   }
@@ -114,7 +121,11 @@ export async function openReaderTab(
     throw new Error("Reader source must use HTTP or HTTPS")
   }
   const requestedAt = new Date()
-  const watch = watchPdfSources(browserApi, parsed.toString())
+  // Without an installed background (a caller of its own), a tracker for this open alone.
+  const installed = pdfSources.get(browserApi)
+  const sources = installed ?? trackPdfSources(browserApi)
+  const pdfWatch = sources.watch(parsed.toString())
+  const watch = { ...pdfWatch, stop() { pdfWatch.stop(); if (!installed) sources.stop() } }
   let tab: browser.tabs.Tab
   try {
     tab = await browserApi.tabs.create({ url: parsed.toString(), active })

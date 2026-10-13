@@ -1,6 +1,12 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
-const { isPdfSource, pdfResponse, watchPdfSources } = require("../../../packages/webext-shell/dist/pdfSource")
+const { isPdfSource, pdfResponse, trackPdfSources } = require("../../../packages/webext-shell/dist/pdfSource")
+
+const watchPdfSources = (api, url) => {
+  const sources = trackPdfSources(api)
+  const watch = sources.watch(url)
+  return { ...watch, stop() { watch.stop(); sources.stop() } }
+}
 
 function event() {
   const listeners = []
@@ -86,6 +92,34 @@ test("a navigation whose headers were not reported falls back to a credential-le
   // Without navigation events, the tab's load state is the last resort.
   assert.equal(await watchPdfSources({ webRequest: { onHeadersReceived: event() } }, "https://example.test/x").isPdf(9, Promise.reject(new Error("timed out"))), false)
   assert.equal(await watchPdfSources({ webRequest: { onHeadersReceived: event() } }, "https://example.test/y").isPdf(10, Promise.resolve()), true)
+})
+
+test("the listeners are live before any request, and a request counts only what follows it", async context => {
+  const fetched = context.mock.method(globalThis, "fetch", async () => { throw new Error("no probe expected") })
+  const onHeadersReceived = event()
+  const onCompleted = event()
+  const sources = trackPdfSources({ webRequest: { onHeadersReceived }, webNavigation: { onCompleted } })
+  // Registered at background startup, not when a reader is asked for.
+  assert.equal(onHeadersReceived.listeners.length, 1)
+  assert.equal(onCompleted.listeners.length, 1)
+  const { listener } = onHeadersReceived.listeners[0]
+  listener({ tabId: 5, statusCode: 200, url: "https://example.test/old", responseHeaders: [{ name: "Content-Type", value: "application/pdf" }] })
+  const first = sources.watch("https://example.test/document")
+  // An earlier navigation of a tab with the same id is not this request's answer.
+  const pending = first.isPdf(5, new Promise(() => {}))
+  listener({ tabId: 5, statusCode: 200, url: "https://example.test/document", responseHeaders: [{ name: "Content-Type", value: "text/html" }] })
+  assert.equal(await pending, false)
+  first.stop()
+  const second = sources.watch("https://example.test/paper")
+  listener({ tabId: 6, statusCode: 200, url: "https://example.test/paper", responseHeaders: [{ name: "Content-Type", value: "application/pdf" }] })
+  assert.equal(await second.isPdf(6, new Promise(() => {})), true)
+  second.stop()
+  // Ending a request leaves the listeners in place; only the background's stop removes them.
+  assert.equal(onHeadersReceived.listeners.length, 1)
+  sources.stop()
+  assert.equal(onHeadersReceived.listeners.length, 0)
+  assert.equal(onCompleted.listeners.length, 0)
+  assert.equal(fetched.mock.callCount(), 0)
 })
 
 test("PDF probe falls back to GET when HEAD is unsupported and cancels the body", async context => {

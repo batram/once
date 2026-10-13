@@ -70,6 +70,7 @@ function createBrowser({ responseHeaders } = {}) {
 test("injects reader theme, styles, and content after a safe page loads", async () => {
   const fake = createBrowser()
   const cleanup = installReaderBackground(fake.api)
+  assert.equal(fake.onHeadersReceived.listeners.length, 1, "the header watch is live before any reader is asked for")
   const handler = fake.onMessage.listeners[0]
   await handler({ onceCommand: "openReader", url: "https://example.com/article", active: false, theme: "dark" }, panelSender)
   assert.deepEqual(fake.calls[0], ["create", { url: "https://example.com/article", active: false }])
@@ -82,7 +83,7 @@ test("injects reader theme, styles, and content after a safe page loads", async 
   cleanup()
   assert.equal(fake.onMessage.listeners.length, 0)
   assert.equal(fake.onRemoved.listeners.length, 0)
-  assert.equal(fake.onHeadersReceived.listeners.length, 0, "the header watch ends with the open")
+  assert.equal(fake.onHeadersReceived.listeners.length, 0, "the header watch ends with the background")
 })
 
 test("parks a stored reader document for its page and hands it over once", async () => {
