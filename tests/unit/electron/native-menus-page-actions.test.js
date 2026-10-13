@@ -61,18 +61,23 @@ test("a page's menu offers each add-on action for the page and, under a link, fo
   assert.deepEqual(h.ran.at(-1), { channel: "once:addons:page-action-run", id: "addon:what-wait-who-why/explain", page: { href: "https://a.test/link", title: "The link" } })
 })
 
-test("image text remains available in an isolated frame and explains an occupied subframe", () => {
+// The selection's host needs no debugger (it runs in the frame preload), so the
+// entry is offered in every frame, DevTools open or not; when another client
+// holds the debugger, a subframe's picture cannot be read and the selection says so.
+test("image text is offered in subframes and with the debugger attached", () => {
   const h = harness([])
   const subframe = {}
-  h.menus.showContentsMenu(h.owner, h.contents, { ...h.params, hasImageContents: true, frame: subframe })
-  assert.ok(h.labels().includes("Select Text in Image"))
-  h.contents.debugger.isAttached = () => true
-  h.menus.showContentsMenu(h.owner, h.contents, { ...h.params, hasImageContents: true, frame: subframe })
-  const blocked = h.menu().find(item => item.label?.startsWith("Select Text in Image"))
-  assert.equal(blocked.enabled, false)
-  assert.match(blocked.label, /close DevTools first/)
-  h.menus.showContentsMenu(h.owner, h.contents, { ...h.params, hasImageContents: true, frame: h.contents.mainFrame })
-  assert.ok(h.labels().includes("Select Text in Image"))
+  const entry = () => h.menu().find(item => item.label?.startsWith("Select Text in Image"))
+  for (const attached of [false, true]) {
+    h.contents.debugger.isAttached = () => attached
+    for (const frame of [subframe, h.contents.mainFrame]) {
+      h.menus.showContentsMenu(h.owner, h.contents, { ...h.params, hasImageContents: true, frame })
+      assert.equal(entry().label, "Select Text in Image")
+      assert.notEqual(entry().enabled, false)
+    }
+  }
+  entry().click()
+  assert.deepEqual(h.ran.at(-1), { selectedImageText: true })
 })
 
 // Clearing a site lives in the browser menu and the tab's menu, not under the cursor on the page.
