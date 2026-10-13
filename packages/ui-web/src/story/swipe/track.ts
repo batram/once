@@ -2,8 +2,12 @@ import { SwipeGeometry, SwipeStage } from "./geometry"
 import { createSwipeRevealLayer, SwipeLockState } from "./revealLayer"
 import { createSwipeStageLock } from "./stageLock"
 
-/** Springing the directly manipulated row back after a release. */
-const SWIPE_RELEASE_TRANSITION = "transform 200ms cubic-bezier(.2, .8, .2, 1)"
+/**
+ * Springing the directly manipulated row back after a release. An animation,
+ * not an inline transition: that would outlive the release and replace the
+ * stylesheet's margin-left exit slide for good, leaving a skipped row blank.
+ */
+const SWIPE_RELEASE_TIMING: KeyframeAnimationOptions = { duration: 200, easing: "cubic-bezier(.2, .8, .2, 1)" }
 
 /**
  * Where a drag currently is and what releasing it would commit.
@@ -127,6 +131,7 @@ export function createSwipeTracker(
     },
 
     reset() {
+      const released_from = drag_offset
       reveal.remove()
       lock.clear()
       start_offset = -1
@@ -134,9 +139,15 @@ export function createSwipeTracker(
       drag_offset = 0
       visual_stage = 0
       stage = 0
-      // spring back rather than snapping, so the release reads as a release
-      row.style.transition = SWIPE_RELEASE_TRANSITION
+      row.style.transition = ""
       row.style.transform = ""
+      // spring back rather than snapping, so the release reads as a release
+      if (released_from !== 0) {
+        row.animate(
+          [{ transform: `translateX(${released_from}px)` }, { transform: "none" }],
+          SWIPE_RELEASE_TIMING
+        )
+      }
       onTravel(0)
     }
   }

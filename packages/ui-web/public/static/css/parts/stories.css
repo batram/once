@@ -317,7 +317,9 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  /* translate, not transform: the star's bounce and spin animate transform
+     and would otherwise drop the centring while they run. */
+  translate: -50% -50%;
 }
 
 .stared .star_btn::after {
