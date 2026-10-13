@@ -223,7 +223,10 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
   syncs[0].chain.emit("denied", { status: 403, message: "forbidden" })
   assert.equal(diagnostics[0].operation, "sync.compatibility")
   assert.equal(statuses.at(-1).state, "error")
-  assert.match(diagnostics[0].details, /compatibility/)
+  // The user is told compatibility could not be checked; the diagnostic keeps the original denial.
+  assert.match(diagnostics[0].message, /compatibility/)
+  assert.match(diagnostics[0].details, /"status": 403/)
+  assert.match(diagnostics[0].details, /forbidden/)
   service.syncFrom("https://three.example/db")
   await eventually(() => replications.length === 4)
   assert.equal(syncs[0].chain.cancelled, true)
