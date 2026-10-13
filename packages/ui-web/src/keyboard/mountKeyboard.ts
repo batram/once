@@ -1,6 +1,6 @@
 import { StoryCursor } from "../story/storyCursor"
 import { StoryHistory } from "../story/StoryHistory"
-import { toggledStoryUrl } from "../story/selectedStoryToggle"
+import { switchToggledStoryUrl } from "../story/selectedStoryToggle"
 import { getOnceClient } from "../client"
 import { isSourcePickerOpen } from "../picker/sourcePicker"
 import { isStoryAnchoredMenuOpen } from "../menu/storyAnchoredMenu"
@@ -37,7 +37,7 @@ export function mountKeyboard(history: StoryHistory): StoryCursor {
   // hands it a comments URL. The story was marked read when it was opened; a
   // switch between its two faces is not a second reading.
   keyboard.register("story.toggle-comments", () => {
-    const url = toggledStoryUrl()
+    const url = switchToggledStoryUrl()
     if (url) getOnceClient().openUrl(url, "current")
   })
   // Everything the story context menu can do is bindable too, unbound until

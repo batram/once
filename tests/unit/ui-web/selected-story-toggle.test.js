@@ -4,6 +4,7 @@ const { parseHTML } = require("linkedom")
 
 const {
   setSelectedUrl,
+  switchToggledStoryUrl,
   toggledStoryUrl
 } = require("../../../packages/ui-web/dist/story/selectedStoryToggle")
 const { Story } = require("../../../packages/core/dist/story/Story")
@@ -47,6 +48,17 @@ test("the open comments switch back to the story", () => {
   withSelected(storyWithComments(), (doc) => {
     setSelectedUrl(COMMENTS_URL)
     assert.equal(toggledStoryUrl(doc), STORY_URL)
+  })
+})
+
+test("presses faster than the shell reports the navigation still alternate", () => {
+  // The shell's selectedUrlChanged arrives after the tab navigated; until then
+  // the command's own switch is what is open.
+  withSelected(storyWithComments(), (doc) => {
+    setSelectedUrl(STORY_URL)
+    assert.equal(switchToggledStoryUrl(doc), COMMENTS_URL)
+    assert.equal(switchToggledStoryUrl(doc), STORY_URL)
+    assert.equal(switchToggledStoryUrl(doc), COMMENTS_URL)
   })
 })
 

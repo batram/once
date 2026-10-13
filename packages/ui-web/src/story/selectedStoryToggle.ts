@@ -37,3 +37,15 @@ export function toggledStoryUrl(
   if (!urls.some(url => story.matches_story_url(url))) return null
   return story.comment_url || null
 }
+
+/**
+ * The toggle command's step: the other side of the open story, recorded as
+ * the open URL since the command is about to navigate there. The shell's
+ * report of that navigation comes later, and a second press before it must
+ * switch back, not to the same side again.
+ */
+export function switchToggledStoryUrl(doc: Document = document): string | null {
+  const url = toggledStoryUrl(doc)
+  if (url) setSelectedUrl(url)
+  return url
+}
