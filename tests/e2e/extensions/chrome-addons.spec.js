@@ -1,14 +1,10 @@
-const { chromium } = require("@playwright/test")
 const {
   expect,
   expectExtensionReady,
-  observeContext,
   test,
   waitForExtensionWorker
 } = require("../shared/browser-evidence")
-const fs = require("node:fs/promises")
-const os = require("node:os")
-const path = require("node:path")
+const { launchExtensionChrome } = require("../shared/extension-chrome")
 const { ADDON_INTEGRITY } = require("../shared/addon-fixture")
 const { startStoryFixture } = require("./local-source")
 const { installAiAddon, exerciseAiTray } = require("../shared/ai-addon-ui")
@@ -19,14 +15,12 @@ const { installAiAddon, exerciseAiTray } = require("../shared/ai-addon-ui")
 // badge here and answer a button on the row.
 test("a scripted add-on runs in Chrome's sandbox page", async () => {
   test.setTimeout(60_000)
-  const extensionPath = path.resolve(__dirname, "../../../apps/chrome-extension/dist/release")
-  const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-addons-"))
   const source = await startStoryFixture()
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    channel: "chromium",
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`]
+  const browser = await launchExtensionChrome({ profilePrefix: "once-chrome-addons-" }).catch(async (error) => {
+    await source.close()
+    throw error
   })
-  const evidence = observeContext(context, "extension")
+  const { context, evidence } = browser
   const pageErrors = evidence.pageErrors
   try {
     await context.route(/^https?:/, async (route) => {
@@ -104,8 +98,6 @@ test("a scripted add-on runs in Chrome's sandbox page", async () => {
     await expect(conversation.locator(".addon_conversation_notice")).toContainText("closed")
     expect(pageErrors).toEqual([])
   } finally {
-    await context.close()
-    await source.close()
-    await fs.rm(userDataDir, { recursive: true, force: true })
+    await browser.close(() => source.close())
   }
 })

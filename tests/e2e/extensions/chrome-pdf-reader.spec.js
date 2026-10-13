@@ -1,8 +1,5 @@
-const { chromium } = require("@playwright/test")
 const { expect, test, waitForExtensionWorker } = require("../shared/browser-evidence")
-const fs = require("node:fs/promises")
-const os = require("node:os")
-const path = require("node:path")
+const { launchExtensionChrome } = require("../shared/extension-chrome")
 const http = require("node:http")
 const { textPdf, imagePdf } = require("../shared/pdf-text-fixture")
 
@@ -16,12 +13,12 @@ const cases = [
 
 for (const { title, scanned, type, file } of cases) {
   test(`Chrome extension PDF Reader ${title}`, async () => {
-    const extensionPath = path.resolve(__dirname,"../../../apps/chrome-extension/dist/release")
-    const profile = await fs.mkdtemp(path.join(os.tmpdir(),"once-pdf-extension-"))
     const pdf = scanned ? imagePdf() : textPdf()
     const server = http.createServer((_,response)=>{response.writeHead(200,{"content-type":type,"content-length":pdf.length});response.end(pdf)})
     await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve))
-    const context = await chromium.launchPersistentContext(profile, {channel:"chromium",args:[`--disable-extensions-except=${extensionPath}`,`--load-extension=${extensionPath}`]})
+    const closeServer = () => new Promise(resolve=>server.close(resolve))
+    const browser = await launchExtensionChrome({profilePrefix:"once-pdf-extension-"}).catch(async error=>{await closeServer();throw error})
+    const {context} = browser
     try {
       const worker=await waitForExtensionWorker(context)
       const id=new URL(worker.url()).host
@@ -56,6 +53,6 @@ for (const { title, scanned, type, file } of cases) {
       // Chrome downloaded the generic-type source; reading it must not leave that copy behind.
       expect(await worker.evaluate(()=>globalThis.onceE2eDownloads.length)).toBe(type==="application/pdf"?0:1)
       await expect.poll(()=>worker.evaluate(async()=>(await globalThis.chrome.downloads.search({})).map(item=>`${item.state} ${item.url}`))).toEqual([])
-    } finally {await context.close();await new Promise(resolve=>server.close(resolve));await fs.rm(profile,{recursive:true,force:true})}
+    } finally {await browser.close(closeServer)}
   })
 }

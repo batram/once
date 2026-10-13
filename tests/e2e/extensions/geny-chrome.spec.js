@@ -1,34 +1,22 @@
-const { chromium } = require("@playwright/test")
 const {
   expect,
   expectExtensionReady,
-  observeContext,
   test,
   waitForExtensionWorker
 } = require("../shared/browser-evidence")
-const fs = require("node:fs/promises")
-const os = require("node:os")
-const path = require("node:path")
+const { launchExtensionChrome } = require("../shared/extension-chrome")
 const {
   STORY_TITLE,
   startGenyFixture
 } = require("../shared/geny-fixture")
 
 test("Chrome genymatch extracts innerText from fetched HTML", async () => {
-  const extensionPath = path.resolve(
-    __dirname,
-    "../../../apps/chrome-extension/dist/release"
-  )
-  const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-geny-"))
   const fixture = await startGenyFixture()
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    channel: "chromium",
-    args: [
-      `--disable-extensions-except=${extensionPath}`,
-      `--load-extension=${extensionPath}`
-    ]
+  const browser = await launchExtensionChrome({ profilePrefix: "once-chrome-geny-" }).catch(async (error) => {
+    await fixture.close()
+    throw error
   })
-  const evidence = observeContext(context, "extension")
+  const { context, evidence } = browser
   const pageErrors = evidence.pageErrors
   try {
     await context.route(/^https?:/, async (route) => {
@@ -62,8 +50,6 @@ test("Chrome genymatch extracts innerText from fetched HTML", async () => {
     await expect(story).toContainText("TypeScript")
     expect(pageErrors).toEqual([])
   } finally {
-    await context.close()
-    await fixture.close()
-    await fs.rm(userDataDir, { recursive: true, force: true })
+    await browser.close(() => fixture.close())
   }
 })

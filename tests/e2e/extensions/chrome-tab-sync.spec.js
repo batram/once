@@ -1,5 +1,5 @@
-const { chromium } = require("@playwright/test")
-const { expect, expectExtensionReady, observeContext, test, waitForExtensionWorker } = require("../shared/browser-evidence")
+const { expect, expectExtensionReady, test, waitForExtensionWorker } = require("../shared/browser-evidence")
+const { launchExtensionChrome } = require("../shared/extension-chrome")
 const fs = require("node:fs/promises")
 const os = require("node:os")
 const path = require("node:path")
@@ -43,14 +43,14 @@ async function startCouch() {
 }
 
 test("the Chrome background publishes every window's tabs with no panel open, and never follows a URL to another database", async () => {
-  const extensionPath = path.resolve(__dirname, "../../../apps/chrome-extension/dist/release")
-  const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-tabsync-"))
   const couch = await startCouch()
   const fixture = await startStoryFixture()
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    channel: "chromium",
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`]
+  const cleanup = [() => fixture.close(), () => couch.close()]
+  const browser = await launchExtensionChrome({ profilePrefix: "once-chrome-tabsync-" }).catch(async (error) => {
+    for (const step of cleanup) await step()
+    throw error
   })
+  const { context } = browser
   try {
     const worker = await waitForExtensionWorker(context)
     await worker.evaluate(async (syncUrl) => {
@@ -90,16 +90,11 @@ test("the Chrome background publishes every window's tabs with no panel open, an
     const binding = await worker.evaluate(async () => (await globalThis.chrome.storage.local.get("secret:once:sync-destination"))["secret:once:sync-destination"])
     expect(binding).toBe(couch.url("once"))
   } finally {
-    await context.close()
-    await fixture.close()
-    await couch.close()
-    await fs.rm(userDataDir, { recursive: true, force: true })
+    await browser.close(...cleanup)
   }
 })
 
 test("the side panel's Tabs entry lists other devices' tabs and opens one in a new tab", async () => {
-  const extensionPath = path.resolve(__dirname, "../../../apps/chrome-extension/dist/release")
-  const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-tabs-panel-"))
   const couch = await startCouch()
   const fixture = await startStoryFixture()
   const at = new Date().toISOString()
@@ -108,11 +103,12 @@ test("the side panel's Tabs entry lists other devices' tabs and opens one in a n
   await couch.put("once", { _id: "dev_fedcba9876543210fedcba9876543210", type: "device", schema: 1,
     deviceId: "fedcba9876543210fedcba9876543210", epoch: 1, seq: 3, name: "Test phone", platform: "ios", appVersion: "1",
     sharing: true, updatedAt: at, windows: [{ id: "phone", focused: true, tabs: [remoteTab("a", fixture.urls.epsilon, "Epsilon on the phone")] }] })
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    channel: "chromium",
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`]
+  const cleanup = [() => fixture.close(), () => couch.close()]
+  const browser = await launchExtensionChrome({ profilePrefix: "once-chrome-tabs-panel-" }).catch(async (error) => {
+    for (const step of cleanup) await step()
+    throw error
   })
-  const evidence = observeContext(context, "extension")
+  const { context, evidence } = browser
   try {
     const worker = await waitForExtensionWorker(context)
     const extensionId = new URL(worker.url()).host
@@ -142,23 +138,20 @@ test("the side panel's Tabs entry lists other devices' tabs and opens one in a n
     await panel.screenshot({ path: "artifacts/tab-sync/tabs-panel-chrome.png" })
     await page.screenshot({ path: "artifacts/tab-sync/side-panel-chrome.png" })
   } finally {
-    await context.close()
-    await fixture.close()
-    await couch.close()
-    await fs.rm(userDataDir, { recursive: true, force: true })
+    await browser.close(...cleanup)
   }
 })
 
 test("the Chrome background reads a media position when its tab is left", async () => {
   const { startMediaServer } = require("../shared/media-server")
-  const extensionPath = path.resolve(__dirname, "../../../apps/chrome-extension/dist/release")
-  const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-tabsync-media-"))
   const couch = await startCouch()
   const media = await startMediaServer()
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    channel: "chromium",
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`]
+  const cleanup = [() => media.close(), () => couch.close()]
+  const browser = await launchExtensionChrome({ profilePrefix: "once-chrome-tabsync-media-" }).catch(async (error) => {
+    for (const step of cleanup) await step()
+    throw error
   })
+  const { context } = browser
   try {
     const worker = await waitForExtensionWorker(context)
     await worker.evaluate(async (syncUrl) => {
@@ -179,9 +172,6 @@ test("the Chrome background reads a media position when its tab is left", async 
     await other.goto(`${media.origin}/elsewhere`)
     await expect.poll(async () => Math.round((await listening())?.state?.media?.data.currentTime ?? -1), { timeout: 30_000 }).toBe(21)
   } finally {
-    await context.close()
-    await media.close()
-    await couch.close()
-    await fs.rm(userDataDir, { recursive: true, force: true })
+    await browser.close(...cleanup)
   }
 })

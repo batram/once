@@ -1,14 +1,10 @@
-const { chromium } = require("@playwright/test")
 const {
   expect,
   expectExtensionReady,
-  observeContext,
   test,
   waitForExtensionWorker
 } = require("../shared/browser-evidence")
-const fs = require("node:fs/promises")
-const os = require("node:os")
-const path = require("node:path")
+const { launchExtensionChrome } = require("../shared/extension-chrome")
 const { startLocalSource } = require("./local-source")
 
 // chrome.commands.getAll() reports shortcuts as they are presented on the
@@ -19,15 +15,13 @@ const browserManagedChords = process.platform === "darwin"
   : ["Ctrl+Shift+Y", "Alt+Shift+K"]
 
 test("installed Chrome extension loads, collects, persists settings, and opens a story", async () => {
-  const extensionPath = path.resolve(__dirname, "../../../apps/chrome-extension/dist/release")
-  const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-e2e-"))
   const source = await startLocalSource()
   const testPageUnexpectedRequests = []
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    channel: "chromium",
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`]
+  const browser = await launchExtensionChrome({ profilePrefix: "once-chrome-e2e-" }).catch(async (error) => {
+    await source.close()
+    throw error
   })
-  const evidence = observeContext(context, "extension")
+  const { context, evidence } = browser
   const pageErrors = evidence.pageErrors
   try {
     await context.route(/^https?:/, async (route) => {
@@ -126,8 +120,6 @@ test("installed Chrome extension loads, collects, persists settings, and opens a
     expect(pageErrors).toEqual([])
     expect(testPageUnexpectedRequests).toEqual([])
   } finally {
-    await context.close()
-    await source.close()
-    await fs.rm(userDataDir, { recursive: true, force: true })
+    await browser.close(() => source.close())
   }
 })

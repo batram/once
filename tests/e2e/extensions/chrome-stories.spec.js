@@ -1,35 +1,24 @@
-const { chromium } = require("@playwright/test")
-const fs = require("node:fs/promises")
-const os = require("node:os")
-const path = require("node:path")
 const { startStoryFixture } = require("./local-source")
 const storyFixture = require("../shared/story-fixture")
 const {
   expect,
   expectExtensionReady,
-  observeContext,
   test,
   waitForExtensionWorker
 } = require("../shared/browser-evidence")
+const { launchExtensionChrome } = require("../shared/extension-chrome")
 
 async function launchStoryExtension() {
-  const extensionPath = path.resolve(
-    __dirname,
-    "../../../apps/chrome-extension/dist/release"
-  )
-  const userDataDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "once-chrome-stories-")
-  )
   const source = await startStoryFixture()
   const unexpectedRequests = []
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    channel: "chromium",
-    args: [
-      `--disable-extensions-except=${extensionPath}`,
-      `--load-extension=${extensionPath}`
-    ]
-  })
-  const evidence = observeContext(context, "extension")
+  let browser
+  try {
+    browser = await launchExtensionChrome({ profilePrefix: "once-chrome-stories-" })
+  } catch (error) {
+    await source.close()
+    throw error
+  }
+  const { context, evidence } = browser
   const pageErrors = evidence.pageErrors
 
   try {
@@ -65,41 +54,29 @@ async function launchStoryExtension() {
     await expect(page.locator("#stories story-item").first()).toBeVisible()
 
     return {
+      browser,
       context,
       evidence,
       page,
       pageErrors,
       source,
-      unexpectedRequests,
-      userDataDir
+      unexpectedRequests
     }
   } catch (error) {
     error.message +=
       `\nFixture requests: ${JSON.stringify(source.requests)}` +
       `\nUnexpected requests: ${JSON.stringify(unexpectedRequests)}` +
       `\nPage errors: ${JSON.stringify(pageErrors)}`
-    await closeStoryExtension({ context, source, userDataDir })
+    await closeStoryExtension({ browser, source }).catch((closeError) => {
+      error.message += `\nTeardown: ${closeError.message}`
+    })
     throw error
   }
 }
 
-// Every step runs even when an earlier one rejects: a hung browser at
-// context.close() used to leak the fixture server and the profile directory
-// for the rest of the run.
-async function closeStoryExtension(harness) {
-  const failures = []
-  for (const step of [
-    () => harness.context.close(),
-    () => harness.source.close(),
-    () => fs.rm(harness.userDataDir, { recursive: true, force: true })
-  ]) {
-    try {
-      await step()
-    } catch (error) {
-      failures.push(error)
-    }
-  }
-  if (failures.length) throw failures[0]
+// The browser, then the fixture server; see extension-chrome.js.
+function closeStoryExtension(harness) {
+  return harness.browser.close(() => harness.source.close())
 }
 
 function storyItem(page, href) {

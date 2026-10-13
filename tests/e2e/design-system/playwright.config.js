@@ -1,9 +1,13 @@
 const { defineConfig } = require("@playwright/test")
 const path = require("node:path")
+const { runOutputDir } = require("../shared/run-output")
+
+const runLog = path.resolve(__dirname, "../shared/run-log-reporter.js")
 
 module.exports = defineConfig({
   testDir: __dirname,
   testMatch: "*.spec.js",
+  outputDir: runOutputDir("design-system"),
   // Budgets scale for a hosted runner, which is several times slower than a
   // developer machine; locally they stay tight. A test that passes on its
   // retry passes the run, and on CI is reported as a warning annotation.
@@ -11,7 +15,9 @@ module.exports = defineConfig({
   expect: { timeout: process.env.CI ? 15_000 : 5_000 },
   retries: 1,
   workers: 1,
-  reporter: process.env.CI ? [["line"], [path.resolve(__dirname, "../shared/flaky-report.js")]] : "line",
+  reporter: process.env.CI
+    ? [["line"], [path.resolve(__dirname, "../shared/flaky-report.js")], [runLog]]
+    : [["line"], [runLog]],
   use: {
     actionTimeout: process.env.CI ? 15_000 : 5_000,
     navigationTimeout: process.env.CI ? 20_000 : 8_000,

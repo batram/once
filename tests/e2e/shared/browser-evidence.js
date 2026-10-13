@@ -13,16 +13,24 @@ const fs = require("node:fs/promises")
 
 const observed = []
 
-function observeContext(context, label = "browser") {
+// The log on its own, for what happens before there is a context to observe
+// (the browser's launch) or beside it (its process log, see extension-chrome.js).
+function createEvidence(label = "browser") {
   const startedAt = Date.now()
   const lines = []
-  const pageErrors = []
   const record = (source, text) => {
     const elapsed = String(Date.now() - startedAt).padStart(6)
     for (const line of String(text).split(/\r?\n/)) {
       lines.push(`${elapsed}ms [${source}] ${line}`)
     }
   }
+  const evidence = { label, pageErrors: [], record, text: () => lines.join("\n") }
+  observed.push(evidence)
+  return evidence
+}
+
+function observeContext(context, label = "browser", evidence = createEvidence(label)) {
+  const { pageErrors, record } = evidence
   const watchTarget = (target, kind) => {
     target.on("console", (message) => record(`${kind}.${message.type()}`, message.text()))
     target.on("pageerror", (error) => {
@@ -44,13 +52,6 @@ function observeContext(context, label = "browser") {
   for (const page of context.pages()) watchPage(page)
   context.on("page", watchPage)
   context.on("close", () => record("context", "closed"))
-  const evidence = {
-    label,
-    pageErrors,
-    record,
-    text: () => lines.join("\n")
-  }
-  observed.push(evidence)
   return evidence
 }
 
@@ -111,4 +112,4 @@ async function expectExtensionReady(page, evidence) {
   }, { message: "the extension page did not become ready" }).toBe("true")
 }
 
-module.exports = { expect, expectExtensionReady, observeContext, test, waitForExtensionWorker }
+module.exports = { createEvidence, expect, expectExtensionReady, observeContext, test, waitForExtensionWorker }

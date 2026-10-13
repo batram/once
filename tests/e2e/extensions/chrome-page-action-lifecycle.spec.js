@@ -1,19 +1,15 @@
-const { test, expect, chromium } = require("@playwright/test")
-const fs = require("node:fs/promises")
-const os = require("node:os")
-const path = require("node:path")
+const { expect, test } = require("../shared/browser-evidence")
+const { launchExtensionChrome } = require("../shared/extension-chrome")
 const { startStoryFixture } = require("./local-source")
 
 test("page target listeners stop quietly when the extension is reloaded", async () => {
-  const extensionPath = path.resolve(__dirname, "../../../apps/chrome-extension/dist/release")
-  const profile = await fs.mkdtemp(path.join(os.tmpdir(), "once-target-lifecycle-"))
   const source = await startStoryFixture()
-  let context
+  const browser = await launchExtensionChrome({ profilePrefix: "once-target-lifecycle-" }).catch(async (error) => {
+    await source.close()
+    throw error
+  })
+  const { context } = browser
   try {
-    context = await chromium.launchPersistentContext(profile, {
-      channel: "chromium",
-      args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`]
-    })
     const worker = context.serviceWorkers()[0] || await context.waitForEvent("serviceworker")
     await worker.evaluate(() => {
       globalThis.targetReports = 0
@@ -34,8 +30,6 @@ test("page target listeners stop quietly when the extension is reloaded", async 
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
     expect(errors).toEqual([])
   } finally {
-    await context?.close()
-    await source.close()
-    await fs.rm(profile, { recursive: true, force: true })
+    await browser.close(() => source.close())
   }
 })

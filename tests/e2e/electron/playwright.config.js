@@ -1,5 +1,8 @@
 const { defineConfig } = require("@playwright/test")
 const path = require("node:path")
+const { runOutputDir } = require("../shared/run-output")
+
+const runLog = path.resolve(__dirname, "../shared/run-log-reporter.js")
 
 // Specs tagged @interactive drive the window itself — fullscreen, maximize,
 // title-bar drag regions. Those operations snap an off-screen background
@@ -15,6 +18,7 @@ const includeInteractive = Boolean(process.env.CI) ||
 module.exports = defineConfig({
   testDir: __dirname,
   testMatch: "*.spec.js",
+  outputDir: runOutputDir("electron"),
   // A hosted runner is several times slower than a developer machine and its
   // speed varies between runs, so the budget that keeps local feedback sharp
   // turns healthy specs red there. Locally it stays tight.
@@ -31,8 +35,8 @@ module.exports = defineConfig({
   reporter: process.env.CI
     ? [["line"], [path.resolve(__dirname, "../shared/flaky-report.js")], ["json", {
       outputFile: path.resolve(__dirname, "../../../artifacts/electron-e2e/results.json")
-    }]]
-    : "line",
+    }], [runLog]]
+    : [["line"], [runLog]],
   grepInvert: includeInteractive ? undefined : /@interactive/,
   use: {
     actionTimeout: process.env.CI ? 15_000 : 5_000,
