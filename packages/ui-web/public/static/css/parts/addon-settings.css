@@ -155,7 +155,9 @@
 #settings_panel #addon_install_settings .addon_advanced_action {
   margin: var(--sp-5) 0 0; font-size: var(--fs-dense); line-height: 1.6; color: var(--text-muted-color);
 }
-#addon_detail .settings_group { border: 0; padding: 0; margin: 0 0 var(--sp-4); }
+/* Unboxed here, so the box's rounded clip goes too: it shaved the corners off
+   the head's buttons and the source card at the group's edges. */
+#addon_detail .settings_group { border: 0; border-radius: 0; overflow: visible; padding: 0; margin: 0 0 var(--sp-4); }
 #addon_detail .settings_group > legend { display: none; }
 /* The page's head: the add-on's state on one side, its actions on the other.
    The dot takes the panel header's sync status colours. */
