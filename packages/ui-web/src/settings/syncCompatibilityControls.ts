@@ -24,16 +24,16 @@ export function bindSyncCompatibilityControls(client: OnceClient): (status: Sync
   retry.onclick = () => client.recheckSyncCompatibility()
   actions.append(update, retry); panel.append(title, message, versions, retained, actions); root.prepend(panel)
   return status => {
-    if (status.state === "connecting" && !panel.hidden) { message.textContent = "Checking sync compatibility…"; return }
-    const incompatible = status.state === "update-required"
-    const metadataError = status.state === "error" && status.message.startsWith("Sync compatibility")
+    const details = status.compatibility
+    const incompatible = status.state === "update-required" && !!details && details.requiredSyncProtocol > details.supportedSyncProtocol
+    const metadataError = status.state === "error" && status.message.startsWith("Sync paused. The database sync metadata")
     panel.hidden = !incompatible && !metadataError
+    panel.setAttribute("aria-label", incompatible ? "Sync compatibility" : "Sync needs attention")
     update.hidden = !incompatible
-    title.textContent = incompatible ? "Update Once to resume sync" : "Sync compatibility needs attention"
+    title.textContent = incompatible ? "Update Once to resume sync" : "Sync needs attention"
     message.textContent = status.message
     const installed = document.querySelector('[data-testid="app-version"]')?.textContent?.trim()
-    const details = status.compatibility
     versions.textContent = [installed ? `Installed: ${installed}` : "", details ? `Sync protocol: ${details.supportedSyncProtocol}; required: ${details.requiredSyncProtocol}` : "", details?.minAppVersion ? `Minimum release: ${details.minAppVersion}` : ""].filter(Boolean).join(" · ")
-    retained.textContent = incompatible ? "Your local data and pending changes are kept. Sync resumes after a compatible update." : "Your local data and pending changes are kept. Restore the database compatibility metadata before syncing."
+    retained.textContent = incompatible ? "Your local data and pending changes are kept. Sync resumes after a compatible update." : "Your local data and pending changes are kept. Restore the database sync metadata before syncing."
   }
 }

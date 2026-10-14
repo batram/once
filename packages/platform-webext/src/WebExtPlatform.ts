@@ -11,6 +11,7 @@ import {
   PouchListStore,
   PouchStoryStore,
   PouchSyncService,
+  syncFetchDiagnostics,
   IndexedDbCacheStore,
   keepIndexedDbOpenAfterAborts,
   LOCAL_POUCH_OPTIONS,
@@ -51,7 +52,7 @@ export function createWebExtPlatform(
     (event) => {
       console.log("change db", event)
     },
-    (url) => new PouchDB(url) as unknown as PouchSyncService["db"]
+    (url) => new PouchDB(url, { fetch: syncFetchDiagnostics(window.fetch.bind(window)) }) as unknown as PouchSyncService["db"]
   )
   const syncSettingsStore = new WebExtSyncStorage(browserApi)
 

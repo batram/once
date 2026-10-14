@@ -100,7 +100,8 @@ test("shared data writes wait for the marker and failed checks keep persisted va
   assert.equal((await local.get("addon_vault")).list.version, 2)
 })
 
-test("offline preflight and reconnect never start replication before compatibility is known", async () => {
+test("offline preflight and reconnect never start replication before compatibility is known", async t => {
+  const warnings = t.mock.method(console, "warn", () => {})
   let count = 0, unavailable = true
   const local = compatibilityDatabase({ replicate: { from() { count++; throw new Error("must not replicate") } } })
   const remote = compatibilityDatabase()
@@ -111,10 +112,10 @@ test("offline preflight and reconnect never start replication before compatibili
   client.onDiagnostic(diagnostic => diagnostics.push(diagnostic))
   try {
     client.syncFrom(destination)
-    await eventually(() => statuses.at(-1).state === "error")
-    assert.match(statuses.at(-1).message, /Check your connection/)
-    assert.match(diagnostics.at(-1).details, /network failed/)
-    assert.doesNotMatch(diagnostics.at(-1).details, /pauseCompatibility/)
+    await eventually(() => statuses.at(-1).state === "retrying")
+    assert.match(statuses.at(-1).message, /retry automatically/)
+    assert.equal(diagnostics.length, 0, "transient failures do not create notifications")
+    assert.match(warnings.mock.calls[0].arguments[0], /network failed/)
     assert.equal(count, 0)
     unavailable = false
     await remote.put({ _id: id, schema: 1, minSyncProtocol: 3 })
@@ -144,4 +145,99 @@ test("a failed first marker write for existing development data can be retried",
   remote.put = put
   await gate.check(remote, destination)
   assert.equal((await remote.get(id)).minSyncProtocol, 2)
+})
+
+test("failed sync requests retain safe endpoint context and the original error", async t => {
+  const warnings = t.mock.method(console, "warn", () => {})
+  const { syncFetchDiagnostics } = require("../../../packages/persistence/dist")
+  const { syncRequestDetails } = require("../../../packages/persistence/dist/SyncFetchDiagnostics")
+  const failure = new TypeError("Failed to fetch https://alice:secret@sync.test/once/_changes?token=private")
+  const controller = new AbortController()
+  const init = { method: "POST", signal: controller.signal, headers: { Authorization: "secret" }, body: "private document" }
+  const url = "https://alice:secret@sync.test/once/_changes?token=private"
+  const fetcher = syncFetchDiagnostics(async (actualUrl, actualInit) => {
+    assert.equal(actualUrl, url)
+    assert.equal(actualInit, init)
+    throw failure
+  })
+  await assert.rejects(fetcher(url, init), error => error === failure)
+  const request = syncRequestDetails(failure)
+  assert.equal(request.origin, "https://sync.test")
+  assert.equal(request.endpoint, "_changes")
+  assert.equal(request.method, "POST")
+  assert.equal(request.aborted, false)
+  assert.ok(request.elapsedMs >= 0)
+  assert.doesNotMatch(JSON.stringify(request), /secret|private|alice/)
+  const normalized = Object.fromEntries(Object.getOwnPropertyNames(failure).map(key => [key, failure[key]]))
+  assert.deepEqual(syncRequestDetails(normalized), request, "PouchDB error normalization retains request context")
+
+  const remote = compatibilityDatabase()
+  remote.get = () => fetcher(url, init)
+  const diagnostics = []
+  const client = new PouchSyncService(compatibilityDatabase(), () => {}, () => remote)
+  client.onDiagnostic(value => diagnostics.push(value))
+  try {
+    client.syncFrom(destination)
+    await eventually(() => warnings.mock.calls.length > 0)
+    const details = warnings.mock.calls[0].arguments[0]
+    assert.equal(diagnostics.length, 0)
+    assert.match(details, /TypeError: Failed to fetch/)
+    assert.match(details, /"endpoint":"_changes"/)
+    assert.match(details, /"retryInMs":3000/)
+    assert.doesNotMatch(details, /alice|secret|private/)
+  } finally { client.syncFrom("") }
+})
+
+test("sync request logging preserves HTTP responses and abort errors", async () => {
+  const { syncFetchDiagnostics } = require("../../../packages/persistence/dist")
+  const { syncRequestDetails } = require("../../../packages/persistence/dist/SyncFetchDiagnostics")
+  const response = new Response("unavailable", { status: 503 })
+  assert.equal(await syncFetchDiagnostics(async () => response)(destination), response)
+  const controller = new AbortController()
+  controller.abort()
+  const failure = new DOMException("Cancelled", "AbortError")
+  await assert.rejects(syncFetchDiagnostics(async () => { throw failure })(destination, { signal: controller.signal }), error => error === failure)
+  assert.equal(syncRequestDetails(failure).aborted, true)
+})
+
+test("actual PouchDB changes and replication errors retain fetch context", async () => {
+  const { syncFetchDiagnostics } = require("../../../packages/persistence/dist")
+  const { syncRequestDetails } = require("../../../packages/persistence/dist/SyncFetchDiagnostics")
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "once-fetch-diagnostic-"))
+  const local = new PouchDB(path.join(dir, "local"))
+  const remote = new PouchDB(destination, {
+    skip_setup: true,
+    fetch: syncFetchDiagnostics(async () => { throw new TypeError("Failed to fetch") })
+  })
+  try {
+    const changesError = await new Promise(resolve => remote.changes({ live: true, retry: false }).on("error", resolve))
+    assert.equal(syncRequestDetails(changesError).endpoint, "_changes")
+    const replicationError = await new Promise(resolve => local.replicate.from(remote, { retry: false }).on("error", resolve))
+    assert.equal(syncRequestDetails(replicationError).origin, "https://sync.test")
+  } finally {
+    await Promise.all([local.close(), remote.close()])
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
+test("PouchDB body-read failures retain endpoint and response framing context", async () => {
+  const { syncFetchDiagnostics } = require("../../../packages/persistence/dist")
+  const { syncRequestDetails } = require("../../../packages/persistence/dist/SyncFetchDiagnostics")
+  const failure = new TypeError("Content-Length header of network response exceeds response Body.")
+  const remote = new PouchDB(destination, {
+    skip_setup: true,
+    fetch: syncFetchDiagnostics(async () => new Response(new ReadableStream({
+      start(controller) { controller.error(failure) }
+    }), { status: 200, headers: { "content-length": "1234", "content-encoding": "gzip" } }))
+  })
+  try {
+    const error = await new Promise(resolve => remote.changes({ live: true, retry: false }).on("error", resolve))
+    assert.match(error.message, /Content-Length/)
+    const request = syncRequestDetails(error)
+    assert.equal(request.endpoint, "_changes")
+    assert.equal(request.stage, "response body")
+    assert.equal(request.status, 200)
+    assert.equal(request.contentLength, "1234")
+    assert.equal(request.contentEncoding, "gzip")
+  } finally { await remote.close() }
 })

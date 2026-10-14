@@ -12,6 +12,7 @@ import {
   PouchStoryStore,
   PouchSyncDatabase,
   PouchSyncService,
+  syncFetchDiagnostics,
   PouchTabDocsDatabase,
   pouchTabDocs
 } from "@once/persistence"
@@ -76,7 +77,7 @@ export function createElectronPlatform(
     (event) => console.log("change db", event),
     (url) =>
       new PouchDB(url, {
-        fetch: fetchThroughMain
+        fetch: syncFetchDiagnostics(fetchThroughMain)
       }) as unknown as PouchSyncDatabase
   )
   return {

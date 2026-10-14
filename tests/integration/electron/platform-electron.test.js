@@ -168,6 +168,7 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
     (change) => changes.push(change),
     (url) => compatibilityDatabase({ remote: url })
   )
+  t.after(() => service.syncFrom(""))
   const diagnostics = []
   const statuses = []
   const remoteChanges = []
@@ -221,10 +222,9 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
   syncs[0].chain.emit("paused")
   assert.equal(statuses.at(-1).state, "up-to-date")
   syncs[0].chain.emit("denied", { status: 403, message: "forbidden" })
-  assert.equal(diagnostics[0].operation, "sync.compatibility")
+  assert.equal(diagnostics[0].operation, "sync.authorization")
   assert.equal(statuses.at(-1).state, "error")
-  // The user is told compatibility could not be checked; the diagnostic keeps the original denial.
-  assert.match(diagnostics[0].message, /compatibility/)
+  assert.match(diagnostics[0].message, /credentials and access permissions/)
   assert.match(diagnostics[0].details, /"status": 403/)
   assert.match(diagnostics[0].details, /forbidden/)
   service.syncFrom("https://three.example/db")
@@ -244,7 +244,7 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
   }])
 })
 
-test("syncs settings, newest stories, backlog, then starts live sync", async () => {
+test("syncs settings, newest stories, backlog, then starts live sync", async t => {
   const replications = []
   const syncs = []
   const lifecycle = []
@@ -294,6 +294,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
   const statuses = []
   const remoteChanges = []
   const service = new PouchSyncService(compatibilityDatabase(db), () => {}, () => compatibilityDatabase(remote))
+  t.after(() => service.syncFrom(""))
   service.onStatus((status) => statuses.push(status))
   service.onRemoteChange((change) => remoteChanges.push(change))
 

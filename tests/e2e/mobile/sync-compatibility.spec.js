@@ -47,6 +47,6 @@ test("damaged metadata remains distinguishable from an update requirement", asyn
   await page.getByTestId("sync-url").fill(`${server.replace("http://", "http://once-test:once-test@")}/db/${db}`)
   await page.getByTestId("save-sync").click()
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "error")
-  await expect(page.getByTestId("sync-compatibility")).toContainText("unsupported or damaged")
+  await expect(page.getByTestId("sync-compatibility")).toContainText("database sync metadata needs attention")
   await expect(page.getByTestId("sync-compatibility").getByRole("button", { name: "Update Once" })).toBeHidden()
 })

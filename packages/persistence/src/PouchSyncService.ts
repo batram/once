@@ -1,5 +1,7 @@
 import { PouchSyncCompatibility, SyncCompatibilityError } from "./PouchSyncCompatibility"
 import { listenLiveSync, watchSyncCompatibility } from "./PouchSyncWatch"
+import { syncRequestDetails } from "./SyncFetchDiagnostics"
+import { syncFailure } from "./SyncFailure"
 import { SYNC_COMPAT_ID, SYNC_PROTOCOL, SyncCompatibilityDetails, isRoutedTabDocId, isTabSyncChangeId, normalizeSyncUrl, ROUTED_TAB_DOC_PREFIXES, TAB_SYNC_SETTINGS_ID } from "@once/core"
 import {
   PouchMaintenanceDatabase,
@@ -79,6 +81,8 @@ export class PouchSyncService {
   private readonly compatibility: PouchSyncCompatibility
   private stopWatch?: () => void
   private retryTimer?: ReturnType<typeof setTimeout>
+  private stableTimer?: ReturnType<typeof setTimeout>
+  private retryAttempt = 0
   private destination = ""
   private loadedStoryIds?: () => string[]
   private syncHandler?: PouchEventChain
@@ -166,7 +170,7 @@ export class PouchSyncService {
     this.statusHandlers.forEach((handler) => handler(status))
   }
 
-  private report(operation: string, message: string, error: unknown): void {
+  private report(operation: string, message: string, error: unknown, context?: Record<string, unknown>, notify = true): void {
     let detail: string
     if (error instanceof Error) {
       detail = `${error.name}: ${error.message}${error.stack ? `\n${error.stack}` : ""}`
@@ -177,6 +181,15 @@ export class PouchSyncService {
         detail = String(error)
       }
     }
+    if (context) detail += `\nSync context: ${JSON.stringify(context)}`
+    detail = detail.replace(/https?:\/\/[^\s"<>]+/g, value => {
+      try {
+        const url = new URL(value)
+        url.username = ""; url.password = ""; url.search = ""; url.hash = ""
+        return url.href
+      } catch { return "[redacted URL]" }
+    })
+    if (!notify) { console.warn(`[${operation}] ${message}\n${detail}`); return }
     this.diagnosticHandlers.forEach((handler) =>
       handler({ severity: "error", operation, message, details: detail })
     )
@@ -190,6 +203,11 @@ export class PouchSyncService {
   }
 
   syncFrom(couchdbUrl: string, getLoadedStoryIds?: () => string[]): void {
+    this.retryAttempt = 0
+    this.connect(couchdbUrl, getLoadedStoryIds)
+  }
+
+  private connect(couchdbUrl: string, getLoadedStoryIds?: () => string[]): void {
     const syncOps = {
       ...PouchSyncService.REPLICATION_OPTIONS,
       live: true,
@@ -198,7 +216,7 @@ export class PouchSyncService {
     }
 
     const generation = ++this.generation
-    clearTimeout(this.retryTimer); this.stopWatch?.(); this.stopWatch = undefined
+    clearTimeout(this.retryTimer); clearTimeout(this.stableTimer); this.stopWatch?.(); this.stopWatch = undefined
     this.destination = couchdbUrl; this.loadedStoryIds = getLoadedStoryIds
     this.remoteDatabase = undefined
     this.settingsReplicatedGeneration = 0
@@ -268,7 +286,7 @@ export class PouchSyncService {
       })
       .catch((error) => {
         if (this.generation !== generation) return
-        this.pauseCompatibility(error, generation)
+        this.handleFailure(error, generation)
       })
   }
 
@@ -468,7 +486,11 @@ export class PouchSyncService {
       this.onChange(event); this.notifyRemoteChanges(event, true, "foreground")
       this.updateStatus({ state: "syncing", message: "Syncing changes…", changes: this.changeCount(event) })
     }, busy => this.updateStatus({ state: busy ? "syncing" : "up-to-date", message: busy ? "Syncing changes…" : "Up to date" }),
-    error => this.pauseCompatibility(error, generation))
+    error => this.handleFailure(error, generation, "live replication"))
+    // A transport that fails immediately must not reset its retry backoff.
+    this.stableTimer = setTimeout(() => {
+      if (this.generation === generation) this.retryAttempt = 0
+    }, 30000)
   }
 
   private async preflight(remote: string | PouchSyncDatabase, destination: string, generation: number): Promise<void> {
@@ -477,19 +499,39 @@ export class PouchSyncService {
     if (this.generation !== generation) return
     this.stopWatch = watchSyncCompatibility(remote,
       () => this.compatibility.check(remote, destination, 1, () => this.generation === generation),
-      error => this.pauseCompatibility(error, generation))
+      error => this.handleFailure(error, generation, "compatibility monitor"))
   }
 
-  private pauseCompatibility(error: unknown, generation: number): void {
+  private handleFailure(error: unknown, generation: number, phase = this.status.message): void {
     if (this.generation !== generation) return
     ++this.generation
+    clearTimeout(this.retryTimer); clearTimeout(this.stableTimer)
     this.initialReplication?.cancel?.(); this.syncHandler?.cancel?.(); this.stopWatch?.()
     this.settingsReplicatedGeneration = 0
-    const details = error instanceof SyncCompatibilityError ? error.compatibility : undefined
-    const message = error instanceof Error && /^(Sync compatibility|Sync paused)/.test(error.message) ? error.message : "Sync paused. Could not verify compatibility with the database. Check your connection and try again."
-    this.report("sync.compatibility", message, error)
-    this.updateStatus({ state: details ? "update-required" : "error", message, ...(details ? { compatibility: details } : {}) })
-    if (!details && !message.startsWith("Sync compatibility")) this.retryTimer = setTimeout(() => this.recheckCompatibility(), 3000)
+    const mismatch = error instanceof SyncCompatibilityError ? error.compatibility : undefined
+    const details = mismatch && mismatch.requiredSyncProtocol > mismatch.supportedSyncProtocol ? mismatch : undefined
+    const failure = syncFailure(error)
+    const message = failure.message
+    const retryInMs = failure.retry ? Math.min(3000 * 2 ** Math.min(this.retryAttempt++, 5), 60000) : null
+    const fields = error && typeof error === "object" ? error as Record<string, unknown> : {}
+    const context = {
+      phase,
+      session: generation,
+      retryInMs,
+      status: fields.status,
+      code: fields.code,
+      reason: fields.reason,
+      request: syncRequestDetails(error)
+    }
+    // Do not include destination credentials, query strings, headers or document bodies.
+    this.report(failure.operation, message, error, context, !failure.retry)
+    this.updateStatus({ state: details ? "update-required" : failure.retry ? "retrying" : "error", message, ...(details ? { compatibility: details } : {}) })
+    if (retryInMs !== null) {
+      const retryGeneration = this.generation
+      this.retryTimer = setTimeout(() => {
+        if (this.generation === retryGeneration) this.connect(this.destination, this.loadedStoryIds)
+      }, retryInMs)
+    }
   }
 
   recheckCompatibility(): void { this.syncFrom(this.destination, this.loadedStoryIds) }
@@ -503,7 +545,7 @@ export class PouchSyncService {
       if (!this.remoteDatabase) throw new Error("Connect sync before changing shared formats")
       await this.compatibility.check(this.remoteDatabase, this.destination, version, () => this.generation === generation)
       if (this.generation !== generation) throw new Error("Sync session changed; try again")
-    } catch (error) { this.pauseCompatibility(error, generation); throw error }
+    } catch (error) { this.handleFailure(error, generation); throw error }
   }
 
   private notifyRemoteChanges(
