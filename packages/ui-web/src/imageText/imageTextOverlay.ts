@@ -330,6 +330,8 @@ export function viewport() {
  * root's overflow (and body's, when propagated) belongs to the viewport, which
  * is already applied: its clientHeight is the viewport's while its rect starts
  * at -scrollY, so treating it as a clipper hides every image below the fold.
+ * An ancestor with `display: contents` has no box, so its overflow clips
+ * nothing (Framer sites set `overflow: clip` on one); its rect is empty.
  */
 function visibleImageBox(image: HTMLElement, left: number, top: number, width: number, height: number) {
   const view = viewport()
@@ -339,7 +341,9 @@ function visibleImageBox(image: HTMLElement, left: number, top: number, width: n
   const viewportBody = getComputedStyle(root).overflow === "visible" ? document.body : null
   for (let parent = image.parentElement; parent && parent !== root; parent = parent.parentElement) {
     if (parent === viewportBody) continue
-    const style = getComputedStyle(parent), rect = parent.getBoundingClientRect()
+    const style = getComputedStyle(parent)
+    if (style.display === "contents") continue
+    const rect = parent.getBoundingClientRect()
     if (/(hidden|clip|scroll|auto)/.test(style.overflowX)) {
       box.left = Math.max(box.left, rect.left + parent.clientLeft)
       box.right = Math.min(box.right, rect.left + parent.clientLeft + parent.clientWidth)

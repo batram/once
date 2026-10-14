@@ -51,6 +51,13 @@ async function startImageTextServer(port = 0) {
       response.end(raster)
       return
     }
+    if (request.url === "/negotiated.png" && raster) {
+      // Opened as its own tab, an image whose response varies by Accept (as image CDNs serving AVIF
+      // do) gives the protocol no copy of its bytes; so does no-store or a sandboxing CSP.
+      response.writeHead(200, { "content-type": "image/png", vary: "Accept" })
+      response.end(raster)
+      return
+    }
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
     // The fixture again inside a cross-site iframe (localhost vs 127.0.0.1),
     // which runs out of process: offset, bordered and in a scrolled page.

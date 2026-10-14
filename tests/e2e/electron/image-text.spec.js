@@ -89,7 +89,7 @@ async function overlayOpen(app) {
 
 const READY = `Drag to select text · ${process.platform === "darwin" ? "⌘C" : "Ctrl+C"} to copy`
 
-async function startRecognition(app, selector = "img") {
+async function startRecognition(app, selector = "img", url = `${server.origin}/`) {
   await app.evaluate(async ({ webContents, Menu }, { url, selector }) => {
     const page = webContents.getAllWebContents().find(c => c.getURL() === url)
     const params = await page.executeJavaScript(`(() => {
@@ -108,8 +108,8 @@ async function startRecognition(app, selector = "img") {
     } finally { Menu.buildFromTemplate = original }
     if (!action) throw new Error("Missing native image text action")
     action.click()
-  }, { url: `${server.origin}/`, selector })
-  await expect.poll(async () => (await overlayState(app))?.bar?.text).toContain(READY)
+  }, { url, selector })
+  await expect.poll(async () => (await overlayState(app, url))?.bar?.text).toContain(READY)
 }
 
 /** The page's image, and the overlay's words, highlight and bar, all in the page's viewport. */
@@ -266,6 +266,14 @@ test("native OCR selects and copies image words with stable geometry and cleanup
       return !g.hidden && g.words[0].top > g.image.top && g.words[0].bottom < g.image.bottom
     }).toBe(true)
     await inPage(app, "document.getElementById('fold').remove(); document.documentElement.style.overflowY=''")
+    // An ancestor with display: contents has no box for its overflow to clip to (Framer sites set one).
+    // Styled in place: moving the image would move, and so reload, the words frame hung on it.
+    await inPage(app, "document.querySelector('main').style.cssText='display:contents;overflow:clip'; document.querySelector('img').scrollIntoView({block:'center'})")
+    await expect.poll(async () => {
+      const g = await geometry(app)
+      return !g.hidden && g.words[0].top > g.image.top && g.words[0].bottom < g.image.bottom
+    }).toBe(true)
+    await inPage(app, "document.querySelector('main').style.cssText=''")
     // An image wider than the viewport: the bar keeps its one-line width instead
     // of shrinking against the right edge, and stays clear of the scrollbar.
     await inPage(app, "scrollTo(0,0); document.querySelector('img').style.width='1600px'")
@@ -381,6 +389,26 @@ test("OCR reads the full image without page pixels or new resource requests", as
     await inPage(app, "new Promise(resolve=>{const i=document.querySelector('img');i.onload=()=>resolve(true);i.src='/image.svg'})")
     await startRecognition(app)
     expect(await selectAndCopy(app)).toBe("Select these words")
+  } finally { await closeApp(app, userData) }
+})
+
+test("an image opened as its own tab from a content-negotiated response is read as the tab shows it", async () => {
+  const { electronApp: app, userData, window } = await launchApp()
+  try {
+    await window.locator("#urlfield").fill(`${server.origin}/`)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
+    await expect.poll(() => inPage(app, "document.querySelector('img').naturalWidth")).toBe(1000)
+    const png = await inPage(app, "document.querySelector('img').src")
+    server.setImage(Buffer.from(png.split(",")[1], "base64"))
+    // The image document keeps no copy for Page.getResourceContent: the selection captures it instead.
+    const url = `${server.origin}/negotiated.png`
+    await window.locator("#urlfield").fill(url)
+    await window.locator("#urlfield").press("Enter")
+    await expect.poll(() => app.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+      .some(c => c.getURL() === url && !c.isLoading()), url)).toBe(true)
+    await startRecognition(app, "img", url)
+    expect(await selectAndCopy(app, url)).toBe("Select these words")
   } finally { await closeApp(app, userData) }
 })
 

@@ -54,9 +54,12 @@ function request(frame: WebFrameMain, token: string, method: string, values: unk
  * resolves null when the image is not found there. The main frame's picture
  * is captured as the tab shows it, before anything is hung on it, when
  * another protocol client holds the tab's debugger (no renderer hands over
- * its bytes then) or when its bytes are markup: an SVG, which the native
- * helper's decoder cannot read. A subframe's cannot be, and the selection
- * reports that.
+ * its bytes then), when the renderer has none to hand over (an image opened
+ * as its own tab keeps no copy for the protocol when its response varies by
+ * Accept, as image CDNs' do, is no-store, or has a sandboxing CSP), or when
+ * its bytes are markup: an SVG, which the
+ * native helper's decoder cannot read. A subframe's cannot be, and the
+ * selection reports that.
  */
 export async function openImageTextHost(tab: WebContents, frame: WebFrameMain, src: string, x: number, y: number,
   token: string, frameUrl: string, signal: AbortSignal): Promise<ImageTextHost | null> {
@@ -67,7 +70,7 @@ export async function openImageTextHost(tab: WebContents, frame: WebFrameMain, s
       const bytes = await readFrameResource(tab, frame, src, signal).catch((error: unknown) => { if (signal.aborted) throw error; return null })
       read = { url: src, bytes }
     }
-    if (tab.debugger.isAttached() || src.startsWith("data:image/svg+xml") || isMarkup(read?.bytes)) {
+    if (tab.debugger.isAttached() || src.startsWith("data:image/svg+xml") || (read && !read.bytes) || isMarkup(read?.bytes)) {
       const shown = await request(frame, token, "locate", [src, x, y], signal) as ImageTextInView | null
       shot = shown ? await captureInView(tab, shown).catch(() => null) : null
     }
