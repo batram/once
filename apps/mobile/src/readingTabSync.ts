@@ -3,7 +3,7 @@ import type { InAppBrowserSurface } from "@once/platform-mobile"
 import { clientRemoteTabsPort, PanelNavigation, watchTabSyncEnabled } from "@once/ui-web"
 import { installTabSyncMenus, localTabMenu } from "./tabSyncMenus"
 import type { MobileReadingController } from "./readingController"
-import type { ReadingTab, ReadingTabs } from "./readingTabs"
+import { tabTitle, type ReadingTab, type ReadingTabs } from "./readingTabs"
 
 /**
  * This phone's tabs for tab sync: one window, the reading tabs in order. A
@@ -44,7 +44,7 @@ export function readingTabSource(
           const state = tab.session.snapshot()
           if (!state.currentUrl) return []
           return [{
-            id: tab.id, url: state.currentUrl, title: tab.title || state.story?.title || "",
+            id: tab.id, url: state.currentUrl, title: tabTitle(tab),
             mode: state.mode === "reader" ? "reader" as const : "web" as const,
             active: tab.id === reading.activeId, audible: tab.audio === "playing",
             storyId: state.story ? `sto_${state.story.href}` : undefined, ...tab.times

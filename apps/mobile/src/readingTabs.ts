@@ -312,6 +312,17 @@ export class ReadingTabs {
   }
 }
 
+/**
+ * The tab's title, or its story's while the tab is still on the story's page
+ * or comments. The session keeps the story after the page links elsewhere,
+ * and its title would name a page the tab has left.
+ */
+export function tabTitle(tab: Pick<ReadingTab, "title" | "session">): string {
+  if (tab.title) return tab.title
+  const { story, currentUrl } = tab.session.snapshot()
+  return story && currentUrl && story.matches_url(currentUrl) ? story.title : ""
+}
+
 function readPreviews(value: unknown): SavedPreviews {
   const previews: SavedPreviews = {}
   if (!value || typeof value !== "object") return previews

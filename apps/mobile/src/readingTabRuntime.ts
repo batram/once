@@ -205,7 +205,7 @@ export class ReadingTabRuntime {
             this.announce("The page closed its tab")
           })
           coordinator.onNavigationFinished(event => {
-            this.tabs.update(tab.id, tab.generation, { title: event.title ?? tab.session.snapshot().story?.title ?? "" })
+            this.tabs.update(tab.id, tab.generation, { title: event.title ?? "" })
             if (tab.id !== this.tabs.activeId) this.announce(`Background tab loaded: ${tab.title || event.url}`)
           })
           coordinator.onLoadFailed((url, reason) => this.loadFailedListener?.(tab.session, url, reason))

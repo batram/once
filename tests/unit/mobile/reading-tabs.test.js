@@ -16,7 +16,7 @@ Function("exports", "require", transpile("readingHistory.ts"))(historyExports, (
 const moduleExports = {}
 Function("exports", "require", compiled)(moduleExports, name =>
   name === "@once/core" ? { Story, readReaderPosition } : name === "./readingHistory" ? historyExports : { ReadingSession })
-const { ReadingTabs } = moduleExports
+const { ReadingTabs, tabTitle } = moduleExports
 const memory = () => {
   const values = new Map()
   return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) }
@@ -89,6 +89,21 @@ test("restart restores metadata lazily without errors/history/loading or undo", 
   assert.equal(next.selected.session.snapshot().loadState, "idle")
   assert.equal(next.canUndo, false)
   assert.equal(new ReadingTabs(storage).tabs.length, 1, "restoration must not overwrite the saved snapshot with an incomplete one")
+})
+
+test("a tab is named after its story only while it is on the story's page or comments", () => {
+  const tabs = new ReadingTabs(memory()), tab = tabs.create()
+  const story = new Story("hn", "https://story.test/", "Ask HN: voice", "https://news.test/item?id=1")
+  tab.session.open(story, "browser")
+  assert.equal(tabTitle(tab), "Ask HN: voice")
+  tab.session.open(story, "comments")
+  assert.equal(tabTitle(tab), "Ask HN: voice")
+  // A link on the comments page to another story: the session keeps the story it came from.
+  tab.session.navigationStarted(1, "https://news.test/item?id=2")
+  assert.equal(tab.session.snapshot().story, story)
+  assert.equal(tabTitle(tab), "", "the left story's title must not name the new page")
+  tabs.update(tab.id, tab.generation, { title: "Super Mario 64" })
+  assert.equal(tabTitle(tab), "Super Mario 64")
 })
 
 test("feed removal retains story context and a later feed refresh updates it", () => {

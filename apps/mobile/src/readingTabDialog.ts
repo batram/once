@@ -1,5 +1,5 @@
 import { domMenu, mountRemoteTabs, settingsEnteredFrom, type RemoteTabsPort, type ShowMenu } from "@once/ui-web"
-import { ReadingTabs } from "./readingTabs"
+import { ReadingTabs, tabTitle } from "./readingTabs"
 import { attachReadingTabSwipe, ReadingTabSwipe } from "./readingTabSwipe"
 
 type TabGroup = "local" | "remote"
@@ -159,7 +159,7 @@ export class ReadingTabDialog {
       const tab = this.tabs.tabs.find((entry) => entry.id === select.dataset.tabId)
       if (!tab) return
       const state = tab.session.snapshot()
-      this.tabMenu?.({ id: tab.id, url: state.currentUrl, title: tab.title || state.story?.title || "" }, select)
+      this.tabMenu?.({ id: tab.id, url: state.currentUrl, title: tabTitle(tab) }, select)
     })
   }
 
@@ -373,7 +373,7 @@ export class ReadingTabDialog {
         hostname = url.hostname.replace(/^www\./, "")
         path = url.pathname === "/" ? "" : url.pathname
       } catch { /* empty tab */ }
-      const pageTitle = tab.title || state.story?.title
+      const pageTitle = tabTitle(tab)
       title.textContent = pageTitle || hostname || "New tab"
       const identity = document.createElement("span")
       identity.className = "reading_tab_identity"

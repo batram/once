@@ -17,7 +17,7 @@ import {
 } from "@once/ui-web"
 import { ReaderDocumentHost } from "@once/ui-web"
 import { ReadingAddonTrays } from "./readingAddonTrays"
-import { ReadingTabs, type ReadingTab } from "./readingTabs"
+import { ReadingTabs, tabTitle, type ReadingTab } from "./readingTabs"
 import { ReadingTabRuntime } from "./readingTabRuntime"
 import { ReadingTabDialog } from "./readingTabDialog"
 import { ReadingFindBar } from "./readingFindBar"
@@ -82,7 +82,7 @@ export class MobileReadingController {
     const state = tab?.session.snapshot()
     let site = ""
     try { site = new URL(state?.currentUrl ?? "").hostname.replace(/^www\./, "") } catch { /* no page */ }
-    return { title: tab?.title || state?.story?.title || site || "Article", subtitle: site }
+    return { title: (tab && tabTitle(tab)) || site || "Article", subtitle: site }
   }
 
   setReaderAudible(source: unknown, audible: boolean): void {
@@ -441,7 +441,7 @@ export class MobileReadingController {
     installAddressMenu(address, { go, clear: () => this.addressEditor.isOpen ? this.addressEditor.clear() : clearAddress(address) })
     const state = () => this.session.snapshot()
     this.addressEditor = new ReadingAddressEditor(form, {
-      page: () => ({ url: state().currentUrl, title: this.tabs.selected?.title || state().story?.title || "" }),
+      page: () => ({ url: state().currentUrl, title: this.tabs.selected ? tabTitle(this.tabs.selected) : "" }),
       go,
       readerAvailable: () => Boolean(state().currentUrl),
       readerActive: () => state().mode === "reader",
