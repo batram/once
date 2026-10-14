@@ -6,6 +6,13 @@ const { syncFailure } = require("../../../packages/persistence/dist/SyncFailure"
 const { SyncCompatibilityError } = require("../../../packages/persistence/dist/PouchSyncCompatibility")
 const { compatibilityDatabase } = require("../../helpers/sync-compatibility")
 
+// The service hashes the sync URL with WebCrypto, which runs on the libuv
+// thread pool: under a loaded full suite it outlasted flush() and the
+// assertions read a state still settling. Hashed in-process, it is only
+// microtasks, which flush() does wait for.
+const { createHash } = require("node:crypto")
+crypto.subtle.digest = async (_algorithm, data) => Uint8Array.from(createHash("sha256").update(data).digest()).buffer
+
 async function flush() {
   for (let i = 0; i < 40; i++) await new Promise(resolve => setImmediate(resolve))
 }
