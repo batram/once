@@ -1,5 +1,6 @@
 import { registerReaderAiRelay } from "./ReaderAiRelay"
 import { registerTextRecognition } from "./browser/NativeTextRecognition"
+import { registerIndraOcrSetting } from "./browser/IndraTextRecognition"
 import {
   app,
   autoUpdater,
@@ -247,6 +248,7 @@ function registerSettingsHandlers(
   settings: SecureSettings,
   coordinator: BrowserCoordinator
 ): void {
+  registerIndraOcrSetting(settings, event => trusted(event, coordinator))
   ipcMain.handle(ELECTRON_IPC.getSyncUrl, (event) => {
     trusted(event, coordinator)
     return settings.getSyncUrl()

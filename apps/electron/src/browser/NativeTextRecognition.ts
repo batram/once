@@ -5,6 +5,7 @@ import { promises as fs } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import type { ImageTextResult } from "@once/ui-web/imageText/imageTextTypes"
+import { indraOcrEnabled, recognizeWithIndra } from "./IndraTextRecognition"
 import { OcrQueue } from "./OcrQueue"
 import { readOcrResult } from "./ocrResult"
 
@@ -15,10 +16,20 @@ const queue = new OcrQueue()
 export const nativeTextRecognitionAvailable = process.platform === "darwin" || process.platform === "win32"
 
 /** Shared native OCR backend for image selection and document retrieval. */
-export function recognize(bytes: Buffer, signal: AbortSignal): Promise<ImageTextResult> {
-  if (!nativeTextRecognitionAvailable) return Promise.reject(new Error("Image text recognition is not available on this platform yet"))
-  if (!bytes.length || bytes.length > MAX_BYTES) return Promise.reject(new Error("Invalid image size"))
+export async function recognize(bytes: Buffer, signal: AbortSignal): Promise<ImageTextResult> {
+  if (!bytes.length || bytes.length > MAX_BYTES) throw new Error("Invalid image size")
   const deadline = AbortSignal.any([signal, AbortSignal.timeout(20_000)])
+  // PROTOTYPE: the "Indra OCR (test)" setting; falls back to the native helper.
+  if (indraOcrEnabled()) {
+    try {
+      const result = await recognizeWithIndra(bytes, deadline)
+      if (result) return result
+    } catch (error) {
+      if (deadline.aborted) throw error
+      console.warn("Indra OCR failed; using the native engine", error instanceof Error ? error.message : String(error))
+    }
+  }
+  if (!nativeTextRecognitionAvailable) throw new Error("Image text recognition is not available on this platform yet")
   // The helper decodes the image itself, in its sandbox (ImageTextSandbox.h on Windows, the App Sandbox on macOS).
   return queue.run(deadline, () => recognizeInHelper(bytes, deadline))
 }

@@ -11,6 +11,8 @@ interface StoredSettings {
   encryptedSecrets?: Record<string, string>
   /** Full accessibility tree for screen readers; see main.ts. */
   accessibility?: boolean
+  /** PROTOTYPE: OCR with Indra instead of the native helper; see IndraTextRecognition.ts. */
+  indraOcr?: boolean
   /** The shell's zoom factor; see ZoomSettings.ts. */
   interfaceZoom?: number
   /** Fallbacks written while OS encryption was unavailable; see `Cipher`. */
@@ -123,6 +125,15 @@ export class SecureSettings {
       throw new Error("Accessibility must be a boolean")
     }
     return this.update((settings) => { settings.accessibility = enabled })
+  }
+
+  async getIndraOcr(): Promise<boolean> {
+    return (await this.read()).indraOcr === true
+  }
+
+  async setIndraOcr(enabled: boolean): Promise<void> {
+    if (typeof enabled !== "boolean") throw new Error("Indra OCR must be a boolean")
+    return this.update((settings) => { settings.indraOcr = enabled })
   }
 
   async getInterfaceZoom(): Promise<number> {

@@ -264,6 +264,9 @@ export interface ElectronBridge {
     /** Full accessibility tree for screen readers; applied immediately. */
     getAccessibility(): Promise<boolean>
     setAccessibility(enabled: boolean): Promise<void>
+    /** PROTOTYPE: Indra OCR instead of the native helper; `installed` = its files are present. */
+    getIndraOcr(): Promise<{ enabled: boolean; installed: boolean }>
+    setIndraOcr(enabled: boolean): Promise<void>
   }
   /** What websites stored in the browsing partition; never the shell's own data. */
   browsingData: {
@@ -470,6 +473,8 @@ export const ELECTRON_IPC = {
   setCacheTime: "once:settings:set-cache-time",
   getAccessibility: "once:settings:get-accessibility",
   setAccessibility: "once:settings:set-accessibility",
+  getIndraOcr: "once:settings:get-indra-ocr",
+  setIndraOcr: "once:settings:set-indra-ocr",
   getSecret: "once:settings:get-secret",
   setSecret: "once:settings:set-secret",
   browsingDataClearSite: "once:browsing-data:clear-site",

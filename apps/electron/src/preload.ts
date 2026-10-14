@@ -60,7 +60,9 @@ const bridge: ElectronBridge = {
       ipcRenderer.invoke(ELECTRON_IPC.setSecret, key, value),
     getAccessibility: () => ipcRenderer.invoke(ELECTRON_IPC.getAccessibility),
     setAccessibility: (enabled) =>
-      ipcRenderer.invoke(ELECTRON_IPC.setAccessibility, enabled)
+      ipcRenderer.invoke(ELECTRON_IPC.setAccessibility, enabled),
+    getIndraOcr: () => ipcRenderer.invoke(ELECTRON_IPC.getIndraOcr),
+    setIndraOcr: (enabled) => ipcRenderer.invoke(ELECTRON_IPC.setIndraOcr, enabled)
   },
   browsingData: {
     clearSite: (site) => ipcRenderer.invoke(ELECTRON_IPC.browsingDataClearSite, site),

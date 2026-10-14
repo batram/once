@@ -26,6 +26,7 @@ import { electronAddonConversations } from "./addonConversations"
 import { electronPanelPages } from "./browser/PanelPageHost"
 import { bindBrowserExtensionSettings } from "./BrowserExtensionSettings"
 import { bindAccessibilitySetting } from "./AccessibilitySetting"
+import { bindIndraOcrSetting } from "./IndraOcrSetting"
 import { bindZoomSetting } from "./ZoomSetting"
 import { bindBrowserMenuButton } from "./browser/BrowserMenuButton"
 import "./electron.css"
@@ -158,6 +159,7 @@ async function startRenderer(): Promise<void> {
   const browserShell = new BrowserShell(window.onceElectron, runReaderRequest)
   initializeRemoteTabsButton()
   bindAccessibilitySetting(window.onceElectron)
+  bindIndraOcrSetting(window.onceElectron)
   bindZoomSetting(window.onceElectron)
   bindBrowserMenuButton(window.onceElectron)
   const onMenuCollapsedChanged = (collapsed: boolean): void =>

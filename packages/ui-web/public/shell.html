@@ -831,6 +831,31 @@
                       />
                     </div>
                   </section>
+                  <section
+                    class="settings_rows"
+                    id="electron_indra_ocr_settings"
+                    data-platform-only="electron"
+                    hidden
+                  >
+                    <h4 class="settings_subheading">Text recognition</h4>
+                    <div class="settings_row settings_row_inline">
+                      <label class="settings_row_name" for="electron_indra_ocr_checkbox">
+                        Indra OCR (test)
+                      </label>
+                      <p class="settings_row_hint" id="electron_indra_ocr_checkbox_hint" data-help>
+                        Prototype: reads image text with Datalab's Indra models instead of
+                        the system's OCR. Falls back to the system's OCR when Indra cannot
+                        take an image. Remembered on this device.
+                      </p>
+                      <input
+                        type="checkbox"
+                        class="switch"
+                        id="electron_indra_ocr_checkbox"
+                        data-testid="electron-indra-ocr"
+                        aria-describedby="electron_indra_ocr_checkbox_hint"
+                      />
+                    </div>
+                  </section>
                 </div>
                 <div
                   class="settings_block"

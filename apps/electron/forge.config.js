@@ -1,4 +1,5 @@
 const { spawnSync } = require("child_process")
+const fs = require("fs")
 const path = require("path")
 const { FusesPlugin } = require("@electron-forge/plugin-fuses")
 const { WebpackPlugin } = require("@electron-forge/plugin-webpack")
@@ -61,6 +62,9 @@ module.exports = {
         path.resolve(__dirname, ".native/once-image-text.exe"),
         path.resolve(__dirname, ".native/window-cloak.node")
       ] : []),
+      // PROTOTYPE, never for a release: Indra OCR's engine, runtime and weights,
+      // assembled locally (git-excluded) by benchmarks/ocr/indra-js/proto/assemble.js.
+      ...(fs.existsSync(path.resolve(__dirname, "indra-proto")) ? [path.resolve(__dirname, "indra-proto")] : []),
       linuxWindowIcon
     ]
   },
