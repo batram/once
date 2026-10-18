@@ -14,6 +14,12 @@ function configFor(platform) {
     "apps/mobile/ios/build/Build/Products/Debug-iphonesimulator/Once Dev.app"
   )
   const results = path.join(root, "test-results", "mobile")
+  // Appium only scans its home's own node_modules for drivers, and run from
+  // the repo root it falls back to ~/.appium. npm hoists the pinned
+  // xcuitest/uiautomator2 drivers to the root node_modules, so point the
+  // home there; the manifest it writes lives in node_modules and is rebuilt
+  // after every npm ci.
+  process.env.APPIUM_HOME ||= root
   const common = {
     platformName: platform === "android" ? "Android" : "iOS",
     "appium:app": process.env.ONCE_MOBILE_APP || (platform === "android" ? androidApp : iosApp),
