@@ -495,6 +495,22 @@ async function runScriptedAddon(baseUrl, platform) {
   expect(await browser.execute(() => document.querySelectorAll("iframe[data-addon-sandbox]").length)).toBe(1)
 }
 
+// The AI page redraws its rows whenever settings change, which the add-on
+// save and sync both announce, so a row found a moment ago may be gone by the
+// time it is clicked. Look it up at click time and retry until `opened` shows.
+async function openAiRow(selector, opened) {
+  await browser.waitUntil(async () => {
+    await browser.execute(rowSelector => {
+      const row = document.querySelector(rowSelector)
+      if (!row) return
+      for (const type of ["mousedown", "mouseup", "click"]) {
+        row.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0 }))
+      }
+    }, selector)
+    return (await $(opened)).isDisplayed()
+  }, { timeout: 10_000, interval: 500, timeoutMsg: `${selector} did not open` })
+}
+
 // The AI add-on uses the central AI settings: a connection whose token is kept
 // in this device's secret store, and the default model on that connection.
 async function configureCentralAi(baseUrl, platform) {
@@ -502,22 +518,24 @@ async function configureCentralAi(baseUrl, platform) {
     await clickWeb(await $("#settings_section_back"), platform)
   }
   await clickWeb(await $("[data-settings-target='ai']"), platform)
-  await clickWeb(await $("#ai_settings .ai_add_row[data-ai-focus-key='Add connection']"), platform)
   const editor = "#ai_settings .ai_editor:not([hidden])"
+  await openAiRow("#ai_settings .ai_add_row[data-ai-focus-key='Add connection']", `${editor} [data-testid='ai-connection-name']`)
   await setWebValue(await $(`${editor} [data-testid='ai-connection-name']`), "Fixture AI")
   // The provider's change handler clears the endpoint, so it goes first.
   await setWebValue(await $(`${editor} [data-testid='ai-connection-provider']`), "compatible")
   await setWebValue(await $(`${editor} [data-testid='ai-connection-endpoint']`), `${baseUrl}/ai-addon/v1/chat/completions`)
   await setWebValue(await $(`${editor} [data-testid='ai-connection-token']`), "fixture-token")
   await clickWeb(await $(`${editor} [data-testid='ai-editor-save']`), platform)
-  const defaultModel = await $("#ai_settings .settings_link_row[data-ai-focus-key='Default model']")
-  await defaultModel.waitForDisplayed({ timeout: 10_000 })
-  await clickWeb(defaultModel, platform)
+  // The model picker lists the connections it opens with, so it waits for the
+  // saved connection's row, which also says the token is kept on the device.
+  await $("#ai_settings .settings_link_row[aria-label='Fixture AI: Compatible server · Token set']").waitForDisplayed({ timeout: 10_000 })
+  await openAiRow("#ai_settings .settings_link_row[data-ai-focus-key='Default model']", `${editor} [data-testid='ai-model-connection']`)
   // Choosing the connection clears the model field, so the model follows it.
   const connection = await $(`${editor} [data-testid='ai-model-connection']`)
-  await connection.waitForDisplayed({ timeout: 10_000 })
-  await setWebValue(connection, await browser.execute(select =>
-    Array.from(select.options).find(option => option.textContent === "Fixture AI")?.value ?? "", connection))
+  const connectionId = await browser.execute(select =>
+    Array.from(select.options).find(option => option.textContent === "Fixture AI")?.value ?? "", connection)
+  expect(connectionId).not.toBe("")
+  await setWebValue(connection, connectionId)
   await setWebValue(await $(`${editor} [data-testid='ai-model-id']`), "fixture")
   await clickWeb(await $(`${editor} [data-testid='ai-editor-save']`), platform)
   await browser.waitUntil(async () => browser.execute(() =>

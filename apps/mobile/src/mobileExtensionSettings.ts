@@ -2,12 +2,16 @@ import type { OnceClient } from "@once/app"
 import type { UserscriptsDocument } from "@once/core"
 import { createViolentmonkeyHandOff, type InAppBrowserSurface, type ViolentmonkeyHandOff } from "@once/platform-mobile"
 
-/** Applies shared documents after startup and remote or local changes. */
+/**
+ * Applies shared documents after startup and remote or local changes.
+ * Resolves with a function that applies the current documents and settles
+ * once both the native surface and Violentmonkey have them.
+ */
 export async function bindMobileExtensionSettings(
   client: OnceClient,
   surface: InAppBrowserSurface,
   violentmonkey: ViolentmonkeyHandOff | null = createViolentmonkeyHandOff()
-): Promise<void> {
+): Promise<() => Promise<void>> {
   let settingsRevision = 0
   const handToViolentmonkey = async (userscripts: UserscriptsDocument, revision: number): Promise<void> => {
     if (!violentmonkey) return
@@ -51,4 +55,5 @@ export async function bindMobileExtensionSettings(
       .then(userscripts => handToViolentmonkey(userscripts, revision))
       .catch(error => console.error("Failed to adopt Violentmonkey changes", error))
   })
+  return () => applyExtensionSettings()
 }

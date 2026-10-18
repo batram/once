@@ -7,6 +7,8 @@ import {
 
 interface NativeViolentmonkeyPlugin {
   send(options: { cmd: string; data?: unknown }): Promise<{ value?: unknown }>
+  /** Holds pages that open from now on until `settled`: scripts are being written. */
+  handingOff(): Promise<void>
   /** Lets pages held for the hand-off open. */
   settled(): Promise<void>
   addListener(event: "connected" | "dashboardChanged", listener: () => void): Promise<PluginListenerHandle>
@@ -63,6 +65,9 @@ export function createViolentmonkeyHandOff(): ViolentmonkeyHandOff | null {
       throw error
     }
     try {
+      // A page opening while scripts change would load before Violentmonkey
+      // has them and run `@run-at document-start` scripts late, or not at all.
+      await plugin.handingOff()
       const applied = readRecords(records)
       const result = await handUserscriptsToViolentmonkey(send, document, applied, sha256, true)
       await send("OnceWriteRecords", result.applied)

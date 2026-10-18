@@ -201,7 +201,8 @@ function installMobileTestHooks(
   app: ReturnType<typeof createOnceApp>,
   reading: MobileReadingController,
   browserSurface: ReturnType<typeof createInAppBrowserSurface>,
-  navigationListeners: NavigationListeners
+  navigationListeners: NavigationListeners,
+  applyExtensionSettings: () => Promise<void>
 ): void {
   // Lets the e2e suite await queued story saves instead of pausing blindly.
   ;(window as { __onceE2E__?: unknown }).__onceE2E__ = {
@@ -224,10 +225,8 @@ function installMobileTestHooks(
       reading.session.navigationFailed(state.navigationId, state.currentUrl, message)
     },
     evaluateSurface: (script: string) => browserSurface.evaluateJavaScript(script),
-    applyExtensionSettings: async () => browserSurface.applyExtensionSettings(
-      await app.client.getFilterLists(),
-      await app.client.getUserscripts()
-    )
+    // Resolves once Violentmonkey has the userscripts too, not only the surface.
+    applyExtensionSettings
   }
 }
 
@@ -336,7 +335,9 @@ async function startMobileApp(): Promise<void> {
   document.body.dataset.onceStage = "app-start"
   showStartupState("Opening saved stories and settings…")
   await app.start()
-  if (Capacitor.isNativePlatform()) await bindMobileExtensionSettings(app.client, browserSurface)
+  const applyExtensionSettings = Capacitor.isNativePlatform()
+    ? await bindMobileExtensionSettings(app.client, browserSurface)
+    : async () => browserSurface.applyExtensionSettings(await app.client.getFilterLists(), await app.client.getUserscripts())
   mountTabSyncInTabView(reading, app.client, browserSurface)
   document.body.dataset.onceStage = "ui-mount"
   beginStoryLoading(app.client)
@@ -367,7 +368,7 @@ async function startMobileApp(): Promise<void> {
     () => reading.historyState(), () => { if (reading.tabs.activeId) reading.tabs.close(reading.tabs.activeId) })
   bindWebInspectorSetting()
   mountTouchNavigation(reading)
-  if (__ONCE_MOBILE_E2E__) installMobileTestHooks(app, reading, browserSurface, navigationListeners)
+  if (__ONCE_MOBILE_E2E__) installMobileTestHooks(app, reading, browserSurface, navigationListeners, applyExtensionSettings)
   document.body.dataset.onceStage = "ready"
   document.body.dataset.onceReady = "true"
   showStartupState("Ready", "ready")

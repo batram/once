@@ -36,7 +36,7 @@ public class ViolentmonkeyRelayPlugin extends Plugin {
     private static ViolentmonkeyRelayPlugin current;
     /** Violentmonkey is installed and turned on, so pages wait for its hand-off. */
     private static boolean expected;
-    /** The shell finished a hand-off since Violentmonkey last started. */
+    /** The shell finished a hand-off since Violentmonkey last started, and none is writing now. */
     private static boolean settled;
     private static final List<Runnable> settledWaiters = new ArrayList<>();
 
@@ -71,6 +71,18 @@ public class ViolentmonkeyRelayPlugin extends Plugin {
 
     private static void releaseWaiters() {
         for (Runnable waiter : new ArrayList<>(settledWaiters)) { main.removeCallbacks(waiter); waiter.run(); }
+    }
+
+    /**
+     * A later hand-off is writing scripts: pages opening now wait for it, as
+     * they do for the first one after a start. {@link #settled} lets them go.
+     */
+    @PluginMethod
+    public void handingOff(PluginCall call) {
+        main.post(() -> {
+            if (port != null) settled = false;
+            call.resolve();
+        });
     }
 
     @PluginMethod
