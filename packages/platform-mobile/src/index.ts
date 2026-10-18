@@ -13,6 +13,7 @@ import {
   IndexedDbCacheStore,
   keepIndexedDbOpenAfterAborts,
   LOCAL_POUCH_OPTIONS,
+  openLocalDatabase,
   PouchListStore,
   PouchStoryStore,
   PouchSyncDatabase,
@@ -177,7 +178,8 @@ export function createMobilePlatform(
 ): OncePlatformPorts {
   installNativeFetch()
   keepIndexedDbOpenAfterAborts()
-  const onceDb = database || new PouchDB("once_mobile_v1", LOCAL_POUCH_OPTIONS)
+  const local = database ? { db: database, epoch: undefined } : openLocalDatabase("once_mobile_v1", (name) => new PouchDB(name, LOCAL_POUCH_OPTIONS))
+  const onceDb = local.db
   const listStore = new PouchListStore(onceDb, version => syncService.requireSyncProtocol(version))
   const storyStore = new PouchStoryStore(onceDb, (story) => Story.from_obj(story))
   const syncService = new PouchSyncService(
@@ -185,7 +187,9 @@ export function createMobilePlatform(
     (event) => console.debug("mobile database changed", event),
     // pouchdb-fetch keeps the global fetch it saw at load time, before
     // installNativeFetch ran, so the remote is handed nativeFetch directly.
-    (url) => new PouchDB(url, { fetch: nativeFetch }) as unknown as PouchSyncDatabase
+    (url) => new PouchDB(url, { fetch: nativeFetch }) as unknown as PouchSyncDatabase,
+    undefined,
+    local.epoch
   )
 
   return {

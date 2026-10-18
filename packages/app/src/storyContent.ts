@@ -69,7 +69,9 @@ export class StoryContentService {
     const html = incoming.pendingContent()
     if (html === undefined || !feedContentImproves(stored, html)) return null
     const previousMeta = stored.stored_content
-    stored.attachContent(html, { source: "feed", saved_at: Date.now() })
+    // The collector's meta, not the clock: devices merging the same feed
+    // text must write the same revision.
+    stored.attachContent(html, incoming.stored_content ?? { source: "feed", saved_at: 0 })
     const saved = await this.store.saveStory(stored)
     this.host.emitDataChange([saved.href, "stored_content"], saved.stored_content, previousMeta)
     return saved

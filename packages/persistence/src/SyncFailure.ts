@@ -1,7 +1,9 @@
 import { SyncCompatibilityError } from "./PouchSyncCompatibility"
 import { syncRequestDetails } from "./SyncFetchDiagnostics"
+import { SyncEpochPendingError } from "./SyncEpoch"
 
 export function syncFailure(error: unknown): { operation: string; message: string; retry: boolean } {
+  if (error instanceof SyncEpochPendingError) return { operation: "sync.epoch", message: error.message, retry: true }
   if (error instanceof SyncCompatibilityError && error.compatibility &&
     error.compatibility.requiredSyncProtocol > error.compatibility.supportedSyncProtocol) return {
     operation: "sync.compatibility", message: error.message, retry: false

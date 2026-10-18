@@ -15,6 +15,7 @@ import {
   IndexedDbCacheStore,
   keepIndexedDbOpenAfterAborts,
   LOCAL_POUCH_OPTIONS,
+  openLocalDatabase,
   PouchTabDocsDatabase,
   pouchTabDocs
 } from "@once/persistence"
@@ -42,7 +43,8 @@ export function createWebExtPlatform(
   options?: WebExtPlatformOptions
 ): OncePlatformPorts {
   keepIndexedDbOpenAfterAborts()
-  const onceDb = new PouchDB("once_db", LOCAL_POUCH_OPTIONS)
+  const local = openLocalDatabase("once_db", (name) => new PouchDB(name, LOCAL_POUCH_OPTIONS))
+  const onceDb = local.db
   const listStore = new PouchListStore(onceDb, version => syncService.requireSyncProtocol(version))
   const storyStore = new PouchStoryStore(onceDb, (story) =>
     Story.from_obj(story)
@@ -52,7 +54,9 @@ export function createWebExtPlatform(
     (event) => {
       console.log("change db", event)
     },
-    (url) => new PouchDB(url, { fetch: syncFetchDiagnostics(window.fetch.bind(window)) }) as unknown as PouchSyncService["db"]
+    (url) => new PouchDB(url, { fetch: syncFetchDiagnostics(window.fetch.bind(window)) }) as unknown as PouchSyncService["db"],
+    undefined,
+    local.epoch
   )
   const syncSettingsStore = new WebExtSyncStorage(browserApi)
 

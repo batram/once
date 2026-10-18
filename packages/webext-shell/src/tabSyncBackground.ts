@@ -11,7 +11,7 @@ import {
 const TEST_TIMING_KEY = "once:e2e:tabsync-timing"
 import { installTabSyncSending } from "./tabSyncSending"
 import type { ListStorePort, SyncConsentPort } from "@once/app"
-import { couchHttpTabDocs } from "@once/persistence"
+import { couchHttpTabDocs, followSyncEpoch, readSyncEpochMarker } from "@once/persistence"
 import { createFirefoxSyncConsent, deviceName, WebExtSecretStorage, WebExtSyncStorage } from "@once/platform-webext/backgroundPorts"
 import { installTabSyncCapture } from "./tabSyncCapture"
 import { installTabSyncTimes } from "./tabSyncTimes"
@@ -38,7 +38,7 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
   const gate = new SyncGate(new SyncDestinationBinding(secrets, "browser"), consent, localPouchExists)
   const identity = new DeviceIdentity(secrets, target, deviceName(target))
   let connection = 0
-  let current: { service: TabSyncService; generation: number } | null = null
+  let current: { service: TabSyncService; generation: number; url: string; target: string } | null = null
   const sending = installTabSyncSending(api, target, () => current?.service ?? null)
 
   const connect = async () => {
@@ -51,10 +51,12 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
     if (refusal || generation !== connection) return
     // Each request re-checks: consent can be withdrawn and the URL replaced at any time.
     const allowed = async () => generation === connection && !await gate.check(url, "external").catch(() => "unavailable")
-    const checkCompatibility = tabSyncCompatibility(url, secrets, allowed)
+    // The bound URL may announce a newer epoch; tab documents go where the data is now.
+    const target = await syncEpochTarget(url, allowed)
+    const checkCompatibility = tabSyncCompatibility(target, secrets, allowed)
     await checkCompatibility()
     if (generation !== connection) return
-    const docs = couchHttpTabDocs(url, fetch.bind(globalThis), async () => {
+    const docs = couchHttpTabDocs(target, fetch.bind(globalThis), async () => {
       if (!await allowed()) return false
       try { await checkCompatibility(); return generation === connection }
       catch (error) {
@@ -79,7 +81,7 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
         void api.alarms.create(RETRY_ALARM, { delayInMinutes: 1 })
       }
     })
-    current = { service, generation }
+    current = { service, generation, url, target }
     await service.start()
   }
   const restart = () => void connect().catch((error) => console.error("Tab sync could not start", error))
@@ -96,13 +98,28 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
   api.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === SAMPLE_ALARM) void current?.service.sampleNow()
     else if (alarm.name === HEARTBEAT_ALARM || alarm.name === RETRY_ALARM) {
-      // Without a change feed here, the heartbeat is also when sent tabs are noticed.
-      if (current) { current.service.publishSoon(); current.service.refreshSoon(); current.service.maintainSoon() }
-      else restart()
+      // Without a change feed here, the heartbeat is also when sent tabs are noticed,
+      // and when a database move is: it reconnects to wherever the data went.
+      if (current) {
+        current.service.publishSoon(); current.service.refreshSoon(); current.service.maintainSoon()
+        const { url, target } = current
+        void syncEpochTarget(url, async () => !await gate.check(url, "external").catch(() => "unavailable")).then((now) => { if (now !== target) restart() }, restart)
+      } else restart()
     }
   })
   void api.alarms.create(HEARTBEAT_ALARM, { periodInMinutes: 10 })
   restart()
+}
+
+/** The database the bound URL's epoch markers lead to; rejects while a move is being prepared. */
+function syncEpochTarget(url: string, allowed: () => Promise<boolean>): Promise<string> {
+  return followSyncEpoch(url, (hop) => readSyncEpochMarker({
+    get: async (id) => {
+      const doc = await couchHttpTabDocs(hop, fetch.bind(globalThis), allowed).get(id)
+      if (!doc) throw { status: 404, reason: "missing" }
+      return doc
+    }
+  }))
 }
 
 /** The synced tab sync settings, read straight from the database. */
@@ -121,5 +138,6 @@ async function localPouchExists(): Promise<boolean> {
   const factory = (globalThis as { indexedDB?: IDBFactory & { databases?(): Promise<Array<{ name?: string }>> } }).indexedDB
   if (!factory?.databases) return true
   const names = (await factory.databases()).map((entry) => entry.name ?? "")
-  return names.some((name) => name.endsWith("once_db"))
+  // A database moved to a new sync epoch is named `once_db@<database>`.
+  return names.some((name) => /once_db(@[^/]*)?$/.test(name))
 }

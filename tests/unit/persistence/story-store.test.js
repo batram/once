@@ -266,7 +266,8 @@ test("writes pending html as the content attachment and keeps only its stub", as
   assert.deepEqual(state.calls.map(([name]) => name), ["get", "put", "putAttachment", "get"])
   const [, putDoc] = state.calls[1]
   assert.equal("_attachments" in putDoc, false, "html never goes inline in the document")
-  assert.deepEqual(putDoc.stored_content, { source: "feed", saved_at: 7 })
+  assert.deepEqual(putDoc.stored_content, { source: "feed", saved_at: 7, fingerprint: putDoc.stored_content.fingerprint })
+  assert.match(putDoc.stored_content.fingerprint, new RegExp(`^${ARTICLE.length}-[0-9a-f]+$`), "the html is fingerprinted in the document")
   assert.deepEqual(state.calls[2], ["putAttachment", `sto_${story.href}`, "content", "1-put", "text/html"])
   assert.equal(await state.attachment.text(), ARTICLE)
   assert.equal(saved._rev, "2-att")

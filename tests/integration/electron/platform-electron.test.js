@@ -250,11 +250,11 @@ test("syncs settings, newest stories, backlog, then starts live sync", async t =
   const lifecycle = []
   const remote = {
     async createIndex(options) {
-      assert.deepEqual(options.index.fields, ["ingested_at"])
+      assert.deepEqual(options.index.fields, ["timestamp"])
     },
     async find(options) {
       assert.equal(options.limit, 50)
-      assert.deepEqual(options.sort, [{ ingested_at: "desc" }])
+      assert.deepEqual(options.sort, [{ timestamp: "desc" }])
       return { docs: [{ _id: "sto_newest" }, { _id: "sto_next" }] }
     }
   }

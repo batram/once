@@ -193,8 +193,10 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
 
     // The feed already delivered the text, so keeping it costs no request;
     // a teaser is left out because the page would show more than it does.
+    // saved_at is the item's time, not the clock: every device that reads
+    // this feed must write the same document, or each creates a conflict.
     if (content && options.settings.store_content.value && feedContentIsArticle(content)) {
-      new_story.attachContent(content, { source: "feed", saved_at: Date.now() })
+      new_story.attachContent(content, { source: "feed", saved_at: timestamp })
     }
 
     if (main_title) {

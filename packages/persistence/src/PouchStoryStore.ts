@@ -195,14 +195,15 @@ export class PouchStoryStore<TStory extends Story> {
       doc = await this.db.get(id)
     } catch (err) {
       if ((err as { status?: number }).status !== 404) throw err
-      // Stamped on the story only once the put lands: a create that loses the
-      // race must not carry this device's ingestion time over the winner's.
-      const ingestedAt = Date.now()
+      // Revisions are a hash of the document, so devices that ingest the same
+      // feed item write the same first revision and replication sees one
+      // story, not a conflict. Nothing device-specific may go in: no clock,
+      // no key order. Documents created before this keep their ingested_at.
+      fingerprintContent(story, pendingContent)
       const response = await this.db.put(
-        storedAttachments({ ...story.to_obj(), _id: id, ingested_at: ingestedAt })
+        canonicalDocument(storedAttachments({ ...story.to_obj(), _id: id }))
       )
       story._id = id
-      ;(story as Record<string, unknown>)["ingested_at"] = ingestedAt
       return pendingContent === undefined
         ? response
         : await this.writeContent(story, response.rev, pendingContent)
@@ -218,7 +219,8 @@ export class PouchStoryStore<TStory extends Story> {
     if (story["ingested_at"] === undefined && doc.ingested_at !== undefined) {
       ;(story as Record<string, unknown>)["ingested_at"] = doc.ingested_at
     }
-    const nextDocument = storedAttachments(story.to_obj(), doc)
+    fingerprintContent(story, pendingContent)
+    const nextDocument = canonicalDocument(storedAttachments(story.to_obj(), doc))
     const contentChanged = pendingContent !== undefined &&
       !sameStoredContent(doc, nextDocument)
     if (!contentChanged) {
@@ -334,6 +336,34 @@ function storedAttachments(
   if (stored?._attachments) next._attachments = stored._attachments
   else delete next._attachments
   return next
+}
+
+/**
+ * JSON-shaped with sorted keys, the form PouchDB hashes into the revision id.
+ * Two devices building the same story must produce the same bytes.
+ */
+function canonicalDocument(document: Record<string, unknown>): Record<string, unknown> {
+  return canonicalValue(JSON.parse(JSON.stringify(document))) as Record<string, unknown>
+}
+
+/**
+ * Records a hash of the html in the story's content meta before it is
+ * written. The attachment goes out in a second put whose revision PouchDB
+ * hashes without the html (a Blob serializes as `{}`): without this, two
+ * devices storing different html on the same revision would mint the same
+ * revision id and never exchange their copies.
+ */
+function fingerprintContent(story: Story, html: string | undefined): void {
+  if (html === undefined || !story.stored_content) return
+  let hash = 0x811c9dc5
+  for (let index = 0; index < html.length; index++) {
+    hash ^= html.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  story.stored_content = {
+    ...story.stored_content,
+    fingerprint: `${html.length}-${(hash >>> 0).toString(16)}`
+  }
 }
 
 /** Whether the incoming story describes the content the document already has. */

@@ -22,9 +22,11 @@ export interface PouchMaintenanceStatus {
 
 export class PouchMaintenanceService {
   private static readonly BATCH_SIZE = 100
-  private static readonly CONFLICT_CHECKPOINT_ID =
+  /** How far the conflict scan got, as a sequence of this database. */
+  static readonly CONFLICT_CHECKPOINT_ID =
     "_local/once-conflict-maintenance-v1"
-  private static readonly COMPACTION_MARKER_ID =
+  /** Present once the one-time compaction has run. */
+  static readonly COMPACTION_MARKER_ID =
     "_local/once-compaction-v1"
 
   constructor(

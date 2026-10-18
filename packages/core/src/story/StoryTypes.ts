@@ -36,6 +36,8 @@ export interface StoredContentMeta {
   /** A feed included the text, or the page was fetched and extracted. */
   source: "feed" | "page"
   saved_at: number
+  /** Length and hash of the stored html, set by the story store. */
+  fingerprint?: string
   title?: string
   byline?: string
   site_name?: string

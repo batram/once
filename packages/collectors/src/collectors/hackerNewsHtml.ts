@@ -24,6 +24,19 @@ import { Story } from "@once/core"
 import { parseHumanTime } from "@once/core"
 import type { SearchIO } from "./searchIO"
 
+/**
+ * The submission time HN puts in the age span's title: an ISO time in UTC,
+ * optionally followed by Unix seconds. "3 hours ago" depends on when the page
+ * was read, so two devices would store different stories for the same item.
+ */
+function exactTime(title: string | null | undefined): number | undefined {
+  const [iso, unix] = (title ?? "").trim().split(/\s+/)
+  if (unix && /^\d+$/.test(unix)) return Number(unix) * 1000
+  if (!iso) return undefined
+  const parsed = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 export function parse(doc: Document): Story[] {
   const curl = item_url
   const stories = Array.from(doc.querySelectorAll<HTMLElement>(".athing"))
@@ -42,8 +55,9 @@ export function parse(doc: Document): Story[] {
     const id = story_el.id
     const href = new URL(story_link.getAttribute("href") ?? "", site_url).href
 
-    const time = subtext.querySelector<HTMLAnchorElement>(".age a")?.innerText ?? ""
-    const timestamp = parseHumanTime(time)
+    const age = subtext.querySelector<HTMLElement>(".age")
+    const time = age?.querySelector<HTMLAnchorElement>("a")?.innerText ?? ""
+    const timestamp = exactTime(age?.getAttribute("title")) ?? parseHumanTime(time)
     if (!time || !Number.isFinite(timestamp)) {
       return []
     }

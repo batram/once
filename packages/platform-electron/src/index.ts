@@ -8,6 +8,7 @@ import {
   IndexedDbCacheStore,
   keepIndexedDbOpenAfterAborts,
   LOCAL_POUCH_OPTIONS,
+  openLocalDatabase,
   PouchListStore,
   PouchStoryStore,
   PouchSyncDatabase,
@@ -65,7 +66,8 @@ export function createElectronPlatform(
   syncWindowBackground()
 
   keepIndexedDbOpenAfterAborts()
-  const onceDb = new PouchDB("once_electron_v2", LOCAL_POUCH_OPTIONS)
+  const local = openLocalDatabase("once_electron_v2", (name) => new PouchDB(name, LOCAL_POUCH_OPTIONS))
+  const onceDb = local.db
   const fetchThroughMain = (input: RequestInfo | URL, init?: RequestInit) =>
     bridgeFetch(bridge, input, init)
   const listStore = new PouchListStore(onceDb, version => syncService.requireSyncProtocol(version))
@@ -78,7 +80,9 @@ export function createElectronPlatform(
     (url) =>
       new PouchDB(url, {
         fetch: syncFetchDiagnostics(fetchThroughMain)
-      }) as unknown as PouchSyncDatabase
+      }) as unknown as PouchSyncDatabase,
+    undefined,
+    local.epoch
   )
   return {
     listStore,

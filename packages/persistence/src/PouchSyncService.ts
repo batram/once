@@ -1,8 +1,10 @@
 import { PouchSyncCompatibility, SyncCompatibilityError } from "./PouchSyncCompatibility"
 import { listenLiveSync, watchSyncCompatibility } from "./PouchSyncWatch"
+import type { LocalDatabaseEpoch } from "./LocalDatabaseEpoch"
+import { assertNoSyncEpoch, isSyncMetadataId, readSyncEpochMarker, resolveSyncEpoch } from "./SyncEpoch"
 import { syncRequestDetails } from "./SyncFetchDiagnostics"
 import { syncFailure } from "./SyncFailure"
-import { SYNC_COMPAT_ID, SYNC_PROTOCOL, SyncCompatibilityDetails, isRoutedTabDocId, isTabSyncChangeId, normalizeSyncUrl, ROUTED_TAB_DOC_PREFIXES, TAB_SYNC_SETTINGS_ID } from "@once/core"
+import { SYNC_PROTOCOL, SyncCompatibilityDetails, isRoutedTabDocId, isTabSyncChangeId, normalizeSyncUrl, ROUTED_TAB_DOC_PREFIXES, TAB_SYNC_SETTINGS_ID } from "@once/core"
 import {
   PouchMaintenanceDatabase,
   PouchMaintenanceService
@@ -117,7 +119,9 @@ export class PouchSyncService {
     private onChange: (event: unknown) => void,
     private createRemote: (url: string) => string | PouchSyncDatabase = (url) =>
       url,
-    supportedProtocol = SYNC_PROTOCOL
+    supportedProtocol = SYNC_PROTOCOL,
+    /** Moves the local database when the remote moves to a new epoch; without it this client cannot follow one. */
+    private epoch?: LocalDatabaseEpoch
   ) { this.compatibility = new PouchSyncCompatibility(db, supportedProtocol) }
 
   onDiagnostic(handler: (error: {
@@ -212,7 +216,7 @@ export class PouchSyncService {
       ...PouchSyncService.REPLICATION_OPTIONS,
       live: true,
       retry: false,
-      filter: (doc: { _id?: string }) => doc._id !== SYNC_COMPAT_ID
+      filter: (doc: { _id?: string }) => !isSyncMetadataId(doc._id)
     }
 
     const generation = ++this.generation
@@ -263,8 +267,10 @@ export class PouchSyncService {
     }
 
     void this.preflight(remote, couchdbUrl, generation)
-      .then(() => this.generation === generation ? this.runInitialSync(remote, generation, getLoadedStoryIds) : 0)
-      .then(async (initialChanges) => {
+      .then(async (effective) => {
+        if (!effective || this.generation !== generation) return
+        ;({ remote, url: couchdbUrl } = effective)
+        const initialChanges = await this.runInitialSync(remote, generation, getLoadedStoryIds)
         if (this.generation !== generation) return
         this.initialReplication = undefined
         // Pulling into a database with local stories can create conflicting
@@ -282,7 +288,9 @@ export class PouchSyncService {
         ).run()
         if (this.generation !== generation || !maintenanceSucceeded) return
         await this.compatibility.check(remote as PouchSyncDatabase, couchdbUrl, 1, () => this.generation === generation)
-        if (this.generation === generation) this.startLiveSync(remote, syncOps, initialChanges)
+        if (this.generation !== generation) return
+        this.startLiveSync(remote, syncOps, initialChanges)
+        void this.epoch?.forgetPrevious().catch(error => console.warn("The replaced local database could not be removed", error))
       })
       .catch((error) => {
         if (this.generation !== generation) return
@@ -312,7 +320,7 @@ export class PouchSyncService {
       })
       await this.replicateOnce(
         remote,
-        { ...PouchSyncService.REPLICATION_OPTIONS, filter: (doc: { _id?: string }) => doc._id !== SYNC_COMPAT_ID, ...options },
+        { ...PouchSyncService.REPLICATION_OPTIONS, filter: (doc: { _id?: string }) => !isSyncMetadataId(doc._id), ...options },
         generation,
         presentation,
         (count) => {
@@ -420,18 +428,22 @@ export class PouchSyncService {
       message: "Finding newest stories…"
     })
     try {
+      // By the feed's time: new stories carry no ingestion time, since a
+      // device-local clock in the document would make every device's copy of
+      // the same story a conflict. `$lt: ""` keeps string timestamps out,
+      // which collate after every number and would lead a descending sort.
       await remote.createIndex({
-        index: { fields: ["ingested_at"] },
+        index: { fields: ["timestamp"] },
         ddoc: "once-sync",
-        name: "stories-by-ingested-at"
+        name: "stories-by-timestamp"
       })
       if (this.generation !== generation) return []
       const result = await remote.find({
         selector: {
           _id: { $gte: "sto_", $lt: "sto_\uffff" },
-          ingested_at: { $gte: 0 }
+          timestamp: { $gte: 0, $lt: "" }
         },
-        sort: [{ ingested_at: "desc" }],
+        sort: [{ timestamp: "desc" }],
         fields: ["_id"],
         limit: PouchSyncService.INITIAL_STORY_LIMIT
       })
@@ -493,13 +505,28 @@ export class PouchSyncService {
     }, 30000)
   }
 
-  private async preflight(remote: string | PouchSyncDatabase, destination: string, generation: number): Promise<void> {
-    if (typeof remote === "string") throw new Error("Sync compatibility checks require a database transport")
-    await this.compatibility.check(remote, destination, 1, () => this.generation === generation)
-    if (this.generation !== generation) return
+  /** Checks compatibility, then follows the database's epoch: the remote to replicate with, or null when this session ends here. */
+  private async preflight(configured: string | PouchSyncDatabase, configuredUrl: string, generation: number): Promise<{ remote: PouchSyncDatabase; url: string } | null> {
+    if (typeof configured === "string") throw new Error("Sync compatibility checks require a database transport")
+    const current = () => this.generation === generation
+    await this.compatibility.check(configured, configuredUrl, 1, current)
+    const open = (url: string) => url === configuredUrl ? configured : this.createRemote(url)
+    const resolution = current() ? await resolveSyncEpoch(configuredUrl, url => readSyncEpochMarker(open(url)), this.epoch, copied => {
+      if (current()) this.updateStatus({ state: "syncing", message: `Moving to the cleaned-up sync database (${copied} copied)…` })
+    }) : null
+    if (!resolution || !current()) return null
+    if (!("url" in resolution)) {
+      this.updateStatus({ state: "syncing", message: "Restarting on the cleaned-up local database…" })
+      return null
+    }
+    const remote = open(resolution.url) as PouchSyncDatabase
+    this.remoteDatabase = remote
+    if (remote !== configured) await this.compatibility.check(remote, resolution.url, 1, current)
+    if (!current()) return null
     this.stopWatch = watchSyncCompatibility(remote,
-      () => this.compatibility.check(remote, destination, 1, () => this.generation === generation),
+      () => this.compatibility.check(remote, resolution.url, 1, current).then(() => assertNoSyncEpoch(remote)),
       error => this.handleFailure(error, generation, "compatibility monitor"))
+    return { remote, url: resolution.url }
   }
 
   private handleFailure(error: unknown, generation: number, phase = this.status.message): void {
