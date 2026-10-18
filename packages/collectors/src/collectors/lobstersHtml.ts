@@ -10,7 +10,7 @@ export const options = {
   settings: {}
 }
 
-import { Story } from "@once/core"
+import { Story, storyTimestamp } from "@once/core"
 import type { SearchIO } from "./searchIO"
 
 export function parse(doc: Document): Story[] {
@@ -30,13 +30,13 @@ export function parse(doc: Document): Story[] {
       const href = new URL(link.getAttribute("href") ?? "", base_url).href
 
       const time_el = story.querySelector<HTMLElement>(".byline time")
-      let timestamp = Date.now()
+      let timestamp = 0
       if (time_el) {
         const unix_sec = time_el.getAttribute("data-at-unix")
         if (unix_sec) {
           timestamp = parseInt(unix_sec, 10) * 1000
         } else if (time_el.title) {
-          timestamp = Date.parse(time_el.title)
+          timestamp = storyTimestamp(time_el.title)
         }
       }
 

@@ -2,13 +2,14 @@
 
 // Operator tooling for a sync database epoch: analyse a database's revision
 // bloat, announce a move, copy the winning revisions into a fresh database,
-// verify the copy, and open it to clients. Nothing deletes: the copy goes
+// verify the copy, and open it to clients. No database is deleted: the copy goes
 // into a target that must already exist (an administrator creates it, with
-// the source's _security), and the old database stays until someone removes
-// it by hand. The only writes to the source are its two metadata documents,
-// by freeze, open and abort. See docs/sync-database-epoch.md.
+// the source's _security). The original URL remains a frozen discovery
+// endpoint. freeze/abort also install/remove a server write barrier.
+// See docs/sync-database-epoch.md.
 
 const PouchDB = require("pouchdb")
+const { FENCE_ID, installFence, assertFence, removeFence } = require("./couch-epoch-fence")
 const { epochSiblingUrl, readSyncEpoch, SYNC_COMPAT_ID, SYNC_EPOCH_ID, syncDatabaseName, syncDestination } = require("../packages/core/dist")
 const {
   censusRevisions,
@@ -16,9 +17,9 @@ const {
   verifyWinningRevisions
 } = require("../packages/persistence/dist")
 
-/** The first protocol that can follow an epoch; freeze raises the source to it. */
-const EPOCH_PROTOCOL = 3
-const notMarker = id => id === SYNC_EPOCH_ID
+/** The first protocol with hardened epoch reconciliation; freeze raises the source to it. */
+const EPOCH_PROTOCOL = 4
+const notMarker = id => id === SYNC_EPOCH_ID || id === FENCE_ID
 
 function usage() {
   console.log(`Usage:
@@ -30,6 +31,7 @@ function usage() {
   node scripts/couch-epoch.js freeze
       Announces the move: clients stop syncing ("preparing"), and app
       versions that cannot follow an epoch must update (sync protocol ${EPOCH_PROTOCOL}).
+      Installs a server write barrier; requires server-admin operator credentials.
       The target must be a database beside the source on the same server.
 
   node scripts/couch-epoch.js copy
@@ -44,6 +46,7 @@ function usage() {
   node scripts/couch-epoch.js open
       Verifies, then marks the move "ready": each client rebuilds its local
       database and continues on the target.
+      The original database remains the frozen discovery endpoint.
 
   node scripts/couch-epoch.js abort
       Before open only: removes the announcement, and clients resume on the
@@ -113,6 +116,8 @@ async function analyze() {
   }
   console.table(Object.fromEntries([...byPrefix].sort((a, b) => b[1].extraLeaves - a[1].extraLeaves)))
   const leaves = census.documents + census.extraLeaves
+  console.log(`${census.liveConflicts.length} documents have unresolved live branches; resolve these before copying.`)
+  if (census.liveConflicts.length) console.log(census.liveConflicts.slice(0, 20).join("\n"))
   console.log(`${census.extraLeaves} of ${leaves} leaves (${(100 * census.extraLeaves / Math.max(leaves, 1)).toFixed(1)}%) are losing branches a winners-only copy would leave behind.`)
 }
 
@@ -131,7 +136,7 @@ async function copy() {
   console.log(checkpoint ? `Resuming the copy of ${source.name} into ${target.name}…` : `Copying ${source.name} into ${target.name}…`)
   if (!readSyncEpoch(await readOrNull(source.db, SYNC_EPOCH_ID))) {
     console.log("  The source is not frozen, so clients keep writing: this is a dry run. Run copy again after freeze.")
-  }
+  } else await assertFence(source.db)
   let lastReport = 0
   const result = await copyWinningRevisions(source.db, target.db, source.name, {
     exclude: notMarker,
@@ -155,6 +160,8 @@ async function verify() {
   if (result.mismatched.length) console.log(`  ${result.mismatched.length} winners missing or different in the target:\n    ${sample(result.mismatched)}`)
   if (result.conflicted.length) console.log(`  ${result.conflicted.length} target documents with more than one leaf:\n    ${sample(result.conflicted)}`)
   if (result.extra.length) console.log(`  ${result.extra.length} target documents the source lacks (written after a cutover?):\n    ${sample(result.extra)}`)
+  if (result.contentMismatched.length) console.log(`  Content or attachment differences:\n    ${sample(result.contentMismatched)}`)
+  if (result.unresolved.length) console.log(`  Unresolved live source conflicts:\n    ${sample(result.unresolved)}`)
   console.log(result.ok ? "Verified: the target holds every winner as its only leaf." : "Not verified.")
   if (!result.ok) process.exitCode = 1
   return result.ok
@@ -171,6 +178,7 @@ async function freeze() {
   await assertExists(source)
   await assertExists(target)
   const marker = readSyncEpoch(await readOrNull(source.db, SYNC_EPOCH_ID))
+  if (await readOrNull(target.db, FENCE_ID) || await readOrNull(target.db, SYNC_EPOCH_ID)) throw new Error("The target contains epoch control documents; use a clean target")
   if (marker && marker.next !== next) throw new Error(`${source.name} already moves to ${marker.next}`)
   if (marker?.state === "ready") throw new Error(`${source.name} is already open on ${next}`)
   // The protocol first: from here on, app versions that cannot follow stop
@@ -180,6 +188,8 @@ async function freeze() {
     await source.db.put({ schema: 1, ...compat, _id: SYNC_COMPAT_ID, minSyncProtocol: EPOCH_PROTOCOL })
   }
   await writeMarker(source.db, "preparing", next)
+  await installFence(source.db)
+  await assertFence(source.db)
   console.log(`Frozen: ${source.name} announces its move to ${next}. Clients pause; run copy, then verify, then open.`)
 }
 
@@ -187,19 +197,24 @@ async function open() {
   const { source, target, next } = move()
   const marker = readSyncEpoch(await readOrNull(source.db, SYNC_EPOCH_ID))
   if (marker?.state !== "preparing" || marker.next !== next) throw new Error(`Run freeze for ${next} first`)
+  await assertFence(source.db)
+  if (await readOrNull(target.db, FENCE_ID) || await readOrNull(target.db, SYNC_EPOCH_ID)) throw new Error("The target contains epoch control documents; use a clean target")
+  const before = (await source.db.info()).update_seq
   if (!await verify()) throw new Error("The copy is not verified; run copy again, then open")
+  if (JSON.stringify(before) !== JSON.stringify((await source.db.info()).update_seq)) throw new Error("The source changed during verification; verify again before opening")
   if (!await readOrNull(target.db, SYNC_COMPAT_ID)) throw new Error(`${target.name} has no ${SYNC_COMPAT_ID}; run copy again`)
   await writeMarker(source.db, "ready", next)
-  console.log(`Open: clients move to ${next} as they next connect. Keep ${source.name} until every device has.`)
+  console.log(`Open: clients move to ${next} as they next connect. Keep ${source.name} permanently as the frozen discovery endpoint.`)
 }
 
 async function abort() {
   const { source, next } = move()
   const marker = await readOrNull(source.db, SYNC_EPOCH_ID)
-  if (!marker) return console.log("Nothing to abort: the source announces no move.")
+  if (!marker) { await removeFence(source.db); return console.log("No move announced; any incomplete freeze was removed.") }
   if (readSyncEpoch(marker)?.state === "ready") {
     throw new Error(`The move to ${next} is open; devices may already have moved, so it can no longer be aborted`)
   }
+  await removeFence(source.db)
   await source.db.remove(marker)
   console.log(`Aborted: clients resume on ${source.name}. Delete ${next} by hand if it is no longer needed.`)
 }

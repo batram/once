@@ -196,3 +196,41 @@ test("empty batches skip the bulk lookup", async () => {
   fake.ports.storyStore.getStoriesByUrls = async () => { throw new Error("unexpected lookup") }
   assert.deepEqual(await new AppRuntime(fake.ports).addStories([]), [])
 })
+
+test("known story refresh keeps metadata and retains new discussions without timestamp churn", async () => {
+  const href = "https://example.com/refresh"
+  const original = story(href, ["A"])
+  const fake = createFakePlatform([original]), app = new AppRuntime(fake.ports)
+  const save = fake.ports.storyStore.saveStory; let saves = 0
+  fake.ports.storyStore.saveStory = async incoming => { saves++; return save(incoming) }
+  const cosmetic = story(href, ["A"]); cosmetic.title = "Parser changed title"; cosmetic.timestamp = 999999
+  await app.addStories([cosmetic])
+  assert.equal(saves, 0)
+  const discussion = story(href, ["B"]); discussion.comment_url = "https://lobste.rs/s/abc/first"
+  await app.addStories([discussion])
+  assert.equal(saves, 1)
+  const again = story(href, ["B", "C"]); again.comment_url = "https://lobste.rs/s/abc/renamed"; again.timestamp = 555
+  await app.addStories([again])
+  assert.equal(saves, 2)
+  assert.equal(original.title, "A story")
+  assert.equal(original.timestamp, 1784678400000)
+  assert.equal(original.substories.length, 1)
+  assert.deepEqual(original.substories[0].tags.map(t => t.text), ["B", "C"])
+  await app.addStories([again])
+  assert.equal(saves, 2)
+})
+
+test("feed refresh detects same-length edits and ignores repeated save timestamps", async () => {
+  const href = "https://example.com/content-refresh", original = story(href)
+  original.attachContent("<p>old</p>", { source: "feed", saved_at: 1 })
+  const fake = createFakePlatform([original], { storyContents: [[href, "<p>old</p>"]] })
+  const app = new AppRuntime(fake.ports)
+  const save = fake.ports.storyStore.saveStory; let saves = 0
+  fake.ports.storyStore.saveStory = async incoming => { saves++; return save(incoming) }
+  const changed = story(href); changed.attachContent("<p>new</p>", { source: "feed", saved_at: 2 })
+  await app.addStories([changed])
+  assert.equal(fake.savedContents.get(href), "<p>new</p>")
+  const repeated = story(href); repeated.attachContent("<p>new</p>", { source: "feed", saved_at: 3 })
+  await app.addStories([repeated])
+  assert.equal(saves, 1)
+})

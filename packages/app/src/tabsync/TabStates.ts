@@ -56,7 +56,7 @@ export class TabStates {
     }
     const changed = !samePage || JSON.stringify(dataOf(previous.entries)) !== JSON.stringify(dataOf(entries))
     this.cache.set(tab.id, {
-      navSeq: tab.navSeq, url: tab.url, entries,
+      navSeq: tab.navSeq, url: tab.url, entries: changed ? entries : previous.entries,
       changedAt: changed ? Date.now() : previous?.changedAt ?? Date.now()
     })
     return changed

@@ -1,6 +1,5 @@
 import { createAiClient } from "./ai/aiClient"
 import {
-  applyStoryFilter,
   applyStoryFilters,
   groupedStorySources,
   Story,
@@ -25,6 +24,7 @@ import { mergeStorySyncState } from "./storySyncPolicy"
 import { StoryWriteQueue } from "./StoryWriteQueue"
 import { StoryIngestionQueue } from "./StoryIngestionQueue"
 import { mergeIngestionTags } from "./storyIngestionTags"
+import { refilterStory } from "./refilterStory"
 import { StoryWorkingSet } from "./StoryWorkingSet"
 import { AppSettings } from "./AppSettings"
 import { settingsClientMethods } from "./settingsClient"
@@ -297,11 +297,9 @@ export class AppRuntime {
   private async refilterStories(): Promise<void> {
     const filterList = await this.settings.getFilterList()
     for (const story of this.workingSet.values()) {
-      const previousFilter = story.filter
-      applyStoryFilter(filterList, story)
-      if (story.filter !== previousFilter) {
-        await this.persistStoryChange(story.href, "filter", story.filter)
-      }
+      await refilterStory(story, filterList,
+        snapshot => this.queueStoryWrite(story.href, () => this.platform.storyStore.saveStory(snapshot, { derivedFilter: true })),
+        (value, previous) => this.emitDataChange([story.href, "filter"], value, previous, null))
     }
   }
 
@@ -506,26 +504,13 @@ export class AppRuntime {
       oldStory,
       newStory,
       (story) => this.platform.storyStore.saveStory(story),
-      (story, previousTags) =>
+      (story, previousTags, previousSubstories) => {
         this.emitDataChange([story.href, "tags"], story.tags, previousTags, null)
+        if (JSON.stringify(previousSubstories) !== JSON.stringify(story.substories)) {
+          this.emitDataChange([story.href, "substories"], story.substories, previousSubstories, null)
+        }
+      }
     )
-
-    if (newStory.comment_url && !oldStory.matches_comment_url(newStory.comment_url)) {
-      const previousSubstories = [...oldStory.substories]
-      oldStory.substories.push({
-        type: newStory.type,
-        comment_url: newStory.comment_url,
-        timestamp: newStory.timestamp,
-        tags: newStory.tags
-      })
-      this.emitDataChange(
-        [oldStory.href, "substories"],
-        oldStory.substories,
-        previousSubstories,
-        null
-      )
-      oldStory = await this.platform.storyStore.saveStory(oldStory)
-    }
 
     return await this.content.mergeFeedContent(oldStory, newStory) ?? oldStory
   }
@@ -572,11 +557,15 @@ export class AppRuntime {
     if (!story) return undefined
 
     const previousValue = story[path]
+    const previousUpdates = story.sync_updated_at
+    if (JSON.stringify(previousValue) === JSON.stringify(value)) {
+      return this.queueStoryWrite(href, async () => this.workingSet.get(href) ?? story)
+    }
     story[path] = value
     const previousUpdate = story.sync_updated_at?.[path] ?? 0
     story.sync_updated_at = {
       ...story.sync_updated_at,
-      [path]: Math.max(Date.now(), previousUpdate + 1)
+      [path]: path === "filter" ? 0 : Math.max(Date.now(), previousUpdate + 1)
     }
     this.emitDataChange([href, path], value, previousValue, null)
 
@@ -592,7 +581,7 @@ export class AppRuntime {
     // even if the live story mutates again before the save runs.
     const snapshot = Story.from_obj(story.to_obj())
     return this.queueStoryWrite(href, async () => {
-      const saved = await this.platform.storyStore.saveStory(snapshot)
+      const saved = await this.platform.storyStore.saveStory(snapshot, { derivedFilter: path === "filter" })
       const current = this.workingSet.get(href)
       if (current === story) {
         story._id = saved._id
@@ -606,6 +595,14 @@ export class AppRuntime {
         this.workingSet.set(href, saved)
       }
       return this.workingSet.get(href) ?? saved
+    }).catch(error => {
+      // A failed optimistic edit must remain retryable, rather than becoming a no-op.
+      if (story[path] === value && story.sync_updated_at?.[path] === snapshot.sync_updated_at?.[path]) {
+        story[path] = previousValue
+        story.sync_updated_at = previousUpdates
+        this.emitDataChange([href, path], previousValue, value, null)
+      }
+      throw error
     })
   }
 

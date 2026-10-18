@@ -56,10 +56,6 @@ test("two devices ingesting the same feed item replicate one revision, not a con
 })
 
 test("the same feed text on both devices stays one revision; different text still conflicts", async t => {
-  // The store hands browsers' PouchDB a Blob; the Node adapter takes a Buffer.
-  const { Blob } = globalThis
-  globalThis.Blob = undefined
-  t.after(() => { globalThis.Blob = Blob })
   const { phone, desktop } = await twoDevices(t)
   const fromObj = Story.from_obj.bind(Story)
   const withContent = (html) => {
@@ -78,10 +74,8 @@ test("the same feed text on both devices stays one revision; different text stil
   await new PouchStoryStore(other.desktop, fromObj).saveStory(withContent("<p>Desktop text</p>"))
   const history = async (db) => (await db.get("sto_https://example.com/article", { revs: true }))._revisions.ids
   const [phoneHistory, desktopHistory] = [await history(other.phone), await history(other.desktop)]
-  // Browsers' PouchDB hashes the attachment write's Blob as `{}`, so only the
-  // document revision before it can tell two articles apart: the fingerprint
-  // must already differ there.
-  assert.notEqual(phoneHistory[1], desktopHistory[1], "the document revision carries the html's fingerprint")
+  // The first revision includes both content and its fingerprint on every platform.
+  assert.equal(phoneHistory.length, 1, "content and metadata are committed atomically")
   assert.notEqual(phoneHistory[0], desktopHistory[0], "different html never shares a revision id")
   await exchange(other.phone, other.desktop)
   const merged = await other.phone.get("sto_https://example.com/article", { conflicts: true })

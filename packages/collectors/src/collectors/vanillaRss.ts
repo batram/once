@@ -21,7 +21,7 @@ export const options = {
   }
 }
 
-import { daysAgo, feedContentIsArticle, Story } from "@once/core"
+import { daysAgo, feedContentIsArticle, Story, storyTimestamp } from "@once/core"
 
 export function parse(doc: Document): Story[] {
   if (!doc) {
@@ -162,7 +162,7 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
   const stories = Array.from(items).map((story) => {
     let timestamp: string | number | undefined = get_feed_value(story, def.timestamp_tags)
     if (timestamp) {
-      timestamp = Date.parse(timestamp)
+      timestamp = storyTimestamp(timestamp)
       if (!Number.isFinite(timestamp)) {
         return
       }
@@ -173,7 +173,7 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
       if (!timestamp && options.settings.discard_timeless.value) {
         return
       } else {
-        timestamp = Date.now()
+        timestamp = 0
       }
     }
 

@@ -1,6 +1,7 @@
 import { PouchSyncCompatibility, SyncCompatibilityError } from "./PouchSyncCompatibility"
 import { listenLiveSync, watchSyncCompatibility } from "./PouchSyncWatch"
 import type { LocalDatabaseEpoch } from "./LocalDatabaseEpoch"
+import type { EpochCopyDatabase } from "./PouchEpochCopy"
 import { assertNoSyncEpoch, isSyncMetadataId, readSyncEpochMarker, resolveSyncEpoch } from "./SyncEpoch"
 import { syncRequestDetails } from "./SyncFetchDiagnostics"
 import { syncFailure } from "./SyncFailure"
@@ -256,7 +257,6 @@ export class PouchSyncService {
     let remote: string | PouchSyncDatabase
     try {
       remote = this.createRemote(couchdbUrl)
-      this.remoteDatabase = typeof remote === "string" ? undefined : remote
     } catch (error) {
       this.updateStatus({
         state: "error",
@@ -290,7 +290,6 @@ export class PouchSyncService {
         await this.compatibility.check(remote as PouchSyncDatabase, couchdbUrl, 1, () => this.generation === generation)
         if (this.generation !== generation) return
         this.startLiveSync(remote, syncOps, initialChanges)
-        void this.epoch?.forgetPrevious().catch(error => console.warn("The replaced local database could not be removed", error))
       })
       .catch((error) => {
         if (this.generation !== generation) return
@@ -500,7 +499,10 @@ export class PouchSyncService {
     listenLiveSync(this.syncHandler, () => this.generation === generation, event => {
       this.onChange(event); this.notifyRemoteChanges(event, true, "foreground")
       this.updateStatus({ state: "syncing", message: "Syncing changes…", changes: this.changeCount(event) })
-    }, busy => this.updateStatus({ state: busy ? "syncing" : "up-to-date", message: busy ? "Syncing changes…" : "Up to date" }),
+    }, busy => {
+      this.updateStatus({ state: busy ? "syncing" : "up-to-date", message: busy ? "Syncing changes…" : "Up to date" })
+      if (!busy) void this.epoch?.recordSynchronized().catch(error => console.warn("Could not record epoch sync completion", error))
+    },
     error => this.handleFailure(error, generation, "live replication"))
     // A transport that fails immediately must not reset its retry backoff.
     this.stableTimer = setTimeout(() => {
@@ -520,7 +522,12 @@ export class PouchSyncService {
     const open = (url: string) => url === configuredUrl ? configured : this.createRemote(url)
     const resolution = await resolveSyncEpoch(configuredUrl, url => readSyncEpochMarker(open(url)), this.epoch, copied => {
       if (current()) this.updateStatus({ state: "syncing", message: `Moving to the cleaned-up sync database (${copied} copied)…` })
-    })
+    }, async url => {
+      const remote = open(url)
+      if (typeof remote === "string") throw new Error("Epoch reconciliation requires a database transport")
+      await this.compatibility.check(remote, url, 1, current)
+      return remote as unknown as EpochCopyDatabase
+    }, current)
     if (!resolution || !current()) return null
     if (!("url" in resolution)) {
       this.updateStatus({ state: "syncing", message: "Restarting on the cleaned-up local database…" })

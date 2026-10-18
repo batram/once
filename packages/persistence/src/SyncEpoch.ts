@@ -1,13 +1,8 @@
-import { epochSiblingUrl, readSyncEpoch, SYNC_COMPAT_ID, SYNC_EPOCH_ID, syncDatabaseName, syncDestination } from "@once/core"
-import type { LocalDatabaseEpoch } from "./LocalDatabaseEpoch"
+import { epochSiblingUrl, readSyncEpoch, SYNC_EPOCH_ID, syncDatabaseName, syncDestination } from "@once/core"
+import { LOCAL_EPOCH_VERSION, type LocalDatabaseEpoch } from "./LocalDatabaseEpoch"
+import type { EpochCopyDatabase } from "./PouchEpochCopy"
 
-/**
- * Per-database metadata that replication must not carry: a marker copied
- * into a new epoch would point that database at itself.
- */
-export function isSyncMetadataId(id: string | undefined): boolean {
-  return id === SYNC_COMPAT_ID || id === SYNC_EPOCH_ID
-}
+export { isSyncMetadataId } from "@once/core"
 
 interface EpochMarkerSource { get?(id: string): Promise<Record<string, unknown>> }
 
@@ -76,9 +71,13 @@ export async function resolveSyncEpoch(
   configuredUrl: string,
   read: SyncEpochReader,
   local: LocalDatabaseEpoch | undefined,
-  progress: (copied: number) => void
+  progress: (copied: number) => void,
+  open?: (url: string) => Promise<EpochCopyDatabase>,
+  isCurrent = () => true
 ): Promise<SyncEpochResolution> {
   const state = await local?.state() ?? {}
+  if (!isCurrent()) throw new Error("Sync session changed during epoch migration")
+  if (state.version !== undefined && state.version > LOCAL_EPOCH_VERSION) throw new Error("Local epoch metadata is unsupported. Update Once before syncing.")
   if (state.retired) {
     // This database was replaced, but the switch did not take (a crash, or
     // the pointer was lost). Never sync it: finish switching instead.
@@ -87,11 +86,17 @@ export async function resolveSyncEpoch(
     return { restarting: true }
   }
   const start = state.destination ? epochSiblingUrl(configuredUrl, syncDatabaseName(state.destination)) : configuredUrl
-  const effective = await followSyncEpoch(start, read)
+  const effective = await followSyncEpoch(start, url => {
+    if (!isCurrent()) throw new Error("Sync session changed during epoch migration")
+    return read(url)
+  })
+  if (!isCurrent()) throw new Error("Sync session changed during epoch migration")
   const destination = syncDestination(effective)
-  if (destination === syncDestination(start)) return { url: effective }
+  const legacy = Boolean(state.destination) && state.version !== LOCAL_EPOCH_VERSION
+  if (destination === syncDestination(start) && !legacy) return { url: effective }
   if (!local) throw new Error("Sync epoch metadata is unsupported here: this app cannot move its local data to the new database.")
-  await local.rebuild(destination, progress)
+  if (!open) throw new Error("Epoch reconciliation requires a database transport; local data is retained")
+  await local.rebuild(destination, progress, { canonical: await open(effective), previous: await open(legacy ? configuredUrl : start), isCurrent })
   local.restart()
   return { restarting: true }
 }

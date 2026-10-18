@@ -1,7 +1,6 @@
 const minOff = 60
 const hourOff = 60 * minOff
 const dayOff = 24 * hourOff
-const weekOff = 7 * dayOff
 const monthOff = 30 * dayOff
 const yearOff = 365 * dayOff
 
@@ -53,25 +52,4 @@ export function humanTime(time: string | Date | number, now = Date.now()): strin
   }
 
   return res
-}
-
-export function parseHumanTime(str: string, now = Date.now()): number {
-  const num = parseInt(str)
-  let offset = 0
-
-  if (str.includes("min")) {
-    offset = minOff * 1000 * num
-  } else if (str.includes("hour")) {
-    offset = hourOff * 1000 * num
-  } else if (str.includes("day")) {
-    offset = dayOff * 1000 * num
-  } else if (str.includes("week")) {
-    offset = weekOff * 1000 * num
-  } else if (str.includes("month")) {
-    offset = monthOff * 1000 * num
-  } else if (str.includes("year")) {
-    offset = yearOff * 1000 * num
-  }
-
-  return now - offset
 }

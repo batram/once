@@ -21,7 +21,6 @@ const item_url = "https://news.ycombinator.com/item?id="
 const user_url = "https://news.ycombinator.com/submitted?id="
 
 import { Story } from "@once/core"
-import { parseHumanTime } from "@once/core"
 import type { SearchIO } from "./searchIO"
 
 /**
@@ -57,7 +56,7 @@ export function parse(doc: Document): Story[] {
 
     const age = subtext.querySelector<HTMLElement>(".age")
     const time = age?.querySelector<HTMLAnchorElement>("a")?.innerText ?? ""
-    const timestamp = exactTime(age?.getAttribute("title")) ?? parseHumanTime(time)
+    const timestamp = exactTime(age?.getAttribute("title")) ?? 0
     if (!time || !Number.isFinite(timestamp)) {
       return []
     }

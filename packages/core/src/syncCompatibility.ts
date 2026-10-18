@@ -2,11 +2,17 @@
  * Increment only when shared data becomes incompatible with earlier clients.
  * 3: the database may move to a new epoch (`once_sync_epoch`); clients that
  * cannot follow would push the losing branches the move leaves behind.
+ * 4: canonical reconciliation, content verification and guarded local writes.
  */
-export const SYNC_PROTOCOL = 3
+export const SYNC_PROTOCOL = 4
 export const SYNC_COMPAT_ID = "once_sync_compat"
 /** Where a sync database announces that its data moves to a fresh database on the same server. */
 export const SYNC_EPOCH_ID = "once_sync_epoch"
+/** Server-only write barrier; it must never reach an active destination. */
+export const SYNC_EPOCH_FENCE_ID = "_design/once-epoch-freeze"
+export function isSyncMetadataId(id: string | undefined): boolean {
+  return id === SYNC_COMPAT_ID || id === SYNC_EPOCH_ID || id === SYNC_EPOCH_FENCE_ID
+}
 export interface SyncCompatibility { schema: 1; minSyncProtocol: number; minAppVersion?: string }
 export interface SyncCompatibilityDetails { supportedSyncProtocol: number; requiredSyncProtocol: number; minAppVersion?: string }
 export function readSyncCompatibility(raw: unknown): SyncCompatibility {

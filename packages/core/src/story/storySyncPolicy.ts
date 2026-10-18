@@ -7,6 +7,11 @@ export function mergeStorySyncState(local: Story, remote: Story): Story {
   const timestamps = { ...local.sync_updated_at }
 
   syncedStoryFields.forEach((field) => {
+    if (field === "filter" && (local.sync_updated_at?.filter === 0 || remote.sync_updated_at?.filter === 0)) {
+      if (local.sync_updated_at?.filter !== 0) merged.filter = remote.filter
+      timestamps.filter = 0
+      return
+    }
     const localTime = local.sync_updated_at?.[field] ?? 0
     const remoteTime = remote.sync_updated_at?.[field] ?? 0
     const useRemote =

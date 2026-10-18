@@ -64,7 +64,7 @@ export function readAddonStories(value: unknown, type: string): AddonStoryResult
     if (!isRecord(entry) || !isHttpUrl(entry.href) || typeof entry.title !== "string" || !entry.title.trim()) continue
     const timestamp = typeof entry.timestamp === "number" || typeof entry.timestamp === "string"
       ? entry.timestamp
-      : Date.now()
+      : 0
     const story: AddonStoryResult = {
       type,
       href: entry.href,

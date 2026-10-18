@@ -1,5 +1,6 @@
 import { sameDiscussion, sameStoryDocument } from "./storyPage"
 import { compareStories } from "./compareStories"
+import { storyTimestamp } from "./storyTime"
 import {
   SortableStory,
   StoredContentMeta,
@@ -41,7 +42,7 @@ export class Story {
     href: string,
     title: string,
     comment_url = "",
-    timestamp: string | number | Date = Date.now(),
+    timestamp: string | number | Date = 0,
     filter = ""
   ) {
     this.type = type
@@ -49,7 +50,7 @@ export class Story {
     this.title = title
     this.read_state = "unread"
     this.comment_url = comment_url
-    this.timestamp = timestamp
+    this.timestamp = storyTimestamp(timestamp)
     this.filter = filter
     this.substories = []
     this.tags = []
@@ -98,6 +99,7 @@ export class Story {
       story
     )
     Story.assertIngestible(xstory)
+    ;(xstory as Story).timestamp = storyTimestamp(xstory.timestamp)
     return xstory
   }
 
@@ -112,6 +114,8 @@ export class Story {
       }
     }
 
+    cloned.timestamp = storyTimestamp(this.timestamp)
+    cloned.substories = this.substories.map(discussion => ({ ...discussion, timestamp: storyTimestamp(discussion.timestamp) }))
     return cloned
   }
 

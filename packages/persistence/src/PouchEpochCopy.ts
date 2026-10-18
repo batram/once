@@ -11,10 +11,13 @@
  * coordinates; these functions are only its data step.
  */
 
+import { epochContent } from "./EpochContent"
+
 export interface EpochChange {
   id: string
   changes: Array<{ rev: string }>
   deleted?: boolean
+  doc?: { _conflicts?: string[] }
 }
 
 export interface EpochCopyDatabase {
@@ -50,6 +53,10 @@ export class EpochCopyDivergedError extends Error {
   }
 }
 
+export class EpochSourceConflictError extends Error {
+  constructor(id: string) { super(`Resolve live conflicts before moving the database: ${id}. All local data has been retained.`) }
+}
+
 /** Refuses a batch unless every document the target already holds is an ancestor of the winner being copied. */
 async function assertFastForward(target: EpochCopyDatabase, docs: Array<Record<string, unknown>>): Promise<void> {
   const existing = await target.allDocs({ keys: docs.map((doc) => String(doc._id)) })
@@ -70,6 +77,7 @@ export interface EpochCopyOptions {
   exclude?: (id: string) => boolean
   batchSize?: number
   onProgress?: (progress: { copied: number; skipped: number }) => void
+  isCurrent?: () => boolean
 }
 
 export interface EpochCopyResult {
@@ -99,7 +107,8 @@ export async function copyWinningRevisions(
   let copied = 0
   let skipped = 0
   for (;;) {
-    const page = await source.changes({ since, limit: batchSize, style: "main_only" })
+    if (options.isCurrent && !options.isCurrent()) throw new Error("Sync session changed during epoch migration")
+    const page = await source.changes({ since, limit: batchSize, style: "main_only", include_docs: true, conflicts: true })
     if (page.results.length === 0) break
     const wanted = page.results.filter((change) => {
       const keep = !change.id.startsWith("_local/") && !options.exclude?.(change.id)
@@ -107,23 +116,36 @@ export async function copyWinningRevisions(
       return keep
     })
     if (wanted.length > 0) {
+      for (const change of wanted) if (change.doc?._conflicts?.length) throw new EpochSourceConflictError(change.id)
       const fetched = await source.bulkGet({
         docs: wanted.map((change) => ({ id: change.id, rev: change.changes[0].rev })),
         revs: true,
         attachments: true
       })
-      const docs = fetched.results.map((result) => {
-        const doc = result.docs[0]?.ok
+      const byId = new Map(fetched.results.map(result => [result.id, result]))
+      const docs = wanted.map(change => {
+        const result = byId.get(change.id)
+        const doc = result?.docs[0]?.ok
         if (!doc) {
-          throw new Error(`Could not read the winning revision of ${result.id}: ${JSON.stringify(result.docs[0]?.error)}`)
+          throw new Error(`Could not read the winning revision of ${change.id}`)
         }
         return doc
       })
+      for (const doc of docs) await epochContent(doc)
+      if (options.isCurrent && !options.isCurrent()) throw new Error("Sync session changed during epoch migration")
       await assertFastForward(target, docs)
       const written = await target.bulkDocs(docs, { new_edits: false })
       const failure = written.find((result) => result.error)
       if (failure) {
         throw new Error(`Could not copy ${failure.id}: ${failure.error}: ${failure.reason ?? "unknown error"}`)
+      }
+      // Verify the exact revisions just read, not a later moving snapshot of
+      // a live canonical epoch. A replica may legitimately advance meanwhile.
+      const checked = await target.bulkGet({ docs: docs.map(doc => ({ id: doc._id, rev: doc._rev })), attachments: true })
+      const copies = new Map(checked.results.map(row => [row.id, row.docs[0]?.ok]))
+      for (const doc of docs) {
+        const copy = copies.get(String(doc._id))
+        if (!copy || await epochContent(doc) !== await epochContent(copy)) throw new Error(`Copied epoch content differs: ${String(doc._id)}`)
       }
       copied += docs.length
     }
@@ -140,6 +162,7 @@ export interface RevisionCensus {
   conflictedDocuments: number
   /** Leaves beyond the winner: live conflicts plus deleted losing branches. */
   extraLeaves: number
+  liveConflicts: string[]
   winners: Map<string, { rev: string; deleted: boolean; leaves: number }>
 }
 
@@ -153,17 +176,19 @@ export async function censusRevisions(
     deletedDocuments: 0,
     conflictedDocuments: 0,
     extraLeaves: 0,
+    liveConflicts: [],
     winners: new Map()
   }
   const winners = new Map<string, { rev: string; deleted: boolean }>()
   for (const style of ["main_only", "all_docs"] as const) {
     let since: unknown = 0
     for (;;) {
-      const page = await db.changes({ since, limit: batchSize, style })
+      const page = await db.changes({ since, limit: batchSize, style, ...(style === "main_only" ? { include_docs: true, conflicts: true } : {}) })
       if (page.results.length === 0) break
       for (const change of page.results) {
         if (change.id.startsWith("_local/")) continue
         if (style === "main_only") {
+          if (change.doc?._conflicts?.length) census.liveConflicts.push(change.id)
           winners.set(change.id, { rev: change.changes[0].rev, deleted: change.deleted === true })
           continue
         }
@@ -195,28 +220,45 @@ export interface EpochVerification {
   conflicted: string[]
   /** Target documents the source does not have, such as writes after cutover. */
   extra: string[]
+  contentMismatched: string[]
+  unresolved: string[]
 }
 
 /** Read-only: whether the target holds exactly the source's winners, each as its only leaf. */
 export async function verifyWinningRevisions(
-  source: Pick<EpochCopyDatabase, "changes">,
-  target: Pick<EpochCopyDatabase, "changes">,
+  source: EpochCopyDatabase,
+  target: EpochCopyDatabase,
   options: Pick<EpochCopyOptions, "exclude"> = {}
 ): Promise<EpochVerification> {
   const [from, to] = await Promise.all([censusRevisions(source), censusRevisions(target)])
   const mismatched: string[] = []
   const conflicted: string[] = []
   const extra: string[] = []
+  const contentMismatched: string[] = []
+  const unresolved = from.liveConflicts.filter(id => !options.exclude?.(id))
   for (const [id, winner] of from.winners) {
     if (options.exclude?.(id)) continue
     const copy = to.winners.get(id)
     if (!copy || copy.rev !== winner.rev || copy.deleted !== winner.deleted) mismatched.push(id)
   }
   for (const [id, copy] of to.winners) {
+    if (options.exclude?.(id)) continue
     if (copy.leaves > 1) conflicted.push(id)
     if (!from.winners.has(id)) extra.push(id)
   }
-  return { ok: mismatched.length === 0 && conflicted.length === 0, mismatched, conflicted, extra }
+  const matching = [...from.winners].filter(([id, winner]) => !options.exclude?.(id) && to.winners.get(id)?.rev === winner.rev)
+  for (let offset = 0; offset < matching.length; offset += 50) {
+    const docs = matching.slice(offset, offset + 50).map(([id, winner]) => ({ id, rev: winner.rev }))
+    const [left, right] = await Promise.all([source.bulkGet({ docs, attachments: true }), target.bulkGet({ docs, attachments: true })])
+    const originals = new Map(left.results.map(row => [row.id, row.docs[0]?.ok]))
+    const copies = new Map(right.results.map(row => [row.id, row.docs[0]?.ok]))
+    for (const { id } of docs) {
+      const original = originals.get(id), copy = copies.get(id)
+      if (!original || !copy || await epochContent(original) !== await epochContent(copy)) contentMismatched.push(id)
+    }
+  }
+  return { ok: !mismatched.length && !conflicted.length && !extra.length && !contentMismatched.length && !unresolved.length,
+    mismatched, conflicted, extra, contentMismatched, unresolved }
 }
 
 async function readLocal(

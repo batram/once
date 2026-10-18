@@ -4,6 +4,7 @@ const fs = require("node:fs/promises")
 const os = require("node:os")
 const path = require("node:path")
 const PouchDB = require("pouchdb")
+const { installFence, FENCE_ID } = require("../../../scripts/couch-epoch-fence")
 const { syncDatabaseName } = require("../../../packages/core/dist")
 const {
   activeLocalDatabaseName,
@@ -61,10 +62,11 @@ async function world(t) {
 /** What an operator's freeze, copy and open do (scripts/couch-epoch.js). */
 async function moveServer(server, { open = true } = {}) {
   const compat = await server.once.get("once_sync_compat")
-  await server.once.put({ ...compat, minSyncProtocol: 3 })
+  await server.once.put({ ...compat, minSyncProtocol: 4 })
   await server.once.put({ _id: "once_sync_epoch", schema: 1, state: "preparing", next: "once_e2" })
+  await installFence(server.once)
   if (!open) return
-  await copyWinningRevisions(server.once, server.once_e2, "once", { exclude: id => id === "once_sync_epoch" })
+  await copyWinningRevisions(server.once, server.once_e2, "once", { exclude: id => id === "once_sync_epoch" || id === FENCE_ID })
   const marker = await server.once.get("once_sync_epoch")
   await server.once.put({ ...marker, state: "ready" })
 }
@@ -111,7 +113,11 @@ test("a device follows a ready epoch: rebuilds, restarts, and syncs only winners
   assert.equal((await censusRevisions(w.server.once_e2)).extraLeaves, 0)
   assert.equal((await censusRevisions(second.db)).extraLeaves, 0)
   await assert.rejects(second.db.get("once_sync_epoch"), { status: 404 }, "the marker never replicates")
-  await until(() => !JSON.parse(w.storage.get(`once:local-database:${w.base}`)).previous, "the old local database to be removed")
+  await assert.rejects(second.db.get(FENCE_ID), { status: 404 }, "the source fence never replicates")
+  await assert.rejects(w.server.once_e2.get(FENCE_ID), { status: 404 }, "the operator copy leaves the source fence behind")
+  await until(async () => Boolean((await second.epoch.state()).synchronized_at), "the new epoch sync to be acknowledged")
+  assert.equal(JSON.parse(w.storage.get(`once:local-database:${w.base}`)).previous, w.base, "retain the backup and durable routing marker")
+  assert.equal((await first.epoch.state()).retired.database, second.name)
   assert.equal(second.restarts, 0)
 })
 
@@ -186,6 +192,39 @@ test("a client without an epoch mover refuses a ready epoch", async t => {
   unsupported.syncFrom(URL_)
   await until(() => statuses.at(-1)?.state === "error", "the refusal without an epoch mover")
   unsupported.syncFrom("")
+})
+
+test("a fresh installation discovers the canonical database through the retained original marker", async t => {
+  const w = await world(t)
+  const device = w.start()
+  device.service.syncFrom(URL_)
+  await until(() => device.status()?.state === "up-to-date", "initial sync")
+  device.service.syncFrom("")
+  await w.server.once.put({ _id: "sto_discover", title: "Retained" })
+  await moveServer(w.server)
+  const base = path.join(path.dirname(w.base), "fresh")
+  const db = w.open(base)
+  let restarted = false
+  const epoch = new LocalDatabaseEpoch(base, base, db, w.open, () => { restarted = true }, w.pointer)
+  const service = new PouchSyncService(db, () => {}, url => w.server[syncDatabaseName(url)], undefined, epoch)
+  t.after(() => service.syncFrom(""))
+  service.syncFrom(URL_)
+  await until(() => restarted, "fresh installation migration")
+  assert.equal((await w.open(`${base}@once_e2`).get("sto_discover")).title, "Retained")
+})
+
+test("an unsupported canonical protocol stops before local migration", async t => {
+  const w = await world(t), device = w.start()
+  device.service.syncFrom(URL_)
+  await until(() => device.status()?.state === "up-to-date", "initial sync")
+  device.service.syncFrom("")
+  await moveServer(w.server)
+  await w.server.once_e2.put({ ...await w.server.once_e2.get("once_sync_compat"), minSyncProtocol: 5 })
+  device.service.syncFrom(URL_)
+  await until(() => device.status()?.state === "update-required", "compatibility refusal before copying")
+  assert.equal(device.restarts, 0)
+  assert.equal((await device.epoch.state()).retired, undefined)
+  assert.equal(activeLocalDatabaseName(w.base, w.pointer), w.base)
 })
 
 test("epoch markers lead only to sibling databases, and never in a loop", async () => {

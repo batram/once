@@ -1,6 +1,8 @@
 import { syncDatabaseName } from "@once/core"
 import { copyWinningRevisions, EpochCopyDatabase, EpochCopyDivergedError, verifyWinningRevisions } from "./PouchEpochCopy"
 import { PouchMaintenanceService } from "./PouchMaintenanceService"
+import { epochLock, guardEpochWrites } from "./LocalEpochWrites"
+import { reconcileEpoch } from "./ReconcileEpoch"
 
 export interface EpochLocalDatabase extends EpochCopyDatabase {
   info(): Promise<{ update_seq?: unknown }>
@@ -16,11 +18,15 @@ export interface EpochPointerStorage {
 interface Pointer { name: string; previous?: string }
 
 export interface LocalEpochState {
+  version?: number
   /** The remote destination this database was rebuilt for; absent for the original database. */
   destination?: string
   /** Set on a database that was replaced: it must never sync again. */
   retired?: { database: string; destination: string }
+  synchronized_at?: number
 }
+
+export const LOCAL_EPOCH_VERSION = 4
 
 const POINTER_PREFIX = "once:local-database:"
 const STATE_ID = "_local/once-sync-epoch"
@@ -73,8 +79,8 @@ export function openLocalDatabase<T>(
 
 /**
  * Moves this device's data to a fresh local database for a new sync epoch.
- * The rebuilt database holds only the winning revisions, and nothing is lost
- * from the old one until the first successful sync with the new remote. The
+ * The rebuilt database holds reconciled winning revisions. Retired databases
+ * remain as backups and durable routing records, even after a successful sync. The
  * pointer switch is the commit point: before it, a crash leaves the old
  * database in use and the copy resumes; after it, the new one opens.
  */
@@ -86,24 +92,43 @@ export class LocalDatabaseEpoch {
     private readonly open: (name: string) => EpochLocalDatabase,
     private readonly restartApp: () => void,
     private readonly storage = defaultStorage()
-  ) {}
+  ) { guardEpochWrites(base, db) }
 
   async state(): Promise<LocalEpochState> {
     return (await readLocal(this.db, STATE_ID) ?? {}) as LocalEpochState
   }
 
   /** Copies this database into the one for `destination`, verifies it, and switches to it. */
-  async rebuild(destination: string, progress: (copied: number) => void = () => undefined): Promise<void> {
-    await withLock(`once-local-database-epoch:${this.base}`, async () => {
+  async rebuild(destination: string, progress: (copied: number) => void = () => undefined,
+    remote?: { canonical: EpochCopyDatabase; previous: EpochCopyDatabase; isCurrent?: () => boolean }): Promise<void> {
+    if (typeof window !== "undefined" && !globalThis.navigator?.locks) throw new Error("Database migration requires Web Locks. Update this browser before moving; local data is retained.")
+    await epochLock(this.base, async () => {
+      if (remote?.isCurrent && !remote.isCurrent()) throw new Error("Sync session changed during epoch migration")
       // Another window may have moved this database while this one waited.
-      if ((await this.state()).retired || activeLocalDatabaseName(this.base, this.storage) !== this.name) return
+      const state = await this.state()
+      if (state.retired || activeLocalDatabaseName(this.base, this.storage) !== this.name) return
       this.assertPointerWritable()
-      const targetName = `${this.base}@${syncDatabaseName(destination)}`
+      const targetName = `${this.base}@${syncDatabaseName(destination)}${state.destination && state.version !== LOCAL_EPOCH_VERSION ? `@v${LOCAL_EPOCH_VERSION}` : ""}`
       let target = this.open(targetName)
+      const targetState = await readLocal(target, STATE_ID)
+      if (targetState?.destination || targetState?.retired) throw new Error("The epoch target is already committed. Restore the local database pointer; no data has been replaced.")
+      const staging = targetState?.staging as { source?: string; destination?: string } | undefined
+      const checkpoint = await readLocal(target, "_local/once-epoch-copy")
+      if (staging ? staging.source !== this.name || staging.destination !== destination :
+        checkpoint?.source !== `local:${this.name}` && (await target.changes({ since: 0, limit: 1 })).results.length > 0) {
+        throw new Error("The epoch target is not a recognized staging copy. No data has been replaced.")
+      }
+      const markStaging = () => writeLocal(target, STATE_ID, { staging: { source: this.name, destination } })
+      await markStaging()
       let copied = 0
       let verified = false
       for (let pass = 0; pass < MAX_PASSES && !verified; pass++) {
         try {
+          if (remote) {
+            await reconcileEpoch(this.db, remote.canonical, remote.previous, target, destination, progress, remote.isCurrent)
+            verified = true
+            break
+          }
           const result = await copyWinningRevisions(this.db, target, `local:${this.name}`, {
             onProgress: (step) => progress(copied + step.copied)
           })
@@ -114,19 +139,21 @@ export class LocalDatabaseEpoch {
           if (!(error instanceof EpochCopyDivergedError) || !target.destroy) throw error
           await target.destroy()
           target = this.open(targetName)
+          await markStaging()
           copied = 0
           continue
         }
         verified = (await verifyWinningRevisions(this.db, target)).ok
       }
       if (!verified) throw new Error("The local database changed repeatedly while it was moved; the move is retried")
+      if (remote?.isCurrent && !remote.isCurrent()) throw new Error("Sync session changed during epoch migration")
       // The copy has no conflicts and nothing to compact: skip the scans an
       // empty checkpoint would start.
       await writeLocal(target, PouchMaintenanceService.COMPACTION_MARKER_ID, { completed_at: Date.now() })
       await writeLocal(target, PouchMaintenanceService.CONFLICT_CHECKPOINT_ID, { last_seq: (await target.info()).update_seq ?? 0 })
       const format = await readLocal(this.db, SYNC_FORMAT_ID)
       if (format) await writeLocal(target, SYNC_FORMAT_ID, { minSyncProtocol: format.minSyncProtocol })
-      await writeLocal(target, STATE_ID, { destination })
+      await writeLocal(target, STATE_ID, { destination, version: LOCAL_EPOCH_VERSION })
       await writeLocal(this.db, STATE_ID, { retired: { database: targetName, destination } })
       this.activate(targetName)
     })
@@ -143,12 +170,12 @@ export class LocalDatabaseEpoch {
     this.restartApp()
   }
 
-  /** After the new epoch synced: removes the database this one replaced. */
-  async forgetPrevious(): Promise<void> {
-    const pointer = readPointer(this.base, this.storage)
-    if (!pointer?.previous || pointer.name !== this.name || !(await this.state()).destination) return
-    await this.open(pointer.previous).destroy?.()
-    this.storage?.setItem(POINTER_PREFIX + this.base, JSON.stringify({ name: pointer.name }))
+  /** Record an acknowledged sync, but keep the retired database and its durable routing marker. */
+  async recordSynchronized(): Promise<void> {
+    await epochLock(this.base, async () => {
+      const state = await this.state()
+      if (state.destination && !state.synchronized_at) await writeLocal(this.db, STATE_ID, { ...state, synchronized_at: Date.now() })
+    })
   }
 
   /** Restarts this context when another one switched the database, so no window keeps writing to the old one. */
@@ -165,16 +192,6 @@ export class LocalDatabaseEpoch {
     ;(this.storage as Partial<Storage>).removeItem?.(probe)
   }
 }
-
-/** Serializes across windows with Web Locks where they exist; within this context otherwise. */
-function withLock(name: string, work: () => Promise<void>): Promise<void> {
-  const locks = (globalThis as { navigator?: { locks?: { request(name: string, callback: () => Promise<void>): Promise<void> } } }).navigator?.locks
-  if (locks?.request) return locks.request(name, work)
-  const run = (queues.get(name) ?? Promise.resolve()).then(work, work)
-  queues.set(name, run.catch(() => undefined))
-  return run
-}
-const queues = new Map<string, Promise<void>>()
 
 async function readLocal(db: EpochCopyDatabase, id: string): Promise<Record<string, unknown> | null> {
   try {

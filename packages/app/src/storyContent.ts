@@ -67,7 +67,8 @@ export class StoryContentService {
    */
   async mergeFeedContent(stored: Story, incoming: Story): Promise<Story | null> {
     const html = incoming.pendingContent()
-    if (html === undefined || !feedContentImproves(stored, html)) return null
+    if (html === undefined || stored.contentSource() === "page") return null
+    if (stored.has_content() && await this.store.getStoryContent(stored.href) === html) return null
     const previousMeta = stored.stored_content
     // The collector's meta, not the clock: devices merging the same feed
     // text must write the same revision.
@@ -76,23 +77,4 @@ export class StoryContentService {
     this.host.emitDataChange([saved.href, "stored_content"], saved.stored_content, previousMeta)
     return saved
   }
-}
-
-/**
- * Anything beats nothing, a changed feed text beats the old one, and page
- * content beats both. Length stands in for a digest; a same-length edit is
- * rare and the next page extraction supersedes it anyway.
- */
-export function feedContentImproves(story: Story, html: string): boolean {
-  if (!story.has_content()) return true
-  if (story.contentSource() === "page") return false
-  const stored = story._attachments?.content
-  const storedLength = stored?.raw_content !== undefined
-    ? byteLength(stored.raw_content)
-    : stored?.length
-  return storedLength !== byteLength(html)
-}
-
-function byteLength(text: string): number {
-  return new TextEncoder().encode(text).length
 }

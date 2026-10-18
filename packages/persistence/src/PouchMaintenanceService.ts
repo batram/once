@@ -1,3 +1,6 @@
+import { mergeStoryAssociations, StoryTag, SubStory } from "@once/core"
+import { epochContent } from "./EpochContent"
+
 export interface PouchMaintenanceDatabase {
   changes?(options: Record<string, unknown>): Promise<{
     results: Array<{ doc?: Record<string, unknown> }>
@@ -106,13 +109,23 @@ export class PouchMaintenanceService {
   ): Promise<number> {
     const id = typeof winner._id === "string" ? winner._id : ""
     const conflicts = Array.isArray(winner._conflicts)
-      ? winner._conflicts.filter((rev): rev is string => typeof rev === "string")
+      ? winner._conflicts.filter((rev): rev is string => typeof rev === "string").sort()
       : []
     if (!id.startsWith("sto_") || conflicts.length === 0) return 0
 
     let merged = { ...winner }
     for (const rev of conflicts) {
       const conflicting = await this.db.get?.(id, { rev })
+      if (conflicting?._attachments) {
+        // Never tombstone unique saved content merely to settle parsed metadata.
+        const kept = await this.db.get?.(id, { rev: winner._rev, attachments: true })
+        const losing = await this.db.get?.(id, { rev, attachments: true })
+        const attachments = kept?._attachments as Record<string, unknown> | undefined
+        const candidate = losing?._attachments as Record<string, unknown> | undefined
+        const selected = Object.fromEntries(Object.keys(candidate || {}).map(name => [name, attachments?.[name]]))
+        if (Object.values(selected).some(value => !value) ||
+            await epochContent({ _attachments: selected }) !== await epochContent({ _attachments: candidate || {} })) return 0
+      }
       if (conflicting) merged = mergeStoryStateDocuments(merged, conflicting)
     }
     if (!sameStoryStateDocuments(winner, merged)) {
@@ -185,6 +198,11 @@ function mergeStoryStateDocuments(
   const candidateUpdates = timestampRecord(candidate.sync_updated_at)
   const mergedUpdates = { ...currentUpdates }
   synchronizedStoryFields.forEach((field) => {
+    if (field === "filter" && (currentUpdates.filter === 0 || candidateUpdates.filter === 0)) {
+      if (currentUpdates.filter !== 0) merged.filter = candidate.filter
+      mergedUpdates.filter = 0
+      return
+    }
     const currentTime = currentUpdates[field] ?? 0
     const candidateTime = candidateUpdates[field] ?? 0
     if (
@@ -201,7 +219,18 @@ function mergeStoryStateDocuments(
   if (Object.keys(mergedUpdates).length > 0) {
     merged.sync_updated_at = mergedUpdates
   }
+  Object.assign(merged, mergeStoryAssociations(associations(current), associations(candidate)))
   return merged
+}
+
+function associations(doc: Record<string, unknown>) {
+  return {
+    type: typeof doc.type === "string" ? doc.type : "",
+    comment_url: typeof doc.comment_url === "string" ? doc.comment_url : "",
+    timestamp: typeof doc.timestamp === "number" || typeof doc.timestamp === "string" ? doc.timestamp : 0,
+    tags: (Array.isArray(doc.tags) ? doc.tags : []) as StoryTag[],
+    substories: (Array.isArray(doc.substories) ? doc.substories : []) as SubStory[]
+  }
 }
 
 function sameStoryStateDocuments(
@@ -209,6 +238,8 @@ function sameStoryStateDocuments(
   right: Record<string, unknown>
 ): boolean {
   return synchronizedStoryFields.every((field) => left[field] === right[field]) &&
+    JSON.stringify(left.tags || []) === JSON.stringify(right.tags || []) &&
+    JSON.stringify(left.substories || []) === JSON.stringify(right.substories || []) &&
     JSON.stringify(timestampRecord(left.sync_updated_at)) ===
       JSON.stringify(timestampRecord(right.sync_updated_at))
 }

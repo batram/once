@@ -1,5 +1,5 @@
 import { positionStoryButtons } from "./storyButtonPreferences"
-import { humanTime, sameDiscussion, SubStory } from "@once/core"
+import { humanTime, sameDiscussion, storyDisplayTime, SubStory } from "@once/core"
 import { getOnceClient } from "../client"
 import { requestReading } from "../ReadingSession"
 import { bindLinkBehavior, openStoryUrl } from "./storyLinks"
@@ -117,11 +117,9 @@ function buildInfoBlock(
   }
 
   const time = document.createElement("div")
-  time.innerText = humanTime(sub_story_ob.timestamp)
+  time.innerText = humanTime(storyDisplayTime(sub_story_ob))
   try {
-    time.title = new Date(
-      parseInt(sub_story_ob.timestamp.toString())
-    ).toISOString()
+    time.title = sub_story_ob.timestamp ? new Date(sub_story_ob.timestamp).toISOString() : "Publication time unknown; showing local observation time"
   } catch (e) {
     console.log("date parsing error", sub_story_ob)
   }
@@ -155,7 +153,7 @@ export function renderSubstories(row: StoryListItem): void {
   // One block per discussion: stored stories may list the same one under two
   // URL forms (Lobsters' /s/<id> and /s/<id>/<slug>).
   row.story.substories.forEach((sub) => {
-    if (sub.timestamp && !subs.some((seen) => sameDiscussion(seen.comment_url, sub.comment_url))) subs.push(sub)
+    if (!subs.some((seen) => sameDiscussion(seen.comment_url, sub.comment_url))) subs.push(sub)
   })
 
   subs.forEach((x: SubStory) => {

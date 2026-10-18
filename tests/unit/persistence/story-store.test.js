@@ -232,6 +232,10 @@ function createAttachmentDatabase(initial) {
         state.calls.push(["put", structuredClone(doc)])
         const revision = Number((state.doc?._rev ?? "0-x").split("-")[0]) + 1
         state.doc = { ...doc, _rev: `${revision}-put` }
+        if (doc._attachments?.content?.data) {
+          state.attachment = new Blob([Buffer.from(doc._attachments.content.data, "base64")], { type: "text/html" })
+          state.doc._attachments = { content: { content_type: "text/html", digest: "md5-fake", length: state.attachment.size, stub: true } }
+        }
         return { rev: state.doc._rev }
       },
       async putAttachment(id, name, rev, attachment, type) {
@@ -263,14 +267,13 @@ test("writes pending html as the content attachment and keeps only its stub", as
 
   const saved = await store.saveStory(story)
 
-  assert.deepEqual(state.calls.map(([name]) => name), ["get", "put", "putAttachment", "get"])
+  assert.deepEqual(state.calls.map(([name]) => name), ["get", "put", "get"])
   const [, putDoc] = state.calls[1]
-  assert.equal("_attachments" in putDoc, false, "html never goes inline in the document")
+  assert.equal(Buffer.from(putDoc._attachments.content.data, "base64").toString(), ARTICLE, "the write includes its attachment")
   assert.deepEqual(putDoc.stored_content, { source: "feed", saved_at: 7, fingerprint: putDoc.stored_content.fingerprint })
-  assert.match(putDoc.stored_content.fingerprint, new RegExp(`^${ARTICLE.length}-[0-9a-f]+$`), "the html is fingerprinted in the document")
-  assert.deepEqual(state.calls[2], ["putAttachment", `sto_${story.href}`, "content", "1-put", "text/html"])
+  assert.match(putDoc.stored_content.fingerprint, /^sha256:[0-9a-f]{64}$/)
   assert.equal(await state.attachment.text(), ARTICLE)
-  assert.equal(saved._rev, "2-att")
+  assert.equal(saved._rev, "1-put")
   assert.equal(saved.pendingContent(), undefined, "the html is not kept in memory")
   assert.equal(saved._attachments.content.stub, true)
   assert.equal(saved.has_content(), true)
@@ -298,7 +301,7 @@ test("a plain save carries the stored attachment stubs and does not rewrite cont
   again.read_state = "read"
   again.attachContent(ARTICLE, { source: "feed", saved_at: 7 })
   const saved = await store.saveStory(again)
-  assert.deepEqual(state.calls.map(([name]) => name), ["get"])
+  assert.deepEqual(state.calls.map(([name]) => name), ["get", "getAttachment"])
   assert.equal(saved.pendingContent(), undefined)
   assert.equal(saved._attachments.content.stub, true)
 })
@@ -313,7 +316,7 @@ test("newer content replaces the attachment", async () => {
 
   story.attachContent("<p>From the page</p>", { source: "page", saved_at: 9, title: "Page" })
   const saved = await store.saveStory(story)
-  assert.deepEqual(state.calls.map(([name]) => name), ["get", "put", "putAttachment", "get"])
+  assert.deepEqual(state.calls.map(([name]) => name), ["get", "put", "get"])
   assert.equal(await store.getStoryContent(story.href), "<p>From the page</p>")
   assert.equal(saved.contentSource(), "page")
 })

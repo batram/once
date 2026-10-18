@@ -10,7 +10,7 @@ export const options = {
   settings: {}
 }
 
-import { mintStorySourceId, Story, StorySource, StoryTag } from "@once/core"
+import { mintStorySourceId, Story, storyTimestamp, StorySource, StoryTag } from "@once/core"
 import { ParseContext } from "../registry"
 import { sanitizeSelectorConf } from "../selectorConf"
 
@@ -112,8 +112,8 @@ export function parse(doc: Document, context: ParseContext): Story[] {
         ? (selecti(selectors.comment_href, story_el) as string)
         : ""
       const timestamp = selectors.timestamp
-        ? Date.parse(selecti(selectors.timestamp, story_el) as string)
-        : Date.now()
+        ? storyTimestamp(selecti(selectors.timestamp, story_el) as string)
+        : 0
 
       const new_story = new Story(options.type, href, title, comment_href, timestamp)
 

@@ -1,4 +1,5 @@
-import { mergeStorySyncState, Story } from "@once/core"
+import { mergeStoryAssociations, mergeStorySyncState, Story } from "@once/core"
+import { sha256 } from "./EpochContent"
 
 export interface PouchStoryDatabase {
   allDocs(options: Record<string, unknown>): Promise<{ rows: { doc?: unknown }[] }>
@@ -32,10 +33,9 @@ export interface PouchStoryDatabase {
   ): Promise<{ rev?: string }>
 }
 
-/** The `content` attachment as the platform's binary type: a Blob in the browsers, a Buffer in Node. */
-function contentAttachment(html: string): unknown {
-  if (typeof Blob !== "undefined") return new Blob([html], { type: "text/html" })
-  return Buffer.from(html, "utf8")
+/** The same UTF-8/base64 bytes on every platform, including in the revision hash. */
+function contentAttachment(html: string): string {
+  return btoa(Array.from(new TextEncoder().encode(html), byte => String.fromCharCode(byte)).join(""))
 }
 
 async function attachmentText(attachment: unknown): Promise<string> {
@@ -151,13 +151,10 @@ export class PouchStoryStore<TStory extends Story> {
   }
 
   /**
-   * Writes the story document, then its `content` attachment when the story
-   * carries html that is not stored yet. The document itself always goes out
-   * with the attachment stubs PouchDB already holds: a document put without
-   * them would delete the attachment, and one put with inline data would
-   * re-upload it on every save.
+   * Writes new content and its metadata in one revision. Ordinary story
+   * edits preserve attachment stubs; identical feed content is not rewritten.
    */
-  async saveStory(story: TStory): Promise<TStory> {
+  async saveStory(story: TStory, options: { derivedFilter?: boolean } = {}): Promise<TStory> {
     const pendingContent = story.pendingContent()
     // Every write below can lose a race with replication. The create path is
     // the common one: both devices ingest the same feed item, and the other
@@ -166,7 +163,7 @@ export class PouchStoryStore<TStory extends Story> {
     // "Document update conflict"; a retry now reads that copy and merges.
     const trySave = async (retryCount = 0): Promise<{ rev?: string }> => {
       try {
-        return await this.writeStory(story, pendingContent)
+        return await this.writeStory(story, pendingContent, options)
       } catch (err) {
         if ((err as { status?: number }).status === 409 && retryCount < 3) {
           console.log(
@@ -187,7 +184,8 @@ export class PouchStoryStore<TStory extends Story> {
 
   private async writeStory(
     story: TStory,
-    pendingContent: string | undefined
+    pendingContent: string | undefined,
+    options: { derivedFilter?: boolean }
   ): Promise<{ rev?: string }> {
     const id = this.storyId(story.href)
     let doc: Record<string, unknown>
@@ -199,58 +197,72 @@ export class PouchStoryStore<TStory extends Story> {
       // feed item write the same first revision and replication sees one
       // story, not a conflict. Nothing device-specific may go in: no clock,
       // no key order. Documents created before this keep their ingested_at.
-      fingerprintContent(story, pendingContent)
-      const response = await this.db.put(
-        canonicalDocument(storedAttachments({ ...story.to_obj(), _id: id }))
-      )
+      await fingerprintContent(story, pendingContent)
       story._id = id
-      return pendingContent === undefined
-        ? response
-        : await this.writeContent(story, response.rev, pendingContent)
+      return this.writeDocument(story, canonicalDocument(storedAttachments({ ...story.to_obj(), _id: id })), pendingContent)
     }
 
-    const reconciled = mergeStorySyncState(this.storyFromDocument(doc), story)
+    const stored = this.storyFromDocument(doc)
+    const associations = mergeStoryAssociations(stored, story)
+    const reconciled = mergeStorySyncState(stored, story)
+    if (options.derivedFilter) {
+      reconciled.filter = story.filter
+      reconciled.sync_updated_at = { ...reconciled.sync_updated_at, filter: 0 }
+    }
+    // Parsed metadata belongs to the established record, never a stale save snapshot.
+    story.type = stored.type
+    story.title = stored.title
+    story.timestamp = stored.timestamp
+    story.comment_url = stored.comment_url
+    story.tags = associations.tags
+    story.substories = associations.substories
     story.read_state = reconciled.read_state
     story.stared = reconciled.stared
     story.filter = reconciled.filter
     story.sync_updated_at = reconciled.sync_updated_at
     story._id = doc._id as string
     story._rev = doc._rev as string
+    // An unrelated edit from an older snapshot must not put old content
+    // metadata over the newer attachment whose stubs we preserve below.
+    if (pendingContent === undefined) story.stored_content = doc.stored_content as Story["stored_content"]
     if (story["ingested_at"] === undefined && doc.ingested_at !== undefined) {
       ;(story as Record<string, unknown>)["ingested_at"] = doc.ingested_at
     }
-    fingerprintContent(story, pendingContent)
-    const nextDocument = canonicalDocument(storedAttachments(story.to_obj(), doc))
+    await fingerprintContent(story, pendingContent)
+    const nextDocument = canonicalDocument(storedAttachments({ ...story.to_obj(), timestamp: doc.timestamp,
+      substories: associations.substories }, doc))
+    const mutable = new Set(["read_state", "stared", "filter", "sync_updated_at", "tags", "substories", "bucket", "stored_content"])
+    for (const [key, value] of Object.entries(doc)) {
+      if (!key.startsWith("_") && !mutable.has(key)) nextDocument[key] = value
+    }
     const contentChanged = pendingContent !== undefined &&
-      !sameStoredContent(doc, nextDocument)
+      (!sameStoredContent(doc, nextDocument) || await this.getStoryContent(story.href) !== pendingContent)
     if (!contentChanged) {
+      // A repeated observation/save time does not change the article.
+      story.stored_content = doc.stored_content as Story["stored_content"]
+      if (doc.stored_content === undefined) delete nextDocument.stored_content
+      else nextDocument.stored_content = doc.stored_content
       // Whatever html rode along is already stored; keep the stubs only.
       story._attachments = nextDocument._attachments as TStory["_attachments"]
       if (sameStoredStory(doc, nextDocument)) return { rev: story._rev }
       return await this.db.put(nextDocument)
     }
-    const response = await this.db.put(nextDocument)
-    return await this.writeContent(story, response.rev, pendingContent)
+    return this.writeDocument(story, nextDocument, pendingContent)
   }
 
-  private async writeContent(
+  private async writeDocument(
     story: TStory,
-    rev: string | undefined,
-    html: string
+    document: Record<string, unknown>,
+    html: string | undefined
   ): Promise<{ rev?: string }> {
     const id = this.storyId(story.href)
-    if (!this.db.putAttachment || !rev) {
-      // A database without attachments keeps the html on the story, so a
-      // later save against a capable one still writes it.
-      return { rev }
-    }
-    const response = await this.db.putAttachment(
-      id,
-      "content",
-      rev,
-      contentAttachment(html),
-      "text/html"
-    )
+    if (html === undefined || !this.db.putAttachment) return this.db.put(document)
+    // One revision owns both the fingerprint and bytes. A failed write cannot
+    // leave new metadata labelling an old attachment and fool the next retry.
+    const response = await this.db.put(canonicalDocument({ ...document, _attachments: {
+      ...(document._attachments as Record<string, unknown>),
+      content: { content_type: "text/html", data: contentAttachment(html) }
+    } }))
     // The stubs PouchDB minted (digest, length) replace the html in memory.
     const stored = await this.db.get(id)
     story._attachments = stored._attachments as TStory["_attachments"]
@@ -347,22 +359,14 @@ function canonicalDocument(document: Record<string, unknown>): Record<string, un
 }
 
 /**
- * Records a hash of the html in the story's content meta before it is
- * written. The attachment goes out in a second put whose revision PouchDB
- * hashes without the html (a Blob serializes as `{}`): without this, two
- * devices storing different html on the same revision would mint the same
- * revision id and never exchange their copies.
+ * Records a portable hash of the exact UTF-8 bytes. Migration can validate
+ * the attachment against it without relying on the revision id alone.
  */
-function fingerprintContent(story: Story, html: string | undefined): void {
+async function fingerprintContent(story: Story, html: string | undefined): Promise<void> {
   if (html === undefined || !story.stored_content) return
-  let hash = 0x811c9dc5
-  for (let index = 0; index < html.length; index++) {
-    hash ^= html.charCodeAt(index)
-    hash = Math.imul(hash, 0x01000193)
-  }
   story.stored_content = {
     ...story.stored_content,
-    fingerprint: `${html.length}-${(hash >>> 0).toString(16)}`
+    fingerprint: `sha256:${await sha256(new TextEncoder().encode(html))}`
   }
 }
 
@@ -373,8 +377,10 @@ function sameStoredContent(
 ): boolean {
   const attachments = stored._attachments as Record<string, unknown> | undefined
   if (!attachments?.content) return false
-  return JSON.stringify(canonicalValue(stored.stored_content)) ===
-    JSON.stringify(canonicalValue(incoming.stored_content))
+  const meaningful = (value: unknown) => Object.fromEntries(Object.entries(
+    value && typeof value === "object" ? value : {}).filter(([key]) => key !== "saved_at"))
+  return JSON.stringify(canonicalValue(meaningful(stored.stored_content))) ===
+    JSON.stringify(canonicalValue(meaningful(incoming.stored_content)))
 }
 
 function sameStoredStory(

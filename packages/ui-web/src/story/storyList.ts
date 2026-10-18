@@ -1,4 +1,4 @@
-import { Story, SortableStory } from "@once/core"
+import { Story, SortableStory, storyDisplayTime } from "@once/core"
 import { StoryListItem } from "./StoryListItem"
 import { applyStoryFilter } from "@once/core"
 import { CachePolicy, StoryChangeDetail, OnceClient } from "@once/app"
@@ -201,7 +201,7 @@ function storyElementsForHref(href: string): StoryListItem[] {
 function sortable_story(elem: StoryListItem): SortableStory<StoryListItem> {
   return {
     read_state: elem.story.read_state as "unread" | "read" | "skipped",
-    timestamp: elem.story.timestamp,
+    timestamp: storyDisplayTime(elem.story),
     el: elem
   }
 }

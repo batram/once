@@ -388,7 +388,7 @@ export interface StoryStorePort {
    * Writes the story; html the story carries through `attachContent` becomes
    * its `content` attachment and is dropped from the returned story.
    */
-  saveStory(story: Story): Promise<Story>
+  saveStory(story: Story, options?: { derivedFilter?: boolean }): Promise<Story>
   deleteStory(url: string): Promise<void>
   /** The stored article html, or null when the story has none. */
   getStoryContent(url: string): Promise<string | null>

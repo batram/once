@@ -9,7 +9,7 @@ export const options = {
   settings: {}
 }
 
-import { Story } from "@once/core"
+import { Story, storyTimestamp } from "@once/core"
 
 export function parse(doc: Document): Story[] {
   //Parse as RSS and not HTML ...
@@ -28,7 +28,7 @@ export function parse(doc: Document): Story[] {
     if (!updated || !href || !title) {
       return []
     }
-    const timestamp = Date.parse(updated)
+    const timestamp = storyTimestamp(updated)
 
     return [
       new Story(options.type, href, title, story.querySelector("link")?.href ?? "", timestamp)

@@ -63,7 +63,7 @@ test("a winners-only copy keeps every winner and drops losing branches", async t
   const after = await censusRevisions(epoch)
   assert.equal(after.extraLeaves, 0)
   assert.equal(after.deletedDocuments, 1, "deleted documents move as tombstones")
-  assert.deepEqual(await verifyWinningRevisions(server, epoch), { ok: true, mismatched: [], conflicted: [], extra: [] })
+  assert.deepEqual(await verifyWinningRevisions(server, epoch), { ok: true, mismatched: [], conflicted: [], extra: [], contentMismatched: [], unresolved: [] })
 
   const copied = await epoch.get("sto_b", { attachments: true })
   assert.equal(Buffer.from(copied._attachments.content.data, "base64").toString(), "<p>B</p>")
@@ -117,6 +117,8 @@ async function flipWinner(source, other) {
   await other.put({ ...b, side: "b2" })
   await other.replicate.to(source)
   assert.equal((await source.get("sto_flip")).side, "b2", "the longer branch wins")
+  const winner = await source.get("sto_flip", { conflicts: true })
+  for (const rev of winner._conflicts ?? []) await source.remove("sto_flip", rev)
 }
 
 test("a resumed copy refuses a winner that switched branches instead of keeping both", async t => {

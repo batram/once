@@ -90,7 +90,10 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
     current = { service, generation, url, target }
     await service.start()
   }
-  const restart = () => void connect().catch((error) => console.error("Tab sync could not start", error))
+  const restart = () => void connect().catch((error) => {
+    if (error instanceof SyncEpochPendingError) void api.alarms.create(RETRY_ALARM, { delayInMinutes: 1 })
+    else console.error("Tab sync could not start", error)
+  })
 
   api.storage.onChanged.addListener((changes, area) => {
     if (area === "sync" && Object.hasOwn(changes, "sync_url")) restart()

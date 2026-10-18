@@ -58,7 +58,7 @@ test("retries back off, stay quiet, and recheck the protocol before replication"
     assert.equal(diagnostics.length, 0)
     assert.match(warnings.mock.calls[2].arguments[0], /"retryInMs":12000/)
     offline = false
-    await remote.put({ _id: "once_sync_compat", schema: 1, minSyncProtocol: 4 })
+    await remote.put({ _id: "once_sync_compat", schema: 1, minSyncProtocol: 5 })
     t.mock.timers.tick(12000); await flush()
     assert.equal(statuses.at(-1).state, "update-required")
     assert.equal(diagnostics[0].operation, "sync.compatibility")

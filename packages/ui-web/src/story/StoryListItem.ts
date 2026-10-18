@@ -372,7 +372,6 @@ export class StoryListItem extends HTMLElement {
   toggleBookmark(): void {
     this.star_btn.classList.add("user_interaction")
     const value = !this.story.stared
-    this.story.stared = value
     void getOnceClient().persistStoryChange(this.story.href, "stared", value)
   }
 
