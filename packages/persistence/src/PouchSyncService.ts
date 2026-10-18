@@ -343,16 +343,19 @@ export class PouchSyncService {
     this.settingsReplicatedHandlers.forEach((handler) => handler())
 
     // Other devices' tabs show soon after connecting, before the stories.
+    // The id lists below differ on every connection, and PouchDB names a
+    // checkpoint after them: a checkpoint could never be reused, and each
+    // one stayed behind as a `_local` document (1,217 on one desktop).
     const tabDocIds = await this.findTabDocIds(remote, generation)
     if (tabDocIds.length > 0) {
-      await replicateStage("Syncing tabs from other devices…", { doc_ids: tabDocIds })
+      await replicateStage("Syncing tabs from other devices…", { doc_ids: tabDocIds, checkpoint: false })
     }
 
     const loadedStoryIds = Array.from(new Set(getLoadedStoryIds?.() ?? []))
     if (loadedStoryIds.length > 0) {
       await replicateStage(
         "Refreshing loaded stories…",
-        { doc_ids: loadedStoryIds },
+        { doc_ids: loadedStoryIds, checkpoint: false },
         "foreground"
       )
     }
@@ -362,7 +365,7 @@ export class PouchSyncService {
       await replicateStage(
         (stageChanges) =>
           `Loading newest stories (${Math.min(stageChanges, newestIds.length)}/${newestIds.length})…`,
-        { doc_ids: newestIds },
+        { doc_ids: newestIds, checkpoint: false },
         "foreground"
       )
     }
@@ -505,15 +508,19 @@ export class PouchSyncService {
     }, 30000)
   }
 
-  /** Checks compatibility, then follows the database's epoch: the remote to replicate with, or null when this session ends here. */
+  /**
+   * Follows the database's epoch, then checks compatibility where the data
+   * is: the remote to replicate with, or null when this session ends here.
+   * The epoch comes first so a device that moved never contacts the old
+   * database, which may be gone.
+   */
   private async preflight(configured: string | PouchSyncDatabase, configuredUrl: string, generation: number): Promise<{ remote: PouchSyncDatabase; url: string } | null> {
     if (typeof configured === "string") throw new Error("Sync compatibility checks require a database transport")
     const current = () => this.generation === generation
-    await this.compatibility.check(configured, configuredUrl, 1, current)
     const open = (url: string) => url === configuredUrl ? configured : this.createRemote(url)
-    const resolution = current() ? await resolveSyncEpoch(configuredUrl, url => readSyncEpochMarker(open(url)), this.epoch, copied => {
+    const resolution = await resolveSyncEpoch(configuredUrl, url => readSyncEpochMarker(open(url)), this.epoch, copied => {
       if (current()) this.updateStatus({ state: "syncing", message: `Moving to the cleaned-up sync database (${copied} copied)…` })
-    }) : null
+    })
     if (!resolution || !current()) return null
     if (!("url" in resolution)) {
       this.updateStatus({ state: "syncing", message: "Restarting on the cleaned-up local database…" })
@@ -521,7 +528,7 @@ export class PouchSyncService {
     }
     const remote = open(resolution.url) as PouchSyncDatabase
     this.remoteDatabase = remote
-    if (remote !== configured) await this.compatibility.check(remote, resolution.url, 1, current)
+    await this.compatibility.check(remote, resolution.url, 1, current)
     if (!current()) return null
     this.stopWatch = watchSyncCompatibility(remote,
       () => this.compatibility.check(remote, resolution.url, 1, current).then(() => assertNoSyncEpoch(remote)),

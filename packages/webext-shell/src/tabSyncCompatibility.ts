@@ -1,7 +1,12 @@
-import { PouchSyncCompatibility, couchHttpTabDocs } from "@once/persistence"
+import { assertNoSyncEpoch, PouchSyncCompatibility, couchHttpTabDocs } from "@once/persistence"
 import type { SecretStorePort } from "@once/app"
 
-/** Background tab publication bypasses Pouch replication, so every HTTP operation checks too. */
+/**
+ * Background tab publication bypasses Pouch replication, so every HTTP
+ * operation checks too: the protocol marker, and that the database does not
+ * announce a move, since a write made while it is copied away would be
+ * stranded there.
+ */
 export function tabSyncCompatibility(url: string, secrets: SecretStorePort, allowed: () => Promise<boolean>): () => Promise<void> {
   const metadata = couchHttpTabDocs(url, fetch.bind(globalThis), allowed)
   const gate = new PouchSyncCompatibility({
@@ -22,5 +27,9 @@ export function tabSyncCompatibility(url: string, secrets: SecretStorePort, allo
     put: (doc: Record<string, unknown>) => metadata.put(doc)
   }
   let initialized = false
-  return async () => { await gate.check(remote, url, 1, () => true, !initialized); initialized = true }
+  return async () => {
+    await gate.check(remote, url, 1, () => true, !initialized)
+    initialized = true
+    await assertNoSyncEpoch(remote)
+  }
 }

@@ -1,5 +1,5 @@
 import { syncDatabaseName } from "@once/core"
-import { copyWinningRevisions, EpochCopyDatabase, verifyWinningRevisions } from "./PouchEpochCopy"
+import { copyWinningRevisions, EpochCopyDatabase, EpochCopyDivergedError, verifyWinningRevisions } from "./PouchEpochCopy"
 import { PouchMaintenanceService } from "./PouchMaintenanceService"
 
 export interface EpochLocalDatabase extends EpochCopyDatabase {
@@ -99,14 +99,24 @@ export class LocalDatabaseEpoch {
       if ((await this.state()).retired || activeLocalDatabaseName(this.base, this.storage) !== this.name) return
       this.assertPointerWritable()
       const targetName = `${this.base}@${syncDatabaseName(destination)}`
-      const target = this.open(targetName)
+      let target = this.open(targetName)
       let copied = 0
       let verified = false
       for (let pass = 0; pass < MAX_PASSES && !verified; pass++) {
-        const result = await copyWinningRevisions(this.db, target, `local:${this.name}`, {
-          onProgress: (step) => progress(copied + step.copied)
-        })
-        copied += result.copied
+        try {
+          const result = await copyWinningRevisions(this.db, target, `local:${this.name}`, {
+            onProgress: (step) => progress(copied + step.copied)
+          })
+          copied += result.copied
+        } catch (error) {
+          // An interrupted earlier rebuild copied a branch that has lost
+          // since. Nobody uses the copy yet: start it over.
+          if (!(error instanceof EpochCopyDivergedError) || !target.destroy) throw error
+          await target.destroy()
+          target = this.open(targetName)
+          copied = 0
+          continue
+        }
         verified = (await verifyWinningRevisions(this.db, target)).ok
       }
       if (!verified) throw new Error("The local database changed repeatedly while it was moved; the move is retried")

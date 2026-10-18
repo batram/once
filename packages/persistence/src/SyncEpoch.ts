@@ -11,16 +11,15 @@ export function isSyncMetadataId(id: string | undefined): boolean {
 
 interface EpochMarkerSource { get?(id: string): Promise<Record<string, unknown>> }
 
-/** The epoch marker of `remote`, or null; a missing database rejects with `missingDatabase`. */
+/** The epoch marker of `remote`, or null; a missing database rejects. */
 export async function readSyncEpochMarker(remote: string | EpochMarkerSource): Promise<unknown> {
   if (typeof remote === "string" || !remote.get) throw new Error("Sync epoch checks require a database transport")
   try {
     return await remote.get(SYNC_EPOCH_ID)
   } catch (error) {
     const { status, reason } = error as { status?: number; reason?: string }
-    if (status !== 404) throw error
-    if (!/database/i.test(String(reason))) return null
-    throw Object.assign(new Error("The sync database could not be found"), { status, missingDatabase: true })
+    if (status === 404 && !/database/i.test(String(reason))) return null
+    throw error
   }
 }
 
@@ -34,11 +33,7 @@ export class SyncEpochPendingError extends Error {
   constructor() { super("Sync paused while the sync database is cleaned up. It resumes by itself.") }
 }
 
-/**
- * Reads the epoch marker of the database at a URL: the marker, null when
- * there is none, or a rejection. A rejection with `missingDatabase` means
- * the database itself is gone.
- */
+/** Reads the epoch marker of the database at a URL: the marker, null when there is none, or a rejection. */
 export type SyncEpochReader = (url: string) => Promise<unknown>
 
 const MAX_HOPS = 5
@@ -72,6 +67,10 @@ export type SyncEpochResolution =
  * lead on from there. Never lets a local database replicate with an epoch
  * it was not rebuilt for, since it would hand the new database the losing
  * branches the move left behind.
+ *
+ * A device that already moved starts from the database it moved to and
+ * never contacts the old one again: the old one may be deleted, and the
+ * first request of a PouchDB transport would try to create it.
  */
 export async function resolveSyncEpoch(
   configuredUrl: string,
@@ -87,21 +86,10 @@ export async function resolveSyncEpoch(
     local?.restart()
     return { restarting: true }
   }
-  const moved = state.destination
-  let effective: string
-  try {
-    effective = await followSyncEpoch(configuredUrl, read)
-  } catch (error) {
-    // The old database may be deleted once every device moved; a device
-    // that already moved knows where to.
-    if (!moved || !(error as { missingDatabase?: boolean }).missingDatabase) throw error
-    effective = await followSyncEpoch(epochSiblingUrl(configuredUrl, syncDatabaseName(moved)), read)
-  }
+  const start = state.destination ? epochSiblingUrl(configuredUrl, syncDatabaseName(state.destination)) : configuredUrl
+  const effective = await followSyncEpoch(start, read)
   const destination = syncDestination(effective)
-  if (destination === (moved ?? syncDestination(configuredUrl))) return { url: effective }
-  if (moved && destination === syncDestination(configuredUrl)) {
-    throw new Error("Sync epoch metadata was removed. This device already moved to a newer database; restore the metadata before syncing.")
-  }
+  if (destination === syncDestination(start)) return { url: effective }
   if (!local) throw new Error("Sync epoch metadata is unsupported here: this app cannot move its local data to the new database.")
   await local.rebuild(destination, progress)
   local.restart()

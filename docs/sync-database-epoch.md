@@ -88,16 +88,24 @@ after the compatibility check and before any replication):
   - The old database is marked `_local/once-sync-epoch: { retired }` first. If the pointer
     is ever lost, the old database opens, refuses to sync, restores the pointer, and
     restarts.
-- Each rebuilt database records the destination it was built for, and syncs only with
-  that destination. If the old database's marker disappears afterwards, sync stops with
-  "metadata needs attention" rather than falling back. If the old database itself is
-  deleted, the remembered destination is used.
+- Each rebuilt database records the destination it was built for. From then on the device
+  starts from that destination and never contacts the old database again, not even for
+  its compatibility marker. The old one may be deleted, and a PouchDB transport's first
+  request would otherwise try to create it again. Markers on the new database still lead
+  on to a later epoch.
+- A rebuild interrupted before a branch switch would leave both branches in its copy.
+  `copyWinningRevisions` refuses to write a winner that does not descend from what the
+  target already holds (`EpochCopyDivergedError`), and the local rebuild then starts its
+  copy over in an empty database.
 - After the first successful sync on the new epoch, the replaced local database is
   destroyed.
 - Other windows of the same app restart when the pointer changes (`storage` event), and
   the rebuild holds a Web Lock, so only one window moves the data.
 - The webext background, which publishes tab documents over plain HTTP, follows the same
-  markers and re-resolves them on every heartbeat.
+  markers and remembers where they led. Every request reads the target's marker along with
+  its compatibility marker. A move announced there ends the connection before the write,
+  and the background reconnects a minute later, so nothing lands in a database being
+  copied away.
 - The marker never replicates (`isSyncMetadataId`), and `copy` excludes it, so a new
   epoch cannot point at itself.
 
@@ -125,7 +133,10 @@ new database is therefore a manual administrator step.
 1. **Before you start.** Update every device to a version with sync protocol 3. Older ones
    will show "update required" from step 3 on and stay paused until they update.
 2. **Prepare (admin).** Create `once_e2` and copy `once/_security` to it. Optionally run
-   `analyze` for the numbers, and a dry-run `copy` to see how long it takes.
+   `analyze` for the numbers. For a dry-run `copy` that shows how long the copy takes, use a
+   scratch database, not `once_e2`: a document whose winner switches branches before the
+   real copy cannot be resumed (`copy` stops with "the copy diverged"), and then needs an
+   empty target.
 3. **Freeze.** Run `freeze`. This raises the protocol and writes `preparing`, and clients
    pause within a minute. To undo it, run `abort`, which works only until step 5.
 4. **Copy.** Run `copy` until a run copies 0 documents, then run `verify`.

@@ -332,6 +332,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async t =
     "sto_loaded",
     "sto_visible"
   ])
+  assert.equal(replications[1].options.checkpoint, false, "a per-connection id list would leave a checkpoint behind every time")
   assert.equal(statuses.at(-1).message, "Refreshing loaded stories…")
 
   replications[1].chain.emit("change", {
@@ -343,6 +344,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async t =
     "sto_newest",
     "sto_next"
   ])
+  assert.equal(replications[2].options.checkpoint, false)
   assert.match(statuses.at(-1).message, /newest stories/)
 
   replications[2].chain.emit("change", {

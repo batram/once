@@ -5,8 +5,11 @@ const os = require("node:os")
 const path = require("node:path")
 const PouchDB = require("pouchdb")
 const {
+  activeLocalDatabaseName,
   censusRevisions,
   copyWinningRevisions,
+  EpochCopyDivergedError,
+  LocalDatabaseEpoch,
   verifyWinningRevisions
 } = require("../../../packages/persistence/dist")
 
@@ -105,6 +108,54 @@ test("a second run copies only what changed, and verification names drift", asyn
   const again = await copyWinningRevisions(server, epoch, "server")
   assert.equal(again.copied, 1)
   assert.equal((await verifyWinningRevisions(server, epoch)).ok, true)
+})
+
+/** After a first copy, replication brings a longer, unrelated branch that now wins. */
+async function flipWinner(source, other) {
+  await other.put({ _id: "sto_flip", side: "b" })
+  const b = await other.get("sto_flip")
+  await other.put({ ...b, side: "b2" })
+  await other.replicate.to(source)
+  assert.equal((await source.get("sto_flip")).side, "b2", "the longer branch wins")
+}
+
+test("a resumed copy refuses a winner that switched branches instead of keeping both", async t => {
+  const [server, other, target, fresh] = await databases(t, "server", "other", "target", "fresh")
+  await server.put({ _id: "sto_flip", side: "a" })
+  await copyWinningRevisions(server, target, "server")
+  await flipWinner(server, other)
+
+  await assert.rejects(copyWinningRevisions(server, target, "server"), error =>
+    error instanceof EpochCopyDivergedError && error.ids.includes("sto_flip"))
+  assert.equal((await censusRevisions(target)).extraLeaves, 0, "nothing of the new branch was written")
+  await copyWinningRevisions(server, fresh, "server")
+  assert.equal((await verifyWinningRevisions(server, fresh)).ok, true, "an empty target takes the copy")
+})
+
+test("a local rebuild interrupted before a branch switch starts its copy over", async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "once-epoch-rebuild-"))
+  const opened = []
+  const open = name => { const db = new PouchDB(name); opened.push(db); return db }
+  t.after(async () => { await Promise.all(opened.map(db => db.close().catch(() => undefined))); await fs.rm(dir, { recursive: true, force: true }) })
+  const base = path.join(dir, "phone")
+  const local = open(base), other = open(path.join(dir, "other"))
+  await local.put({ _id: "sto_flip", side: "a" })
+  // An earlier rebuild copied branch a, then the app stopped.
+  const interrupted = new PouchDB(`${base}@once_e2`)
+  await copyWinningRevisions(local, interrupted, `local:${base}`)
+  await interrupted.close()
+  await flipWinner(local, other)
+
+  const storage = new Map()
+  const pointer = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) }
+  const epoch = new LocalDatabaseEpoch(base, base, local, open, () => {}, pointer)
+  await epoch.rebuild("https://couch.test/once_e2")
+
+  const rebuilt = opened.at(-1)
+  assert.equal(rebuilt.name, `${base}@once_e2`)
+  assert.equal((await rebuilt.get("sto_flip")).side, "b2")
+  assert.equal((await censusRevisions(rebuilt)).extraLeaves, 0, "only the current winner, not both branches")
+  assert.equal(activeLocalDatabaseName(base, pointer), `${base}@once_e2`)
 })
 
 test("excluded documents stay behind and do not count as drift", async t => {

@@ -148,7 +148,7 @@ test("a lost pointer reopens the retired database, which restores the switch ins
   assert.notEqual(reopened.status().state, "up-to-date")
 })
 
-test("a moved device refuses an epoch marker that disappeared, and an unmoved one cannot skip the rebuild", async t => {
+test("a moved device never contacts the old database again, so it may be deleted", async t => {
   const w = await world(t)
   const first = w.start()
   first.service.syncFrom(URL_)
@@ -157,13 +157,26 @@ test("a moved device refuses an epoch marker that disappeared, and an unmoved on
   await moveServer(w.server)
   first.service.syncFrom(URL_)
   await until(() => first.restarts === 1, "the rebuild")
-  await w.server.once.remove(await w.server.once.get("once_sync_epoch"))
 
+  // Retired by an administrator: any request would be a 404, or would try
+  // to create the database again through PouchDB's setup request.
+  const old = w.server.once
+  const contacted = []
+  w.server.once = new Proxy({}, { get: (_, name) => (...args) => {
+    contacted.push(String(name))
+    return Promise.reject(Object.assign(new Error("Database does not exist."), { status: 404, reason: "Database does not exist." }))
+  } })
+  t.after(() => { w.server.once = old })
   const moved = w.start()
   moved.service.syncFrom(URL_)
-  await until(() => moved.status()?.state === "error", "the refusal")
-  assert.match(moved.status().message, /metadata needs attention/)
+  await until(() => moved.status()?.state === "up-to-date", "the sync on the new database")
+  assert.deepEqual(contacted, [], "the deleted database is never contacted")
+  await moved.db.put({ _id: "sto_after", title: "After" })
+  await until(async () => Boolean(await w.server.once_e2.get("sto_after").catch(() => null)), "the edit on the new database")
+})
 
+test("a client without an epoch mover refuses a ready epoch", async t => {
+  const w = await world(t)
   const plain = w.open(path.join(path.dirname(w.base), "plain"))
   const unsupported = new PouchSyncService(plain, () => {}, url => w.server[syncDatabaseName(url)])
   const statuses = []

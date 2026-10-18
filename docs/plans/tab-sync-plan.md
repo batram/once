@@ -47,7 +47,7 @@ The goal also includes:
   - **`notifyRemoteChanges` at :450 drops every doc whose id is not `sto_`.**
 - `packages/persistence/src/PouchMaintenanceService.ts`: conflict cleanup at :102. It runs once after
   the initial pull and **before** live sync.
-- `pouchOptions.ts`: `revs_limit: 20`, `auto_compaction`.
+- `pouchOptions.ts`: `revs_limit: 20` (100 since 2026-10-18, see `docs/sync-database-epoch.md`), `auto_compaction`.
 - `packages/app/src/AppRuntime.ts`
   - Remote changes are handled at :136–157, and only stories reach the reconciler.
   - The **local DB observer** at :158–178 sends `addon_vault` to add-ons, every other non-`sto_` doc to

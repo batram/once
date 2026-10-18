@@ -11,7 +11,8 @@ import {
 const TEST_TIMING_KEY = "once:e2e:tabsync-timing"
 import { installTabSyncSending } from "./tabSyncSending"
 import type { ListStorePort, SyncConsentPort } from "@once/app"
-import { couchHttpTabDocs, followSyncEpoch, readSyncEpochMarker } from "@once/persistence"
+import { couchHttpTabDocs, followSyncEpoch, readSyncEpochMarker, SyncEpochPendingError } from "@once/persistence"
+import { epochSiblingUrl, syncDatabaseName, syncDestination } from "@once/core"
 import { createFirefoxSyncConsent, deviceName, WebExtSecretStorage, WebExtSyncStorage } from "@once/platform-webext/backgroundPorts"
 import { installTabSyncCapture } from "./tabSyncCapture"
 import { installTabSyncTimes } from "./tabSyncTimes"
@@ -52,15 +53,20 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
     // Each request re-checks: consent can be withdrawn and the URL replaced at any time.
     const allowed = async () => generation === connection && !await gate.check(url, "external").catch(() => "unavailable")
     // The bound URL may announce a newer epoch; tab documents go where the data is now.
-    const target = await syncEpochTarget(url, allowed)
+    const target = await syncEpochTarget(url, secrets, allowed)
     const checkCompatibility = tabSyncCompatibility(target, secrets, allowed)
     await checkCompatibility()
     if (generation !== connection) return
     const docs = couchHttpTabDocs(target, fetch.bind(globalThis), async () => {
       if (!await allowed()) return false
+      // A move announced on the target ends this connection before the
+      // write: nothing may land in a database that is being copied away.
       try { await checkCompatibility(); return generation === connection }
       catch (error) {
-        if (generation === connection) { ++connection; current?.service.dispose(); current = null }
+        if (generation === connection) {
+          ++connection; current?.service.dispose(); current = null
+          if (error instanceof SyncEpochPendingError) void api.alarms.create(RETRY_ALARM, { delayInMinutes: 1 })
+        }
         throw error
       }
     })
@@ -103,7 +109,7 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
       if (current) {
         current.service.publishSoon(); current.service.refreshSoon(); current.service.maintainSoon()
         const { url, target } = current
-        void syncEpochTarget(url, async () => !await gate.check(url, "external").catch(() => "unavailable")).then((now) => { if (now !== target) restart() }, restart)
+        void syncEpochTarget(url, secrets, async () => !await gate.check(url, "external").catch(() => "unavailable")).then((now) => { if (now !== target) restart() }, restart)
       } else restart()
     }
   })
@@ -111,15 +117,29 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
   restart()
 }
 
-/** The database the bound URL's epoch markers lead to; rejects while a move is being prepared. */
-function syncEpochTarget(url: string, allowed: () => Promise<boolean>): Promise<string> {
-  return followSyncEpoch(url, (hop) => readSyncEpochMarker({
-    get: async (id) => {
-      const doc = await couchHttpTabDocs(hop, fetch.bind(globalThis), allowed).get(id)
+const EPOCH_TARGET_KEY = "once:background-sync:epoch-target"
+
+/**
+ * The database the bound URL's epoch markers lead to; rejects while a move
+ * is being prepared. Starts from the last database it moved to, so a deleted
+ * old database is never contacted again.
+ */
+async function syncEpochTarget(url: string, secrets: WebExtSecretStorage, allowed: () => Promise<boolean>): Promise<string> {
+  const remembered = JSON.parse(await secrets.get(EPOCH_TARGET_KEY) || "null") as { from?: string; name?: string } | null
+  const start = remembered?.from === syncDestination(url) && remembered.name ? epochSiblingUrl(url, remembered.name) : url
+  const target = await followSyncEpoch(start, (hop) => readSyncEpochMarker(epochMarkers(hop, allowed)))
+  if (target !== start) await secrets.set(EPOCH_TARGET_KEY, JSON.stringify({ from: syncDestination(url), name: syncDatabaseName(target) }))
+  return target
+}
+
+function epochMarkers(url: string, allowed: () => Promise<boolean>) {
+  return {
+    get: async (id: string) => {
+      const doc = await couchHttpTabDocs(url, fetch.bind(globalThis), allowed).get(id)
       if (!doc) throw { status: 404, reason: "missing" }
       return doc
     }
-  }))
+  }
 }
 
 /** The synced tab sync settings, read straight from the database. */

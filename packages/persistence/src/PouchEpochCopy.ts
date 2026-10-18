@@ -34,6 +34,35 @@ export interface EpochCopyDatabase {
   ): Promise<Array<{ id?: string; error?: string; reason?: string }>>
   get(id: string, options?: Record<string, unknown>): Promise<Record<string, unknown>>
   put(doc: Record<string, unknown>): Promise<{ rev?: string }>
+  allDocs(options: Record<string, unknown>): Promise<{
+    rows: Array<{ key?: string; error?: string; value?: { rev?: string; deleted?: boolean } }>
+  }>
+}
+
+/**
+ * The source's winner no longer descends from what an earlier run copied:
+ * replication made another branch win in between. Writing it would leave
+ * both branches in the target, so the copy must start over in an empty one.
+ */
+export class EpochCopyDivergedError extends Error {
+  constructor(readonly ids: string[]) {
+    super(`The copy diverged from the source (${ids.slice(0, 3).join(", ")}${ids.length > 3 ? ", …" : ""}): another branch won since an earlier run. Copy again into an empty database.`)
+  }
+}
+
+/** Refuses a batch unless every document the target already holds is an ancestor of the winner being copied. */
+async function assertFastForward(target: EpochCopyDatabase, docs: Array<Record<string, unknown>>): Promise<void> {
+  const existing = await target.allDocs({ keys: docs.map((doc) => String(doc._id)) })
+  const byId = new Map(docs.map((doc) => [String(doc._id), doc]))
+  const diverged = existing.rows.filter((row) => {
+    const held = row.value?.rev
+    if (!row.key || !held) return false
+    const revisions = byId.get(row.key)?._revisions as { start?: number; ids?: string[] } | undefined
+    const [position, hash] = held.split("-")
+    const index = Number(revisions?.start) - Number(position)
+    return revisions?.ids?.[index] !== hash
+  }).map((row) => String(row.key))
+  if (diverged.length > 0) throw new EpochCopyDivergedError(diverged)
 }
 
 export interface EpochCopyOptions {
@@ -90,6 +119,7 @@ export async function copyWinningRevisions(
         }
         return doc
       })
+      await assertFastForward(target, docs)
       const written = await target.bulkDocs(docs, { new_edits: false })
       const failure = written.find((result) => result.error)
       if (failure) {
