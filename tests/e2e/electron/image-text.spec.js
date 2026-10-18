@@ -467,11 +467,15 @@ test("find next and previous bring the image back for matches in its words, and 
     await away()
     // On the empty spacer above the page's match, clear of the image and its link.
     const spot = await inPage(app, "(() => { const r=document.querySelector('.spacer').getBoundingClientRect(); return {x:r.left+40, y:Math.max(r.top,0)+40} })()")
+    // sendInputEvent returns before the page handles the click, and a find
+    // request sent then can overtake it and continue from the words instead.
+    await inPage(app, "window.clickLanded = new Promise(resolve => addEventListener('mouseup', resolve, { once: true, capture: true })); true")
     await app.evaluate(({ webContents }, { url, spot }) => {
       const tab = webContents.getAllWebContents().find(c => c.getURL() === url)
       tab.sendInputEvent({ type: "mouseDown", ...spot, button: "left", clickCount: 1 })
       tab.sendInputEvent({ type: "mouseUp", ...spot, button: "left", clickCount: 1 })
     }, { url: `${server.origin}/`, spot })
+    await inPage(app, "window.clickLanded.then(() => true)")
     await step({ step: "forward" }, 1)
     await expect.poll(() => inPage(app, inView("#end"))).toBe(true)
     expect(await inPage(app, inView("img"))).toBe(false)
