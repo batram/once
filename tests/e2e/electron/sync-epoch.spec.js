@@ -31,7 +31,14 @@ test("an installed client keeps local preferences and its old database through a
     await source.put({ _id: "once_sync_epoch", schema: 1, state: "ready", next: "once_e2" })
     app = await launchApp({ userData: profile, env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
     const pointerKey = "once:local-database:once_electron_v2"
-    await expect.poll(() => app.window.evaluate(key => localStorage.getItem(key), pointerKey), { timeout: 30000 }).not.toBeNull()
+    const readPointer = async () => {
+      try { return await app.window.evaluate(key => localStorage.getItem(key), pointerKey) }
+      catch (error) {
+        if (error.message.includes("Execution context was destroyed")) return null
+        throw error
+      }
+    }
+    await expect.poll(readPointer, { timeout: 30000 }).not.toBeNull()
     const pointer = await app.window.evaluate(key => localStorage.getItem(key), pointerKey)
     expect(await app.window.evaluate(() => localStorage.getItem("once:epoch-test-local-preference"))).toBe("keep-me")
     const databases = await app.window.evaluate(async () => (await indexedDB.databases()).map(db => db.name))
@@ -39,7 +46,7 @@ test("an installed client keeps local preferences and its old database through a
     expect(databases).toContain("_pouch_" + JSON.parse(pointer).name)
     await app.window.evaluate(key => localStorage.removeItem(key), pointerKey)
     await app.window.reload()
-    await expect.poll(() => app.window.evaluate(key => localStorage.getItem(key), pointerKey), { timeout: 30000 }).toBe(pointer)
+    await expect.poll(readPointer, { timeout: 30000 }).toBe(pointer)
     expect(await app.window.evaluate(() => localStorage.getItem("once:epoch-test-local-preference"))).toBe("keep-me")
   } finally {
     if (app) await closeApp(app.electronApp, app.userData)
