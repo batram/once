@@ -17,11 +17,16 @@ function buildMacImageText() {
   const source = path.resolve(__dirname, "../native/ImageText.swift")
   const output = path.join(directory, "once-image-text")
   const entitlements = path.resolve(__dirname, "../native/image-text.entitlements.plist")
-  if (upToDate(output, source) && upToDate(output, entitlements)) return
+  // A sandboxed command-line tool needs a bundle identifier from an Info.plist
+  // bound into its signature (macOS 27 traps in libsecinit without one), so the
+  // plist is linked into __TEXT,__info_plist where codesign picks it up.
+  const infoPlist = path.resolve(__dirname, "../native/image-text.Info.plist")
+  if ([source, entitlements, infoPlist].every(input => upToDate(output, input))) return
   fs.mkdirSync(directory, { recursive: true })
   for (const arch of ["arm64", "x86_64"]) {
     run("xcrun", ["swiftc", "-O", "-target", `${arch}-apple-macosx12.0`,
-      "-module-cache-path", path.join(directory, "module-cache"), source, "-o", `${output}-${arch}`])
+      "-module-cache-path", path.join(directory, "module-cache"), source, "-o", `${output}-${arch}`,
+      "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist", "-Xlinker", infoPlist])
   }
   run("xcrun", ["lipo", "-create", `${output}-arm64`, `${output}-x86_64`, "-output", output])
   run("codesign", ["--force", "--sign", "-", "--identifier", "app.once.image-text", "--entitlements", entitlements, output])
