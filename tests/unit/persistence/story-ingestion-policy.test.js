@@ -4,7 +4,7 @@ const fs = require("node:fs/promises")
 const os = require("node:os")
 const path = require("node:path")
 const PouchDB = require("pouchdb")
-const { Story, storyDisplayTime } = require("../../../packages/core/dist")
+const { Story, storyDisplayTime, normalizeFeedContent } = require("../../../packages/core/dist")
 const { PouchStoryStore, PouchMaintenanceService } = require("../../../packages/persistence/dist")
 
 async function fixture(t) {
@@ -145,4 +145,30 @@ test("maintenance leaves distinct saved attachment bytes available for explicit 
   })), { new_edits: false })
   await new PouchMaintenanceService(db, () => {}, e => { throw e }).run()
   assert.equal((await db.get("sto_test", { conflicts: true }))._conflicts.length, 1)
+})
+
+test("feed normalization removes only hidden WordPress nonces and keeps page captures unchanged", () => {
+  const volatile = '<input type="hidden" name="_wpnonce" value="random" />'
+  const meaningful = '<p>Article</p><input name="_wpnonce" value="visible"><input type="hidden" name="other" value="keep">'
+  assert.equal(normalizeFeedContent(meaningful + volatile), meaningful)
+  assert.equal(normalizeFeedContent("<INPUT VALUE='random' NAME='_wpnonce' TYPE='HIDDEN'>"), "")
+  assert.equal(normalizeFeedContent('<input data-note="name=\'_wpnonce\'" type="hidden" value="keep">'), '<input data-note="name=\'_wpnonce\'" type="hidden" value="keep">')
+  const page = item(); page.attachContent(meaningful + volatile, { source: "page", saved_at: 1 })
+  assert.equal(page.pendingContent(), meaningful + volatile)
+  const feed = item(); feed.attachContent(meaningful + volatile, { source: "feed", saved_at: 1 })
+  assert.equal(feed.pendingContent(), meaningful)
+})
+
+test("legacy feed branches differing only in hidden nonces settle without rewriting the winner", async t => {
+  const { db } = await fixture(t)
+  const base = item().to_obj()
+  await db.bulkDocs(["a", "b"].map(rev => ({ ...base, _id: "sto_nonce", _rev: `1-${rev}`,
+    stored_content: { source: "feed", saved_at: 1 },
+    _attachments: { content: { content_type: "text/html", data: Buffer.from(`<p>Same article</p><input type="hidden" name="_wpnonce" value="${rev}">`).toString("base64") } }
+  })), { new_edits: false })
+  const before = await db.get("sto_nonce")
+  await new PouchMaintenanceService(db, () => {}, e => { throw e }).run()
+  const after = await db.get("sto_nonce", { conflicts: true })
+  assert.equal(after._rev, before._rev)
+  assert.equal(after._conflicts, undefined)
 })

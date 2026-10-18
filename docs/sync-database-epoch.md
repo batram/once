@@ -220,6 +220,12 @@ including same-length edits, remain real updates. Concurrent independent discove
 can still create branches, which maintenance reconciles rather than promising
 conflict-free offline creation.
 
+Deployment verification also found feed copies differing only in hidden WordPress
+`_wpnonce` inputs. Feed ingestion removes that request-only field before hashing;
+page captures and other form fields remain unchanged. Maintenance may settle old
+feed branches when their bytes match after this same narrow normalization. Other
+attachment differences still require explicit resolution.
+
 Deterministic creation removes a common source of duplicate roots: no ingestion
 clock, canonical keys, exact HN time where available, stable feed metadata and atomic
 fingerprinted content. Different titles, sources, tags, missing-time fallbacks and

@@ -1,4 +1,4 @@
-import { mergeStoryAssociations, StoryTag, SubStory } from "@once/core"
+import { mergeStoryAssociations, normalizeFeedContent, StoryTag, SubStory } from "@once/core"
 import { epochContent } from "./EpochContent"
 
 export interface PouchMaintenanceDatabase {
@@ -123,8 +123,10 @@ export class PouchMaintenanceService {
         const attachments = kept?._attachments as Record<string, unknown> | undefined
         const candidate = losing?._attachments as Record<string, unknown> | undefined
         const selected = Object.fromEntries(Object.keys(candidate || {}).map(name => [name, attachments?.[name]]))
+        const feed = (kept?.stored_content as { source?: string })?.source === "feed" &&
+          (losing?.stored_content as { source?: string })?.source === "feed"
         if (Object.values(selected).some(value => !value) ||
-            await epochContent({ _attachments: selected }) !== await epochContent({ _attachments: candidate || {} })) return 0
+            await comparableAttachments(selected, feed) !== await comparableAttachments(candidate || {}, feed)) return 0
       }
       if (conflicting) merged = mergeStoryStateDocuments(merged, conflicting)
     }
@@ -188,6 +190,18 @@ export class PouchMaintenanceService {
 }
 
 const synchronizedStoryFields = ["read_state", "stared", "filter"] as const
+
+function comparableAttachments(attachments: Record<string, unknown>, feed: boolean): Promise<string> {
+  const normalized = { ...attachments }
+  const content = normalized.content as { data?: unknown; content_type?: string } | undefined
+  if (feed && typeof content?.data === "string") {
+    const text = new TextDecoder().decode(Uint8Array.from(atob(content.data), char => char.charCodeAt(0)))
+    const bytes = new TextEncoder().encode(normalizeFeedContent(text))
+    normalized.content = { content_type: content.content_type,
+      data: btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join("")) }
+  }
+  return epochContent({ _attachments: normalized })
+}
 
 function mergeStoryStateDocuments(
   current: Record<string, unknown>,

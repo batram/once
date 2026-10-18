@@ -1,6 +1,7 @@
 import { sameDiscussion, sameStoryDocument } from "./storyPage"
 import { compareStories } from "./compareStories"
 import { storyTimestamp } from "./storyTime"
+import { normalizeFeedContent } from "./storyContent"
 import {
   SortableStory,
   StoredContentMeta,
@@ -154,7 +155,7 @@ export class Story {
   attachContent(html: string, meta: StoredContentMeta): void {
     this._attachments = {
       ...this._attachments,
-      content: { content_type: "text/html", raw_content: html }
+      content: { content_type: "text/html", raw_content: meta.source === "feed" ? normalizeFeedContent(html) : html }
     }
     this.stored_content = meta
   }

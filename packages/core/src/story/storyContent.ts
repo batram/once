@@ -16,6 +16,18 @@ export function textOfHtml(html: string): string {
     .trim()
 }
 
+/** WordPress request nonces are hidden transport metadata, not saved article content. */
+export function normalizeFeedContent(html: string): string {
+  return html.replace(/<input\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi, tag => {
+    const attributes = new Map<string, string>()
+    const pattern = /(?:^|\s)([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g
+    for (const match of tag.slice(6, -1).matchAll(pattern)) {
+      attributes.set(match[1].toLowerCase(), match[2] ?? match[3] ?? match[4] ?? "")
+    }
+    return attributes.get("type")?.toLowerCase() === "hidden" && attributes.get("name") === "_wpnonce" ? "" : tag
+  })
+}
+
 export function feedContentIsArticle(html: string): boolean {
   return textOfHtml(html).length >= MIN_FEED_CONTENT_CHARS
 }
