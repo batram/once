@@ -252,6 +252,16 @@ function bindTabStories(reading: MobileReadingController, client: ReturnType<typ
   refresh()
 }
 
+// Native builds keep the surface and Violentmonkey in step with settings; the
+// returned apply resolves once both have them. The web build applies directly.
+async function bindExtensionSettings(
+  app: ReturnType<typeof createOnceApp>,
+  browserSurface: ReturnType<typeof createInAppBrowserSurface>
+): Promise<() => Promise<void>> {
+  if (Capacitor.isNativePlatform()) return bindMobileExtensionSettings(app.client, browserSurface)
+  return async () => browserSurface.applyExtensionSettings(await app.client.getFilterLists(), await app.client.getUserscripts())
+}
+
 async function startMobileApp(): Promise<void> {
   document.body.dataset.platform = "mobile"
   document.body.dataset.buildChannel = __ONCE_BUILD_CHANNEL__
@@ -335,9 +345,7 @@ async function startMobileApp(): Promise<void> {
   document.body.dataset.onceStage = "app-start"
   showStartupState("Opening saved stories and settings…")
   await app.start()
-  const applyExtensionSettings = Capacitor.isNativePlatform()
-    ? await bindMobileExtensionSettings(app.client, browserSurface)
-    : async () => browserSurface.applyExtensionSettings(await app.client.getFilterLists(), await app.client.getUserscripts())
+  const applyExtensionSettings = await bindExtensionSettings(app, browserSurface)
   mountTabSyncInTabView(reading, app.client, browserSurface)
   document.body.dataset.onceStage = "ui-mount"
   beginStoryLoading(app.client)
