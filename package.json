@@ -124,6 +124,7 @@
     "webpack-cli": "^5.1.4"
   },
   "overrides": {
+    "@electron/node-gyp": "10.2.0-electron.1",
     "express-pouchdb": {
       "uuid": "3.4.0"
     },
