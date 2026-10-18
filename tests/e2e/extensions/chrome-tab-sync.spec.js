@@ -4,7 +4,7 @@ const fs = require("node:fs/promises")
 const os = require("node:os")
 const path = require("node:path")
 const PouchDB = require("pouchdb")
-const expressPouchDB = require("express-pouchdb")
+const expressPouchDB = require("../../helpers/couch-server")
 const { startStoryFixture } = require("./local-source")
 
 async function startCouch() {

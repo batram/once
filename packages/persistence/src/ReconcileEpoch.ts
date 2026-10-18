@@ -1,5 +1,5 @@
 import { epochContent } from "./EpochContent"
-import { censusRevisions, copyWinningRevisions, EpochCopyDatabase, EpochSourceConflictError } from "./PouchEpochCopy"
+import { censusRevisions, copyWinningRevisions, EPOCH_BATCH_SIZE, EpochCopyDatabase, EpochMigrationProgress, EpochSourceConflictError } from "./PouchEpochCopy"
 import { isSyncMetadataId } from "@once/core"
 
 function ancestor(rev: string, doc: Record<string, unknown>): boolean {
@@ -11,13 +11,14 @@ function ancestor(rev: string, doc: Record<string, unknown>): boolean {
 
 /** Seed from the canonical epoch, then admit only provable local extensions. */
 export async function reconcileEpoch(local: EpochCopyDatabase, canonical: EpochCopyDatabase, previous: EpochCopyDatabase,
-  target: EpochCopyDatabase, destination: string, progress: (copied: number) => void, isCurrent = () => true): Promise<void> {
-  const options = { exclude: isSyncMetadataId, batchSize: 200, isCurrent, onProgress: (step: { copied: number }) => progress(step.copied) }
+  target: EpochCopyDatabase, destination: string, progress: EpochMigrationProgress, isCurrent = () => true): Promise<void> {
+  const options = { exclude: isSyncMetadataId, batchSize: EPOCH_BATCH_SIZE, isCurrent, onProgress: (step: { copied: number }) => progress(step.copied) }
   await copyWinningRevisions(canonical, target, `remote:${destination}`, options)
   let since: unknown = 0
+  let reconciled = 0
   for (;;) {
     if (!isCurrent()) throw new Error("Sync session changed during epoch migration")
-    const page = await local.changes({ since, limit: 50, include_docs: true, conflicts: true })
+    const page = await local.changes({ since, limit: EPOCH_BATCH_SIZE, batch_size: EPOCH_BATCH_SIZE, include_docs: true, conflicts: true })
     if (!page.results.length) break
     const wanted = page.results.filter(row => !isSyncMetadataId(row.id) && !row.id.startsWith("_local/"))
     if (!wanted.length) { since = page.last_seq; continue }
@@ -50,6 +51,8 @@ export async function reconcileEpoch(local: EpochCopyDatabase, canonical: EpochC
       if (await epochContent(doc) !== await epochContent(written)) throw new Error(`Local epoch content verification failed: ${row.id}`)
     }
     since = page.last_seq
+    reconciled += wanted.length
+    progress(reconciled, "reconcile")
   }
-  if ((await censusRevisions(target)).extraLeaves) throw new Error("The rebuilt epoch has conflicting branches; local data is retained")
+  if ((await censusRevisions(target, EPOCH_BATCH_SIZE, checked => progress(checked, "verify"))).extraLeaves) throw new Error("The rebuilt epoch has conflicting branches; local data is retained")
 }

@@ -143,6 +143,38 @@ localStorage or delete databases as a recovery shortcut.
 
 ## Operator procedure
 
+### Bringing an additional client onto the completed epoch
+
+No second server cutover is needed. Install a build containing the current epoch
+and attachment-transport fixes, keeping the same application channel, browser
+profile and extension/application identifier when preserving local data.
+
+1. Close old Once windows and panels. Fully quit Electron before replacing it;
+   force-quit iOS before installing its update. Reload an existing unpacked or
+   temporary extension after rebuilding it, so its background code updates too.
+2. Keep the existing configured sync URL, including its original `/once` database
+   name. Its retained ready marker leads to `/once_e2`. Do not manually repoint an
+   old populated profile to `/once_e2`, which can bypass old-profile reconciliation.
+3. Open the updated client, allow its local rebuild/reconciliation and automatic
+   restart, then wait for **Up to date**. Check settings, bookmarks and a saved
+   article. Keep free space for the retained old copy and the new database.
+4. If ancestry, conflicts or content integrity block migration, retain that
+   profile for explicit recovery. Do not edit markers or force a direct sync.
+
+For an expendable test installation whose unsynced data is not needed, starting
+with a genuinely fresh profile is also valid. Install the updated client and pair
+it or configure the original URL; it discovers the canonical epoch automatically.
+Server-synced settings return. Device-only preferences, local caches, secrets not
+present in the synced vault, and unsynced edits may not. An in-place update is the
+first choice when retaining those matters.
+
+The native SQLite durability change is **Android-only**. Updated iOS, browser
+extensions and Electron clients can use the new sync epoch, but still use their
+existing IndexedDB storage. Updating iOS does not confer the Android eviction
+protection. A Git push alone does not update installed clients or publish a release.
+
+### Server operations
+
 `scripts/couch-epoch.js` reads `ONCE_COUCHDB_URL` and `ONCE_COUCHDB_TARGET_URL`;
 never put credentials in command arguments or reports. Build packages first.
 `analyze` and `verify` are read-only. No command creates or deletes a database.
@@ -166,11 +198,13 @@ control documents and require authorization. This runbook is not authorization.
    it. Do not rely on every client observing the marker within a minute.
 4. **Copy.** Run `copy`, then rerun until nothing remains. Keep the source fenced.
    Neither the fence nor the epoch marker may reach the target.
-5. **Verify and open.** Run `verify`; investigate every mismatch, live conflict,
-   unexpected document or divergence. `open` requires the fence, rejects target
-   control documents, repeats strict verification, and checks that the source
-   update sequence did not change during verification before writing `ready`.
-   It leaves the source barrier in place.
+5. **Verify and open.** Once opening is authorized, run `open`: it requires the
+   fence, rejects target control documents, performs strict verification, and
+   checks that the source update sequence did not change during verification
+   before writing `ready`. Investigate every mismatch, live conflict, unexpected
+   document or divergence. It leaves the source barrier in place. Use standalone
+   `verify` for a read-only rehearsal or review; running it immediately before
+   `open` on the same frozen data needlessly repeats the complete comparison.
 6. **Observe.** Confirm each device's installed build/protocol, local pointer,
    retained backup, content integrity, pending-edit upload and post-sync leaf count.
    Include an offline/stale device and a fresh installation. Stop and inspect
@@ -391,8 +425,57 @@ checks passed. Initial test harness failures (network disabled in the new Electr
 fixture, catalog cleanup on Windows, and PowerShell treating installer stderr as
 fatal) were corrected; they were not silently counted as passing validation.
 
-The source remains writable, without a preparing/ready marker or a freeze design
-document. The production target remains empty. At the authorized cutover, stop
+At the end of that remediation stage, the source remained writable, without a
+preparing/ready marker or freeze design document, and the target remained empty.
+At an authorized cutover, stop
 interacting with the retained clients, freeze the source, capture a final backup,
 and repeat strict source/target verification. A clean audit while writes continue
 does not replace that final barrier and verification.
+
+## Cutover and subsequent findings — 2026-10-18
+
+After all ten CI jobs passed for `cb1e27af`, the authorized cutover completed.
+`once` remains the frozen discovery endpoint with protocol 4 and a ready route to
+`once_e2`. Strict verification passed before opening. Both retained clients moved,
+preserved their selected settings, and recorded successful synchronization.
+The final audit had 32,600 live server documents (one server-only compatibility
+marker), 217 winning deletions, 60 matching attachments, and zero extra leaves or
+live conflicts. Both server databases retain revision limits of 1000 and matching
+security. The source was not deleted or unfrozen.
+
+The final frozen physical backup is
+`/home/mjb/once-backups/20261018T183341Z.tar.gz` on goo and
+`cutover-cb1e27af/frozen-backup.tar.gz` beneath the private backup directory.
+It is 28,424,362 bytes with matching downloaded SHA-256
+`ac5e07263ac4ad278ac7d331a84938de9bdbb7cd6bd0d51bda3782d815ff473f`.
+
+Subsequent profiling found avoidable HTTP pagination, duplicate census scans,
+empty compaction writes and cold bookmark-index work. See
+[database-performance.md](database-performance.md) for measured results,
+implemented improvements, reproducible benchmarks and limitations.
+
+The phone's IndexedDB databases subsequently disappeared after successful sync.
+At 21:29 Europe/Berlin its log recorded a closing database connection. The user
+confirmed no cleanup was requested. Storage usage later read zero, while its
+localStorage pointer/preferences remained. Storage-pressure eviction is consistent
+with the nearly full filesystem and non-persistent WebView storage, but was not
+explicitly logged. The server and off-device backups remain available; the user
+requested leaving the phone untouched until durable storage is fixed.
+
+**Additional prerequisite for future mobile migrations:** browser quota estimates
+and two local IndexedDB copies do not provide durable protection from eviction.
+Check physical free space and retain an off-device export. Android WebView does
+not grant persistent-storage permission. Android now uses the native SQLite backing
+store described in [mobile-native-storage.md](mobile-native-storage.md), qualified
+against process stop and complete WebView storage loss on the phone. A missing active epoch record
+now fails explicitly rather than attempting a migration into the same database
+and retiring itself. This guard does not recover evicted data.
+
+The subsequently authorized Android recovery completed on native SQLite in build
+`261018-210258`. Its 32,608 client documents, 217 deletions and 57 attachments
+matched the canonical server in a stable audit, with no unresolved conflicts or
+missing bodies. The server-only compatibility marker accounts for its additional
+live document. Current settings were retained and the app reported Up to date.
+The native recovery report records the durability tests and the attachment
+transport fixes discovered during recovery; the frozen original database remains
+unchanged.

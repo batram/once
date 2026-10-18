@@ -13,6 +13,7 @@ import {
   PouchSyncService,
   syncFetchDiagnostics,
   IndexedDbCacheStore,
+  protectRemoteAttachments,
   keepIndexedDbOpenAfterAborts,
   LOCAL_POUCH_OPTIONS,
   openLocalDatabase,
@@ -54,7 +55,7 @@ export function createWebExtPlatform(
     (event) => {
       console.log("change db", event)
     },
-    (url) => new PouchDB(url, { fetch: syncFetchDiagnostics(window.fetch.bind(window)) }) as unknown as PouchSyncService["db"],
+    (url) => protectRemoteAttachments(new PouchDB(url, { fetch: syncFetchDiagnostics(window.fetch.bind(window)) })) as unknown as PouchSyncService["db"],
     undefined,
     local.epoch
   )

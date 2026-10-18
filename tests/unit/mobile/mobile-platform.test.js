@@ -175,6 +175,6 @@ test("mobile startup exposes progress, failure, and retry state in the shell", (
   assert.match(shell, /id="startup_retry"/)
   assert.match(main, /showStartupState\("Opening saved stories and settings…"\)/)
   assert.match(main, /showStartupState\("Loading stories…"\)/)
-  assert.match(main, /showStartupState\("Once could not finish starting\."\s*,\s*"error"\)/)
+  assert.match(main, /showStartupState\(error instanceof Error \? error.message : "Once could not finish starting\."\s*,\s*"error"\)/)
   assert.match(main, /setAttribute\("active_panel", "stories"\)/)
 })

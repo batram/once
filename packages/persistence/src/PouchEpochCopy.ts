@@ -17,7 +17,7 @@ export interface EpochChange {
   id: string
   changes: Array<{ rev: string }>
   deleted?: boolean
-  doc?: { _conflicts?: string[] }
+  doc?: { _rev?: string; _deleted?: boolean; _conflicts?: string[] }
 }
 
 export interface EpochCopyDatabase {
@@ -87,6 +87,13 @@ export interface EpochCopyResult {
 }
 
 const COPY_CHECKPOINT_ID = "_local/once-epoch-copy"
+export const EPOCH_BATCH_SIZE = 500
+export type EpochMigrationProgress = (processed: number, phase?: "copy" | "reconcile" | "verify") => void
+
+function checkedBatchSize(value = EPOCH_BATCH_SIZE): number {
+  if (!Number.isSafeInteger(value) || value < 1) throw new Error("Epoch batch size must be a positive integer")
+  return value
+}
 
 /**
  * Copies every winner the source holds, deleted documents included: a
@@ -101,14 +108,16 @@ export async function copyWinningRevisions(
   sourceId: string,
   options: EpochCopyOptions = {}
 ): Promise<EpochCopyResult> {
-  const batchSize = options.batchSize ?? 50
+  const batchSize = checkedBatchSize(options.batchSize)
   const checkpoint = await readLocal(target, COPY_CHECKPOINT_ID)
   let since = checkpoint?.source === sourceId ? checkpoint.last_seq : 0
   let copied = 0
   let skipped = 0
   for (;;) {
     if (options.isCurrent && !options.isCurrent()) throw new Error("Sync session changed during epoch migration")
-    const page = await source.changes({ since, limit: batchSize, style: "main_only", include_docs: true, conflicts: true })
+    // limit bounds this logical page; batch_size also bounds HTTP requests.
+    // Without it PouchDB splits the page into serial 25-document requests.
+    const page = await source.changes({ since, limit: batchSize, batch_size: batchSize, style: "main_only", include_docs: true, conflicts: true })
     if (page.results.length === 0) break
     const wanted = page.results.filter((change) => {
       const keep = !change.id.startsWith("_local/") && !options.exclude?.(change.id)
@@ -131,7 +140,8 @@ export async function copyWinningRevisions(
         }
         return doc
       })
-      for (const doc of docs) await epochContent(doc)
+      const contents: string[] = []
+      for (const doc of docs) contents.push(await epochContent(doc))
       if (options.isCurrent && !options.isCurrent()) throw new Error("Sync session changed during epoch migration")
       await assertFastForward(target, docs)
       const written = await target.bulkDocs(docs, { new_edits: false })
@@ -143,9 +153,9 @@ export async function copyWinningRevisions(
       // a live canonical epoch. A replica may legitimately advance meanwhile.
       const checked = await target.bulkGet({ docs: docs.map(doc => ({ id: doc._id, rev: doc._rev })), attachments: true })
       const copies = new Map(checked.results.map(row => [row.id, row.docs[0]?.ok]))
-      for (const doc of docs) {
+      for (const [index, doc] of docs.entries()) {
         const copy = copies.get(String(doc._id))
-        if (!copy || await epochContent(doc) !== await epochContent(copy)) throw new Error(`Copied epoch content differs: ${String(doc._id)}`)
+        if (!copy || contents[index] !== await epochContent(copy)) throw new Error(`Copied epoch content differs: ${String(doc._id)}`)
       }
       copied += docs.length
     }
@@ -169,8 +179,10 @@ export interface RevisionCensus {
 /** Read-only: every document's winner and how many leaves it carries. */
 export async function censusRevisions(
   db: Pick<EpochCopyDatabase, "changes">,
-  batchSize = 500
+  batchSize = EPOCH_BATCH_SIZE,
+  onProgress?: (documents: number) => void
 ): Promise<RevisionCensus> {
+  batchSize = checkedBatchSize(batchSize)
   const census: RevisionCensus = {
     documents: 0,
     deletedDocuments: 0,
@@ -179,29 +191,25 @@ export async function censusRevisions(
     liveConflicts: [],
     winners: new Map()
   }
-  const winners = new Map<string, { rev: string; deleted: boolean }>()
-  for (const style of ["main_only", "all_docs"] as const) {
-    let since: unknown = 0
-    for (;;) {
-      const page = await db.changes({ since, limit: batchSize, style, ...(style === "main_only" ? { include_docs: true, conflicts: true } : {}) })
-      if (page.results.length === 0) break
-      for (const change of page.results) {
-        if (change.id.startsWith("_local/")) continue
-        if (style === "main_only") {
-          if (change.doc?._conflicts?.length) census.liveConflicts.push(change.id)
-          winners.set(change.id, { rev: change.changes[0].rev, deleted: change.deleted === true })
-          continue
-        }
-        const winner = winners.get(change.id)
-        if (!winner) continue
-        census.winners.set(change.id, { ...winner, leaves: change.changes.length })
-      }
-      since = page.last_seq
+  const conflicts = new Set<string>()
+  let since: unknown = 0
+  for (;;) {
+    // all_docs supplies every leaf; include_docs supplies the actual winner.
+    // The first leaf is NOT necessarily the winner, particularly after deletes.
+    const page = await db.changes({ since, limit: batchSize, batch_size: batchSize, style: "all_docs", include_docs: true, conflicts: true })
+    if (page.results.length === 0) break
+    for (const change of page.results) {
+      if (change.id.startsWith("_local/")) continue
+      const rev = change.doc?._rev
+      if (!rev || !change.changes.some(leaf => leaf.rev === rev)) throw new Error(`Could not read the census winner of ${change.id}`)
+      if (change.doc?._conflicts?.length) conflicts.add(change.id); else conflicts.delete(change.id)
+      census.winners.set(change.id, { rev, deleted: change.deleted === true || change.doc?._deleted === true, leaves: change.changes.length })
     }
+    since = page.last_seq
+    onProgress?.(census.winners.size)
   }
-  for (const [id, winner] of winners) {
-    const entry = census.winners.get(id) ?? { ...winner, leaves: 1 }
-    census.winners.set(id, entry)
+  census.liveConflicts = [...conflicts]
+  for (const entry of census.winners.values()) {
     census.documents++
     if (entry.deleted) census.deletedDocuments++
     if (entry.leaves > 1) {
@@ -224,13 +232,21 @@ export interface EpochVerification {
   unresolved: string[]
 }
 
+export interface EpochVerificationOptions extends Pick<EpochCopyOptions, "exclude" | "batchSize"> {
+  onProgress?: (progress: { phase: "source-census" | "target-census" | "content"; processed: number; total?: number }) => void
+}
+
 /** Read-only: whether the target holds exactly the source's winners, each as its only leaf. */
 export async function verifyWinningRevisions(
   source: EpochCopyDatabase,
   target: EpochCopyDatabase,
-  options: Pick<EpochCopyOptions, "exclude"> = {}
+  options: EpochVerificationOptions = {}
 ): Promise<EpochVerification> {
-  const [from, to] = await Promise.all([censusRevisions(source), censusRevisions(target)])
+  const batchSize = checkedBatchSize(options.batchSize)
+  const [from, to] = await Promise.all([
+    censusRevisions(source, batchSize, processed => options.onProgress?.({ phase: "source-census", processed })),
+    censusRevisions(target, batchSize, processed => options.onProgress?.({ phase: "target-census", processed }))
+  ])
   const mismatched: string[] = []
   const conflicted: string[] = []
   const extra: string[] = []
@@ -247,8 +263,8 @@ export async function verifyWinningRevisions(
     if (!from.winners.has(id)) extra.push(id)
   }
   const matching = [...from.winners].filter(([id, winner]) => !options.exclude?.(id) && to.winners.get(id)?.rev === winner.rev)
-  for (let offset = 0; offset < matching.length; offset += 50) {
-    const docs = matching.slice(offset, offset + 50).map(([id, winner]) => ({ id, rev: winner.rev }))
+  for (let offset = 0; offset < matching.length; offset += batchSize) {
+    const docs = matching.slice(offset, offset + batchSize).map(([id, winner]) => ({ id, rev: winner.rev }))
     const [left, right] = await Promise.all([source.bulkGet({ docs, attachments: true }), target.bulkGet({ docs, attachments: true })])
     const originals = new Map(left.results.map(row => [row.id, row.docs[0]?.ok]))
     const copies = new Map(right.results.map(row => [row.id, row.docs[0]?.ok]))
@@ -256,6 +272,7 @@ export async function verifyWinningRevisions(
       const original = originals.get(id), copy = copies.get(id)
       if (!original || !copy || await epochContent(original) !== await epochContent(copy)) contentMismatched.push(id)
     }
+    options.onProgress?.({ phase: "content", processed: offset + docs.length, total: matching.length })
   }
   return { ok: !mismatched.length && !conflicted.length && !extra.length && !contentMismatched.length && !unresolved.length,
     mismatched, conflicted, extra, contentMismatched, unresolved }

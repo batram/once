@@ -1,6 +1,6 @@
 import { epochSiblingUrl, readSyncEpoch, SYNC_EPOCH_ID, syncDatabaseName, syncDestination } from "@once/core"
 import { LOCAL_EPOCH_VERSION, type LocalDatabaseEpoch } from "./LocalDatabaseEpoch"
-import type { EpochCopyDatabase } from "./PouchEpochCopy"
+import type { EpochCopyDatabase, EpochMigrationProgress } from "./PouchEpochCopy"
 
 export { isSyncMetadataId } from "@once/core"
 
@@ -71,7 +71,7 @@ export async function resolveSyncEpoch(
   configuredUrl: string,
   read: SyncEpochReader,
   local: LocalDatabaseEpoch | undefined,
-  progress: (copied: number) => void,
+  progress: EpochMigrationProgress,
   open?: (url: string) => Promise<EpochCopyDatabase>,
   isCurrent = () => true
 ): Promise<SyncEpochResolution> {
@@ -81,7 +81,7 @@ export async function resolveSyncEpoch(
   if (state.retired) {
     // This database was replaced, but the switch did not take (a crash, or
     // the pointer was lost). Never sync it: finish switching instead.
-    local?.activate(state.retired.database)
+    await local?.activate(state.retired.database)
     local?.restart()
     return { restarting: true }
   }

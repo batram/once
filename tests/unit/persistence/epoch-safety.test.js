@@ -34,6 +34,46 @@ async function world(t) {
   return { open, named, storage, values }
 }
 
+test("a recreated active epoch with missing metadata cannot retire itself or enter a restart loop", async t => {
+  const w = await world(t), original = w.named("device")
+  const activeName = original.name + "@once_e2", active = w.open(activeName)
+  const key = "once:local-database:" + original.name
+  w.storage.setItem(key, JSON.stringify({ name: activeName, previous: original.name }))
+  let opened = 0, restarted = 0
+  const epoch = new LocalDatabaseEpoch(original.name, activeName, active, name => { opened++; return w.open(name) }, () => restarted++, w.storage)
+  await assert.rejects(epoch.rebuild("https://example.test/once_e2"), /lost its epoch record/)
+  assert.equal(opened, 0)
+  assert.equal(restarted, 0)
+  assert.equal((await active.info()).doc_count, 0)
+  await assert.rejects(active.get("_local/once-sync-epoch"), { status: 404 })
+  assert.equal(JSON.parse(w.storage.getItem(key)).name, activeName)
+})
+
+test("retired database recovery waits for the native pointer commit before restarting", async t => {
+  const w = await world(t), db = w.named("native")
+  await db.put({ _id: "_local/once-sync-epoch", retired: { database: db.name + "@next", destination: "https://example.test/once_e2" } })
+  let commit, restarted = false
+  const committed = new Promise(resolve => { commit = resolve })
+  const storage = { getItem: () => null, setItem: () => committed }
+  const epoch = new LocalDatabaseEpoch(db.name, db.name, db, w.open, () => { restarted = true }, storage)
+  const resolving = resolveSyncEpoch("https://example.test/once", async () => { throw new Error("Must not contact server") }, epoch, () => {})
+  await new Promise(resolve => setTimeout(resolve, 10))
+  assert.equal(restarted, false)
+  commit()
+  assert.deepEqual(await resolving, { restarting: true })
+  assert.equal(restarted, true)
+})
+
+test("a rejected native pointer commit cannot restart a retired database", async t => {
+  const w = await world(t), db = w.named("native-failure")
+  await db.put({ _id: "_local/once-sync-epoch", retired: { database: db.name + "@next", destination: "https://example.test/once_e2" } })
+  let restarted = false
+  const storage = { getItem: () => null, setItem: async () => { throw new Error("Native commit failed") } }
+  const epoch = new LocalDatabaseEpoch(db.name, db.name, db, w.open, () => { restarted = true }, storage)
+  await assert.rejects(resolveSyncEpoch("https://example.test/once", async () => null, epoch, () => {}), /Native commit failed/)
+  assert.equal(restarted, false)
+})
+
 test("epoch verification rejects matching revisions with different bytes, extra documents, and incomplete reads", async t => {
   const w = await world(t), a = w.named("a"), b = w.named("b")
   const doc = text => ({ _id: "sto_item", _rev: "1-aaaaaaaa", _revisions: { start: 1, ids: ["aaaaaaaa"] },

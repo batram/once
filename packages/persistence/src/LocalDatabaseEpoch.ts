@@ -1,5 +1,5 @@
 import { syncDatabaseName } from "@once/core"
-import { copyWinningRevisions, EpochCopyDatabase, EpochCopyDivergedError, verifyWinningRevisions } from "./PouchEpochCopy"
+import { copyWinningRevisions, EpochCopyDatabase, EpochCopyDivergedError, EpochMigrationProgress, verifyWinningRevisions } from "./PouchEpochCopy"
 import { PouchMaintenanceService } from "./PouchMaintenanceService"
 import { epochLock, guardEpochWrites } from "./LocalEpochWrites"
 import { reconcileEpoch } from "./ReconcileEpoch"
@@ -12,7 +12,7 @@ export interface EpochLocalDatabase extends EpochCopyDatabase {
 /** Synchronous key-value storage shared by every context of the app: localStorage. */
 export interface EpochPointerStorage {
   getItem(key: string): string | null
-  setItem(key: string, value: string): void
+  setItem(key: string, value: string): void | Promise<void>
 }
 
 interface Pointer { name: string; previous?: string }
@@ -67,12 +67,13 @@ export function activeLocalDatabaseName(base: string, storage = defaultStorage()
 export function openLocalDatabase<T>(
   base: string,
   open: (name: string) => T,
-  restart: () => void = () => (globalThis as { location?: { reload(): void } }).location?.reload()
+  restart: () => void = () => (globalThis as { location?: { reload(): void } }).location?.reload(),
+  storage = defaultStorage()
 ): { db: T; epoch: LocalDatabaseEpoch } {
-  const name = activeLocalDatabaseName(base)
+  const name = activeLocalDatabaseName(base, storage)
   const db = open(name)
   const epoch = new LocalDatabaseEpoch(base, name, db as unknown as EpochLocalDatabase,
-    (other) => open(other) as unknown as EpochLocalDatabase, restart)
+    (other) => open(other) as unknown as EpochLocalDatabase, restart, storage)
   epoch.watchSwitches()
   return { db, epoch }
 }
@@ -99,7 +100,7 @@ export class LocalDatabaseEpoch {
   }
 
   /** Copies this database into the one for `destination`, verifies it, and switches to it. */
-  async rebuild(destination: string, progress: (copied: number) => void = () => undefined,
+  async rebuild(destination: string, progress: EpochMigrationProgress = () => undefined,
     remote?: { canonical: EpochCopyDatabase; previous: EpochCopyDatabase; isCurrent?: () => boolean }): Promise<void> {
     if (typeof window !== "undefined" && !globalThis.navigator?.locks) throw new Error("Database migration requires Web Locks. Update this browser before moving; local data is retained.")
     await epochLock(this.base, async () => {
@@ -107,8 +108,11 @@ export class LocalDatabaseEpoch {
       // Another window may have moved this database while this one waited.
       const state = await this.state()
       if (state.retired || activeLocalDatabaseName(this.base, this.storage) !== this.name) return
-      this.assertPointerWritable()
+      await this.assertPointerWritable()
       const targetName = `${this.base}@${syncDatabaseName(destination)}${state.destination && state.version !== LOCAL_EPOCH_VERSION ? `@v${LOCAL_EPOCH_VERSION}` : ""}`
+      if (targetName === this.name) {
+        throw new Error("The active local database has lost its epoch record. Restore this device from sync or backup; no database has been replaced.")
+      }
       let target = this.open(targetName)
       const targetState = await readLocal(target, STATE_ID)
       if (targetState?.destination || targetState?.retired) throw new Error("The epoch target is already committed. Restore the local database pointer; no data has been replaced.")
@@ -155,14 +159,14 @@ export class LocalDatabaseEpoch {
       if (format) await writeLocal(target, SYNC_FORMAT_ID, { minSyncProtocol: format.minSyncProtocol })
       await writeLocal(target, STATE_ID, { destination, version: LOCAL_EPOCH_VERSION })
       await writeLocal(this.db, STATE_ID, { retired: { database: targetName, destination } })
-      this.activate(targetName)
+      await this.activate(targetName)
     })
   }
 
   /** Opens `name` from the next start on. */
-  activate(name: string): void {
+  async activate(name: string): Promise<void> {
     if (!this.storage) throw new Error("This app cannot switch its local database")
-    this.storage.setItem(POINTER_PREFIX + this.base, JSON.stringify({ name, previous: this.name }))
+    await this.storage.setItem(POINTER_PREFIX + this.base, JSON.stringify({ name, previous: this.name }))
   }
 
   /** Restarts the app so it opens the active database. */
@@ -185,10 +189,10 @@ export class LocalDatabaseEpoch {
     })
   }
 
-  private assertPointerWritable(): void {
+  private async assertPointerWritable(): Promise<void> {
     if (!this.storage) throw new Error("This app cannot switch its local database")
     const probe = `${POINTER_PREFIX}${this.base}:probe`
-    this.storage.setItem(probe, "1")
+    await this.storage.setItem(probe, "1")
     ;(this.storage as Partial<Storage>).removeItem?.(probe)
   }
 }

@@ -8,7 +8,8 @@ import {
   createDefaultMobileNativeBridge,
   createInAppBrowserSurface,
   createMobileBrowserExtensions,
-  createMobilePlatform
+  createMobilePlatform,
+  prepareMobileDatabase
 } from "@once/platform-mobile"
 import {
   installConsoleCapture,
@@ -260,6 +261,7 @@ async function startMobileApp(): Promise<void> {
   installTransientScrollbars()
 
   const nativeBridge = createDefaultMobileNativeBridge()
+  await prepareMobileDatabase(await nativeBridge.getSyncUrl(), message => showStartupState(message))
   // The reading controller is built below; the closure only runs on a tap.
   const platform = createMobilePlatform(nativeBridge, undefined, {
     openInApp: (url) => reading.openBrowserUrl(url),
@@ -375,7 +377,7 @@ document.addEventListener("DOMContentLoaded", () => {
   void startMobileApp().catch((error) => {
     document.body.dataset.onceStage = "error"
     document.body.dataset.onceError = error instanceof Error ? error.message : String(error)
-    showStartupState("Once could not finish starting.", "error")
+    showStartupState(error instanceof Error ? error.message : "Once could not finish starting.", "error")
     console.error("Failed to start Once mobile", error)
   })
 })

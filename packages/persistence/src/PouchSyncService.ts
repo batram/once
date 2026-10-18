@@ -5,7 +5,7 @@ import type { EpochCopyDatabase } from "./PouchEpochCopy"
 import { assertNoSyncEpoch, isSyncMetadataId, readSyncEpochMarker, resolveSyncEpoch } from "./SyncEpoch"
 import { syncRequestDetails } from "./SyncFetchDiagnostics"
 import { syncFailure } from "./SyncFailure"
-import { SYNC_PROTOCOL, SyncCompatibilityDetails, isRoutedTabDocId, isTabSyncChangeId, normalizeSyncUrl, ROUTED_TAB_DOC_PREFIXES, TAB_SYNC_SETTINGS_ID } from "@once/core"
+import { SYNC_PROTOCOL, SYNC_COMPAT_ID, SYNC_EPOCH_ID, SYNC_EPOCH_FENCE_ID, SyncCompatibilityDetails, isRoutedTabDocId, isTabSyncChangeId, normalizeSyncUrl, ROUTED_TAB_DOC_PREFIXES, TAB_SYNC_SETTINGS_ID } from "@once/core"
 import {
   PouchMaintenanceDatabase,
   PouchMaintenanceService
@@ -65,6 +65,12 @@ export class PouchSyncService {
     batch_size: 1000,
     batches_limit: 2,
     checkpoint: "target"
+  }
+  // A JavaScript filter forces include_docs on every remote changes page,
+  // even when every revision is already local. CouchDB can filter these IDs
+  // itself and send only revision metadata. The same selector works locally.
+  private static readonly REPLICATION_SELECTOR = {
+    _id: { $nin: [SYNC_COMPAT_ID, SYNC_EPOCH_ID, SYNC_EPOCH_FENCE_ID] }
   }
   private static readonly SETTINGS_DOCUMENT_IDS = [
     "addon_vault",
@@ -217,7 +223,7 @@ export class PouchSyncService {
       ...PouchSyncService.REPLICATION_OPTIONS,
       live: true,
       retry: false,
-      filter: (doc: { _id?: string }) => !isSyncMetadataId(doc._id)
+      selector: PouchSyncService.REPLICATION_SELECTOR
     }
 
     const generation = ++this.generation
@@ -319,7 +325,15 @@ export class PouchSyncService {
       })
       await this.replicateOnce(
         remote,
-        { ...PouchSyncService.REPLICATION_OPTIONS, filter: (doc: { _id?: string }) => !isSyncMetadataId(doc._id), ...options },
+        {
+          ...PouchSyncService.REPLICATION_OPTIONS,
+          ...options,
+          // HTTP _doc_ids takes precedence over _selector. Filter that list
+          // explicitly too, so even a caller-supplied ID cannot copy controls.
+          ...(Array.isArray(options?.doc_ids)
+            ? { doc_ids: options.doc_ids.filter((id): id is string => typeof id === "string" && !isSyncMetadataId(id)) }
+            : { selector: PouchSyncService.REPLICATION_SELECTOR })
+        },
         generation,
         presentation,
         (count) => {
@@ -520,8 +534,11 @@ export class PouchSyncService {
     if (typeof configured === "string") throw new Error("Sync compatibility checks require a database transport")
     const current = () => this.generation === generation
     const open = (url: string) => url === configuredUrl ? configured : this.createRemote(url)
-    const resolution = await resolveSyncEpoch(configuredUrl, url => readSyncEpochMarker(open(url)), this.epoch, copied => {
-      if (current()) this.updateStatus({ state: "syncing", message: `Moving to the cleaned-up sync database (${copied} copied)…` })
+    const resolution = await resolveSyncEpoch(configuredUrl, url => readSyncEpochMarker(open(url)), this.epoch, (processed, phase) => {
+      const message = phase === "reconcile" ? `Checking local edits before switching (${processed} checked)…` :
+        phase === "verify" ? `Verifying the cleaned-up database (${processed} checked)…` :
+          `Moving to the cleaned-up sync database (${processed} copied)…`
+      if (current()) this.updateStatus({ state: "syncing", message })
     }, async url => {
       const remote = open(url)
       if (typeof remote === "string") throw new Error("Epoch reconciliation requires a database transport")

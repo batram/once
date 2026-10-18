@@ -102,7 +102,7 @@ test("replication routes pulled tab records, deletions included, and pulls them 
 
 test("the HTTP store authenticates from the URL, pages within its prefix and stops when not allowed", async () => {
   const { couchHttpTabDocs } = require("../../../packages/persistence/dist")
-  const expressPouchDB = require("express-pouchdb")
+  const expressPouchDB = require("../../helpers/couch-server")
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "once-tab-http-"))
   const Db = PouchDB.defaults({ prefix: directory + path.sep })
   const remote = new Db("once")

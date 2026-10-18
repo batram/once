@@ -3,7 +3,7 @@ const fs = require("node:fs/promises")
 const os = require("node:os")
 const path = require("node:path")
 const PouchDB = require("pouchdb")
-const expressPouchDB = require("express-pouchdb")
+const expressPouchDB = require("../../helpers/couch-server")
 const { launchApp, closeApp, openSettingsSection } = require("./electron-harness")
 
 test("a pairing code shows behind a warning, and its link connects another profile after asking", async () => {

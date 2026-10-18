@@ -146,7 +146,7 @@ async function copy() {
       console.log(`  ${copied} copied${skipped ? `, ${skipped} skipped` : ""}…`)
     }
   })
-  console.log(`Copied ${result.copied} winning revisions. Run verify next.`)
+  console.log(`Copied ${result.copied} winning revisions. Run open for guarded verification and cutover, or verify for a read-only check.`)
 }
 
 async function verify() {
@@ -155,7 +155,15 @@ async function verify() {
   await assertExists(source)
   await assertExists(target)
   console.log(`Comparing ${source.name} with ${target.name}…`)
-  const result = await verifyWinningRevisions(source.db, target.db, { exclude: notMarker })
+  let lastReport = 0
+  const result = await verifyWinningRevisions(source.db, target.db, {
+    exclude: notMarker,
+    onProgress: ({ phase, processed, total }) => {
+      if (Date.now() - lastReport < 2000 && processed !== total) return
+      lastReport = Date.now()
+      console.log(`  ${phase}: ${processed}${total === undefined ? "" : `/${total}`} documents checked…`)
+    }
+  })
   const sample = list => list.slice(0, 20).join("\n    ") + (list.length > 20 ? `\n    … ${list.length - 20} more` : "")
   if (result.mismatched.length) console.log(`  ${result.mismatched.length} winners missing or different in the target:\n    ${sample(result.mismatched)}`)
   if (result.conflicted.length) console.log(`  ${result.conflicted.length} target documents with more than one leaf:\n    ${sample(result.conflicted)}`)
@@ -190,7 +198,7 @@ async function freeze() {
   await writeMarker(source.db, "preparing", next)
   await installFence(source.db)
   await assertFence(source.db)
-  console.log(`Frozen: ${source.name} announces its move to ${next}. Clients pause; run copy, then verify, then open.`)
+  console.log(`Frozen: ${source.name} announces its move to ${next}. Clients pause; run copy, then open (which verifies before opening).`)
 }
 
 async function open() {

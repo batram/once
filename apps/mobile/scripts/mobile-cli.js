@@ -50,6 +50,8 @@ function parse(argv) {
       options[value.slice(2)] = argv[++index]
     } else if (value === "--e2e") {
       options.e2e = true
+    } else if (value === "--native-storage-probe") {
+      options.nativeStorageProbe = true
     } else if (value.startsWith("--")) {
       options.passthrough.push(value)
     } else {
@@ -456,6 +458,9 @@ else if (command === "run") {
   compileInstalledApp(installAdb, address, "com.zmarn.once", android.env)
   console.log(`mobile: deployment completed in ${((performance.now() - started) / 1000).toFixed(1)}s`)
 } else if (command === "package") {
+  if (options.nativeStorageProbe && (platform !== "android" || channel !== "dev" || !options.e2e)) {
+    fail("--native-storage-probe requires package android --channel dev --e2e")
+  }
   // E2E runners pass the target device's ABI; GeckoView's native libraries
   // dominate the APK, and shipping both ABIs overflows emulator storage.
   const packageAbis = platform === "android" && process.env.ONCE_ANDROID_PACKAGE_ABIS
@@ -479,6 +484,7 @@ else if (command === "run") {
       path.join(appRoot, "android", "gradle", "wrapper", "gradle-wrapper.jar"),
       "org.gradle.wrapper.GradleWrapperMain",
       gradleTask,
+      ...(options.nativeStorageProbe ? ["-PonceNativeStorageProbe=true"] : []),
       ...(packageAbis ? [`-PonceDeployAbis=${packageAbis.join(",")}`] : []),
       "--no-daemon"
     ], {

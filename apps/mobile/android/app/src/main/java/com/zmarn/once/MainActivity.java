@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(AddressBarPlugin.class);
         registerPlugin(SecureSettingsPlugin.class);
+        registerPlugin(NativeDatabasePlugin.class);
         registerPlugin(InAppBrowserSurfacePlugin.class);
         registerPlugin(ViolentmonkeyRelayPlugin.class);
         registerPlugin(ReaderMediaSessionPlugin.class);

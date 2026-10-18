@@ -197,7 +197,7 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
     batch_size: 1000,
     batches_limit: 2,
     checkpoint: "target",
-    filter: replications[2].options.filter
+    selector: { _id: { $nin: ["once_sync_compat", "once_sync_epoch", "_design/once-epoch-freeze"] } }
   })
   replications[2].chain.emit("complete", {})
   await nextTurn()
@@ -360,7 +360,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async t =
     batch_size: 1000,
     batches_limit: 2,
     checkpoint: "target",
-    filter: replications[3].options.filter
+    selector: { _id: { $nin: ["once_sync_compat", "once_sync_epoch", "_design/once-epoch-freeze"] } }
   })
   assert.equal(statuses.at(-1).message, "Loading older stories…")
 
@@ -384,7 +384,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async t =
     checkpoint: "target",
     live: true,
     retry: false,
-    filter: syncs[0].options.filter
+    selector: { _id: { $nin: ["once_sync_compat", "once_sync_epoch", "_design/once-epoch-freeze"] } }
   })
   assert.equal(statuses.at(-1).state, "up-to-date")
   assert.equal(statuses.at(-1).changes, 4)

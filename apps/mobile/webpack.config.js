@@ -115,7 +115,7 @@ module.exports = (_env = {}, argv = {}) => {
     devtool: mode === "development" ? "inline-source-map" : false,
     resolve: {
       extensions: [".ts", ".js", ".css"],
-      fallback: { path: false }
+      fallback: { path: false, stream: require.resolve("stream-browserify"), util: require.resolve("util/"), events: require.resolve("events/"), assert: require.resolve("assert/") }
     },
     module: {
       parser: { javascript: { url: false } },
@@ -139,6 +139,7 @@ module.exports = (_env = {}, argv = {}) => {
       ]
     },
     plugins: [
+      new webpack.ProvidePlugin({ Buffer: ["buffer", "Buffer"], process: "process/browser.js" }),
       new webpack.DefinePlugin({
         __ONCE_APP_VERSION__: JSON.stringify(version),
         __ONCE_BUILD_CHANNEL__: JSON.stringify(channel),

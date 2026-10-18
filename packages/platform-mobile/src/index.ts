@@ -4,6 +4,8 @@ import PouchDBFind from "pouchdb-find"
 import { Browser } from "@capacitor/browser"
 import { Capacitor, registerPlugin } from "@capacitor/core"
 import { mobileAddonFetch } from "./addonFetch"
+import { openMobileDatabase } from "./nativeStorage"
+export { prepareMobileDatabase } from "./nativeStorage"
 import { installNativeFetch, nativeFetch } from "./nativeFetch"
 import { createDocumentFetch, DocumentDownloadPlugin } from "./documentFetch"
 import { StatusBar, Style } from "@capacitor/status-bar"
@@ -11,9 +13,8 @@ import { DatabaseChange, OncePlatformPorts, RecognizedText, TextRecognitionPort,
 import { DEFAULT_CACHE_MINUTES, Story } from "@once/core"
 import {
   IndexedDbCacheStore,
+  protectRemoteAttachments,
   keepIndexedDbOpenAfterAborts,
-  LOCAL_POUCH_OPTIONS,
-  openLocalDatabase,
   PouchListStore,
   PouchStoryStore,
   PouchSyncDatabase,
@@ -178,7 +179,7 @@ export function createMobilePlatform(
 ): OncePlatformPorts {
   installNativeFetch()
   keepIndexedDbOpenAfterAborts()
-  const local = database ? { db: database, epoch: undefined } : openLocalDatabase("once_mobile_v1", (name) => new PouchDB(name, LOCAL_POUCH_OPTIONS))
+  const local = database ? { db: database, epoch: undefined } : openMobileDatabase()
   const onceDb = local.db
   const listStore = new PouchListStore(onceDb, version => syncService.requireSyncProtocol(version))
   const storyStore = new PouchStoryStore(onceDb, (story) => Story.from_obj(story))
@@ -187,7 +188,7 @@ export function createMobilePlatform(
     (event) => console.debug("mobile database changed", event),
     // pouchdb-fetch keeps the global fetch it saw at load time, before
     // installNativeFetch ran, so the remote is handed nativeFetch directly.
-    (url) => new PouchDB(url, { fetch: nativeFetch }) as unknown as PouchSyncDatabase,
+    (url) => protectRemoteAttachments(new PouchDB(url, { fetch: nativeFetch })) as unknown as PouchSyncDatabase,
     undefined,
     local.epoch
   )

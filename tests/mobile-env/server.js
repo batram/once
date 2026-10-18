@@ -1,5 +1,5 @@
 const express = require("express")
-const expressPouchDB = require("express-pouchdb")
+const expressPouchDB = require("../helpers/couch-server")
 const fs = require("fs")
 const path = require("path")
 const PouchDB = require("pouchdb")

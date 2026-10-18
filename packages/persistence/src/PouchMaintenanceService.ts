@@ -1,9 +1,10 @@
 import { mergeStoryAssociations, normalizeFeedContent, StoryTag, SubStory } from "@once/core"
 import { epochContent } from "./EpochContent"
+import { compactLocalRevisions, LocalCompactionDatabase } from "./LocalCompaction"
 
-export interface PouchMaintenanceDatabase {
+export interface PouchMaintenanceDatabase extends LocalCompactionDatabase {
   changes?(options: Record<string, unknown>): Promise<{
-    results: Array<{ doc?: Record<string, unknown> }>
+    results: Array<{ id?: string; doc?: Record<string, unknown> }>
     last_seq: unknown
   }>
   get?(
@@ -50,6 +51,7 @@ export class PouchMaintenanceService {
         const response = await this.db.changes({
           since,
           limit: PouchMaintenanceService.BATCH_SIZE,
+          batch_size: PouchMaintenanceService.BATCH_SIZE,
           include_docs: true,
           conflicts: true,
           return_docs: true
@@ -72,7 +74,7 @@ export class PouchMaintenanceService {
         )
       }
       if (!this.isCurrent()) return false
-      await this.compactLocalDatabaseOnce()
+      if (!await this.compactLocalDatabaseOnce()) return false
       this.updateStatus({
         state: "up-to-date",
         message: resolved
@@ -147,11 +149,11 @@ export class PouchMaintenanceService {
     return 1
   }
 
-  private async compactLocalDatabaseOnce(): Promise<void> {
-    if (!this.db.compact || !this.db.get || !this.db.put) return
+  private async compactLocalDatabaseOnce(): Promise<boolean> {
+    if (!this.db.compact || !this.db.get || !this.db.put) return true
     try {
       await this.db.get(PouchMaintenanceService.COMPACTION_MARKER_ID)
-      return
+      return true
     } catch (error) {
       if ((error as { status?: number }).status !== 404) throw error
     }
@@ -166,10 +168,14 @@ export class PouchMaintenanceService {
     publishProgress()
     const progressTimer = setInterval(publishProgress, 1000)
     try {
-      await this.db.compact()
+      const completed = await compactLocalRevisions(this.db, this.isCurrent, (checked, compacted) => {
+        this.updateStatus({ state: "syncing", message: `Compacting local database… ${checked} checked, ${compacted} compacted` })
+      })
+      if (!completed) return false
       await this.writeLocalMarker(PouchMaintenanceService.COMPACTION_MARKER_ID, {
         completed_at: Date.now()
       })
+      return true
     } finally {
       clearInterval(progressTimer)
     }

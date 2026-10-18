@@ -6,6 +6,7 @@ import { captureReaderPositionInPage } from "@once/app/tabsync"
 import { Story } from "@once/core"
 import {
   IndexedDbCacheStore,
+  protectRemoteAttachments,
   keepIndexedDbOpenAfterAborts,
   LOCAL_POUCH_OPTIONS,
   openLocalDatabase,
@@ -78,9 +79,9 @@ export function createElectronPlatform(
     onceDb as unknown as PouchSyncDatabase,
     (event) => console.log("change db", event),
     (url) =>
-      new PouchDB(url, {
+      protectRemoteAttachments(new PouchDB(url, {
         fetch: syncFetchDiagnostics(fetchThroughMain)
-      }) as unknown as PouchSyncDatabase,
+      })) as unknown as PouchSyncDatabase,
     undefined,
     local.epoch
   )

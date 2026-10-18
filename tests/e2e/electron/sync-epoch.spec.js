@@ -3,7 +3,7 @@ const fs = require("node:fs/promises")
 const os = require("node:os")
 const path = require("node:path")
 const PouchDB = require("pouchdb")
-const expressPouchDB = require("express-pouchdb")
+const expressPouchDB = require("../../helpers/couch-server")
 const { copyWinningRevisions } = require("../../../packages/persistence/dist")
 
 test("an installed client keeps local preferences and its old database through an epoch and pointer loss", async () => {
