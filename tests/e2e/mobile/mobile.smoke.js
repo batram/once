@@ -495,6 +495,39 @@ async function runScriptedAddon(baseUrl, platform) {
   expect(await browser.execute(() => document.querySelectorAll("iframe[data-addon-sandbox]").length)).toBe(1)
 }
 
+// The AI add-on uses the central AI settings: a connection whose token is kept
+// in this device's secret store, and the default model on that connection.
+async function configureCentralAi(baseUrl, platform) {
+  for (let level = 0; level < 5 && !(await $("[data-settings-target='ai']").isDisplayed()); level++) {
+    await clickWeb(await $("#settings_section_back"), platform)
+  }
+  await clickWeb(await $("[data-settings-target='ai']"), platform)
+  await clickWeb(await $("#ai_settings .ai_add_row[data-ai-focus-key='Add connection']"), platform)
+  const editor = "#ai_settings .ai_editor:not([hidden])"
+  await setWebValue(await $(`${editor} [data-testid='ai-connection-name']`), "Fixture AI")
+  // The provider's change handler clears the endpoint, so it goes first.
+  await setWebValue(await $(`${editor} [data-testid='ai-connection-provider']`), "compatible")
+  await setWebValue(await $(`${editor} [data-testid='ai-connection-endpoint']`), `${baseUrl}/ai-addon/v1/chat/completions`)
+  await setWebValue(await $(`${editor} [data-testid='ai-connection-token']`), "fixture-token")
+  await clickWeb(await $(`${editor} [data-testid='ai-editor-save']`), platform)
+  const defaultModel = await $("#ai_settings .settings_link_row[data-ai-focus-key='Default model']")
+  await defaultModel.waitForDisplayed({ timeout: 10_000 })
+  await clickWeb(defaultModel, platform)
+  // Choosing the connection clears the model field, so the model follows it.
+  const connection = await $(`${editor} [data-testid='ai-model-connection']`)
+  await connection.waitForDisplayed({ timeout: 10_000 })
+  await setWebValue(connection, await browser.execute(select =>
+    Array.from(select.options).find(option => option.textContent === "Fixture AI")?.value ?? "", connection))
+  await setWebValue(await $(`${editor} [data-testid='ai-model-id']`), "fixture")
+  await clickWeb(await $(`${editor} [data-testid='ai-editor-save']`), platform)
+  await browser.waitUntil(async () => browser.execute(() =>
+    document.querySelector("#ai_settings .settings_link_row[data-ai-focus-key='Default model']")
+      ?.getAttribute("aria-label") === "Default model: Fixture AI · fixture"), {
+    timeout: 10_000,
+    timeoutMsg: "The default AI model was not saved"
+  })
+}
+
 async function runAiAddon(baseUrl, platform) {
   const fixture = require("../shared/ai-addon-fixture")
   await clickWeb(await $("[data-testid='settings-menu']"), platform)
@@ -502,13 +535,10 @@ async function runAiAddon(baseUrl, platform) {
   await clickWeb(await $("[data-testid='open-addon-advanced']"), platform)
   await setWebValue(await $("[data-testid='addons']"), JSON.stringify([fixture.manifest(baseUrl)]))
   await clickWeb(await $("[data-testid='save-addons']"), platform)
-  await clickWeb(await $("#settings_section_back"), platform)
-  await clickWeb(await $(".addon_list_row[data-addon-id='what-wait-who-why']"), platform)
-  const token = await $("[data-testid='addon-option-what-wait-who-why-compatibleToken']")
-  await token.waitForDisplayed({ timeout: 10000 })
-  await setWebValue(token, "fixture-token")
-  await browser.execute(element => element.parentElement.querySelector("button").click(), token)
-  await browser.waitUntil(async () => (await browser.execute(element => element.parentElement.textContent, token)).includes("Token saved on this device"), { timeout: 10000 })
+  // Saving is asynchronous, and the status line may still read "Saved" from
+  // the previous phase, so wait for the add-on's own row in the list.
+  await $(".addon_list_row[data-addon-id='what-wait-who-why']").waitForExist({ timeout: 10_000 })
+  await configureCentralAi(baseUrl, platform)
   await clickWeb(await $("[data-testid='stories-menu']"), platform)
   const button = await $("[data-addon-tray-button='addon:what-wait-who-why/assistant']")
   expect(await button.isDisplayed()).toBe(false)

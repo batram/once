@@ -115,6 +115,24 @@ function ensureAndroidStorage() {
   })
 }
 
+// Reinstalling the app keeps its Keychain items, and the Keychain holds the
+// sync URL and the database this profile is bound to (SyncDestinationBinding).
+// The test server listens on a new port every run, so a binding left by an
+// earlier run refuses this run's sync URL. Android's fullReset already starts
+// from a clean profile; on iOS the simulator Keychain is reset instead. A
+// simulator that is not booted yet has nothing to clear.
+function resetIosKeychain() {
+  if (platform !== "ios" || visual) return
+  const reset = spawnSync("xcrun", ["simctl", "keychain", process.env.ONCE_IOS_UDID || "booted", "reset"], {
+    cwd: root,
+    env: process.env,
+    encoding: "utf8"
+  })
+  if (reset.status !== 0) {
+    console.warn(`Could not reset the simulator Keychain: ${(reset.stderr || reset.error?.message || "").trim()}`)
+  }
+}
+
 function installVisualApp() {
   if (!visual) return
   const app = path.join(appRoot, appBundles[platform])
@@ -226,6 +244,7 @@ async function start() {
   try {
     ensureFreshApp()
     ensureAndroidStorage()
+    resetIosKeychain()
     installVisualApp()
   } catch (error) {
     console.error(error.message)
