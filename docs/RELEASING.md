@@ -36,7 +36,13 @@ records the exact release URL and SHA-256 of each and unpacks them into
 the Android package command run first. That means the release workflow's
 `make:electron` step downloads both bundles from GitHub; an upstream asset
 that has been removed or changed fails the hash check and stops the release. Electron carries them as
-`resources/extensions`; Android builds them into the APK's assets.
+`resources/extensions`; Android builds them into the APK's assets, once per
+engine: the GeckoView flavours take `ublock-origin` and the Gecko-adapted
+`android/violentmonkey` (the `OnceExtensionAssets` task in
+[`build.gradle`](../apps/mobile/android/app/build.gradle)), Once Lite takes
+`ublock-origin` and the plain upstream `violentmonkey` under
+`assets/extensions/` (`OnceLiteExtensionAssets`), because its runtime does
+the relay's work from the privileged side and must not load the relay twice.
 
 uBlock's Firefox build is Mozilla-signed; the pinned hash is that of the
 signed archive as published, so what ships is what Mozilla signed.
@@ -49,11 +55,43 @@ it from a page), run `npm run fetch:extensions`, then run the Electron smoke
 Reader and SponsorBlock check) with `ONCE_ELECTRON_EXTENSION_LOG=1` and
 `ONCE_ELECTRON_E2E_ATTACH_LOGS=1`, so each test's `electron-app-log.txt` under
 `test-results/` holds what the extensions printed even when the test passed,
-and the Android package; read that output for APIs the runtime does not yet
-provide. The
+and both Android packages (`package:mobile:android` and
+`package:mobile:android:lite`, plus the Lite acceptance suite
+`test:mobile:e2e:android:lite:extensions:local`, which exercises the plain
+Violentmonkey bundle through the broker); read that output for APIs the
+runtime does not yet provide. The
 list of what may load at all is `packages/webext-runtime/src/bundledExtensions.ts`
-and the Android plugin's built-in table; a bundle whose manifest id does not
-match its listed id is refused.
+and the Android plugin's built-in table (Lite: the two ids in
+`LiteExtensionEngine.java`); a bundle whose manifest id does not match its
+listed id is refused.
+
+## Once Lite builds
+
+Once Lite is the second Android app (`docs/plans/once-lite-plan.md`), built
+from the same project with Gradle's `lite` engine flavour. Like the GeckoView
+app it is not built or published by the release workflow; the commands take
+`--engine lite` (`apps/mobile/scripts/android-engine.js` derives every task,
+path and package id from the engine and channel pair):
+
+```bash
+npm run package:mobile:android:lite   # bundleLiteProductionRelease: unsigned AAB
+npm run deploy:mobile:android:lite    # assembleLiteProductionDebug, replaces com.zmarn.once.lite on the paired phone
+```
+
+Artefacts under `apps/mobile/android/app/build/outputs/`: the production AAB
+at `bundle/liteProductionRelease/`, the debug APKs at
+`apk/liteProduction/debug/app-lite-production-debug.apk` and
+`apk/liteDevelopment/debug/app-lite-development-debug.apk` (the dev APK is
+what CI's `mobile-android-lite` job builds and uploads). The package id is
+`com.zmarn.once.lite` (`.lite.dev` for the dev channel), the name "Once
+Lite"; it installs beside the GeckoView app and shares `ONCE_BUILD_NUMBER`.
+
+Every Once Lite build, release included, ships with WebView debugging on:
+`EngineSurface` calls `WebView.setWebContentsDebuggingEnabled(true)` because
+the extension runtime attaches to the app's own DevTools socket, and the
+Allow Web Inspector switch cannot turn it off. Only the same uid, shell and
+root may connect to that socket, so a release build is inspectable from
+`chrome://inspect` over USB debugging exactly as a debug build is.
 
 ## Bundled Once add-ons
 

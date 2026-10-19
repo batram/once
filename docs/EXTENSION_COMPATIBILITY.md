@@ -7,6 +7,7 @@ embedded browsing surface. Their configuration and runtime ownership are separat
 | --- | --- | --- |
 | Electron | Declarative contributions and sandboxed scripts | Bundled extensions plus user-installed Firefox MV2 and MV3 XPIs; see the management and API limits below |
 | Android | Declarative contributions and sandboxed scripts in the app shell | GeckoView built-ins and user-installed signed Firefox extensions; synced additions handled by Once's bridge |
+| Android Lite | The same app shell | Bundled uBlock Origin and Violentmonkey plus user-installed Firefox XPIs in Once's own runtime over the system WebView; see [Once Lite (WebView)](#once-lite-webview) |
 | iOS | Shared add-on implementation; device validation remains required | Explicit WebKit-adapted bundles through `WKWebExtensionController`, plus supplemental content rules and the small GM shim |
 | Chrome side panel | Declarative contributions and sandboxed scripts | Browser-native extensions remain the user's browser configuration |
 | Firefox side panel | Declarative contributions and sandboxed scripts in the packaged MV2 extension; no hosting setup | Browser-native extensions remain the user's browser configuration |
@@ -244,6 +245,70 @@ Account sync, a browser bookmarks/history database, a full tab strip, or a
 general Android download manager. Page-action-only extensions and extension
 pages requiring unimplemented browser UI delegates may need further host work.
 See [Android architecture, limits, and validation](plans/android-gecko-extension-management.md).
+
+## Once Lite (WebView)
+
+Once Lite runs the same `@once/webext-runtime` as Electron, in a hidden
+broker WebView, with Chromium's DevTools protocol as the engine adapter
+(`apps/mobile/src/lite`, `apps/mobile/android/app/src/lite/java/com/zmarn/once/lite`;
+design in [plans/once-lite-plan.md](plans/once-lite-plan.md), host contract in
+[plans/once-lite-broker-protocol.md](plans/once-lite-broker-protocol.md)).
+The Electron table above is the baseline; this section records where Lite
+matches it, falls short of it, or differs. Settings → Browser Extensions has
+the Android management UI (list, enable/disable, options and action pages,
+install from an AMO listing or a local XPI, removal with confirmation);
+confirmations are native dialogs. Mozilla's download is checked against the
+listing's SHA-256 hash and GUID, and Mozilla signatures are not
+cryptographically verified, as on Electron; a local package is recorded as
+"signature not verified" (`ExtensionPackage.ts`). Bundled uBlock Origin and
+Violentmonkey are the plain upstream bundles, not the Gecko-adapted
+Violentmonkey copy.
+
+**Full** (the Electron behaviour, or better):
+
+| Feature | Lite behaviour |
+| --- | --- |
+| Blocking `webRequest` | Every request of every frame pauses at the `Fetch` request and response stage with resource type, request body and headers (`liteWebRequest.ts`); `onBeforeRequest` cancels (`BlockedByClient`) or redirects (a 307), `onBeforeSendHeaders` and `onHeadersReceived` edit headers, a document's `onResponseStarted` is awaited while its headers are held as on Electron; `onSendHeaders`, `onBeforeRedirect`, `onCompleted` and `onErrorOccurred` come from `Network.*` events |
+| `declarativeNetRequest` | The shared rulesets and matcher, enforced ahead of the listeners, same conditions and limits as the Electron section |
+| Content scripts | Isolated world `once-ext:<host>` in every frame at `document_start`, `document_end` and `document_idle`, from one `Page.addScriptToEvaluateOnNewDocument` registration per extension carrying every static and registered script; `match_about_blank`, dynamic `contentScripts.register`/`scripting.registerContentScripts`, `executeScript`/`insertCSS`/`removeCSS` (CSS is author-origin, as on Electron) |
+| Main-world scriptlets | uBlock's `<script>` insertion works under a strict header CSP through the per-document nonce the broker adds to `script-src`; a `<meta>`-only policy is detected by a synchronous probe and the scriptlet runs through DevTools main-world evaluation instead (`worldBootstrap.ts`). Both paths are in the acceptance suite (phase d) |
+| Extension pages | Background page, popups, options and other pages in their own WebViews at `https://<host>.moz-extension.localhost/`, with a Firefox desktop user agent; popups report their body size as Electron's do; `web_accessible_resources` from tabs (uBlock's element picker) |
+| Storage, alarms | `storage.local`/`storage.sync` over Java-backed JSON stores with the Electron semantics; `alarms` and every long broker timer are driven by native timers (`timer.set`/`timer.fired`), so they survive the hidden WebView's throttling |
+| Tabs, navigation | `tabs.*` and `webNavigation.*` events from the tab target's `Page.*` events; `tabs.create`/`update`/`remove`/`reload`; a `moz-extension://` tab URL opens the extension page |
+| Cookies | `cookies.get`/`set`/`remove` over DevTools and `CookieManager`; `onChanged` by comparing the jar after writes and after a `set-cookie` response (`LiteCookies.java`) |
+| Installation | AMO listing or XPI URL with the hash and GUID check, local XPI/ZIP through the document picker, unpacked by Java (`java.util.zip`, path-checked) and validated by the shared code; enable/disable/remove/update, options and action pages |
+
+**Partial**:
+
+| Feature | Lite behaviour |
+| --- | --- |
+| `filterResponseData` | The broker has the whole-body rewrite (`Fetch.getResponseBody`, then `fulfillRequest` with the new body); the page-side `StreamFilter` is not wired yet, so `browser.webRequest.filterResponseData` throws a clear error (`pageBootstrap.ts`). When it is, the body arrives in one `ondata`: streaming is not possible over this round trip. The HTML-filter assertion of the acceptance suite is opt-in (`ONCE_LITE_HTML_FILTERS=1`) for that reason |
+| CORS preflights | Not interceptable; a `Preflight` that does reach the broker is reported as `other` |
+| Workers | `Fetch` is enabled per page target, so requests a dedicated or service worker starts itself are not intercepted (`LiteTargets.java`) |
+| `wrappedJSObject` | A proxy over a synchronous event channel to the main-world helper: JSON-representable values only, and the page can observe the channel (it cannot forge the token) |
+| Listener registration | `addListener` reaches the broker asynchronously (Electron's is synchronous); order within a context is preserved |
+| URLs | Extension pages see the https form in `location` and the `moz-extension://` form from `runtime.getURL`; content worlds get the https form from `runtime.getURL` |
+| Tabs and windows | One window (`windowId` 1); `tabs.move` answers without moving; `captureVisibleTab` is unavailable |
+| Background page access | `extension.getBackgroundPage` and `runtime.getBackgroundPage` throw: the background page is another WebView; use `runtime.sendMessage` |
+| Userscripts | Handed to Violentmonkey through the `GeckoViolentmonkey` plugin contract (answered by the broker the Electron way, over a `VirtualContext`), not by the settings coordinator; filter lists reach uBlock through its dashboard port |
+
+**Absent**: native messaging; `dns.resolve` (reserved in the protocol, not
+exposed); `privacy.*` answers the Firefox defaults and changes nothing;
+and everything the Electron table lists as unavailable.
+
+**Degraded mode (Tier 2)**: when the DevTools socket cannot be attached or
+the `Fetch` domain is refused, the surface still browses and the catalogue
+marks its entries "Extensions limited: DevTools unavailable"
+(`LiteExtensionEngine.java`). The reduced filtering of that tier
+(`shouldInterceptRequest`, cosmetic CSS and userscripts without full
+extensions) is milestone M4 of the plan and not implemented yet.
+
+`tests/e2e/mobile/mobile.lite-extensions.js`
+([README](../tests/e2e/mobile/README-lite-extensions.md)) is the acceptance
+suite: catalogue, synced lists and userscripts, network and cosmetic blocking,
+scriptlets under header and `<meta>` CSPs, GM API timing and isolation,
+popup and options pages, dashboard round trip, persistence across restarts,
+disable/enable, and the opt-in live Dark Reader install.
 
 ### Requested extension builds
 

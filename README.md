@@ -2,7 +2,8 @@
 
 Collect stories from different sources (RSS, Hacker News, Lobsters or Reddit, custom), so you can stop scrolling through those sites all day and look at each story once.
 Available as desktop app for Electron, side-panel extensions for Firefox and Chrome,
-and Capacitor applications for Android and iOS.
+and Capacitor applications for Android (two apps: one on GeckoView, and Once
+Lite on the system WebView) and iOS.
 
 ## Downloads
 
@@ -33,8 +34,8 @@ see [Development](docs/DEVELOPMENT.md) to build them.
   folder or ZIP; the AI "What? Wait, who, why?" add-on comes bundled and can
   be removed
 - Firefox extensions in the embedded browsers: uBlock Origin and
-  Violentmonkey are bundled on Electron and Android, and any signed Firefox
-  extension can be installed
+  Violentmonkey are bundled on Electron and both Android apps, and any signed
+  Firefox extension can be installed
 
 ## Quick start
 
@@ -60,6 +61,7 @@ npm run make:electron
 
 # Capacitor mobile apps
 npm run run:mobile:android
+npm run run:mobile:android:lite
 npm run run:mobile:ios
 npm run test:mobile
 ```

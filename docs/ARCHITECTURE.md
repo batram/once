@@ -23,6 +23,10 @@ The implemented targets are:
   reading surface (GeckoView on Android, WKWebView on iOS);
   `@once/platform-mobile` supplies its PouchDB, native networking, secure
   settings, system UI, and browser-surface adapters.
+- **Once Lite:** a second Android app from the same Capacitor project, whose
+  reading surface is the system `android.webkit.WebView` instead of GeckoView
+  and whose browser extensions run in Once's own runtime over Chromium's
+  DevTools protocol; see [Mobile](#mobile) below.
 
 `apps/website` reserves the future web composition root.
 
@@ -35,6 +39,9 @@ apps/
   electron/            Electron main, preload, renderer, and packaging
   website/             Future website composition root
   mobile/              Capacitor web bundle and committed Android/iOS projects
+    src/lite/          Once Lite's extension broker, page and world bootstraps
+    android/app/src/   main (shared), gecko (GeckoView) and lite (WebView,
+                       DevTools client, extension runtime host) source sets
 packages/
   core/                 Platform-neutral domain models and story logic
   collectors/           Feed collectors, parsers, and collector registry
@@ -70,6 +77,90 @@ further Mozilla-signed extensions through GeckoView's own installer, and an
 opt-in setting keeps media on the reading page playing in the background
 behind an Android media notification; see
 [Android reading media](android-background-playback.md).
+
+Once Lite is the second Android app: Gradle's `engine` flavour dimension
+(`gecko`, `lite`; `apps/mobile/android/app/build.gradle`) pairs with the
+`environment` one, so `liteProduction` is `com.zmarn.once.lite` and
+`liteDevelopment` is `com.zmarn.once.lite.dev`, installable beside the
+GeckoView app. The GeckoView dependency, its asset task and its Java live in
+`src/gecko`, Lite's in `src/lite`, and `src/main` holds what both share; each
+flavour's `EngineSurface` registers its plugins under the same names, so the
+shell and `@once/platform-mobile` do not know which engine they drive. Lite's
+reading surface is one system WebView per tab (`LiteSurfacePlugin`,
+`LiteSurfaceHost`), with the GeckoView plugin's tab routing, events and
+bounded recovery mapped onto `WebViewClient`/`WebChromeClient`. The APK is
+tens of megabytes rather than Firefox-sized and the engine updates with the
+OS; see [plans/once-lite-plan.md](plans/once-lite-plan.md).
+
+WebView has no extension subsystem and its public client API cannot see
+request bodies, edit response headers, create isolated worlds or rewrite
+bodies, so Lite's privilege boundary is the Chrome DevTools Protocol:
+Chromium serves it on the abstract socket `webview_devtools_remote_<pid>`
+once `WebView.setWebContentsDebuggingEnabled(true)` is set, and admits the
+same uid, so the app attaches to its own WebViews without adb
+(`src/lite/.../devtools/DevToolsClient.java`: one browser-level connection,
+`Target.setAutoAttach` flattened over every WebView). The `Fetch` domain
+pauses every request of a page target at the request and response stage
+with its resource type, body and headers; `Page.addScriptToEvaluateOnNewDocument`
+with a `worldName` gives each extension an isolated world in every frame
+before the page's scripts run; `Runtime.addBinding` scoped to that world is
+the only channel out of it. That setting is process-wide and therefore stays
+on in release builds of Once Lite: Settings shows Allow Web Inspector as on
+and locked, and the exposure is the existing "USB debugging enabled" one,
+since only the same uid, shell and root may connect to the socket.
+
+The runtime itself is `@once/webext-runtime`, the same host-neutral half
+Electron uses, loaded by the **broker** (`apps/mobile/src/lite`, built into
+`lite-runtime.html` and the `lite-*.js` bundles): a hidden WebView Java keeps
+in a 1×1 visible container so Blink does not throttle its timers. Java
+(`src/lite/.../lite/`: `LiteExtensionEngine`, `BrokerChannel`, `LiteTargets`,
+`LitePage`, `LiteFiles`, `LitePackages`, `LiteCookies`) is deliberately dumb
+I/O: it owns the WebViews, the DevTools connection, files, the network and
+dialogs, forwards the DevTools events the broker subscribed to over a
+`WebMessageListener` channel, and issues the `Fetch.*`, `Runtime.evaluate`
+and page commands the broker answers with. The protocol is
+[plans/once-lite-broker-protocol.md](plans/once-lite-broker-protocol.md)
+(`src/lite/protocol.ts` is its typed form), and because the broker never
+touches a WebView, a file or the network itself, it is unit-tested in Node
+against a fake Java (`tests/unit/mobile/lite-broker.test.js`).
+
+Extension pages (background, popup, options, the element picker) load in
+their own WebViews at the synthetic origin
+`https://<host>.moz-extension.localhost/`, served from the package through
+the same `Fetch` interception. A custom `moz-extension://` scheme is not
+usable: WebView's non-standard-scheme handling discards the host, so every
+extension would share one origin; `*.localhost` is loopback, a secure context,
+one tuple origin per extension with its own storage, and resolved before
+DNS. The page bootstrap keeps `runtime.getURL` on the `moz-extension://`
+form (extensions branch on that prefix) while `location` shows the https
+form; content worlds get the https form so URLs they put into the DOM load.
+Content scripts run in the world `once-ext:<host>` of every tab frame from
+one registration per extension that carries all of its content scripts; the
+bootstrap matches them against `location` in the frame itself, so injection
+is race-free for `about:blank`, `srcdoc` and restored frames. A
+DevTools-created world has no CSP of its own, so uBlock's scriptlets (a
+`<script>` the world inserts) would be judged by the page's policy: the
+broker adds a per-document nonce, `sha256(token | url)`, to `script-src` at
+the response stage of every document request, the world stamps it on what it
+inserts, and a document with only a `<meta>` policy gets its scriptlets
+through main-world `Runtime.evaluate` instead, which the page's CSP does not
+govern. Once's own page features (source picker evaluation, image text, media
+snapshots, the PiP polyfill) run in a Once-owned world `once-bridge` over the
+`onceLiteBridge` binding, which Java answers with the Gecko-era handlers; this
+replaces the Gecko bridge extension and its native-messaging port, and the
+main-world helper the PiP polyfill needs talks to that world only through
+token-scoped events.
+
+Lite therefore has four trust zones: the Capacitor shell at
+`https://localhost/` (the Once UI and its plugins, as on GeckoView); reading
+pages, which see no Once bridge and reach Java only through the bindings of
+the worlds installed over them; extension pages and worlds, which reach the
+broker over a frame-authenticated channel or a world-scoped binding and get
+`browser.*` built by the shared `PreloadApi` with the same allowlists as
+Electron; and the broker, which may ask Java for anything in the protocol but
+holds no file, socket or WebView of its own. Where the DevTools connection
+cannot be made the surface still works and the catalogue reports its
+extensions as limited (the plan's Tier 2; the fallback itself is milestone M4).
 
 The sync URL can contain credentials, so mobile stores it outside the WebView:
 iOS uses Keychain and Android encrypts an app-private preference with an

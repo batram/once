@@ -6,6 +6,8 @@ plans are summarized in [HISTORY.md](HISTORY.md) and retained in Git history.
 - [Future user theming](plans/design-system-theming-plan.md)
 - [Extension reliability](plans/extension-reliability-plan.md)
 - [Android GeckoView extension management](plans/android-gecko-extension-management.md)
+- [Once Lite, the Android app on the system WebView](plans/once-lite-plan.md)
+  (the runtime, its tests and docs are in; the Tier 2 fallback, M4, remains)
 - [Linux Electron releases](plans/linux-release-plan.md) (artifacts ship
   since 0.4.0; physical GPU, Wayland and Speech Dispatcher coverage remain)
 
