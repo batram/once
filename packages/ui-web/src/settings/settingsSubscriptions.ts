@@ -1,4 +1,5 @@
 import { bindSyncCompatibilityControls } from "./syncCompatibilityControls"
+import { bindSyncSettingReviewControls } from "./syncSettingReviewControls"
 import { OnceClient, SourceError } from "@once/app"
 import { requireElement } from "../dom"
 
@@ -32,9 +33,11 @@ export function bindSettingsSubscriptions(
     actions.sourceErrors(errors)
   })
   const compatibility = bindSyncCompatibilityControls(client)
+  const settingReview = bindSyncSettingReviewControls(client)
   const setSyncStatus = (status: ReturnType<OnceClient["getSyncStatus"]>) => {
     const element = requireElement<HTMLElement>("#couch_status")
     compatibility(status)
+    settingReview(status)
     element.dataset.state = status.state
     element.textContent = status.message
     actions.summaries()

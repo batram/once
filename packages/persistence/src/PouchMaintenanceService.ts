@@ -209,7 +209,7 @@ function comparableAttachments(attachments: Record<string, unknown>, feed: boole
   return epochContent({ _attachments: normalized })
 }
 
-function mergeStoryStateDocuments(
+export function mergeStoryStateDocuments(
   current: Record<string, unknown>,
   candidate: Record<string, unknown>
 ): Record<string, unknown> {
@@ -253,7 +253,7 @@ function associations(doc: Record<string, unknown>) {
   }
 }
 
-function sameStoryStateDocuments(
+export function sameStoryStateDocuments(
   left: Record<string, unknown>,
   right: Record<string, unknown>
 ): boolean {

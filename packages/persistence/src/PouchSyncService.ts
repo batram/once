@@ -5,6 +5,8 @@ import type { EpochCopyDatabase } from "./PouchEpochCopy"
 import { assertNoSyncEpoch, isSyncMetadataId, readSyncEpochMarker, resolveSyncEpoch } from "./SyncEpoch"
 import { syncRequestDetails } from "./SyncFetchDiagnostics"
 import { syncFailure } from "./SyncFailure"
+import { EpochSettingReviewError } from "./EpochSettingReview"
+import type { SyncSettingReview, SyncSettingResolution } from "@once/core"
 import { SYNC_PROTOCOL, SYNC_COMPAT_ID, SYNC_EPOCH_ID, SYNC_EPOCH_FENCE_ID, SyncCompatibilityDetails, isRoutedTabDocId, isTabSyncChangeId, normalizeSyncUrl, ROUTED_TAB_DOC_PREFIXES, TAB_SYNC_SETTINGS_ID } from "@once/core"
 import {
   PouchMaintenanceDatabase,
@@ -36,6 +38,7 @@ export interface PouchSyncDatabase extends PouchMaintenanceDatabase {
 }
 
 export interface PouchSyncStatus {
+  settingReview?: { documentId: string }
   state:
     | "update-required"
     | "disabled"
@@ -583,7 +586,9 @@ export class PouchSyncService {
     }
     // Do not include destination credentials, query strings, headers or document bodies.
     this.report(failure.operation, message, error, context, !failure.retry)
-    this.updateStatus({ state: details ? "update-required" : failure.retry ? "retrying" : "error", message, ...(details ? { compatibility: details } : {}) })
+    this.updateStatus({ state: details ? "update-required" : failure.retry ? "retrying" : "error", message,
+      ...(details ? { compatibility: details } : {}),
+      ...(error instanceof EpochSettingReviewError ? { settingReview: { documentId: error.documentId } } : {}) })
     if (retryInMs !== null) {
       const retryGeneration = this.generation
       this.retryTimer = setTimeout(() => {
@@ -593,6 +598,18 @@ export class PouchSyncService {
   }
 
   recheckCompatibility(): void { this.syncFrom(this.destination, this.loadedStoryIds) }
+
+  async reviewSetting(id: string): Promise<SyncSettingReview> {
+    if (!this.epoch || this.status.settingReview?.documentId !== id) throw new Error("Check sync again before reviewing settings")
+    return this.epoch.reviewSetting(id)
+  }
+
+  async resolveSetting(choice: SyncSettingResolution): Promise<void> {
+    if (!this.epoch || this.status.settingReview?.documentId !== choice.id) throw new Error("The sync session changed. Review again.")
+    const generation = this.generation
+    await this.epoch.resolveSetting(choice, () => this.generation === generation)
+    this.recheckCompatibility()
+  }
 
   async requireSyncProtocol(version: number): Promise<void> {
     if (!Number.isSafeInteger(version) || version < 1) throw new Error("Invalid sync protocol")

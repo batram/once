@@ -1,18 +1,15 @@
 import { epochContent } from "./EpochContent"
 import { censusRevisions, copyWinningRevisions, EPOCH_BATCH_SIZE, EpochCopyDatabase, EpochMigrationProgress, EpochSourceConflictError } from "./PouchEpochCopy"
 import { isSyncMetadataId } from "@once/core"
-
-function ancestor(rev: string, doc: Record<string, unknown>): boolean {
-  if (rev === doc._rev) return true
-  const [generation, hash] = rev.split("-")
-  const history = doc._revisions as { start: number; ids: string[] } | undefined
-  return history?.ids[history.start - Number(generation)] === hash
-}
+import { EpochSettingReviewError, reviewableSetting } from "./EpochSettingReview"
+import { epochAncestor as ancestor, isRetiredEpochRevision, preflightEpochSettings, reconcileDevicePublication } from "./EpochReconciliationPolicy"
+import { reconcileEpochStory } from "./EpochStoryReconciliation"
 
 /** Seed from the canonical epoch, then admit only provable local extensions. */
 export async function reconcileEpoch(local: EpochCopyDatabase, canonical: EpochCopyDatabase, previous: EpochCopyDatabase,
   target: EpochCopyDatabase, destination: string, progress: EpochMigrationProgress, isCurrent = () => true): Promise<void> {
   const options = { exclude: isSyncMetadataId, batchSize: EPOCH_BATCH_SIZE, isCurrent, onProgress: (step: { copied: number }) => progress(step.copied) }
+  const { canonicalSettings, equalLocalBranches } = await preflightEpochSettings(local, canonical, previous)
   await copyWinningRevisions(canonical, target, `remote:${destination}`, options)
   let since: unknown = 0
   let reconciled = 0
@@ -29,9 +26,17 @@ export async function reconcileEpoch(local: EpochCopyDatabase, canonical: EpochC
     const targetDocs = targetRequests.length ? await target.bulkGet({ docs: targetRequests, revs: true, attachments: true }) : { results: [] }
     const copies = new Map(targetDocs.results.map(row => [row.id, row.docs[0]?.ok]))
     for (const row of wanted) {
-      if (row.doc?._conflicts?.length) throw new EpochSourceConflictError(row.id)
       const doc = originals.get(row.id), held = copies.get(row.id)
       if (!doc || targetRows.some(entry => entry.key === row.id && entry.value?.rev) && !held) throw new Error(`Could not read epoch reconciliation data: ${row.id}`)
+      if (canonicalSettings.has(row.id)) {
+        if (!held || await epochContent(held) !== await epochContent(doc)) throw new EpochSettingReviewError(row.id)
+        continue
+      }
+      const conflicted = Boolean(row.doc?._conflicts?.length)
+      if (conflicted && await reconcileEpochStory(local, previous, target, doc, held, true, isCurrent)) continue
+      if ((conflicted || held && !ancestor(String(held._rev), doc)) &&
+        await reconcileDevicePublication(local, target, doc, held, conflicted)) continue
+      if (conflicted && !equalLocalBranches.has(row.id)) throw reviewableSetting(row.id) ? new EpochSettingReviewError(row.id) : new EpochSourceConflictError(row.id)
       if (held && held._rev === doc._rev) {
         if (await epochContent(held) !== await epochContent(doc)) throw new Error(`Epoch content differs under the same revision: ${row.id}. Repair it before moving; local data is retained.`)
         continue
@@ -40,8 +45,9 @@ export async function reconcileEpoch(local: EpochCopyDatabase, canonical: EpochC
       if (held && !ancestor(String(held._rev), doc)) {
         // A stale replica may still call a deleted losing branch its winner.
         // Only discard it if the frozen source proves that exact revision was retired.
-        const leaves = await previous.get(row.id, { open_revs: "all", revs: true }) as unknown as Array<{ ok?: Record<string, unknown> }>
-        if (leaves.some(leaf => leaf.ok?._deleted && ancestor(String(doc._rev), leaf.ok))) continue
+        if (await isRetiredEpochRevision(previous, row.id, String(doc._rev))) continue
+        if (await reconcileEpochStory(local, previous, target, doc, held, false, isCurrent)) continue
+        if (reviewableSetting(row.id)) throw new EpochSettingReviewError(row.id)
         throw new Error(`Local epoch ancestry cannot be reconciled automatically: ${row.id}. Resolve or export the pending edit; all local data is retained.`)
       }
       await epochContent(doc)

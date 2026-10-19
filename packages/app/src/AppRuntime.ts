@@ -227,6 +227,8 @@ export class AppRuntime {
       getDiagnostics: () => this.diagnostics.snapshot(),
       getSyncStatus: () => this.syncStatus,
       recheckSyncCompatibility: () => this.platform.syncService?.recheckCompatibility?.(),
+      reviewSyncSetting: id => this.platform.syncService?.reviewSetting?.(id) ?? Promise.reject(new Error("Setting review is unavailable here")),
+      resolveSyncSetting: choice => this.platform.syncService?.resolveSetting?.(choice) ?? Promise.reject(new Error("Setting review is unavailable here")),
       getStorySources: () => this.sourceSettingsReady
         .then(() => this.settings.getStorySources()),
       saveStorySources: (storySources, reloadStories) =>

@@ -1,8 +1,10 @@
 import { syncDatabaseName } from "@once/core"
 import { copyWinningRevisions, EpochCopyDatabase, EpochCopyDivergedError, EpochMigrationProgress, verifyWinningRevisions } from "./PouchEpochCopy"
 import { PouchMaintenanceService } from "./PouchMaintenanceService"
-import { epochLock, guardEpochWrites } from "./LocalEpochWrites"
+import { epochLock, guardEpochWrites, withEpochDocumentWrites } from "./LocalEpochWrites"
 import { reconcileEpoch } from "./ReconcileEpoch"
+import { resolveEpochSetting, reviewEpochSetting } from "./EpochSettingReview"
+import type { SyncSettingResolution, SyncSettingReview } from "@once/core"
 
 export interface EpochLocalDatabase extends EpochCopyDatabase {
   info(): Promise<{ update_seq?: unknown }>
@@ -86,6 +88,7 @@ export function openLocalDatabase<T>(
  * database in use and the copy resumes; after it, the new one opens.
  */
 export class LocalDatabaseEpoch {
+  private reviewRemote?: EpochCopyDatabase
   constructor(
     private readonly base: string,
     readonly name: string,
@@ -99,11 +102,26 @@ export class LocalDatabaseEpoch {
     return (await readLocal(this.db, STATE_ID) ?? {}) as LocalEpochState
   }
 
+  async reviewSetting(id: string): Promise<SyncSettingReview> {
+    if (!this.reviewRemote || (await this.state()).retired) throw new Error("Check sync again before reviewing settings")
+    return reviewEpochSetting(this.db, this.reviewRemote, id)
+  }
+
+  async resolveSetting(choice: SyncSettingResolution, isCurrent = () => true): Promise<void> {
+    await withEpochDocumentWrites(this.base, this.db, async direct => {
+      if (!this.reviewRemote || (await this.state()).retired || activeLocalDatabaseName(this.base, this.storage) !== this.name) {
+        throw new Error("The active database changed. Check sync again before reviewing settings.")
+      }
+      await resolveEpochSetting(direct, this.reviewRemote, choice, isCurrent)
+    })
+  }
+
   /** Copies this database into the one for `destination`, verifies it, and switches to it. */
   async rebuild(destination: string, progress: EpochMigrationProgress = () => undefined,
     remote?: { canonical: EpochCopyDatabase; previous: EpochCopyDatabase; isCurrent?: () => boolean }): Promise<void> {
     if (typeof window !== "undefined" && !globalThis.navigator?.locks) throw new Error("Database migration requires Web Locks. Update this browser before moving; local data is retained.")
     await epochLock(this.base, async () => {
+      this.reviewRemote = remote?.canonical
       if (remote?.isCurrent && !remote.isCurrent()) throw new Error("Sync session changed during epoch migration")
       // Another window may have moved this database while this one waited.
       const state = await this.state()

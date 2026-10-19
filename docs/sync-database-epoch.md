@@ -158,8 +158,38 @@ profile and extension/application identifier when preserving local data.
 3. Open the updated client, allow its local rebuild/reconciliation and automatic
    restart, then wait for **Up to date**. Check settings, bookmarks and a saved
    article. Keep free space for the retained old copy and the new database.
-4. If ancestry, conflicts or content integrity block migration, retain that
-   profile for explicit recovery. Do not edit markers or force a direct sync.
+4. For a conflicting ordinary setting, open **Settings → Sync → Review versions**.
+   Compare the synced version, this device's current version and other local
+   versions. Select one and confirm **Use selected version and resume sync**.
+   Every original local branch and the reviewed server version are backed up in
+   a local-only record before resolution. The resolver checks that the reviewed
+   revisions are still current, never writes directly to the server, and resumes
+   normal migration afterward. Choosing a local version can update other devices
+   once sync resumes. Choosing the synced version reuses its revision when possible.
+   Identical values are grouped into one choice. If every live local value agrees
+   with the canonical value, migration retains the canonical revision without a
+   prompt or a new revision; the original branches remain in the retained old
+   database. Settings are checked before copying or scanning the archive, so
+   reviewing additional settings does not repeat the full local scan.
+   Device publication records use tab sync's existing ordering (epoch, sequence,
+   then revision tie-break). A newer local publication is rebased onto the staged
+   canonical branch, with all payload fields preserved and read-back verified.
+   This does not modify the source or server during migration. Malformed records
+   and same-revision content mismatches still stop the move.
+5. Divergent story histories use the same merge rules as normal story conflicts:
+   preserve read/bookmark/filter edits and new discussions/source associations,
+   while keeping canonical parsed metadata. Parsed-only differences reuse the
+   canonical revision. Unique local saved content is copied with its metadata.
+   If both sides have different saved content, canonical content stays active
+   and the alternate is verified into a local-only `_local/once-epoch-story-*`
+   recovery record in the new database; originals also remain in the old database.
+   These recovery records do not sync and currently require technical tooling to
+   extract. A failed backup or integrity check stops the move.
+6. Vaults and content-integrity failures are not resolved by this ordinary
+   settings chooser. Retain that profile for their dedicated recovery flow. Do
+   not edit markers or force a direct sync. Conflicts already on the canonical
+   server also require separate resolution; this chooser resolves the returning
+   client's settings.
 
 For an expendable test installation whose unsynced data is not needed, starting
 with a genuinely fresh profile is also valid. Install the updated client and pair

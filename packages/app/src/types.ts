@@ -48,6 +48,7 @@ export interface DiagnosticError {
 }
 
 export interface SyncStatus {
+  settingReview?: { documentId: string }
   compatibility?: { supportedSyncProtocol: number; requiredSyncProtocol: number; minAppVersion?: string }
   state:
     | "update-required"
@@ -170,6 +171,8 @@ export interface OnceClient {
   getDiagnostics(): DiagnosticError[]
   getSyncStatus(): SyncStatus
   recheckSyncCompatibility(): void
+  reviewSyncSetting(id: string): Promise<import("@once/core").SyncSettingReview>
+  resolveSyncSetting(choice: import("@once/core").SyncSettingResolution): Promise<void>
   getStorySources(): Promise<StorySourceDocument>
   saveStorySources(
     storySources: StorySourceDocument,
@@ -396,6 +399,8 @@ export interface StoryStorePort {
 }
 
 export interface SyncServicePort {
+  reviewSetting?(id: string): Promise<import("@once/core").SyncSettingReview>
+  resolveSetting?(choice: import("@once/core").SyncSettingResolution): Promise<void>
   requireSyncProtocol?(version: number): Promise<void>
   recheckCompatibility?(): void
   storageInfo?(): Promise<{ doc_count?: number; doc_del_count?: number; sizes?: { file?: number; active?: number }; compact_running?: boolean } | null>
