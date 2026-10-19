@@ -1,0 +1,16 @@
+{
+  "manifest_version": 2,
+  "name": "__MSG_extName__",
+  "version": "1.2.0",
+  "description": "A fixture for the Once Lite broker: blocks images named blocked.png, registers scriptlets from a document's onResponseStarted, answers messages",
+  "default_locale": "en",
+  "browser_specific_settings": { "gecko": { "id": "lite-fixture@once.test" } },
+  "background": { "scripts": ["background.js"] },
+  "browser_action": { "default_title": "Lite fixture", "default_popup": "popup.html" },
+  "options_ui": { "page": "options.html" },
+  "content_scripts": [
+    { "matches": ["https://*.site.test/*"], "js": ["content.js"], "css": ["content.css"], "run_at": "document_start" }
+  ],
+  "web_accessible_resources": ["picker.html", "assets/*"],
+  "permissions": ["storage", "webRequest", "webRequestBlocking", "declarativeNetRequest", "tabs", "<all_urls>"]
+}

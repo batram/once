@@ -110,6 +110,107 @@ app.get("/fixtures/blocked-ad.png", (_request, response) => {
     "base64"
   ))
 })
+// Once Lite extension fixtures (tests/e2e/mobile/mobile.lite-extensions.js).
+// Nothing on a device can resolve an ad host, so every probe lives on this
+// server and uBlock gets its rules through a synced custom filter list. The
+// list is generated per request so its hostname-scoped rules (cosmetic,
+// scriptlet, HTML) name the host the device reaches this server through
+// (10.0.2.2 on the emulator, 127.0.0.1 on the iOS simulator).
+app.get("/fixtures/lite-filter-list.txt", (request, response) => {
+  const host = request.hostname
+  response.type("text/plain").send([
+    `! Once Lite e2e fixture list for ${host}`,
+    // Network: the ad script, by path so the port does not matter.
+    "*/fixtures/ublock/ad.js$script",
+    // Cosmetic: hide every ad slot on the fixture host.
+    `${host}##.lite-ad-slot`,
+    // Scriptlet: set-constant must run before the page's own inline script.
+    `${host}##+js(set, liteAdsEnabled, false)`,
+    // HTML filter: needs response-body filtering (filterResponseData).
+    `${host}##^#lite-html-filtered`,
+    // The smoke suite's article probes, so one list serves both specs.
+    "*/fixtures/blocked-ad.png|",
+    "##.once-filter-hide"
+  ].join("\n"))
+})
+app.get("/fixtures/ublock/ad.js", (_request, response) => {
+  response.type("text/javascript").send(
+    "document.documentElement.dataset.adScript = \"ran\";\n"
+  )
+})
+// The three uBlock probe pages share one body; they differ in how the CSP
+// arrives: none, a strict header (nonce-only script-src, so the scriptlet
+// has to go through the per-document nonce Lite adds), or the same policy in
+// a <meta> tag (no header to amend, so scriptlets go through main-world
+// evaluation). The page's own scripts carry the fixture nonce so the CSP
+// itself blocks nothing; only uBlock can.
+function ublockProbePage(title) {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>` +
+    // First script in the document: if a scriptlet ran before it, the
+    // constant is already pinned and this assignment is ignored.
+    "<script nonce=\"fixture\">window.liteAdsEnabled = true;" +
+    "document.documentElement.dataset.adsEnabledAtTop = String(window.liteAdsEnabled);</script>" +
+    "</head><body>" +
+    `<h1>${title}</h1>` +
+    "<div class=\"lite-ad-slot\" id=\"lite-ad-slot-1\">ad slot one</div>" +
+    "<div class=\"lite-ad-slot\" id=\"lite-ad-slot-2\">ad slot two</div>" +
+    "<div id=\"lite-html-filtered\">html filter probe</div>" +
+    "<p id=\"lite-content\">Once Lite extension probe content.</p>" +
+    "<script nonce=\"fixture\" src=\"/fixtures/ublock/ad.js\" " +
+    "onload=\"document.documentElement.dataset.adScript = document.documentElement.dataset.adScript || 'loaded'\" " +
+    "onerror=\"document.documentElement.dataset.adScript = 'blocked'\"></script>" +
+    "<script nonce=\"fixture\">window.addEventListener('load', () => {" +
+    "const root = document.documentElement;" +
+    "root.dataset.adsEnabled = String(window.liteAdsEnabled);" +
+    "root.dataset.slotDisplay = getComputedStyle(document.querySelector('.lite-ad-slot')).display;" +
+    "root.dataset.htmlFiltered = document.querySelector('#lite-html-filtered') ? 'present' : 'removed';" +
+    "root.dataset.probeLoaded = 'true';" +
+    "});</script>" +
+    "</body></html>"
+}
+const STRICT_CSP = "script-src 'nonce-fixture'; object-src 'none'; base-uri 'none'"
+app.get("/fixtures/ublock/page.html", (_request, response) => {
+  response.type("text/html").send(ublockProbePage("uBlock probe"))
+})
+app.get("/fixtures/ublock/strict-csp.html", (_request, response) => {
+  response.set("Content-Security-Policy", STRICT_CSP)
+  response.type("text/html").send(ublockProbePage("uBlock probe under a strict CSP header"))
+})
+app.get("/fixtures/ublock/meta-csp.html", (_request, response) => {
+  response.type("text/html").send(ublockProbePage("uBlock probe under a meta CSP")
+    .replace("<meta charset=\"utf-8\">", `<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${STRICT_CSP}">`))
+})
+// A page that makes several blockable requests, so uBlock's popup has a
+// hostname and a blocked count above zero to show.
+app.get("/fixtures/popup-probe.html", (_request, response) => {
+  response.type("text/html").send(
+    "<!doctype html><html><head><meta charset=\"utf-8\"><title>Popup probe</title></head><body>" +
+    "<h1 id=\"lite-popup-probe\">Popup probe</h1>" +
+    "<img src=\"/fixtures/blocked-ad.png?n=1\" alt=\"\"><img src=\"/fixtures/blocked-ad.png?n=2\" alt=\"\">" +
+    "<script src=\"/fixtures/ublock/ad.js?n=1\"></script><script src=\"/fixtures/ublock/ad.js?n=2\"></script>" +
+    "<script src=\"/fixtures/ublock/ad.js?n=3\"></script>" +
+    "<script>window.addEventListener('load', () => { document.documentElement.dataset.probeLoaded = 'true' })</script>" +
+    "</body></html>"
+  )
+})
+// Violentmonkey probes: the page defines globals a userscript may only reach
+// through unsafeWindow (content injection) or directly (page injection), an
+// element for GM_addStyle, and a same-server JSON for GM_xmlhttpRequest.
+app.get("/fixtures/violentmonkey/page.html", (_request, response) => {
+  response.type("text/html").send(
+    "<!doctype html><html><head><meta charset=\"utf-8\"><title>Violentmonkey probe</title>" +
+    "<script>window.pageSecret = 'page-secret'; window.pageCounter = 1;</script>" +
+    "</head><body>" +
+    "<h1>Violentmonkey probe</h1>" +
+    "<div id=\"vm-styled\">GM_addStyle hides me</div>" +
+    "<div id=\"vm-target\">userscript target</div>" +
+    "<script>window.addEventListener('load', () => { document.documentElement.dataset.probeLoaded = 'true' })</script>" +
+    "</body></html>"
+  )
+})
+app.get("/fixtures/violentmonkey/api.json", (_request, response) => {
+  response.json({ token: "vm-api-ok" })
+})
 app.get("/fixtures/visual-feed.rss", (request, response) => {
   const baseUrl = `${request.protocol}://${request.get("host")}`
   const stories = [

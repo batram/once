@@ -1,107 +1,14 @@
 const { ADDON_INTEGRITY } = require("../shared/addon-fixture")
 /* global browser, describe, before, it, expect, $ */
-const { mobileEngine, packageName } = require("../../../apps/mobile/scripts/android-engine")
+// Shell steps shared with mobile.lite-extensions.js (context switching, the
+// __onceE2E__ hooks and the Browser Extensions settings steps).
+const {
+  androidEngine, switchToWebView, waitForOnceReady, settledStoryWrites,
+  evaluateSurface, saveExtensionSettings, clickWeb, setWebValue, backToSettingsIndex
+} = require("./helpers/wdio-shell")
+const { packageName } = require("../../../apps/mobile/scripts/android-engine")
 // The Android app under test: com.zmarn.once.dev, or com.zmarn.once.lite.dev for Once Lite.
-const androidEngine = mobileEngine()
 const androidPackage = packageName(androidEngine, "dev")
-
-function contextName(context) {
-  return typeof context === "string" ? context : context?.id || ""
-}
-
-async function switchToWebView() {
-  const platform = String(browser.capabilities.platformName).toLowerCase()
-  let webview = ""
-  await browser.waitUntil(async () => {
-    const contexts = (await browser.getContexts()).map(contextName)
-    webview = platform === "android"
-      ? contexts.find((context) => context.includes(`WEBVIEW_${androidPackage}`)) || ""
-      : contexts.find((context) => context.includes("WEBVIEW")) || ""
-    return Boolean(webview)
-  }, {
-    timeout: 60_000,
-    timeoutMsg: "Capacitor WebView did not become available"
-  })
-  if (platform === "ios") {
-    // Right after an app (re)launch the webview is listed before its page is
-    // inspectable (title '', url about:blank), so a one-shot title switch can
-    // lose the race. Retry until the Once Dev page is actually reachable.
-    await browser.waitUntil(async () => {
-      try {
-        await browser.switchContext({ title: "Once Dev" })
-        return true
-      } catch {
-        return false
-      }
-    }, {
-      timeout: 60_000,
-      timeoutMsg: "Capacitor WebView did not expose the Once Dev page"
-    })
-  } else {
-    await browser.switchContext(webview)
-  }
-}
-
-// Wait for queued story saves to reach storage (hook set by the e2e build)
-// so state survives an app restart without pausing for an arbitrary time.
-async function settledStoryWrites() {
-  await browser.executeAsync((done) => {
-    window.__onceE2E__.settledStoryWrites().then(done, done)
-  })
-}
-
-async function evaluateSurface(script) {
-  const encoded = await browser.executeAsync((source, done) => {
-    window.__onceE2E__.evaluateSurface(source).then(done, error => done({ error: String(error) }))
-  }, script)
-  if (encoded && typeof encoded === "object" && encoded.error) throw new Error(encoded.error)
-  return JSON.parse(encoded ?? "null")
-}
-
-async function applyExtensionSettings() {
-  await browser.executeAsync(done => {
-    window.__onceE2E__.applyExtensionSettings().then(() => done(), error => done(String(error)))
-  })
-}
-
-// Saves a fixture filter list and a probing userscript from the settings
-// index, then hands both to the native extension runtime. Both editors are
-// groups of the one Extensions section, so this opens it once. On Android the
-// section opens on the native extension overview, which keeps the editors one
-// page further in. The article fixture carries the elements these rules and
-// the script act on.
-async function saveExtensionSettings(baseUrl, platform) {
-  await clickWeb(await $("[data-settings-target='extensions']"), platform)
-  const supplemental = await $("[data-testid='extension-supplemental']")
-  if (await supplemental.isExisting()) await clickWeb(supplemental, platform)
-  await setWebValue(
-    await $("[data-testid='filter-lists']"),
-    `${baseUrl}/fixtures/mobile-filter-list.txt`
-  )
-  await clickWeb(await $("[data-testid='save-filter-lists']"), platform)
-  // Second group of the section: it starts below the fold on a phone screen.
-  const addScript = await $("[data-testid='add-userscript']")
-  await addScript.scrollIntoView()
-  await clickWeb(addScript, platform)
-  await setWebValue(await $("[data-testid='userscript-source']"), `// ==UserScript==
-// @name Mobile e2e probe
-// @namespace once-e2e
-// @match <all_urls>
-// @run-at document-start
-// @grant GM_addStyle
-// @grant GM_getValue
-// @grant GM_setValue
-// ==/UserScript==
-document.documentElement.dataset.onceUserscriptStart = document.readyState;
-GM_addStyle('#once-userscript-target { display: none !important; }');
-    GM_setValue('ran', true);
-    document.documentElement.dataset.onceGmValue = String(GM_getValue('ran', false));`)
-  const saveScript = await $("[data-testid='save-userscript']")
-  await saveScript.scrollIntoView()
-  await clickWeb(saveScript, platform)
-  await $("[data-testid='userscripts-settings'][data-page='script']").waitForExist()
-  await applyExtensionSettings()
-}
 
 // The reader frame is opaque-origin, so automation cannot reach into it.
 // Observe the TTS bridge traffic (readerTtsPolyfill -> readerTtsHostBridge)
@@ -249,35 +156,6 @@ async function selectNativeStoryMenuAction(action, platform) {
   await row.click()
 }
 
-async function clickWeb(element, platform) {
-  if (platform === "ios") {
-    await browser.execute((target) => {
-      for (const type of ["mousedown", "mouseup", "click"]) {
-        target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0 }))
-      }
-    }, element)
-  } else {
-    await element.click()
-  }
-}
-
-// A list's text view is its own settings page, so leaving a section edited
-// as text takes one Back to the list and another to the index.
-async function backToSettingsIndex(platform) {
-  for (let level = 0; level < 3 && !(await $("[data-settings-target='sync']").isDisplayed()); level++) {
-    await clickWeb(await $("#settings_section_back"), platform)
-  }
-}
-
-async function setWebValue(element, value) {
-  await element.waitForDisplayed({ timeout: 10_000 })
-  await browser.execute((target, nextValue) => {
-    target.value = nextValue
-    target.dispatchEvent(new Event("input", { bubbles: true }))
-    target.dispatchEvent(new Event("change", { bubbles: true }))
-  }, element, value)
-}
-
 // One installed app and one WebDriver session carry across these phases: each
 // depends on the state the one before it left behind, which is the point — the
 // suite follows a single device journey rather than seven independent cases.
@@ -297,20 +175,7 @@ describe("Once mobile", () => {
   it("attaches to the Capacitor WebView and finishes startup", async () => {
     await switchToWebView()
     await browser.setTimeout({ script: 30_000 })
-    const body = await $("body")
-    await body.waitForExist({ timeout: 30_000 })
-    try {
-      await browser.waitUntil(async () => (await body.getAttribute("data-once-ready")) === "true", {
-        timeout: 30_000,
-        timeoutMsg: "Once did not finish initializing"
-      })
-    } catch (error) {
-      const stage = await body.getAttribute("data-once-stage")
-      const startupError = await body.getAttribute("data-once-error")
-      throw new Error(`Once did not finish initializing (stage: ${stage}; error: ${startupError || "none"})`, {
-        cause: error
-      })
-    }
+    await waitForOnceReady()
     expect(await $("[data-testid='app-version']").getAttribute("data-build-channel")).toBe("dev")
     await expect($("[data-testid='settings-menu']")).toBeDisplayed()
     await expect($("[data-testid='stories-menu']")).toBeDisplayed()
@@ -371,11 +236,12 @@ describe("Once mobile", () => {
       `${baseUrl}/fixtures/article.html`
     )
     await browser.pause(500)
-    // TODO(M2, docs/plans/once-lite-plan.md): Once Lite gets its extension runtime
-    // in the next milestone; until then the filter list and userscript probes
-    // have nothing to apply them. The GeckoView run keeps the assertion.
-    if (!(platform === "android" && androidEngine === "lite")) await expectExtensionsApplied()
-    else console.log("Skipping extension assertions on Once Lite (extensions arrive with M2)")
+    // Once Lite asserts the same as GeckoView once its extension runtime (M2 of
+    // docs/plans/once-lite-plan.md) lands. Until then the implementers run with
+    // ONCE_LITE_EXTENSIONS_PENDING=1; delete this gate together with that env.
+    const extensionsPending = process.env.ONCE_LITE_EXTENSIONS_PENDING === "1"
+    if (!(extensionsPending && platform === "android" && androidEngine === "lite")) await expectExtensionsApplied()
+    else console.log("Skipping extension assertions on Once Lite (ONCE_LITE_EXTENSIONS_PENDING=1)")
     await clickWeb(await $("[data-testid='stories-menu']"), platform)
     await readingContent.waitForDisplayed({ timeout: 10_000, reverse: true })
   })

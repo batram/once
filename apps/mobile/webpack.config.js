@@ -96,6 +96,18 @@ const entry = {
   "pdf-sandbox": path.join(__dirname, "src", "pdfSandbox.ts")
 }
 
+// Once Lite (Android only): the extension runtime broker page and the
+// scripts Java injects into extension pages, content worlds and tabs. See
+// docs/plans/once-lite-broker-protocol.md. The broker reads the bootstrap
+// bundles back through `onceLiteFiles.read("@bundle", name)`.
+const liteEntry = {
+  "lite-runtime": path.join(__dirname, "src", "lite", "runtime.ts"),
+  "lite-page-bootstrap": path.join(__dirname, "src", "lite", "pageBootstrap.ts"),
+  "lite-world-bootstrap": path.join(__dirname, "src", "lite", "worldBootstrap.ts"),
+  "lite-bridge-world": path.join(__dirname, "src", "lite", "bridgeWorld.ts"),
+  "lite-pip-main": path.join(__dirname, "src", "lite", "pipMain.ts")
+}
+
 module.exports = (_env = {}, argv = {}) => {
   const mode = argv.mode || "development"
   const channel = process.env.ONCE_BUILD_CHANNEL || "dev"
@@ -103,9 +115,10 @@ module.exports = (_env = {}, argv = {}) => {
     throw new Error(`ONCE_BUILD_CHANNEL must be dev or release (received ${channel})`)
   }
 
+  const android = process.env.ONCE_MOBILE_PLATFORM === "android"
   return {
     mode,
-    entry,
+    entry: android ? { ...entry, ...liteEntry } : entry,
     output: {
       path: path.join(__dirname, "dist"),
       filename: "[name].js",
@@ -158,6 +171,9 @@ module.exports = (_env = {}, argv = {}) => {
           { from: path.join(root, "node_modules/pdfjs-dist/wasm"), to: "pdf/wasm", filter: (file) => !path.basename(file).startsWith("quickjs") },
           { from: path.join(root, "node_modules/pdfjs-dist/cmaps"), to: "pdf/cmaps" },
           { from: path.join(root, "node_modules/pdfjs-dist/standard_fonts"), to: "pdf/standard_fonts" },
+          ...(android ? [
+            { from: path.join(__dirname, "src", "lite", "lite-runtime.html"), to: "lite-runtime.html" }
+          ] : []),
           ...(process.env.ONCE_MOBILE_PLATFORM === "ios" ? [
             // Preserve upstream extension runtime assets, including modules with top-level await.
             { from: path.join(root, "vendor", "extensions", "ublock-origin-lite"), to: "extensions/ublock-origin-lite", globOptions: { dot: false }, info: { minimized: true } },

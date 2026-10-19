@@ -25,7 +25,8 @@
     "@once/app": "*",
     "@once/platform-mobile": "*",
     "@once/platform-web": "*",
-    "@once/ui-web": "*"
+    "@once/ui-web": "*",
+    "@once/webext-runtime": "*"
   },
   "devDependencies": {
     "@capacitor/assets": "3.0.5",

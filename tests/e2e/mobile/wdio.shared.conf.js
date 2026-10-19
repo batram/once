@@ -99,9 +99,15 @@ function configFor(platform) {
   return {
     ...iosTimeouts,
     runner: "local",
+    // One spec per run: the visual inspection, the native AI add-on suite
+    // (ONCE_MOBILE_ADDONS_ONLY=1), the Once Lite extension acceptance suite
+    // (ONCE_MOBILE_LITE_EXTENSIONS=1, with --engine lite), else the smoke suite.
     specs: [path.join(
       __dirname,
-      visual ? "mobile.visual-inspection.js" : process.env.ONCE_MOBILE_ADDONS_ONLY === "1" ? "mobile.addons.js" : "mobile.smoke.js"
+      visual ? "mobile.visual-inspection.js"
+        : process.env.ONCE_MOBILE_ADDONS_ONLY === "1" ? "mobile.addons.js"
+          : process.env.ONCE_MOBILE_LITE_EXTENSIONS === "1" ? "mobile.lite-extensions.js"
+            : "mobile.smoke.js"
     )],
     maxInstances: 1,
     logLevel: "info",

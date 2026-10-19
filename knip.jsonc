@@ -24,7 +24,7 @@
   "webpack": false,
   // Fixture WebExtensions are loaded by the Electron runtime at test time,
   // not imported by any module.
-  "ignore": ["tests/fixtures/extensions/**"],
+  "ignore": ["tests/fixtures/extensions/**", "tests/unit/mobile/fixtures/**"],
   "workspaces": {
     ".": {
       "entry": [
@@ -137,6 +137,13 @@
         // The find engine the iOS surface plugin evaluates in the page.
         "src/pageFindRuntime.ts",
         "src/readerRuntime.ts",
+        // Once Lite (Android): the extension runtime broker page and the
+        // scripts Java injects into extension pages, content worlds and tabs.
+        "src/lite/runtime.ts",
+        "src/lite/pageBootstrap.ts",
+        "src/lite/worldBootstrap.ts",
+        "src/lite/bridgeWorld.ts",
+        "src/lite/pipMain.ts",
         "webpack.config.js",
         "scripts/*.js"
       ],
