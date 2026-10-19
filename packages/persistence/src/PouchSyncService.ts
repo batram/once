@@ -607,7 +607,10 @@ export class PouchSyncService {
   async resolveSetting(choice: SyncSettingResolution): Promise<void> {
     if (!this.epoch || this.status.settingReview?.documentId !== choice.id) throw new Error("The sync session changed. Review again.")
     const generation = this.generation
-    await this.epoch.resolveSetting(choice, () => this.generation === generation)
+    try { await this.epoch.resolveSetting(choice, () => this.generation === generation) } catch (error) {
+      if (choice.applyToAll && this.generation === generation) this.recheckCompatibility()
+      throw error
+    }
     this.recheckCompatibility()
   }
 

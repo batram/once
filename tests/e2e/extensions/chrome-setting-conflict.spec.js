@@ -6,7 +6,7 @@ const path = require("node:path")
 const PouchDB = require("pouchdb")
 const couchServer = require("../../helpers/couch-server")
 
-test("Chrome offers a settings conflict review and migrates only after an explicit choice", async () => {
+for (const policy of ["single", "synced", "local"]) test(`Chrome migrates after an explicit ${policy} settings choice`, async () => {
   test.setTimeout(90000)
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-setting-review-"))
   const Db = PouchDB.defaults({ prefix: directory + path.sep })
@@ -19,6 +19,7 @@ test("Chrome offers a settings conflict review and migrates only after an explic
     deviceId: "22f450d8f2a8d74b4b2feb6af6ae2e85", epoch: 1, seq: 1, name: "Returning Chrome",
     platform: "chrome", appVersion: "test", sharing: false, windows: [], updatedAt: "2026-10-19T08:00:00Z" }
   await old.bulkDocs([
+    ...(policy !== "single" ? [{ _id: "animation", _rev: "1-a", list: false }, { _id: "animation", _rev: "1-z", list: true }] : []),
     { ...story, _rev: "1-local", stared: true, sync_updated_at: { stared: 100 } },
     { ...device, _rev: "1-local" },
     { _id: "swipe", _rev: "2-a", _revisions: { start: 2, ids: ["a", "root"] }, list: { twoStage: false } },
@@ -40,11 +41,12 @@ test("Chrome offers a settings conflict review and migrates only after an explic
     await page.getByTestId("save-sync").click()
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
     await page.close()
-    const rows = (await old.allDocs({ include_docs: true })).rows.filter(row => row.id !== "swipe" && row.id !== device._id && row.id !== story._id)
+    const rows = (await old.allDocs({ include_docs: true })).rows.filter(row => row.id !== "swipe" && row.id !== device._id && row.id !== story._id && (policy === "single" || row.id !== "animation"))
     const docs = await old.bulkGet({ docs: rows.map(row => ({ id: row.id, rev: row.doc._rev })), revs: true, attachments: true })
     await canonical.bulkDocs(docs.results.flatMap(row => row.docs.map(entry => entry.ok)), { new_edits: false })
     await canonical.bulkDocs([{ ...device, _rev: "1-canonical", seq: 2 }], { new_edits: false })
     await canonical.bulkDocs([{ ...story, _rev: "1-canonical", title: "Canonical Servo title" }], { new_edits: false })
+    if (policy !== "single") await canonical.bulkDocs([{ _id: "animation", _rev: "1-canonical", list: false }], { new_edits: false })
     await canonical.bulkDocs([{ _id: "swipe", _rev: "3-c", _revisions: { start: 3, ids: ["c", "a", "root"] }, list: { twoStage: false } }], { new_edits: false })
     await old.put({ _id: "once_sync_epoch", schema: 1, state: "ready", next: "once_e2" })
     page = await browser.context.newPage()
@@ -59,20 +61,26 @@ test("Chrome offers a settings conflict review and migrates only after an explic
     await expect(apply).toBeDisabled()
     await review.screenshot({ path: test.info().outputPath("setting-review.png") })
     expect(await page.evaluate(() => localStorage.getItem("once:local-database:once_db"))).toBeNull()
-    await review.locator("label").filter({ hasText: "Synced version" }).locator("input").check()
-    await apply.click()
-    await page.getByRole("button", { name: "Use this version", exact: true }).click()
+    if (policy === "single") {
+      await review.locator("label").filter({ hasText: "Synced version" }).locator("input").check()
+      await apply.click()
+      await page.getByRole("button", { name: "Use this version", exact: true }).click()
+    } else {
+      await review.getByRole("button", { name: policy === "synced" ? "Use synced for all" : "Use current local for all", exact: true }).click()
+      await page.getByRole("button", { name: "Apply to all settings conflicts", exact: true }).click()
+    }
     await expect.poll(async () => {
       try { return await page.evaluate(() => localStorage.getItem("once:local-database:once_db")) }
       catch { return null } // the committed migration reloads the renderer
     }, { timeout: 30000 }).not.toBeNull()
     await expectExtensionReady(page, browser.evidence)
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
-    expect((await canonical.get("swipe"))._rev).toBe("3-c")
-    expect((await canonical.get("swipe")).list.twoStage).toBe(false)
+    if (policy !== "local") expect((await canonical.get("swipe"))._rev).toBe("3-c")
+    await expect.poll(async () => (await canonical.get("swipe")).list.twoStage).toBe(policy === "local")
+    if (policy !== "single") await expect.poll(async () => (await canonical.get("animation")).list).toBe(policy === "local")
     expect((await canonical.get(device._id)).seq).toBe(2)
     expect((await canonical.get(device._id))._rev).toBe("1-canonical")
-    expect((await canonical.get(story._id)).stared).toBe(true)
+    await expect.poll(async () => (await canonical.get(story._id)).stared).toBe(true)
     expect((await canonical.get(story._id)).title).toBe("Canonical Servo title")
     expect((await canonical.get(story._id, { conflicts: true }))._conflicts).toBeUndefined()
   } finally {

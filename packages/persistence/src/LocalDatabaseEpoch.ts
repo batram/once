@@ -3,7 +3,8 @@ import { copyWinningRevisions, EpochCopyDatabase, EpochCopyDivergedError, EpochM
 import { PouchMaintenanceService } from "./PouchMaintenanceService"
 import { epochLock, guardEpochWrites, withEpochDocumentWrites } from "./LocalEpochWrites"
 import { reconcileEpoch } from "./ReconcileEpoch"
-import { resolveEpochSetting, reviewEpochSetting } from "./EpochSettingReview"
+import { reviewEpochSetting } from "./EpochSettingReview"
+import { resolveEpochSettingBatch } from "./EpochSettingBatch"
 import type { SyncSettingResolution, SyncSettingReview } from "@once/core"
 
 export interface EpochLocalDatabase extends EpochCopyDatabase {
@@ -89,6 +90,7 @@ export function openLocalDatabase<T>(
  */
 export class LocalDatabaseEpoch {
   private reviewRemote?: EpochCopyDatabase
+  private reviewPrevious?: EpochCopyDatabase
   constructor(
     private readonly base: string,
     readonly name: string,
@@ -112,7 +114,9 @@ export class LocalDatabaseEpoch {
       if (!this.reviewRemote || (await this.state()).retired || activeLocalDatabaseName(this.base, this.storage) !== this.name) {
         throw new Error("The active database changed. Check sync again before reviewing settings.")
       }
-      await resolveEpochSetting(direct, this.reviewRemote, choice, isCurrent)
+      if (!this.reviewPrevious) throw new Error("Check sync again before reviewing settings")
+      await resolveEpochSettingBatch({ ...direct, allDocs: this.db.allDocs.bind(this.db) }, this.reviewRemote,
+        this.reviewPrevious, choice, isCurrent)
     })
   }
 
@@ -122,6 +126,7 @@ export class LocalDatabaseEpoch {
     if (typeof window !== "undefined" && !globalThis.navigator?.locks) throw new Error("Database migration requires Web Locks. Update this browser before moving; local data is retained.")
     await epochLock(this.base, async () => {
       this.reviewRemote = remote?.canonical
+      this.reviewPrevious = remote?.previous
       if (remote?.isCurrent && !remote.isCurrent()) throw new Error("Sync session changed during epoch migration")
       // Another window may have moved this database while this one waited.
       const state = await this.state()

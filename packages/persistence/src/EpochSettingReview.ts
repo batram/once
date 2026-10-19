@@ -58,11 +58,10 @@ async function readVersions(local: SettingDatabase, remote: SettingDatabase, id:
 }
 
 export async function reviewEpochSetting(local: SettingDatabase, remote: SettingDatabase, id: string): Promise<SyncSettingReview> {
-  const { localLeaves, localLive, localWinner, remoteWinner } = await readVersions(local, remote, id)
-  const ordered = [localWinner, ...localLive.filter(doc => doc._rev !== localWinner._rev).sort((a, b) => a._rev.localeCompare(b._rev))]
+  const { localLeaves, localWinner, remoteWinner } = await readVersions(local, remote, id)
   const candidates = [
     ...(remoteWinner && !remoteWinner._deleted ? [{ key: "remote", label: "Synced version", value: value(remoteWinner) }] : []),
-    ...ordered.map((doc, index) => ({ key: doc._rev, label: index === 0 ? "This device’s current version" : `Other local version ${index}`, value: value(doc) }))
+    { key: localWinner._rev, label: "This device’s current version", value: value(localWinner) }
   ]
   const seen = new Set<string>(), choices: SyncSettingReview["choices"] = []
   for (const candidate of candidates) {
@@ -71,7 +70,7 @@ export async function reviewEpochSetting(local: SettingDatabase, remote: Setting
   }
   return {
     id, label: labels[id], localRevisions: localLeaves.map(doc => doc._rev).sort(), remoteRevision: remoteWinner?._rev ?? null,
-    choices
+    currentLocalRevision: localWinner._rev, choices
   }
 }
 

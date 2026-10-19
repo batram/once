@@ -3,6 +3,7 @@ export interface SyncSettingReview {
   label: string
   localRevisions: string[]
   remoteRevision: string | null
+  currentLocalRevision: string
   choices: Array<{ key: string; label: string; value: Record<string, unknown> }>
 }
 
@@ -11,4 +12,5 @@ export interface SyncSettingResolution {
   localRevisions: string[]
   remoteRevision: string | null
   choice: string
+  applyToAll?: "synced" | "local"
 }

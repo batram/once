@@ -20,14 +20,14 @@ export async function isRetiredEpochRevision(previous: EpochCopyDatabase, id: st
   }
 }
 
-async function liveVersions(db: EpochCopyDatabase, id: string): Promise<Record<string, unknown>[]> {
+async function liveVersions(db: Pick<EpochCopyDatabase, "get">, id: string): Promise<Record<string, unknown>[]> {
   const rows = await db.get(id, { open_revs: "all", revs: true, attachments: true }) as unknown as Array<{ ok?: Record<string, unknown> }>
   if (!Array.isArray(rows) || rows.some(row => !row.ok)) throw new Error(`Could not read every version: ${id}`)
   return rows.flatMap(row => row.ok && !row.ok._deleted ? [row.ok] : [])
 }
 
 /** Check the small settings set before any archive scan; retain originals in the old database. */
-export async function preflightEpochSettings(local: EpochCopyDatabase, canonical: EpochCopyDatabase, previous: EpochCopyDatabase) {
+export async function preflightEpochSettings(local: Pick<EpochCopyDatabase, "get" | "allDocs">, canonical: EpochCopyDatabase, previous: EpochCopyDatabase) {
   const canonicalSettings = new Set<string>(), equalLocalBranches = new Set<string>()
   const [locals, remotes] = await Promise.all([local.allDocs({ keys: reviewableSettingIds }), canonical.allDocs({ keys: reviewableSettingIds })])
   for (const row of locals.rows) {

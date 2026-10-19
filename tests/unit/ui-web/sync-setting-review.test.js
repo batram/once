@@ -4,7 +4,7 @@ const { parseHTML } = require("linkedom")
 const dialogs = require("../../../packages/ui-web/dist/confirmDialog")
 const { bindSyncSettingReviewControls } = require("../../../packages/ui-web/dist/settings/syncSettingReviewControls")
 
-const review = { id: "swipe", label: "Swipe settings", localRevisions: ["2-a", "2-b"], remoteRevision: "3-c",
+const review = { id: "swipe", label: "Swipe settings", localRevisions: ["2-a", "2-b"], remoteRevision: "3-c", currentLocalRevision: "2-b",
   choices: [{ key: "remote", label: "Synced version", value: { list: { twoStage: false } } },
     { key: "2-b", label: "This device’s current version", value: { list: { twoStage: true, note: "<img src=x onerror=alert(1)>" } } }] }
 
@@ -58,4 +58,32 @@ test("stale resolution errors require a fresh review before another write", asyn
   assert.match(panel.textContent, /changed while/)
   assert.equal(save.disabled, true)
   assert.equal(panel.querySelectorAll("input").length, 0)
+})
+
+for (const policy of ["synced", "local"]) test(`bulk ${policy} choice needs confirmation and submits the current local revision or synced version`, async t => {
+  const calls = [], confirmations = []
+  t.mock.method(dialogs, "showConfirmDialog", async options => { confirmations.push(options); return true })
+  const { panel, load } = setup(t, { reviewSyncSetting: async () => review, resolveSyncSetting: async value => calls.push(value) })
+  assert.equal(panel.querySelector("fieldset").hidden, true)
+  await load.onclick()
+  assert.equal(panel.querySelector("fieldset").hidden, false)
+  const buttons = panel.querySelectorAll("fieldset button")
+  await buttons[policy === "synced" ? 0 : 1].onclick()
+  assert.equal(confirmations.length, 1)
+  assert.match(confirmations[0].message, /all remaining settings conflicts/)
+  assert.match(confirmations[0].message, /not become a rule/)
+  assert.deepEqual(calls, [{ id: "swipe", localRevisions: ["2-a", "2-b"], remoteRevision: "3-c",
+    choice: policy === "synced" ? "remote" : "2-b", applyToAll: policy }])
+})
+
+test("bulk choice cancellation and a changed sync session never apply settings", async t => {
+  let confirm, writes = 0
+  t.mock.method(dialogs, "showConfirmDialog", () => new Promise(resolve => { confirm = resolve }))
+  const { panel, load, show } = setup(t, { reviewSyncSetting: async () => review, resolveSyncSetting: async () => writes++ })
+  await load.onclick()
+  const button = panel.querySelector("fieldset button")
+  const cancel = button.onclick(); confirm(false); await cancel
+  const stale = button.onclick(); show({ state: "disabled", message: "Sync disabled" }); confirm(true); await stale
+  assert.equal(writes, 0)
+  assert.equal(panel.querySelector("fieldset").hidden, true)
 })

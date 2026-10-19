@@ -24,18 +24,24 @@ export function bindSyncSettingReviewControls(client: OnceClient): (status: Sync
   const actions = document.createElement("div"); actions.className = "settings_actions cluster"
   const review = document.createElement("button"); review.type = "button"; review.className = "button"; review.textContent = "Review versions"
   const save = document.createElement("button"); save.type = "button"; save.className = "button"; save.textContent = "Use selected version and resume sync"; save.disabled = true
-  actions.append(review, save); panel.append(title, hint, message, choices, actions); root.prepend(panel)
+  const all = document.createElement("fieldset"); all.hidden = true
+  const legend = document.createElement("legend"); legend.textContent = "Do for all remaining settings conflicts"
+  const synced = document.createElement("button"); synced.type = "button"; synced.className = "button"; synced.textContent = "Use synced for all"
+  const local = document.createElement("button"); local.type = "button"; local.className = "button"; local.textContent = "Use current local for all"
+  all.append(legend, synced, local)
+  actions.append(review, save); panel.append(title, hint, message, choices, actions, all); root.prepend(panel)
   let id: string | undefined, snapshot: SyncSettingReview | undefined, selected = "", busy = false, revision = 0
   const showError = (error: unknown) => { message.textContent = error instanceof Error ? error.message : "Could not review this setting. Try again." }
   review.onclick = async () => {
     if (!id || busy) return
     busy = true; review.disabled = true; save.disabled = true
     const current = ++revision
-    choices.replaceChildren(); snapshot = undefined; selected = ""; message.textContent = "Loading saved versions…"
+    choices.replaceChildren(); all.hidden = true; snapshot = undefined; selected = ""; message.textContent = "Loading saved versions…"
     try {
       const result = await client.reviewSyncSetting(id)
       if (current !== revision) return
       snapshot = result; title.textContent = result.label
+      all.hidden = false; synced.disabled = !result.choices.some(entry => entry.key === "remote"); local.disabled = false
       message.textContent = "Select the version you want to use. Other devices will receive it after sync resumes."
       for (const choice of result.choices) {
         const label = document.createElement("label"); label.className = "settings_row"
@@ -49,23 +55,29 @@ export function bindSyncSettingReviewControls(client: OnceClient): (status: Sync
     } catch (error) { if (current === revision) showError(error) }
     finally { busy = false; review.disabled = false }
   }
-  save.onclick = async () => {
-    if (!snapshot || !selected || busy) return
-    const reviewed = snapshot, choice = selected, current = revision
+  const apply = async (applyToAll?: "synced" | "local") => {
+    if (!snapshot || !selected && !applyToAll || busy) return
+    const reviewed = snapshot, choice = applyToAll === "synced" ? "remote" : applyToAll === "local" ? snapshot.currentLocalRevision : selected, current = revision
     const label = reviewed.choices.find(entry => entry.key === choice)?.label
-    busy = true; review.disabled = true; save.disabled = true
+    busy = true; review.disabled = true; save.disabled = true; synced.disabled = true; local.disabled = true
     try {
-      const confirmed = await showConfirmDialog({ message: `Use “${label}” for ${reviewed.label.toLowerCase()}? A backup of the original versions will stay on this device.`, confirmLabel: "Use this version" })
+      const confirmed = await showConfirmDialog({ message: applyToAll
+        ? `Use ${applyToAll === "synced" ? "the synced version" : "this device’s current local version"} for this and all remaining settings conflicts in this migration? Original versions will be backed up on this device. This will not become a rule for future syncs.`
+        : `Use “${label}” for ${reviewed.label.toLowerCase()}? A backup of the original versions will stay on this device.`, confirmLabel: applyToAll ? "Apply to all settings conflicts" : "Use this version" })
       if (!confirmed || current !== revision) return
-      await client.resolveSyncSetting({ id: reviewed.id, localRevisions: reviewed.localRevisions, remoteRevision: reviewed.remoteRevision, choice })
+      await client.resolveSyncSetting({ id: reviewed.id, localRevisions: reviewed.localRevisions, remoteRevision: reviewed.remoteRevision, choice, ...(applyToAll ? { applyToAll } : {}) })
       if (current === revision) message.textContent = "Choice saved. Sync is resuming…"
     } catch (error) {
-      if (current === revision) { showError(error); snapshot = undefined; selected = ""; choices.replaceChildren() }
-    } finally { busy = false; review.disabled = false; save.disabled = !snapshot || !selected }
+      if (current === revision) { showError(error); snapshot = undefined; selected = ""; choices.replaceChildren(); all.hidden = true }
+    } finally {
+      busy = false; review.disabled = false; save.disabled = !snapshot || !selected
+      synced.disabled = !snapshot?.choices.some(entry => entry.key === "remote"); local.disabled = !snapshot
+    }
   }
+  save.onclick = () => apply(); synced.onclick = () => apply("synced"); local.onclick = () => apply("local")
   return status => {
     const next = status.settingReview?.documentId
-    if (next !== id) { revision++; snapshot = undefined; selected = ""; choices.replaceChildren(); save.disabled = true }
+    if (next !== id) { revision++; snapshot = undefined; selected = ""; choices.replaceChildren(); save.disabled = true; all.hidden = true }
     id = next; panel.hidden = !next
     if (next && !snapshot) message.textContent = status.message
   }

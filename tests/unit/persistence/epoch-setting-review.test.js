@@ -170,3 +170,46 @@ test("device resolution ranks all live branches by epoch before sequence and rej
   await assert.rejects(reconcileDevicePublication(source, target, local, { ...local, name: "Different bytes" }, true), /same revision/)
   assert.equal(written, undefined)
 })
+
+for (const policy of ["synced", "local"]) test(`apply ${policy} to all resolves multiple settings without scanning or touching unrelated settings`, async t => {
+  const f = await fixture(t)
+  await f.local.bulkDocs([
+    { _id: "animation", _rev: "1-a", list: "old branch" }, { _id: "animation", _rev: "1-z", list: true },
+    { _id: "theme", _rev: "2-new", _revisions: { start: 2, ids: ["new", "root"] }, list: "local pending" }
+  ], { new_edits: false })
+  await f.remote.bulkDocs([
+    { _id: "animation", _rev: "1-remote", list: false }, { _id: "theme", _rev: "1-root", list: "synced" }
+  ], { new_edits: false })
+  const before = (await f.remote.info()).update_seq
+  await assert.rejects(f.migrate(), EpochSettingReviewError)
+  const reviewed = await f.epoch.reviewSetting("swipe")
+  const animation = await f.epoch.reviewSetting("animation")
+  assert.equal(animation.choices.length, 2, "only synced and current local are offered")
+  let scans = 0
+  const changes = f.local.changes.bind(f.local)
+  f.local.changes = options => { scans++; return changes(options) }
+  await f.epoch.resolveSetting({ ...reviewed, choice: policy === "synced" ? "remote" : reviewed.currentLocalRevision, applyToAll: policy })
+  assert.equal(scans, 0)
+  assert.equal((await f.local.get("swipe")).list.twoStage, policy === "local")
+  assert.equal((await f.local.get("animation")).list, policy === "local")
+  assert.equal((await f.local.get("theme"))._rev, "2-new", "nonconflicting pending settings are untouched")
+  assert.equal(f.backups.length, 2)
+  assert.equal((await f.remote.info()).update_seq, before)
+  await f.migrate()
+})
+
+test("bulk stale choice makes no writes and cancellation between settings retains the remaining branches", async t => {
+  const f = await fixture(t)
+  await f.local.bulkDocs([{ _id: "animation", _rev: "1-a", list: true }, { _id: "animation", _rev: "1-b", list: false }], { new_edits: false })
+  await f.remote.bulkDocs([{ _id: "animation", _rev: "1-c", list: true }], { new_edits: false })
+  await assert.rejects(f.migrate(), EpochSettingReviewError)
+  const review = await f.epoch.reviewSetting("swipe")
+  await assert.rejects(f.epoch.resolveSetting({ ...review, remoteRevision: "stale", choice: "remote", applyToAll: "synced" }), /changed while/)
+  assert.equal(f.backups.length, 0)
+  const { resolveEpochSettingBatch } = require("../../../packages/persistence/dist/EpochSettingBatch")
+  const { withEpochDocumentWrites } = require("../../../packages/persistence/dist/LocalEpochWrites")
+  await assert.rejects(withEpochDocumentWrites(f.local.name, f.local, direct => resolveEpochSettingBatch(
+    { ...direct, allDocs: f.local.allDocs.bind(f.local) }, f.remote, f.previous,
+    { ...review, choice: "remote", applyToAll: "synced" }, () => f.backups.length === 0)), /session changed/)
+  assert.equal((await f.local.get("animation", { conflicts: true }))._conflicts.length, 1)
+})

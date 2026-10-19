@@ -159,8 +159,14 @@ profile and extension/application identifier when preserving local data.
    restart, then wait for **Up to date**. Check settings, bookmarks and a saved
    article. Keep free space for the retained old copy and the new database.
 4. For a conflicting ordinary setting, open **Settings → Sync → Review versions**.
-   Compare the synced version, this device's current version and other local
-   versions. Select one and confirm **Use selected version and resume sync**.
+   Compare the synced version and this device's current version. Select one and
+   confirm **Use selected version and resume sync**. To settle the remaining
+   settings conflicts together, use **Use synced for all** or **Use current local
+   for all**, then confirm. This applies only to this migration, does not change
+   nonconflicting settings, and does not establish a rule for future syncs.
+   Older local branches remain in backups rather than appearing as choices.
+   Each setting is checked again before writing. If the session changes or a
+   version is unavailable, the batch stops; completed choices and backups remain.
    Every original local branch and the reviewed server version are backed up in
    a local-only record before resolution. The resolver checks that the reviewed
    revisions are still current, never writes directly to the server, and resumes
