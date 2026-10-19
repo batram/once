@@ -125,6 +125,39 @@ test("offline preflight and reconnect never start replication before compatibili
   } finally { client.syncFrom("") }
 })
 
+test("a vault write during the epoch preflight is kept and raises the marker before replication", async t => {
+  t.mock.method(console, "warn", () => {})
+  const { PouchListStore, SYNC_EPOCH_ID } = { ...require("../../../packages/persistence/dist"), ...require("../../../packages/core/dist") }
+  let markerAtReplication = "not replicated"
+  const remote = compatibilityDatabase()
+  const local = compatibilityDatabase({ replicate: { from() {
+    markerAtReplication = remote.get(id).then(marker => marker.minSyncProtocol, () => null)
+    throw new Error("replication is not part of this test")
+  } } })
+  // Hold the preflight at its first step, reading the epoch marker, so the
+  // service has a destination but no connected remote yet.
+  let release
+  const held = new Promise(resolve => { release = resolve })
+  const get = remote.get
+  remote.get = async (key, ...rest) => { if (key === SYNC_EPOCH_ID) await held; return get(key, ...rest) }
+  const statuses = [], diagnostics = [], client = new PouchSyncService(local, () => {}, () => remote)
+  client.onStatus(status => statuses.push(status))
+  client.onDiagnostic(diagnostic => diagnostics.push(diagnostic))
+  try {
+    client.syncFrom(destination)
+    await eventually(() => statuses.at(-1).state === "connecting")
+    const store = new PouchListStore(local, version => client.requireSyncProtocol(version))
+    await store.writeVault({ version: 2 }, [])
+    assert.equal((await local.get("addon_vault")).list.version, 2)
+    assert.equal(statuses.at(-1).state, "connecting")
+    assert.deepEqual(diagnostics, [])
+    release()
+    await eventually(() => markerAtReplication !== "not replicated")
+    assert.equal(await markerAtReplication, 2)
+    assert.ok(!diagnostics.some(diagnostic => /Connect sync before/.test(diagnostic.message + diagnostic.details)))
+  } finally { client.syncFrom("") }
+})
+
 test("events queued by a cancelled live transport cannot clear update-required", () => {
   const { listenLiveSync } = require("../../../packages/persistence/dist/PouchSyncWatch")
   const events = new Map(), chain = { on(name, handler) { events.set(name, handler); return this } }

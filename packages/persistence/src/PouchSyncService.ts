@@ -619,8 +619,11 @@ export class PouchSyncService {
     const generation = this.generation
     try {
       await this.compatibility.localRequirement(version)
-      if (!this.destination.trim()) return
-      if (!this.remoteDatabase) throw new Error("Connect sync before changing shared formats")
+      // Not connected yet (still resolving or copying an epoch, or retrying):
+      // the requirement is recorded locally, and the connect-time check raises
+      // the remote marker to it before replication sends anything. Failing here
+      // would pause, and cancel, the connection in progress.
+      if (!this.destination.trim() || !this.remoteDatabase) return
       await this.compatibility.check(this.remoteDatabase, this.destination, version, () => this.generation === generation)
       if (this.generation !== generation) throw new Error("Sync session changed; try again")
     } catch (error) { this.handleFailure(error, generation); throw error }
