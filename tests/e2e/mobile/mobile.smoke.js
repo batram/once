@@ -1,5 +1,9 @@
 const { ADDON_INTEGRITY } = require("../shared/addon-fixture")
 /* global browser, describe, before, it, expect, $ */
+const { mobileEngine, packageName } = require("../../../apps/mobile/scripts/android-engine")
+// The Android app under test: com.zmarn.once.dev, or com.zmarn.once.lite.dev for Once Lite.
+const androidEngine = mobileEngine()
+const androidPackage = packageName(androidEngine, "dev")
 
 function contextName(context) {
   return typeof context === "string" ? context : context?.id || ""
@@ -11,7 +15,7 @@ async function switchToWebView() {
   await browser.waitUntil(async () => {
     const contexts = (await browser.getContexts()).map(contextName)
     webview = platform === "android"
-      ? contexts.find((context) => context.includes("WEBVIEW_com.zmarn.once.dev")) || ""
+      ? contexts.find((context) => context.includes(`WEBVIEW_${androidPackage}`)) || ""
       : contexts.find((context) => context.includes("WEBVIEW")) || ""
     return Boolean(webview)
   }, {
@@ -367,7 +371,11 @@ describe("Once mobile", () => {
       `${baseUrl}/fixtures/article.html`
     )
     await browser.pause(500)
-    await expectExtensionsApplied()
+    // TODO(M2, docs/plans/once-lite-plan.md): Once Lite gets its extension runtime
+    // in the next milestone; until then the filter list and userscript probes
+    // have nothing to apply them. The GeckoView run keeps the assertion.
+    if (!(platform === "android" && androidEngine === "lite")) await expectExtensionsApplied()
+    else console.log("Skipping extension assertions on Once Lite (extensions arrive with M2)")
     await clickWeb(await $("[data-testid='stories-menu']"), platform)
     await readingContent.waitForDisplayed({ timeout: 10_000, reverse: true })
   })
@@ -422,8 +430,8 @@ describe("Once mobile", () => {
 
   it("restores durable state after a hard restart", async () => {
     await browser.switchContext("NATIVE_APP")
-    await browser.terminateApp("com.zmarn.once.dev")
-    await browser.activateApp("com.zmarn.once.dev")
+    await browser.terminateApp(androidPackage)
+    await browser.activateApp(androidPackage)
     await switchToWebView()
     await clickWeb(await $("[data-testid='stories-menu']"), platform)
     await clickWeb(await $("[data-testid='reload-stories']"), platform)

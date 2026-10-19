@@ -27,7 +27,7 @@ import java.util.Collections;
  * this whole process too unless onRenderProcessGone claims the loss.
  *
  * The dead view is replaced inside the existing Bridge, so the plugins, and with
- * them the Gecko reading sessions and background media, outlive the shell page;
+ * them the engine's reading sessions and background media, outlive the shell page;
  * the restarted page restores its saved tabs onto the same native tab runtimes.
  * Capacitor keeps its WebView in private fields, so if those have moved the
  * activity is recreated instead, which still beats losing the process.
@@ -133,7 +133,7 @@ final class ShellRenderRecovery extends WebViewListener {
             fresh.setWebViewClient(client);
             fresh.setWebChromeClient(chrome);
             // Capacitor's WebView setup resets inspection to its config default.
-            if (WebInspectorPlugin.enabled(activity)) WebView.setWebContentsDebuggingEnabled(true);
+            if (WebInspectorPlugin.allowed(activity)) WebView.setWebContentsDebuggingEnabled(true);
             fresh.loadUrl(bridge.getAppUrl());
             surfacesShellRestarted(bridge);
             return true;
@@ -169,6 +169,6 @@ final class ShellRenderRecovery extends WebViewListener {
 
     private static void surfacesShellRestarted(Bridge bridge) {
         PluginHandle handle = bridge.getPlugin("InAppBrowserSurface");
-        if (handle != null) ((InAppBrowserSurfacePlugin) handle.getInstance()).shellRestarted();
+        if (handle != null) ((ReadingSurfaceEngine) handle.getInstance()).shellRestarted();
     }
 }

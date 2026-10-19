@@ -3,16 +3,18 @@ package com.zmarn.once;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.PluginHandle;
 
 public class MainActivity extends BridgeActivity {
-    ReadingVideo readingVideo;
+    VideoPresentation readingVideo;
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(AddressBarPlugin.class);
         registerPlugin(SecureSettingsPlugin.class);
         registerPlugin(NativeDatabasePlugin.class);
-        registerPlugin(InAppBrowserSurfacePlugin.class);
-        registerPlugin(ViolentmonkeyRelayPlugin.class);
+        // The engine flavour (GeckoView or Once Lite) registers InAppBrowserSurface
+        // and GeckoViolentmonkey, the plugins whose implementation differs.
+        EngineSurface.register(this);
         registerPlugin(ReaderMediaSessionPlugin.class);
         registerPlugin(WebInspectorPlugin.class);
         registerPlugin(TouchSelectionPlugin.class);
@@ -42,7 +44,14 @@ public class MainActivity extends BridgeActivity {
 
     @Override public void onTrimMemory(int level) {
         super.onTrimMemory(level);
-        if (getBridge() == null || getBridge().getPlugin("InAppBrowserSurface") == null) return;
-        ((InAppBrowserSurfacePlugin) getBridge().getPlugin("InAppBrowserSurface").getInstance()).trimMemory(level);
+        ReadingSurfaceEngine surface = surface();
+        if (surface != null) surface.trimMemory(level);
+    }
+
+    /** The engine's reading surface plugin, once the bridge has it. */
+    ReadingSurfaceEngine surface() {
+        if (getBridge() == null) return null;
+        PluginHandle handle = getBridge().getPlugin("InAppBrowserSurface");
+        return handle == null ? null : (ReadingSurfaceEngine) handle.getInstance();
     }
 }

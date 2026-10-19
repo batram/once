@@ -11,15 +11,15 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
-import org.mozilla.geckoview.GeckoRuntime;
-import org.mozilla.geckoview.GeckoSession.ContentDelegate.ContextElement;
 
-/** GeckoView hit-tests a long-press but draws no menu; this is Once's menu for it. */
+/** The engine hit-tests a long-press but draws no menu; this is Once's menu for it. */
 final class LinkContextMenu {
     private LinkContextMenu() {}
 
     /** What was pressed: a link, media, or both. Each field may be null. */
     static final class Target {
+        /** Media kinds, numbered as GeckoView's ContextElement types. */
+        static final int TYPE_NONE = 0, TYPE_IMAGE = 1, TYPE_VIDEO = 2, TYPE_AUDIO = 3;
         final String link;
         final String linkText;
         final String media;
@@ -35,11 +35,6 @@ final class LinkContextMenu {
             this.mediaType = mediaType;
             this.referrer = referrer;
             this.inPage = inPage;
-        }
-
-        static Target of(ContextElement element) {
-            return new Target(element.linkUri, element.linkText,
-                element.type == ContextElement.TYPE_NONE ? null : element.srcUri, element.type, element.baseUri, true);
         }
     }
 
@@ -73,7 +68,7 @@ final class LinkContextMenu {
      */
     static final boolean IMAGE_TEXT_OVERLAY_ENABLED = false;
 
-    static void show(Activity activity, GeckoRuntime runtime, Target target,
+    static void show(Activity activity, ImageFetcher runtime, Target target,
                      BiConsumer<String, Boolean> openInTab) {
         show(activity, runtime, target, java.util.Collections.emptyList(), openInTab, null);
     }
@@ -83,7 +78,7 @@ final class LinkContextMenu {
      * background; runItem the id of a chosen shell item, or is null where no
      * shell handles items (then shell-run entries such as IMAGE_TEXT are left out).
      */
-    static void show(Activity activity, GeckoRuntime runtime, Target target, List<Item> items,
+    static void show(Activity activity, ImageFetcher runtime, Target target, List<Item> items,
                      BiConsumer<String, Boolean> openInTab, java.util.function.Consumer<String> runItem) {
         String link = target.link;
         String media = target.media;
@@ -117,8 +112,8 @@ final class LinkContextMenu {
                 labels.add("Open " + noun + " in new tab");
                 actions.add(() -> openInTab.accept(media, false));
             }
-            if (target.mediaType == ContextElement.TYPE_IMAGE) {
-                // GeckoView has no Live Text; on-device OCR selects the image's text in place.
+            if (target.mediaType == Target.TYPE_IMAGE) {
+                // Android has no Live Text; on-device OCR selects the image's text in place.
                 if (runItem != null && target.inPage && (isWebUrl(media) || media.startsWith("data:image/"))) {
                     labels.add("Select text in image");
                     actions.add(() -> runItem.accept(IMAGE_TEXT));
@@ -161,8 +156,8 @@ final class LinkContextMenu {
     }
 
     private static String mediaNoun(int type) {
-        if (type == ContextElement.TYPE_VIDEO) return "video";
-        if (type == ContextElement.TYPE_AUDIO) return "audio";
+        if (type == Target.TYPE_VIDEO) return "video";
+        if (type == Target.TYPE_AUDIO) return "audio";
         return "image";
     }
 

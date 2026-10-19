@@ -9,16 +9,15 @@ const ts = require("typescript")
 const AdmZip = require("adm-zip")
 const originalLoad = Module._load
 Module._load = function (name, parent, main) {
-  if (name === "electron") return { app: { getLocale: () => "en" }, protocol: { registerSchemesAsPrivileged() {} } }
+  if (name === "electron") return { app: { getLocale: () => "en" }, net: { fetch: () => { throw new Error("offline") } } }
   return originalLoad.call(this, name, parent, main)
 }
 Module._extensions[".ts"] = (module, filename) => module._compile(ts.transpileModule(syncFs.readFileSync(filename, "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true }
 }).outputText, filename)
-const { ExtensionManager } = require("../../../apps/electron/src/extensions/ExtensionManager.ts")
-const { unpackExtension, amoSlug, amoSourceKind } = require("../../../apps/electron/src/extensions/ExtensionPackage.ts")
-const { loadUnpackedExtension } = require("../../../apps/electron/src/extensions/LoadedExtension.ts")
-const { ExtensionStorage } = require("../../../apps/electron/src/extensions/ExtensionStorage.ts")
+const { ExtensionManager, ExtensionStorage, unpackExtension, amoSlug, amoSourceKind } = require("@once/webext-runtime")
+const { NodeJsonStore, loadUnpackedExtension } = require("@once/webext-runtime/node")
+const { electronPackageHost } = require("../../../apps/electron/src/extensions/packageHost.ts")
 
 async function harness(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "once-extension-manager-"))
@@ -29,14 +28,16 @@ async function harness(t) {
       const extension = await loadUnpackedExtension(directory, "en")
       if (id && extension.id !== id) throw new Error("Wrong ID")
       if (extension.manifest.version === "broken") throw new Error("Cannot boot replacement")
-      hosts.set(extension.id, { extension, storage: new ExtensionStorage(path.join(root, "local.json")),
-        syncStorage: new ExtensionStorage(path.join(root, "sync.json")), contexts: { emit() {} } })
+      const store = new NodeJsonStore(root)
+      hosts.set(extension.id, { extension, storage: new ExtensionStorage(store, "local.json"),
+        syncStorage: new ExtensionStorage(store, "sync.json"), contexts: { emit() {} } })
       return extension
     },
     unload: async host => { for (const [id, item] of hosts) if (item.extension.host === host) hosts.delete(id) },
     host: id => hosts.get(id), changed() {}
   }
-  const manager = new ExtensionManager(root, runtime)
+  const files = () => ({ catalog: new NodeJsonStore(root), packages: electronPackageHost(root) })
+  const manager = new ExtensionManager(files(), runtime)
   await manager.restore([])
   const xpi = async (version, withIcon = false) => {
     const zip = new AdmZip()
@@ -48,7 +49,7 @@ async function harness(t) {
     await fs.writeFile(file, zip.toBuffer())
     return file
   }
-  return { root, hosts, runtime, manager, xpi }
+  return { root, hosts, runtime, manager, xpi, files }
 }
 
 test("settings icons remain available while disabled, including packages with only a large icon", async t => {
@@ -73,7 +74,7 @@ test("preview does not run code; install, disabled updates, restart, rollback an
   const update = await h.manager.preview("", await h.xpi("2"))
   await h.manager.install(update.token)
   assert.equal((await h.manager.list())[0].enabled, false)
-  const restarted = new ExtensionManager(h.root, h.runtime)
+  const restarted = new ExtensionManager(h.files(), h.runtime)
   await restarted.restore([])
   assert.equal((await restarted.list())[0].running, false)
   await restarted.setEnabled(preview.id, true)
@@ -139,6 +140,6 @@ test("AMO sources and archive entry names are constrained before extraction", as
   const h = await harness(t)
   const zip = new AdmZip()
   zip.addFile("safe/CON.txt", Buffer.from("bad"))
-  await assert.rejects(unpackExtension(zip.toBuffer(), path.join(h.root, "unpacked")), /unsafe/)
+  await assert.rejects(unpackExtension(h.files().packages, zip.toBuffer(), path.join(h.root, "unpacked")), /unsafe/)
   await assert.rejects(fs.stat(path.join(h.root, "unpacked")), /ENOENT/)
 })

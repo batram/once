@@ -18,6 +18,7 @@
     "@once/platform-electron": "*",
     "@once/platform-web": "*",
     "@once/ui-web": "*",
+    "@once/webext-runtime": "*",
     "adm-zip": "^0.6.1",
     "electron-squirrel-startup": "^1.0.1",
     "update-electron-app": "^3.3.0"

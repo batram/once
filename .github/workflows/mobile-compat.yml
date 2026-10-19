@@ -13,8 +13,13 @@ concurrency:
 
 jobs:
   android-api-24:
-    name: Android API 26
+    name: Android API 26 (${{ matrix.engine }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both Android engines: GeckoView, and Once Lite on the system WebView.
+        engine: [gecko, lite]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -29,24 +34,24 @@ jobs:
       - run: npm ci
       - name: Install the Android platform GeckoView compiles against
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.1" "build-tools;37.0.0"
-      - run: npm run mobile -- package android --channel dev --e2e
+      - run: npm run mobile -- package android --channel dev --e2e --engine ${{ matrix.engine }}
         env:
           # Match the x86_64 emulator below so the e2e runner reuses this APK.
           ONCE_ANDROID_PACKAGE_ABIS: x86_64
       - name: Android native lint and unit tests
         working-directory: apps/mobile/android
-        run: java -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain lintDevelopmentDebug testDevelopmentDebugUnitTest --no-daemon
+        run: java -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain lint${{ matrix.engine == 'lite' && 'Lite' || 'Gecko' }}DevelopmentDebug test${{ matrix.engine == 'lite' && 'Lite' || 'Gecko' }}DevelopmentDebugUnitTest --no-daemon
       - run: npm exec --workspace @once/mobile -- appium driver install uiautomator2@8.1.0
       - uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 26
           arch: x86_64
           profile: pixel_2
-          script: npm run test:mobile:e2e:android
+          script: npm run test:mobile:e2e:android${{ matrix.engine == 'lite' && ':lite' || '' }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: android-api-24-failure-${{ github.run_id }}
+          name: android-api-24-${{ matrix.engine }}-failure-${{ github.run_id }}
           path: test-results/mobile
           if-no-files-found: ignore
 

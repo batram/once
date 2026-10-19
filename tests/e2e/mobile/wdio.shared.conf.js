@@ -2,14 +2,14 @@
 
 const fs = require("fs")
 const path = require("path")
+const { mobileEngine, apkPath, packageName } = require("../../../apps/mobile/scripts/android-engine")
 
 function configFor(platform) {
   const visual = process.env.ONCE_MOBILE_VISUAL_INSPECTION === "1"
   const root = path.resolve(__dirname, "../../..")
-  const androidApp = path.join(
-    root,
-    "apps/mobile/android/app/build/outputs/apk/development/debug/app-development-debug.apk"
-  )
+  // ONCE_MOBILE_ENGINE picks the Android app under test: gecko (default) or lite.
+  const engine = mobileEngine()
+  const androidApp = path.join(root, "apps/mobile", apkPath(engine, "dev"))
   const iosApp = path.join(
     root,
     "apps/mobile/ios/build/Build/Products/Debug-iphonesimulator/Once Dev.app"
@@ -47,7 +47,7 @@ function configFor(platform) {
     common["appium:deviceName"] = process.env.ONCE_MOBILE_DEVICE || "Once API 36"
     const udid = process.env.ONCE_ANDROID_UDID || process.env.ANDROID_SERIAL
     if (udid) common["appium:udid"] = udid
-    common["appium:appPackage"] = "com.zmarn.once.dev"
+    common["appium:appPackage"] = packageName(engine, "dev")
     common["appium:appActivity"] = "com.zmarn.once.MainActivity"
     common["appium:chromedriverAutodownload"] = true
     // Keep downloaded chromedrivers out of node_modules, where npm ci wipes

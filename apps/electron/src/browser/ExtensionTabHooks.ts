@@ -1,5 +1,5 @@
 import { BrowserWindow, WebContents } from "electron"
-import { ExtensionShellHooks, TabSnapshot } from "../extensions/runtimeTypes"
+import { ElectronShellHooks, TabSnapshot } from "../extensions/runtimeTypes"
 import { TabEntry, WindowEntry } from "./BrowserState"
 import { TabOwnership } from "./TabOwnership"
 
@@ -106,7 +106,7 @@ function preferredWindow(ownership: TabOwnership): WindowEntry | undefined {
 export function createExtensionTabHooks(
   access: ExtensionTabAccess,
   tabCreated: Set<(contents: WebContents) => void>
-): ExtensionShellHooks {
+): ElectronShellHooks {
   const { ownership } = access
   const require = (id: number): [WindowEntry, TabEntry] => {
     const found = findByContentsId(ownership, id)

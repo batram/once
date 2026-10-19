@@ -18,7 +18,7 @@ if (reference) {
   }
 }
 fs.copyFileSync(path.join(__dirname, "ExtensionBenchmarkActivity.java"), path.join(java, "ExtensionBenchmarkActivity.java"))
-let engine = fs.readFileSync(path.join(root, "apps/mobile/android/app/src/main/java/com/zmarn/once/GeckoEngine.java"), "utf8")
+let engine = fs.readFileSync(path.join(root, "apps/mobile/android/app/src/gecko/java/com/zmarn/once/GeckoEngine.java"), "utf8")
 // Controlled ablations only: separate persistent profile per mode and selected bundles.
 engine = engine.replace(".remoteDebuggingEnabled", '.arguments(new String[] { "-profile", new java.io.File(context.getFilesDir(), "profile-" + System.getProperty("once.benchmark.mode")).getAbsolutePath() })\n            .remoteDebuggingEnabled')
 engine = engine.replace("for (String[] bundle : bundles) {", `for (String[] bundle : bundles) {

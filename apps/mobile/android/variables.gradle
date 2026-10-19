@@ -11,7 +11,8 @@ ext {
     androidxFragmentVersion = '1.8.9'
     androidxSwipeRefreshLayoutVersion = '1.1.0'
     coreSplashScreenVersion = '1.2.0'
-    androidxWebkitVersion = '1.14.0'
+    // 1.17.1 names JS_INJECTION_IN_FRAME_AND_WORLD, which LiteDevToolsTest records.
+    androidxWebkitVersion = '1.17.1'
     androidxExifInterfaceVersion = '1.4.1'
     // Image OCR (TextRecognition.java); proprietary but free, and runs on device.
     mlkitTextRecognitionVersion = '16.0.1'

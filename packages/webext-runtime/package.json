@@ -1,0 +1,25 @@
+{
+  "name": "@once/webext-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Host-neutral runtime for Firefox-style WebExtensions: contexts, API handlers, webRequest and DNR routing, storage, packages",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./preload": {
+      "types": "./dist/preload.d.ts",
+      "default": "./dist/preload.js"
+    },
+    "./node": {
+      "types": "./dist/node/index.d.ts",
+      "default": "./dist/node/index.js"
+    }
+  },
+  "dependencies": {
+    "@once/core": "*"
+  }
+}

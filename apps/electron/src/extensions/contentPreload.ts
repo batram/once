@@ -13,11 +13,6 @@ import { installAmoBridge } from "./amoBridge"
 import {
   ADOPT_BRIDGE_SOURCE,
   BRIDGE_STAGING_KEY,
-  PreloadApi,
-  adoptBridge,
-  decorateExtensionPage
-} from "./preloadRuntime"
-import {
   CONTENT_API_SURFACE,
   ContentFrameInit,
   ContentScriptBatch,
@@ -26,8 +21,11 @@ import {
   EXTENSION_SCHEME,
   ExtensionEvent,
   INTERNAL_API,
+  PreloadApi,
+  adoptBridge,
+  decorateExtensionPage,
   unwrapInvoke
-} from "./protocol"
+} from "@once/webext-runtime/preload"
 
 interface ContentWorld {
   init: ContentFrameInit

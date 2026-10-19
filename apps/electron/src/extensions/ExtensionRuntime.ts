@@ -1,5 +1,4 @@
 import path from "node:path"
-import { ExtensionManager } from "./ExtensionManager"
 import {
   app,
   BrowserWindow,
@@ -15,53 +14,58 @@ import {
   ElectronExtensionSettings,
   ElectronRect
 } from "@once/platform-electron/bridge"
-import { AdoptedExtensionSettings } from "./extensionSettingsApply"
-import { ExtensionSettingsCoordinator } from "./ExtensionSettingsCoordinator"
-import { BundledExtensionSource } from "./bundledExtensions"
-import { ContextEntry, frameContextId } from "./ExtensionContexts"
-import { ApiHandler, createApiHandlers } from "./ExtensionApi"
-import { ExtensionHost } from "./ExtensionHost"
-import { ExtensionPopup } from "./ExtensionPopup"
 import {
-  OwnPageRequests,
-  configureExtensionProtocol,
-  isOwnPage
-} from "./ExtensionProtocol"
-import { LoadedExtension, loadUnpackedExtension } from "./LoadedExtension"
-import { extensionUrl, isExtensionPageDocument, parseExtensionUrl } from "./ExtensionScheme"
-import { WebRequestRouter } from "./WebRequestRouter"
-import { DnrEnforcer } from "./dnrBridge"
-import { CONTENT_WORLD_BASE } from "./contentScripts"
-import {
+  AdoptedExtensionSettings,
+  ApiHandler,
   ApiSurface,
-  CONTENT_API_SURFACE,
+  BundledExtensionSource,
+  CONTENT_WORLD_BASE,
   ContentFrameInit,
+  ContextEntry,
+  CookieStore,
+  DnrEnforcer,
   EXTENSION_API_SURFACE,
   EXTENSION_IPC,
   ExtensionContextInit,
   ExtensionInvoke,
+  ExtensionManager,
   ExtensionReply,
-  INTERNAL_API,
+  ExtensionSettingsCoordinator,
   ListenerChange,
-  settleInvoke
-} from "./protocol"
-import { ExtensionShellHooks, PageProfile, TabSnapshot } from "./runtimeTypes"
-import { WebRequestListenerSpec } from "./webRequestDetails"
+  LoadedExtension,
+  OwnPageRequests,
+  RuntimePlatform,
+  TabSnapshot,
+  WebRequestRouter,
+  applyListenerChange,
+  broadcastCookieChange,
+  createApiHandlers,
+  extensionUrl,
+  invokeApi,
+  isExtensionPageDocument,
+  isOwnPage,
+  parseExtensionUrl,
+  settleInvoke,
+  surfaceFor
+} from "@once/webext-runtime"
+import { NodeJsonStore, loadUnpackedExtension } from "@once/webext-runtime/node"
+import { ExtensionHost } from "./ExtensionHost"
+import { ExtensionPopup } from "./ExtensionPopup"
+import { configureExtensionProtocol } from "./ExtensionProtocol"
+import { frameContextId } from "./electronContexts"
+import { electronCookieStore } from "./electronCookies"
+import { installWebRequestRouter } from "./electronWebRequest"
+import { electronPackageHost } from "./packageHost"
+import { ElectronShellHooks, PageProfile, electronPlatform } from "./runtimeTypes"
 import { frameIds, frameIdsOf } from "./frameIds"
 import { ContentFrames } from "./contentFrames"
-import { canAccessCookie, requirePermission } from "./extensionPermissions"
 
 export interface ExtensionRuntimeOptions {
   browserSession: Session
   storageRoot: string
   preloadPath: string
   contentPreloadPath: string
-  hooks: ExtensionShellHooks
-}
-
-/** What a frame of a tab may call: the page API when it is the extension's own page. */
-function surfaceFor(entry: ContextEntry): Readonly<Record<string, ApiSurface>> {
-  return entry.kind === "content" ? CONTENT_API_SURFACE : EXTENSION_API_SURFACE
+  hooks: ElectronShellHooks
 }
 
 function extensionDirectories(configured: string | undefined): string[] {
@@ -93,17 +97,22 @@ export class ExtensionRuntime {
   private nextWorldId = CONTENT_WORLD_BASE
   private installed = false
   private readonly settingsCoordinator: ExtensionSettingsCoordinator
+  private readonly cookieStore: CookieStore
+  private readonly platform: RuntimePlatform = electronPlatform()
 
   constructor(private readonly options: ExtensionRuntimeOptions) {
-    this.manager = new ExtensionManager(options.storageRoot, {
+    this.manager = new ExtensionManager({
+      catalog: new NodeJsonStore(options.storageRoot),
+      packages: electronPackageHost(options.storageRoot)
+    }, {
       load: (directory, id) => this.load(directory, id),
       unload: host => this.unload(host),
       host: id => [...this.hosts.values()].find(host => host.extension.id === id),
       changed: () => this.notifyInstalledChanged()
     })
-    this.settingsCoordinator = new ExtensionSettingsCoordinator(options.storageRoot, () => this.hosts.values(), () => this.notifyChanged())
-    this.router = new WebRequestRouter(options.browserSession, {
-      tabIdFor: (id) => id !== undefined && this.tabContents.has(id) ? id : -1,
+    this.settingsCoordinator = new ExtensionSettingsCoordinator(() => this.hosts.values(), () => this.notifyChanged())
+    this.cookieStore = electronCookieStore(options.browserSession.cookies)
+    this.router = new WebRequestRouter({
       sources: () => [...this.hosts.values()],
       declarative: this.dnr,
       requestFrom: (url, documentUrl) => {
@@ -116,7 +125,11 @@ export class ExtensionRuntime {
   install(): void {
     if (this.installed) return
     this.installed = true
-    this.router.install()
+    installWebRequestRouter(
+      this.options.browserSession,
+      this.router,
+      (id) => id !== undefined && this.tabContents.has(id) ? id : -1
+    )
     this.registerPageIpc()
     this.registerContentIpc()
     this.options.browserSession.registerPreloadScript({
@@ -130,18 +143,7 @@ export class ExtensionRuntime {
     )
     this.options.hooks.onTabCreated((contents) => this.trackTab(contents))
     this.options.hooks.onTabsChanged(() => this.tabsChanged())
-    this.options.browserSession.cookies.on("changed", (_event, cookie, cause, removed) => {
-      for (const host of this.hosts.values()) {
-        if (!host.extension.manifest.permissions.has("cookies")) continue
-        if (!canAccessCookie(host.extension, cookie)) continue
-        host.contexts.emit("cookies", "onChanged", [{
-          removed,
-          cookie: { ...cookie, storeId: "0" },
-          cause: cause === "explicit" ? "explicit" : cause === "overwrite" ? "overwrite"
-            : cause === "expired" || cause === "expired-overwrite" ? "expired" : "evicted"
-        }])
-      }
-    })
+    this.cookieStore.onChanged((change) => broadcastCookieChange(this.hosts.values(), change))
     app.on("before-quit", () => {
       for (const host of this.hosts.values()) void host.storage.flush()
     })
@@ -174,7 +176,7 @@ export class ExtensionRuntime {
   }
 
   async load(directory: string, expectedId?: string): Promise<LoadedExtension> {
-    const extension = await loadUnpackedExtension(directory, app.getLocale())
+    const extension = await loadUnpackedExtension(directory, this.platform.locale())
     if (expectedId !== undefined && extension.id !== expectedId) {
       throw new Error(`${directory} is ${extension.id}, not the listed ${expectedId}`)
     }
@@ -182,10 +184,11 @@ export class ExtensionRuntime {
     if (existing) await this.unload(extension.host)
     const host = new ExtensionHost({
       extension,
-      storageRoot: this.options.storageRoot,
+      store: new NodeJsonStore(path.join(this.options.storageRoot, extension.host)),
       preloadPath: this.options.preloadPath,
       worldId: this.nextWorldId++,
-      cookies: this.options.browserSession.cookies,
+      cookies: this.cookieStore,
+      platform: this.platform,
       hooks: this.options.hooks,
       lookup: (candidate) => this.hosts.get(candidate)?.extension,
       ensureInjectionFrames: (owner, tabId, frameId, allFrames) => {
@@ -327,7 +330,7 @@ export class ExtensionRuntime {
           kind: entry.kind,
           manifest: host.extension.rawManifest,
           messages: host.extension.messages,
-          uiLanguage: app.getLocale()
+          uiLanguage: this.platform.locale()
         }
         event.returnValue = init
       } catch {
@@ -479,19 +482,7 @@ export class ExtensionRuntime {
     message: ExtensionInvoke,
     surface: Readonly<Record<string, ApiSurface>>
   ): unknown {
-    if (!message || typeof message.api !== "string" || typeof message.method !== "string" ||
-      !Array.isArray(message.args)) {
-      throw new Error("Invalid extension API call")
-    }
-    if (message.api !== INTERNAL_API.port) {
-      const known = surface[message.api]
-      if (!known || !known.methods.includes(message.method)) {
-        throw new Error(`browser.${message.api}.${message.method} is not available`)
-      }
-    }
-    const handler = this.handlers[`${message.api}.${message.method}`]
-    if (!handler) throw new Error(`browser.${message.api}.${message.method} is not implemented`)
-    return handler({ host, sender: entry }, ...message.args)
+    return invokeApi(this.handlers, host, entry, message, surface)
   }
 
   private listenerChange(
@@ -500,30 +491,7 @@ export class ExtensionRuntime {
     change: ListenerChange | undefined,
     surface: Readonly<Record<string, ApiSurface>>
   ): void {
-    if (!change || typeof change.api !== "string" || typeof change.event !== "string" ||
-      typeof change.id !== "number") {
-      throw new Error("Invalid listener registration")
-    }
-    const known = surface[change.api]
-    if (!known || !known.events.includes(change.event)) {
-      throw new Error(`browser.${change.api}.${change.event} is not available`)
-    }
-    if (change.api === "webRequest") {
-      requirePermission(host.extension, "webRequest")
-      if (change.action === "add" && change.spec?.extraInfoSpec?.includes("blocking")) {
-        requirePermission(host.extension, "webRequestBlocking")
-      }
-    }
-    if (change.action === "add") {
-      // The filter's shape is checked where it is compiled; a bad one simply
-      // never matches a request.
-      const spec = change.spec ? change.spec as WebRequestListenerSpec : null
-      host.contexts.addListener(entry.id, change.api, change.event, change.id, spec)
-    } else if (change.action === "remove") {
-      host.contexts.removeListener(entry.id, change.api, change.event, change.id)
-    } else {
-      throw new Error("Invalid listener change")
-    }
+    applyListenerChange(host, entry, change, surface)
   }
 
   /** Every host learns of the same tab event. */

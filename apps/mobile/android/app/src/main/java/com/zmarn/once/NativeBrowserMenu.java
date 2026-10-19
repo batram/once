@@ -19,7 +19,6 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.PluginCall;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONObject;
-import org.mozilla.geckoview.GeckoSession;
 
 /** Native browser sheet with an inline expandable extension list. */
 final class NativeBrowserMenu {
@@ -58,8 +57,13 @@ final class NativeBrowserMenu {
         if (dialog != null) dialog.dismiss();
     }
 
-    static void show(Activity activity, PluginCall call, GeckoSession session,
-                     boolean canBack, boolean canForward, Runnable back, Runnable forward, Runnable reload, BackgroundMedia media,
+    /**
+     * `hasPage`: the tab has a page runtime (Reload is offered); `open`: that
+     * page is live (Back/Forward are). `desktop.choose` applies the switch;
+     * the page reloads in the new mode once the switch has moved.
+     */
+    static void show(Activity activity, PluginCall call, boolean hasPage, boolean open,
+                     boolean canBack, boolean canForward, Runnable back, Runnable forward, Runnable reload, BackgroundPlayback media,
                      DesktopSite desktop) {
         // The shell resolves its own theme setting (system, light, dark) and
         // says which it landed on; without that, follow the system.
@@ -86,7 +90,6 @@ final class NativeBrowserMenu {
         AtomicBoolean settled = new AtomicBoolean();
         dialog.setOnDismissListener(ignored -> { if (settled.compareAndSet(false, true)) call.resolve(); });
         LinearLayout navigation = new LinearLayout(activity);
-        boolean open = session != null && session.isOpen();
         // Square tiles like iOS's: an outline icon over a one-line label, as tall
         // as each of the five is wide.
         int tileHeight = (activity.getResources().getDisplayMetrics().widthPixels - 2 * spacing - 4 * gap) / 5;
@@ -96,11 +99,11 @@ final class NativeBrowserMenu {
         navigation.addView(tile(activity, palette, R.drawable.browser_forward, "Forward", open && canForward, () -> {
             dialog.dismiss(); forward.run();
         }), cell(gap, false, tileHeight));
-        navigation.addView(tile(activity, palette, R.drawable.browser_reload, "Reload", session != null, () -> {
+        navigation.addView(tile(activity, palette, R.drawable.browser_reload, "Reload", hasPage, () -> {
             dialog.dismiss(); reload.run();
         }), cell(gap, false, tileHeight));
         // Find in page: the shell opens its find bar, which searches the page or
-        // the reader document, so it needs no Gecko session of its own.
+        // the reader document, so it needs no page session of its own.
         navigation.addView(tile(activity, palette, R.drawable.browser_find, "Find", true, () -> {
             if (settled.compareAndSet(false, true)) call.resolve(new JSObject().put("id", "once:find"));
             dialog.dismiss();
@@ -134,8 +137,7 @@ final class NativeBrowserMenu {
         // has moved, so the reloaded page shows.
         content.addView(toggle(activity, palette, dark, "Desktop site", desktop.isEnabled(), checked -> {
             desktop.choose(checked);
-            desktop.apply(session);
-            content.postDelayed(() -> { dialog.dismiss(); if (session != null) reload.run(); }, 200);
+            content.postDelayed(() -> { dialog.dismiss(); if (hasPage) reload.run(); }, 200);
         }), row(gap, entry));
         // Actions on the page itself (send it to another device) sit below the
         // media switch, as on iOS, not inside the collapsed extensions.

@@ -51,7 +51,7 @@ Reader and SponsorBlock check) with `ONCE_ELECTRON_EXTENSION_LOG=1` and
 `test-results/` holds what the extensions printed even when the test passed,
 and the Android package; read that output for APIs the runtime does not yet
 provide. The
-list of what may load at all is `apps/electron/src/extensions/bundledExtensions.ts`
+list of what may load at all is `packages/webext-runtime/src/bundledExtensions.ts`
 and the Android plugin's built-in table; a bundle whose manifest id does not
 match its listed id is refused.
 

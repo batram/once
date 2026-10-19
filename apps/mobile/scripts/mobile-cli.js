@@ -2,6 +2,7 @@ const fs = require("fs")
 const path = require("path")
 const { spawn, spawnSync } = require("child_process")
 const { deploymentSettings, selectDeploymentAbis, installApk, compileInstalledApp } = require("./android-deploy")
+const { mobileEngine, gradleTask, apkPath, packageName } = require("./android-engine")
 
 const root = path.resolve(__dirname, "../../..")
 const appRoot = path.join(root, "apps", "mobile")
@@ -46,7 +47,7 @@ function parse(argv) {
       options.passthrough = argv.slice(index + 1)
       break
     }
-    if (value === "--channel" || value === "--target") {
+    if (value === "--channel" || value === "--target" || value === "--engine") {
       options[value.slice(2)] = argv[++index]
     } else if (value === "--e2e") {
       options.e2e = true
@@ -61,8 +62,9 @@ function parse(argv) {
   return { command: positional[0], platform: positional[1], options }
 }
 
+// The Android engine (gecko or lite) rides along for capacitor.config.ts and webpack.
 function environment(channel) {
-  return { ...process.env, ONCE_BUILD_CHANNEL: channel }
+  return { ...process.env, ONCE_BUILD_CHANNEL: channel, ONCE_MOBILE_ENGINE: engine }
 }
 
 function publicPackageEnvironment(channel) {
@@ -284,6 +286,7 @@ function writePackageStamp(platform, channel, abis) {
     path.join(appRoot, "dist", `.once-package-${platform}.json`),
     JSON.stringify({
       channel,
+      ...(platform === "android" ? { engine } : {}),
       e2e: Boolean(options.e2e),
       ...(abis ? { abis } : {}),
       builtAt: Date.now()
@@ -294,6 +297,10 @@ function writePackageStamp(platform, channel, abis) {
 const { command, platform, options } = parse(process.argv.slice(2))
 if (!command) fail("expected doctor, web, sync, run, serve, open, package, or deploy")
 if (options.e2e) process.env.ONCE_MOBILE_E2E = "1"
+// --engine lite builds Once Lite (the system WebView); the default is GeckoView.
+let engine
+try { engine = mobileEngine(options.engine || process.env.ONCE_MOBILE_ENGINE) } catch (error) { fail(error.message) }
+if (engine !== "gecko" && platform === "ios") fail("iOS has one engine; --engine applies to android")
 
 if (command === "doctor") {
   validatePlatform(platform, true)
@@ -314,6 +321,12 @@ if (command === "doctor") {
     const gradle = fs.readFileSync(path.join(appRoot, "android", "app", "build.gradle"), "utf8")
     if (!gradle.includes("development") || !gradle.includes("production")) {
       fail("Android development and production flavors are missing")
+    }
+    if (!/\bgecko\s*\{/.test(gradle) || !/\blite\s*\{/.test(gradle)) {
+      fail("Android gecko and lite engine flavors are missing")
+    }
+    for (const source of ["gecko/java/com/zmarn/once/EngineSurface.java", "lite/java/com/zmarn/once/EngineSurface.java"]) {
+      if (!fs.existsSync(path.join(appRoot, "android", "app", "src", source))) fail(`missing apps/mobile/android/app/src/${source}`)
     }
   }
   if (!platform || platform === "ios") {
@@ -425,17 +438,7 @@ else if (command === "run") {
   sync(platform, channel)
   console.log(`mobile: web build and sync completed in ${((performance.now() - webStarted) / 1000).toFixed(1)}s`)
   const nativeStarted = performance.now()
-  const apk = path.join(
-    appRoot,
-    "android",
-    "app",
-    "build",
-    "outputs",
-    "apk",
-    "production",
-    "debug",
-    "app-production-debug.apk"
-  )
+  const apk = path.join(appRoot, apkPath(engine, channel))
   // Incremental debug packaging rewrites the previous APK in place and leaves
   // the space of replaced entries behind (150 MB of it after a GeckoView
   // change). Packaging into a fresh file costs about a second.
@@ -444,7 +447,7 @@ else if (command === "run") {
     "-classpath",
     path.join(appRoot, "android", "gradle", "wrapper", "gradle-wrapper.jar"),
     "org.gradle.wrapper.GradleWrapperMain",
-    "assembleProductionDebug",
+    gradleTask(engine, channel),
     `-PonceDeployAbis=${abis.join(",")}`,
     settings.daemon ? "--daemon" : "--no-daemon"
   ], {
@@ -455,7 +458,7 @@ else if (command === "run") {
   if (!fs.existsSync(apk)) fail(`built APK not found at ${apk}`)
   console.log(`mobile: APK ${(fs.statSync(apk).size / 1024 / 1024).toFixed(1)} MiB`)
   try { installApk(installAdb, address, apk, settings.installMode, android.env) } catch (error) { fail(error.message) }
-  compileInstalledApp(installAdb, address, "com.zmarn.once", android.env)
+  compileInstalledApp(installAdb, address, packageName(engine, channel), android.env)
   console.log(`mobile: deployment completed in ${((performance.now() - started) / 1000).toFixed(1)}s`)
 } else if (command === "package") {
   if (options.nativeStorageProbe && (platform !== "android" || channel !== "dev" || !options.e2e)) {
@@ -474,16 +477,14 @@ else if (command === "run") {
   if (platform === "android") {
     // The built-in extension bundles are not in the repository; they are
     // fetched against pinned hashes before the APK that carries them is built.
-    run(process.execPath, [path.join(root, "scripts", "fetch-extensions.js")])
+    // Once Lite carries none until its runtime lands (M2 of the Lite plan).
+    if (engine === "gecko") run(process.execPath, [path.join(root, "scripts", "fetch-extensions.js")])
     const android = androidEnvironment(channel)
-    const gradleTask = channel === "release"
-      ? "bundleProductionRelease"
-      : "assembleDevelopmentDebug"
     run(android.command, [
       "-classpath",
       path.join(appRoot, "android", "gradle", "wrapper", "gradle-wrapper.jar"),
       "org.gradle.wrapper.GradleWrapperMain",
-      gradleTask,
+      gradleTask(engine, channel, channel === "release" ? "bundle" : "assemble"),
       ...(options.nativeStorageProbe ? ["-PonceNativeStorageProbe=true"] : []),
       ...(packageAbis ? [`-PonceDeployAbis=${packageAbis.join(",")}`] : []),
       "--no-daemon"

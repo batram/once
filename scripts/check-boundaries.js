@@ -17,7 +17,8 @@ const scopedRules = [
       "@once/platform-electron",
       "@once/platform-web",
       "@once/platform-mobile",
-      "@once/ui-web"
+      "@once/ui-web",
+      "@once/webext-runtime"
     ]
   },
   {
@@ -30,7 +31,8 @@ const scopedRules = [
       "@once/platform-electron",
       "@once/platform-web",
       "@once/platform-mobile",
-      "@once/ui-web"
+      "@once/ui-web",
+      "@once/webext-runtime"
     ]
   },
   {
@@ -40,9 +42,33 @@ const scopedRules = [
       "@once/platform-webext",
       "@once/platform-electron",
       "@once/platform-web",
-      "@once/platform-mobile"
+      "@once/platform-mobile",
+      "@once/webext-runtime"
     ]
-  }
+  },
+  // The WebExtension runtime is shared by the Electron main process and the
+  // Once Lite broker; it depends on core alone, and no platform or UI package
+  // reaches into it (hosts compose it from their app code).
+  {
+    name: "webext-runtime",
+    src: path.join(root, "packages", "webext-runtime", "src"),
+    disallowedImports: [
+      "@once/app",
+      "@once/collectors",
+      "@once/persistence",
+      "@once/platform-webext",
+      "@once/platform-electron",
+      "@once/platform-web",
+      "@once/platform-mobile",
+      "@once/ui-web",
+      "@once/webext-shell"
+    ]
+  },
+  ...["platform-electron", "platform-mobile", "platform-web", "platform-webext", "webext-shell"].map((name) => ({
+    name,
+    src: path.join(root, "packages", name, "src"),
+    disallowedImports: ["@once/webext-runtime"]
+  }))
 ]
 
 function toPosix(relativePath) {

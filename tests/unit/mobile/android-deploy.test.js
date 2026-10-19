@@ -73,6 +73,7 @@ function deploy({ local = "", exported = {}, mdns = "phone _adb-tls-connect._tcp
         readFileSync: (file, encoding) => file.endsWith(".env.android.local") ? local : fs.readFileSync(file, encoding)
       }
       if (name === "child_process") return { spawnSync: execute }
+      if (name === "./android-engine") return require("../../../apps/mobile/scripts/android-engine")
       if (name === "./android-deploy") return {
         deploymentSettings, selectDeploymentAbis,
         installApk: (...args) => installApk(...args, execute),
@@ -92,7 +93,7 @@ test("local tuning is read with working discovery; its stale wireless address st
     "ONCE_ANDROID_GRADLE_DAEMON=false",
     "ONCE_JAVA_HOME=C:/configured-java"
   ].join("\n") })
-  const build = calls.find(call => call.args.includes("assembleProductionDebug"))
+  const build = calls.find(call => call.args.includes("assembleGeckoProductionDebug"))
   assert.ok(build.args.includes("-PonceDeployAbis=arm64-v8a,x86_64"))
   assert.ok(build.args.includes("--no-daemon"))
   assert.ok(build.command.includes("configured-java"))
@@ -112,12 +113,12 @@ test("exported settings override local tuning and local address works without di
     exported: { ONCE_ANDROID_INSTALL_MODE: "push" }
   })
   const removed = calls.findIndex(call => call.command === "rm")
-  assert.match(calls[removed].args[0], /app-production-debug\.apk$/)
-  assert.ok(removed < calls.findIndex(call => call.args.includes("assembleProductionDebug")))
+  assert.match(calls[removed].args[0], /geckoProduction[\\/]debug[\\/]app-gecko-production-debug\.apk$/)
+  assert.ok(removed < calls.findIndex(call => call.args.includes("assembleGeckoProductionDebug")))
   const install = calls.find(call => call.args.includes("install"))
   assert.equal(install.args[1], "192.0.2.2:5678")
   assert.ok(install.args.includes("--no-streaming"))
-  const build = calls.find(call => call.args.includes("assembleProductionDebug"))
+  const build = calls.find(call => call.args.includes("assembleGeckoProductionDebug"))
   assert.ok(build.args.includes("-PonceDeployAbis=arm64-v8a"))
   assert.ok(build.args.includes("--daemon"))
 })

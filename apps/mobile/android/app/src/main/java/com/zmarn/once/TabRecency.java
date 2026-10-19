@@ -13,25 +13,35 @@ import java.util.WeakHashMap;
  * hidden tabs stay live; the rest restore their saved state when selected.
  */
 final class TabRecency {
+    static final String TAG = "OnceSurface";
     private static final int LIVE_HIDDEN_TABS = 2;
+
+    /** A tab runtime whose page can be released while hidden and restored when shown. */
+    interface Tab {
+        /** Whether a live page (session or view) is resident. */
+        boolean isLive();
+        /** Releases the hidden page, keeping its state; true when one was released. */
+        boolean releaseHiddenSession();
+    }
+
     // Closed tabs drop out on their own; nothing else holds them.
-    private final Map<ReadingSurfaceHost, Long> lastUsed = new WeakHashMap<>();
+    private final Map<Tab, Long> lastUsed = new WeakHashMap<>();
     private long sequence;
 
     /** A tab was created or selected. */
-    void used(ReadingSurfaceHost tab) {
+    void used(Tab tab) {
         lastUsed.put(tab, ++sequence);
     }
 
     /** A tab was selected, or none (null): hidden tabs beyond the most recently used few close their sessions. */
-    void selected(Collection<? extends ReadingSurfaceHost> tabs, ReadingSurfaceHost selected) {
+    void selected(Collection<? extends Tab> tabs, Tab selected) {
         if (selected != null) used(selected);
-        List<ReadingSurfaceHost> hidden = new ArrayList<>();
-        for (ReadingSurfaceHost tab : tabs) if (tab != selected && tab.session != null) hidden.add(tab);
+        List<Tab> hidden = new ArrayList<>();
+        for (Tab tab : tabs) if (tab != selected && tab.isLive()) hidden.add(tab);
         if (hidden.size() <= LIVE_HIDDEN_TABS) return;
         hidden.sort((a, b) -> Long.compare(lastUsed.getOrDefault(b, 0L), lastUsed.getOrDefault(a, 0L)));
-        for (ReadingSurfaceHost tab : hidden.subList(LIVE_HIDDEN_TABS, hidden.size())) {
-            if (tab.releaseHiddenSession()) Log.i(ReadingSurfaceHost.TAG, "Released the session of a tab not used recently");
+        for (Tab tab : hidden.subList(LIVE_HIDDEN_TABS, hidden.size())) {
+            if (tab.releaseHiddenSession()) Log.i(TAG, "Released the session of a tab not used recently");
         }
     }
 }

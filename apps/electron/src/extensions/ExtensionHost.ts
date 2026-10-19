@@ -1,18 +1,27 @@
-import path from "node:path"
 import { Session, WebContents, WebContentsView, session as electronSession } from "electron"
 import { MatchPatternSet } from "@once/core"
-import { DnrRulesets } from "./DnrRulesets"
-import { ExtensionContexts } from "./ExtensionContexts"
-import { AlarmScheduler, ApiHost, BrowserActionState } from "./ExtensionApi"
-import { ExtensionPorts } from "./ExtensionPorts"
+import {
+  AlarmScheduler,
+  ApiHost,
+  BrowserActionState,
+  ContentScript,
+  CookieStore,
+  DnrRulesets,
+  ExtensionContextKind,
+  ExtensionFiles,
+  ExtensionPorts,
+  ExtensionStorage,
+  JsonStore,
+  LoadedExtension,
+  RuntimePlatform,
+  TabSnapshot,
+  extensionIconDataUrl,
+  extensionUrl,
+  manifestContentScripts
+} from "@once/webext-runtime"
+import { ElectronExtensionContexts } from "./electronContexts"
 import { configureExtensionProtocol } from "./ExtensionProtocol"
-import { extensionUrl } from "./ExtensionScheme"
-import { ExtensionStorage } from "./ExtensionStorage"
-import { LoadedExtension, extensionIconDataUrl } from "./LoadedExtension"
-import { ContentScript, ExtensionFiles, manifestContentScripts } from "./contentScripts"
-import { ExtensionContextKind } from "./protocol"
-import { ExtensionShellHooks, PageProfile } from "./runtimeTypes"
-import type { TabSnapshot } from "./runtimeTypes"
+import { ElectronShellHooks, PageProfile } from "./runtimeTypes"
 
 // uBlock decides which browser it is running in from the user agent as well
 // as from `runtime.getBrowserInfo`, so extension pages present as Firefox.
@@ -21,12 +30,14 @@ const EXTENSION_PAGE_USER_AGENT =
 
 export interface ExtensionHostOptions {
   extension: LoadedExtension
-  storageRoot: string
+  /** This extension's JSON documents: storage, sync, DNR state, settings records. */
+  store: JsonStore
   preloadPath: string
   worldId: number
   /** The browser session's cookie jar, for `browser.cookies`. */
-  cookies: Electron.Cookies
-  hooks: ExtensionShellHooks
+  cookies: CookieStore
+  platform: RuntimePlatform
+  hooks: ElectronShellHooks
   lookup: (host: string) => LoadedExtension | undefined
   ensureInjectionFrames: (host: ExtensionHost, tabId: number, frameId?: number, allFrames?: boolean) => void
 }
@@ -38,17 +49,19 @@ export interface ExtensionHostOptions {
  */
 export class ExtensionHost implements ApiHost {
   readonly extension: LoadedExtension
-  readonly contexts = new ExtensionContexts()
+  readonly contexts = new ElectronExtensionContexts()
   readonly ports: ExtensionPorts
   readonly storage: ExtensionStorage
   readonly syncStorage: ExtensionStorage
+  readonly store: JsonStore
   readonly files: ExtensionFiles
-  readonly hooks: ExtensionShellHooks
+  readonly hooks: ElectronShellHooks
   readonly action: BrowserActionState
   readonly alarms: AlarmScheduler
   readonly session: Session
   readonly worldId: number
-  readonly cookies: Electron.Cookies
+  readonly cookies: CookieStore
+  readonly platform: RuntimePlatform
   /** The extension's declarativeNetRequest rules; inert without the permission. */
   readonly dnr: DnrRulesets
   /** `contentScripts.register` entries, by the id handed back. */
@@ -63,11 +76,11 @@ export class ExtensionHost implements ApiHost {
     this.hooks = options.hooks
     this.worldId = options.worldId
     this.cookies = options.cookies
-    this.storage = new ExtensionStorage(
-      path.join(options.storageRoot, this.extension.host, "storage.json")
-    )
-    this.syncStorage = new ExtensionStorage(path.join(options.storageRoot, this.extension.host, "sync.json"))
-    this.dnr = new DnrRulesets(this.extension, path.join(options.storageRoot, this.extension.host, "dnr.json"))
+    this.platform = options.platform
+    this.store = options.store
+    this.storage = new ExtensionStorage(this.store, "storage.json")
+    this.syncStorage = new ExtensionStorage(this.store, "sync.json")
+    this.dnr = new DnrRulesets(this.extension, this.store, "dnr.json")
     this.files = new ExtensionFiles(this.extension)
     this.ports = new ExtensionPorts(this.contexts)
     this.action = new BrowserActionState(this.extension.manifest.browserAction?.defaultTitle ?? null)

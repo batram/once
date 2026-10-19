@@ -1,7 +1,6 @@
 package com.zmarn.once;
 
 import android.net.Uri;
-import org.mozilla.geckoview.GeckoSession;
 
 /** Address rules for the reading surface: what it embeds, loads and treats as the same page. */
 final class ReadingAddress {
@@ -12,17 +11,6 @@ final class ReadingAddress {
         Uri uri = Uri.parse(value);
         return "http".equalsIgnoreCase(uri.getScheme()) ||
             "https".equalsIgnoreCase(uri.getScheme());
-    }
-
-    /**
-     * Gecko can report a snapshot with no history entries (seen right after a
-     * restored page starts); restoring one loads only about:blank. Only a
-     * snapshot that ends at the page being recovered is restored.
-     */
-    static boolean restores(GeckoSession.SessionState state, String url) {
-        if (state == null || url.isEmpty()) return false;
-        int index = state.getCurrentIndex();
-        return index >= 0 && index < state.size() && same(state.get(index).getUri(), url);
     }
 
     static boolean same(String first, String second) {

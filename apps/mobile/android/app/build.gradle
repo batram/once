@@ -28,7 +28,8 @@ android {
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
-        // GeckoView ships native code per ABI; devices and the emulator cover these two.
+        // GeckoView ships native code per ABI; devices and the emulator cover
+        // these two. Once Lite has no native code, so the filter is moot there.
         ndk {
             abiFilters.addAll(onceDeployAbis)
         }
@@ -37,22 +38,30 @@ android {
     buildFeatures {
         resValues = true
     }
-    flavorDimensions += "environment"
+    // engine: the browsing surface (GeckoView, or Once Lite's system WebView);
+    // environment: dev or production identity. Variant ids are
+    // com.zmarn.once[.lite][.dev]; engine comes first in task names
+    // (assembleGeckoDevelopmentDebug, bundleLiteProductionRelease).
+    flavorDimensions += ["engine", "environment"]
     productFlavors {
+        gecko {
+            dimension "engine"
+        }
+        lite {
+            dimension "engine"
+            applicationIdSuffix ".lite"
+        }
         development {
             dimension "environment"
             // Isolated durability qualification must never reuse a configured dev or release profile.
             applicationIdSuffix providers.gradleProperty('onceNativeStorageProbe').isPresent() ? ".nativeprobe" : ".dev"
             versionNameSuffix "-dev"
-            resValue "string", "app_name", "Once Dev"
-            resValue "string", "title_activity_main", "Once Dev"
         }
         production {
             dimension "environment"
-            resValue "string", "app_name", "Once"
-            resValue "string", "title_activity_main", "Once"
         }
     }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -93,7 +102,18 @@ def onceExtensionAssets = tasks.register('onceExtensionAssets', OnceExtensionAss
 }
 
 androidComponents {
+    // app_name per variant: the environment flavour alone cannot see the engine.
     onVariants(selector().all()) { variant ->
+        boolean lite = variant.flavorName.startsWith("lite")
+        boolean dev = variant.flavorName.endsWith("Development")
+        String name = (lite ? "Once Lite" : "Once") + (dev ? " Dev" : "")
+        for (String key : ["app_name", "title_activity_main"]) {
+            variant.resValues.put(variant.makeResValueKey("string", key), new com.android.build.api.variant.ResValue(name, null))
+        }
+    }
+    // Only the GeckoView engine runs the bundled extensions; Once Lite's
+    // runtime (M2 of docs/plans/once-lite-plan.md) will carry its own copies.
+    onVariants(selector().withFlavor("engine", "gecko")) { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(onceExtensionAssets, { it.outputDir })
     }
 }
@@ -108,7 +128,8 @@ dependencies {
     // Capacitor's own version; the shell renderer recovery injects its bridge script.
     implementation "androidx.webkit:webkit:$androidxWebkitVersion"
     implementation project(':capacitor-android')
-    implementation "org.mozilla.geckoview:geckoview:$geckoViewVersion"
+    // Firefox's engine, in the gecko variants only; Once Lite is the system WebView.
+    geckoImplementation "org.mozilla.geckoview:geckoview:$geckoViewVersion"
     implementation "androidx.exifinterface:exifinterface:$androidxExifInterfaceVersion"
     // Bundled Latin model: on-device, no Play services or model download.
     implementation "com.google.mlkit:text-recognition:$mlkitTextRecognitionVersion"

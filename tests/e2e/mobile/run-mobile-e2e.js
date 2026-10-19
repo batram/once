@@ -24,8 +24,14 @@ const node = process.execPath
 const npmCli = process.env.npm_execpath
 if (!npmCli) throw new Error("Run mobile E2E through an npm script")
 const appRoot = path.join(root, "apps", "mobile")
+const { mobileEngine, apkPath } = require("../../../apps/mobile/scripts/android-engine")
+// The Android engine under test (--engine lite, or ONCE_MOBILE_ENGINE); the
+// stamp, the APK path and wdio's package follow it.
+const engineFlag = process.argv.indexOf("--engine")
+const engine = mobileEngine(engineFlag >= 0 ? process.argv[engineFlag + 1] : process.env.ONCE_MOBILE_ENGINE)
+process.env.ONCE_MOBILE_ENGINE = engine
 const appBundles = {
-  android: "android/app/build/outputs/apk/development/debug/app-development-debug.apk",
+  android: apkPath(engine, "dev"),
   ios: "ios/build/Build/Products/Debug-iphonesimulator/Once Dev.app"
 }
 const { newestSourceTime, packageSources, readStamp } = require("./build-freshness")
@@ -61,6 +67,7 @@ function stalenessReason() {
   if (!stamp.e2e) return "the last build was not an --e2e build"
   if (stamp.channel !== "dev") return `the last build was for the ${stamp.channel} channel`
   if (platform === "android") {
+    if ((stamp.engine || "gecko") !== engine) return `the last build was for the ${stamp.engine || "gecko"} engine instead of ${engine}`
     const { abi } = resolveAndroidTarget()
     if (!stamp.abis) return "the last build has no recorded ABIs"
     if (stamp.abis.length !== 1 || stamp.abis[0] !== abi) {
@@ -86,10 +93,11 @@ function stalenessReason() {
 function ensureFreshApp() {
   const reason = stalenessReason()
   if (!reason) return
-  console.log(`Rebuilding the ${platform} dev app because ${reason}`)
+  console.log(`Rebuilding the ${platform} dev app${platform === "android" ? ` (${engine})` : ""} because ${reason}`)
   const build = spawnSync(
     node,
-    [npmCli, "run", "mobile", "--", "package", platform, "--channel", "dev", "--e2e"],
+    [npmCli, "run", "mobile", "--", "package", platform, "--channel", "dev", "--e2e",
+      ...(platform === "android" ? ["--engine", engine] : [])],
     {
       cwd: root,
       stdio: "inherit",

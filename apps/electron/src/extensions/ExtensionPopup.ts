@@ -1,7 +1,7 @@
 import { BrowserWindow, WebContentsView } from "electron"
 import { ElectronRect } from "@once/platform-electron/bridge"
 import { ExtensionHost } from "./ExtensionHost"
-import { EXTENSION_IPC, PopupSize } from "./protocol"
+import { EXTENSION_IPC, PopupSize } from "@once/webext-runtime"
 
 const INITIAL_WIDTH = 380
 const INITIAL_HEIGHT = 460

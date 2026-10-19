@@ -2,6 +2,8 @@ import type { CapacitorConfig } from "@capacitor/cli"
 import { KeyboardResize } from "@capacitor/keyboard"
 
 export type MobileBuildChannel = "dev" | "release"
+/** The Android browsing engine: GeckoView, or Once Lite's system WebView (docs/plans/once-lite-plan.md). */
+export type MobileEngine = "gecko" | "lite"
 
 export function mobileBuildChannel(
   value = process.env.ONCE_BUILD_CHANNEL
@@ -13,16 +15,42 @@ export function mobileBuildChannel(
   return value
 }
 
+export function mobileEngine(value = process.env.ONCE_MOBILE_ENGINE): MobileEngine {
+  if (!value) return "gecko"
+  if (value !== "gecko" && value !== "lite") {
+    throw new Error(`ONCE_MOBILE_ENGINE must be gecko or lite (received ${value})`)
+  }
+  return value
+}
+
+/** Android identity per engine and channel: com.zmarn.once[.lite][.dev], "Once[ Lite][ Dev]". */
+export function androidIdentity(engine: MobileEngine, channel: MobileBuildChannel): {
+  appId: string
+  appName: string
+  flavor: string
+} {
+  const dev = channel === "dev"
+  const lite = engine === "lite"
+  return {
+    appId: `com.zmarn.once${lite ? ".lite" : ""}${dev ? ".dev" : ""}`,
+    appName: `Once${lite ? " Lite" : ""}${dev ? " Dev" : ""}`,
+    flavor: `${engine}${dev ? "Development" : "Production"}`
+  }
+}
+
 export function createCapacitorConfig(
-  channel = mobileBuildChannel()
+  channel = mobileBuildChannel(),
+  engine = mobileEngine()
 ): CapacitorConfig {
   const dev = channel === "dev"
+  const identity = androidIdentity(engine, channel)
   return {
-    appId: dev ? "com.zmarn.once.dev" : "com.zmarn.once",
-    appName: dev ? "Once Dev" : "Once",
+    // iOS has one engine (WebKit); the Android identity follows the engine flavour.
+    appId: identity.appId,
+    appName: identity.appName,
     webDir: "dist",
     android: {
-      flavor: dev ? "development" : "production",
+      flavor: identity.flavor,
       allowMixedContent: dev,
       // Capacitor's logging prints every plugin call and result whole, sync
       // requests with their authorization header among them, in any

@@ -1,4 +1,7 @@
 /* global browser, describe, it, expect, $, $$ */
+const { mobileEngine, packageName } = require("../../../apps/mobile/scripts/android-engine")
+// The Android app under test: com.zmarn.once.dev, or com.zmarn.once.lite.dev for Once Lite.
+const androidPackage = packageName(mobileEngine(), "dev")
 
 function contextName(context) {
   return typeof context === "string" ? context : context?.id || ""
@@ -10,7 +13,7 @@ async function switchToWebView() {
   await browser.waitUntil(async () => {
     const contexts = (await browser.getContexts()).map(contextName)
     webview = platform === "android"
-      ? contexts.find(context => context.includes("WEBVIEW_com.zmarn.once.dev")) || ""
+      ? contexts.find(context => context.includes(`WEBVIEW_${androidPackage}`)) || ""
       : contexts.find(context => context.includes("WEBVIEW")) || ""
     return Boolean(webview)
   }, {
@@ -56,8 +59,8 @@ describe("Once mobile visual inspection", () => {
     // Start each new setup from a fresh process so a native browser surface
     // left open by the previous manual pass cannot cover the shell.
     await browser.switchContext("NATIVE_APP")
-    await browser.terminateApp("com.zmarn.once.dev")
-    await browser.activateApp("com.zmarn.once.dev")
+    await browser.terminateApp(androidPackage)
+    await browser.activateApp(androidPackage)
     await switchToWebView()
     const body = await $("body")
     await body.waitForExist({ timeout: 30_000 })

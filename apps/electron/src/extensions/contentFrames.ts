@@ -2,15 +2,21 @@
 // content scripts that match it when its document starts, or an empty world
 // created on demand when an injection aims at a frame none of them reached.
 
-import { app, WebContents, WebFrameMain } from "electron"
+import { WebContents, WebFrameMain } from "electron"
+import {
+  ContentFrameInit,
+  ContentScriptBatch,
+  EXTENSION_IPC,
+  INTERNAL_API,
+  canInjectFrame,
+  contentScriptBatches,
+  contentScriptsFor,
+  isWebAccessible,
+  parseExtensionUrl
+} from "@once/webext-runtime"
 import type { ExtensionHost } from "./ExtensionHost"
-import { creatorUrl, frameContextId } from "./ExtensionContexts"
-import { isWebAccessible } from "./ExtensionProtocol"
-import { extensionUrl, parseExtensionUrl } from "./ExtensionScheme"
-import { canInjectFrame } from "./apiTargets"
-import { ContentScript, contentScriptsFor } from "./contentScripts"
+import { creatorUrl, frameContextId } from "./electronContexts"
 import { frameIdsOf } from "./frameIds"
-import { ContentFrameInit, ContentScriptBatch, EXTENSION_IPC, INTERNAL_API } from "./protocol"
 
 // Chromium also creates internal viewer/plugin frames. In particular a blank
 // plugin frame must not inherit the outer URL via match_about_blank.
@@ -19,28 +25,6 @@ function insidePdfViewer(frame: WebFrameMain): boolean {
     if (ancestor.url.startsWith("chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/")) return true
   }
   return false
-}
-
-/** Content scripts grouped by phase, in registration order, as code. */
-function batches(host: ExtensionHost, scripts: ContentScript[]): ContentScriptBatch[] {
-  const byPhase = new Map<string, ContentScriptBatch>()
-  for (const { spec, inlineJs, inlineCss } of scripts) {
-    const key = `${spec.runAt}:${spec.world ?? "ISOLATED"}`
-    let batch = byPhase.get(key)
-    if (!batch) {
-      batch = { runAt: spec.runAt, world: spec.world, js: [], css: [] }
-      byPhase.set(key, batch)
-    }
-    for (const file of spec.css) batch.css.push(host.files.read(file))
-    batch.css.push(...inlineCss)
-    for (const file of spec.js) {
-      batch.js.push({ url: extensionUrl(host.extension.host, file), code: host.files.read(file) })
-    }
-    for (const code of inlineJs) {
-      batch.js.push({ url: extensionUrl(host.extension.host, "_registered_content_script.js"), code })
-    }
-  }
-  return [...byPhase.values()]
 }
 
 function frameInit(
@@ -54,7 +38,7 @@ function frameInit(
     kind,
     manifest: host.extension.rawManifest,
     messages: host.extension.messages,
-    uiLanguage: app.getLocale(),
+    uiLanguage: host.platform.locale(),
     worldId: host.worldId,
     scripts
   }
@@ -108,7 +92,7 @@ export class ContentFrames {
       const specs = contentScriptsFor(host.contentScripts(), identity)
       if (specs.length === 0) continue
       host.contexts.addFrame(contents, frame, host.extension.host, contents.id, ids.frameId)
-      inits.push(frameInit(host, "content", batches(host, specs)))
+      inits.push(frameInit(host, "content", contentScriptBatches(host, specs)))
     }
     return inits
   }

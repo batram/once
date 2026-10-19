@@ -1,0 +1,304 @@
+import { BrowserExtensionSyncDocument, readBrowserExtensionSync } from "@once/core"
+import { ApiHost } from "./ExtensionApi"
+import { ExtensionCandidate, prepareExtension } from "./ExtensionPackage"
+import { ExtensionPackageHost, JsonStore } from "./hostServices"
+import { LoadedExtension, loadExtension, extensionIconDataUrl } from "./LoadedExtension"
+import { extensionUrl } from "./ExtensionScheme"
+import { ExtensionPreview, ManagedExtension } from "./managementTypes"
+
+const CATALOG = "installed.json"
+
+interface Installed {
+  directory: string
+  enabled: boolean
+  bundled: boolean
+  source: string
+  error?: string
+}
+
+/** What `list` shows from a package itself; fixed for as long as its directory is installed. */
+type PackageMetadata = Pick<ManagedExtension, "host" | "name" | "version" | "icon" | "description" |
+  "hasOptions" | "hasPopup" | "permissions" | "warnings">
+
+export interface ManagerRuntime {
+  load(directory: string, id?: string): Promise<LoadedExtension>
+  unload(host: string): Promise<void>
+  host(id: string): ApiHost | undefined
+  changed(): void
+}
+
+/** Where the manager keeps its state: the catalogue document and the unpacked packages. */
+export interface ManagerFiles {
+  catalog: JsonStore
+  packages: ExtensionPackageHost
+}
+
+/** Device-local installation state. Sync never installs or enables executable code. */
+export class ExtensionManager {
+  private entries: Record<string, Installed> = Object.create(null)
+  private readonly candidates = new Map<string, ExtensionCandidate>()
+  // Installs and updates unpack into a fresh directory, so a directory's
+  // package never changes underneath its entry here.
+  private readonly metadataByDirectory = new Map<string, Promise<PackageMetadata>>()
+  private queue: Promise<unknown> = Promise.resolve()
+  private initialized: Promise<void> | undefined
+  private sync: BrowserExtensionSyncDocument = { version: 1, extensions: {} }
+  private applying = false
+  private syncTimer: ReturnType<typeof setTimeout> | undefined
+  onSyncChanged: ((document: BrowserExtensionSyncDocument) => void) | undefined
+
+  constructor(private readonly files: ManagerFiles, private readonly runtime: ManagerRuntime) {}
+
+  private serial<T>(work: () => Promise<T>): Promise<T> {
+    const next = this.queue.then(work)
+    this.queue = next.catch(() => undefined)
+    return next
+  }
+
+  private initialize(): Promise<void> {
+    this.initialized ??= (async () => {
+      const value = await this.files.catalog.read(CATALOG)
+      if (value === undefined) return
+      if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid extension catalog")
+      this.entries = Object.assign(Object.create(null), value)
+    })()
+    return this.initialized
+  }
+
+  private async persist(): Promise<void> {
+    await this.files.catalog.write(CATALOG, this.entries)
+    const directories = new Set(Object.values(this.entries).map(entry => entry.directory))
+    for (const directory of this.metadataByDirectory.keys()) if (!directories.has(directory)) this.metadataByDirectory.delete(directory)
+    this.runtime.changed()
+  }
+
+  async restore(bundles: { id: string; directory: string; present: boolean }[]): Promise<void> {
+    await this.serial(async () => {
+      await this.initialize()
+      for (const bundle of bundles) {
+        if (!bundle.present) continue
+        const previous = this.entries[bundle.id]
+        this.entries[bundle.id] = { directory: bundle.directory, enabled: previous?.enabled ?? true, bundled: true, source: "Included with Once" }
+      }
+      for (const [id, entry] of Object.entries(this.entries)) {
+        if (!entry.enabled) continue
+        try { await this.runtime.load(entry.directory, id); delete entry.error }
+        catch (error) { entry.error = String(error) }
+      }
+      await this.persist()
+      await this.prunePackages()
+    })
+  }
+
+  async list(): Promise<ManagedExtension[]> {
+    await this.initialize()
+    await this.queue
+    return Promise.all(Object.entries(this.entries).map(async ([id, entry]) => {
+      try {
+        return { id, ...await this.metadata(entry.directory), enabled: entry.enabled, running: !!this.runtime.host(id),
+          bundled: entry.bundled, source: entry.source, error: entry.error }
+      } catch (error) {
+        return { id, host: "", name: id, version: "", description: "", icon: null, enabled: entry.enabled,
+          running: false, bundled: entry.bundled, source: entry.source, error: String(error),
+          hasOptions: false, hasPopup: false, permissions: [], warnings: [] }
+      }
+    }))
+  }
+
+  /** Read once per directory; a failed read is tried again next time. */
+  private metadata(directory: string): Promise<PackageMetadata> {
+    let metadata = this.metadataByDirectory.get(directory)
+    if (!metadata) {
+      metadata = (async () => {
+        const extension = await loadExtension(directory, this.packages.reader(directory), "en")
+        return { host: extension.host, name: extension.name, version: extension.manifest.version,
+          icon: await extensionIconDataUrl(extension), description: extension.description,
+          hasOptions: !!extension.manifest.optionsUi, hasPopup: !!extension.manifest.browserAction?.defaultPopup,
+          permissions: [...extension.manifest.permissions, ...extension.manifest.hostPermissions],
+          warnings: compatibilityWarnings(extension) }
+      })()
+      this.metadataByDirectory.set(directory, metadata)
+      metadata.catch(() => { if (this.metadataByDirectory.get(directory) === metadata) this.metadataByDirectory.delete(directory) })
+    }
+    return metadata
+  }
+
+  private get packages() {
+    return this.files.packages.packages
+  }
+
+  preview(source: string, file?: string): Promise<ExtensionPreview> {
+    return this.serial(async () => {
+      await this.initialize()
+      for (const candidate of this.candidates.values()) await this.packages.remove(candidate.extension.directory)
+      this.candidates.clear()
+      const candidate = await prepareExtension(this.files.packages, source, file)
+      if (this.entries[candidate.extension.id]?.bundled) {
+        await this.packages.remove(candidate.extension.directory)
+        throw new Error("Bundled extensions are updated with Once")
+      }
+      this.candidates.set(candidate.token, candidate)
+      const extension = candidate.extension
+      return { token: candidate.token, id: extension.id, name: extension.name, icon: await extensionIconDataUrl(extension),
+        version: extension.manifest.version, description: extension.description, source: candidate.source,
+        permissions: [...extension.manifest.permissions, ...extension.manifest.hostPermissions],
+        warnings: compatibilityWarnings(extension), update: !!this.entries[extension.id] }
+    })
+  }
+
+  install(token: string): Promise<void> {
+    return this.serial(async () => {
+      const candidate = this.candidates.get(token)
+      if (!candidate) throw new Error("This preview has expired. Review the extension again.")
+      const { extension } = candidate
+      const previous = this.entries[extension.id]
+      const entry: Installed = { directory: extension.directory, enabled: previous?.enabled ?? true,
+        bundled: false, source: candidate.source }
+      try {
+        await this.captureNow()
+        if (entry.enabled) await this.runtime.load(entry.directory, extension.id)
+        this.entries[extension.id] = entry
+        await this.persist()
+        this.candidates.delete(token)
+        const host = this.runtime.host(extension.id)
+        host?.contexts.emit("runtime", "onInstalled", [{ reason: previous ? "update" : "install" }])
+        await this.prunePackages()
+      } catch (error) {
+        await this.runtime.unload(extension.host)
+        if (previous) {
+          this.entries[extension.id] = previous
+          if (previous.enabled) await this.runtime.load(previous.directory, extension.id)
+        } else Reflect.deleteProperty(this.entries, extension.id)
+        throw error
+      }
+    })
+  }
+
+  setEnabled(id: string, enabled: boolean): Promise<void> {
+    return this.serial(async () => {
+      const entry = this.entries[id]
+      if (!entry || typeof enabled !== "boolean") throw new Error("Unknown extension or invalid enabled state")
+      const previous = entry.enabled
+      try {
+        await this.captureNow()
+        if (enabled) await this.runtime.load(entry.directory, id)
+        else {
+          const host = this.runtime.host(id)
+          if (host) await this.runtime.unload(host.extension.host)
+        }
+        entry.enabled = enabled
+        delete entry.error
+        await this.persist()
+      } catch (error) { entry.enabled = previous; entry.error = String(error); this.runtime.changed(); throw error }
+    })
+  }
+
+  remove(id: string): Promise<void> {
+    return this.serial(async () => {
+      const entry = this.entries[id]
+      if (!entry || entry.bundled) throw new Error("Bundled extensions can be disabled, but not removed")
+      const host = this.runtime.host(id)
+      await this.captureNow()
+      if (host) await this.runtime.unload(host.extension.host)
+      Reflect.deleteProperty(this.entries, id)
+      try { await this.persist() } catch (error) { this.entries[id] = entry; throw error }
+      // Keep extension data so an explicit reinstall can recover its settings.
+      await this.prunePackages()
+    })
+  }
+
+  /** Only generated package directories, after the catalog has been committed. */
+  private async prunePackages(): Promise<void> {
+    const canonical = (directory: string) => this.packages.canonical(directory)
+    const retained = new Set([...Object.values(this.entries).map(entry => canonical(entry.directory)),
+      ...[...this.candidates.values()].map(candidate => canonical(candidate.extension.directory))])
+    try {
+      for (const { name, directory } of await this.packages.list()) {
+        if (!/^[a-f0-9-]{36}$/.test(name)) continue
+        if (!retained.has(canonical(directory))) await this.packages.remove(directory)
+      }
+    } catch (error) {
+      console.error("Could not prune old extension packages", error)
+    }
+  }
+
+  async openOptions(id: string): Promise<void> {
+    const host = this.requireHost(id)
+    const page = host.extension.manifest.optionsUi?.page ?? host.extension.manifest.browserAction?.defaultPopup
+    if (!page) throw new Error("This extension does not provide a settings page")
+    await host.hooks.createTab(extensionUrl(host.extension.host, page), true)
+  }
+
+  async storage(id: string): Promise<{ local: Record<string, unknown>; sync: Record<string, unknown> }> {
+    const host = this.requireHost(id)
+    return { local: await host.storage.get(null), sync: await host.syncStorage.get(null) }
+  }
+
+  private requireHost(id: string): ApiHost {
+    const host = this.runtime.host(id)
+    if (!host) throw new Error("Enable the extension to access its settings")
+    return host
+  }
+
+  async watch(host: ApiHost): Promise<void> {
+    await this.applyHost(host)
+    const changed = () => {
+      if (this.applying) return
+      if (this.syncTimer) clearTimeout(this.syncTimer)
+      this.syncTimer = setTimeout(() => { void this.capture().catch(console.error) }, 300)
+    }
+    host.storage.onChanged(changed)
+    host.syncStorage.onChanged(changed)
+  }
+
+  applySync(document: BrowserExtensionSyncDocument): Promise<void> {
+    return this.serial(async () => {
+      this.sync = readBrowserExtensionSync(document)
+      for (const id of Object.keys(this.sync.extensions)) {
+        const host = this.runtime.host(id)
+        if (host) await this.applyHost(host)
+      }
+    })
+  }
+
+  private async applyHost(host: ApiHost): Promise<void> {
+    const entry = this.sync.extensions[host.extension.id]
+    if (!entry) return
+    this.applying = true
+    try {
+      for (const area of ["local", "sync"] as const) {
+        const storage = area === "local" ? host.storage : host.syncStorage
+        const removed = entry[area].filter(key => !Object.hasOwn(entry.values[area], key))
+        const changes = { ...await storage.remove(removed), ...await storage.set(entry.values[area]) }
+        if (Object.keys(changes).length) {
+          host.contexts.emit("storage", "onChanged", [changes, area])
+          host.contexts.emit(`storage.${area}`, "onChanged", [changes])
+        }
+      }
+    } finally { this.applying = false }
+  }
+
+  private capture(): Promise<void> {
+    return this.serial(() => this.captureNow())
+  }
+
+  private async captureNow(): Promise<void> {
+    const next = structuredClone(this.sync)
+    for (const [id, entry] of Object.entries(next.extensions)) {
+      const host = this.runtime.host(id)
+      if (!host) continue
+      entry.values = { local: await host.storage.get(entry.local), sync: await host.syncStorage.get(entry.sync) }
+    }
+    if (JSON.stringify(next) === JSON.stringify(this.sync)) return
+    this.sync = next
+    this.onSyncChanged?.(next)
+  }
+}
+
+function compatibilityWarnings(extension: LoadedExtension): string[] {
+  const warnings = [`Firefox Manifest V${extension.manifest.manifestVersion} compatibility runtime. Some browser APIs are limited; reload open pages after enabling or disabling.`]
+  const limited = ["theme", "commands", "notifications", "contextMenus", "menus", "nativeMessaging", "downloads", "bookmarks", "history"]
+    .filter(permission => extension.manifest.permissions.has(permission))
+  if (limited.length) warnings.push(`Limited or unavailable features: ${limited.join(", ")}.`)
+  return warnings
+}

@@ -72,6 +72,20 @@ export default tseslint.config(
     }
   },
   {
+    // The shared WebExtension runtime runs in Electron's main process, in
+    // its sandboxed preloads and in Once Lite's WebView broker; only the Node
+    // adapters under `src/node/` may reach Node or Electron.
+    files: ["packages/webext-runtime/src/**/*.ts"],
+    ignores: ["packages/webext-runtime/src/node/**"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: ["electron", "fs", "path", "crypto", "os", "child_process", "adm-zip"],
+        patterns: ["node:*", "electron/*"]
+      }],
+      "no-restricted-globals": ["error", "Buffer", "process", "require", "__dirname", "__filename"]
+    }
+  },
+  {
     files: ["**/*.js"],
     rules: {
       "@typescript-eslint/no-require-imports": "off"

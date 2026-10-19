@@ -186,6 +186,11 @@
       "includeEntryExports": true,
       "project": ["src/**/*.ts"]
     },
+    "packages/webext-runtime": {
+      // Entries come from the package's `exports`: the runtime, `./preload`
+      // for page bundles, and `./node` for the Node adapters.
+      "project": ["src/**/*.ts"]
+    },
     "packages/webext-shell": {
       "entry": [
         "src/addonSandbox.ts",

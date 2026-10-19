@@ -5,12 +5,12 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
-import org.mozilla.geckoview.MediaSession.Feature;
+import com.zmarn.once.ReadingMediaState.Feature;
 
-/** System controls for reader speech, which the TTS engine plays outside Gecko. */
+/** System controls for reader speech, which the TTS engine plays outside the page engine. */
 @CapacitorPlugin(name = "ReaderMediaSession")
 public class ReaderMediaSessionPlugin extends Plugin {
-    // Shown regardless of the page background-playback preference: that only governs Gecko media.
+    // Shown regardless of the page background-playback preference: that only governs page media.
     final BackgroundMediaService.Owner speech = new BackgroundMediaService.Owner() {
         @Override public ReadingMediaState mediaState() { return state; }
         @Override public void command(String action, long position) {

@@ -4,14 +4,17 @@
 // init payload; everything else is one IPC call to main.
 
 import { contextBridge, ipcRenderer } from "electron"
-import { BRIDGE_STAGING_KEY, PreloadApi, adoptBridge, decorateExtensionPage } from "./preloadRuntime"
 import {
+  BRIDGE_STAGING_KEY,
   EXTENSION_API_SURFACE,
   EXTENSION_IPC,
   ExtensionContextInit,
   ExtensionEvent,
+  PreloadApi,
+  adoptBridge,
+  decorateExtensionPage,
   unwrapInvoke
-} from "./protocol"
+} from "@once/webext-runtime/preload"
 
 // An iframe that shows something other than this extension's own pages gets
 // no API and no complaint, and neither does the initial blank document a

@@ -42,6 +42,7 @@ packages/
   persistence/          PouchDB stores, synchronization, and storage contracts
   ui-web/               Shared DOM UI, reader, styles, and static resources
   webext-shell/         Shared browser-extension composition entrypoint
+  webext-runtime/       Host-neutral runtime for Firefox-style WebExtensions (Electron main, Once Lite broker)
   platform-webext/      Browser-extension implementations of application ports
   platform-electron/    Electron renderer implementations of application ports
   platform-web/         Future website adapters
@@ -162,6 +163,11 @@ apps -> shells / UI / platform adapters -> app -> collectors -> core
   application, domain, and persistence APIs as required.
 - `webext-shell` composes the shared UI and web-extension adapter; each
   extension app supplies only its browser-specific background integration.
+- `webext-runtime` hosts third-party WebExtensions (uBlock Origin,
+  Violentmonkey, installed XPIs) for shells that embed a browser engine; it
+  depends on `core` alone, reaches files, stores, cookies and the network only
+  through interfaces its host implements (`packages/webext-runtime/README.md`),
+  and no platform or UI package imports it.
 
 `scripts/check-boundaries.js` enforces the most important import directions and
 the DOM-free core rule. Existing accepted violations are recorded in
@@ -291,9 +297,17 @@ find panel over the WKWebView on iOS 16 and later (it searches PDFs in the
 native viewer too, which have no DOM for a script to walk), and a small runtime
 inside the sandboxed reader frame in reader mode (`apps/mobile/src/readerFind.ts`).
 
-Electron also hosts Firefox-style WebExtensions through its own runtime in
-`apps/electron/src/extensions` rather than Chromium's extension subsystem; see
-[plans/firefox-extensions-plan.md](plans/firefox-extensions-plan.md). Each
+Electron also hosts Firefox-style WebExtensions through Once's own runtime
+rather than Chromium's extension subsystem: the host-neutral half lives in
+`packages/webext-runtime` (contexts, the `browser.*` handler table, the
+webRequest router and DNR enforcement, storage, package validation, the
+settings hand-off, the preload-side `browser` builder), and
+`apps/electron/src/extensions` keeps the Electron adapters (sessions,
+`WebContents` and `WebFrameMain` contexts, `session.webRequest` and
+`session.protocol`, cookies, the popup and the toolbar menu); see
+[plans/firefox-extensions-plan.md](plans/firefox-extensions-plan.md) and
+[plans/once-lite-plan.md](plans/once-lite-plan.md), whose Android WebView
+broker is the runtime's second host. Each
 loaded extension is a fourth trust zone: its pages run in their own persistent
 session at `moz-extension://<host>/` (named as Firefox names it, because
 extensions branch on that prefix), with a sandboxed preload that builds
@@ -301,9 +315,9 @@ extensions branch on that prefix), with a sandboxed preload that builds
 The runtime owns the browser session's one `webRequest` listener per event
 and fans requests out to every extension's blocking listeners; before they
 run, each request passes the Manifest V3 `declarativeNetRequest` rules of
-every extension (`extensions/dnrBridge.ts` over the pure matcher in
+every extension (`webext-runtime`'s `dnrBridge.ts` over the pure matcher in
 `packages/core/src/webext/dnrMatcher.ts`, with rulesets loaded and persisted
-by `extensions/DnrRulesets.ts`). Content
+by its `DnrRulesets.ts`). Content
 scripts run in per-extension isolated worlds inside tabs, reached only
 through the runtime's frame preload; ports join them to the background page.
 An extension's own pages (popup, dashboard, its blocked-page) open as tabs

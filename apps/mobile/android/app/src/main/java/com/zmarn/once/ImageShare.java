@@ -23,16 +23,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import org.mozilla.geckoview.GeckoRuntime;
-import org.mozilla.geckoview.GeckoWebExecutor;
-import org.mozilla.geckoview.WebRequest;
-import org.mozilla.geckoview.WebResponse;
 
-/** Copies, shares or saves an image's bytes, not its address. Gecko fetches it with
- * the page's cookies; the file is handed out through the app's FileProvider. */
+/** Copies, shares or saves an image's bytes, not its address. The engine fetches it
+ * with the page's cookies; the file is handed out through the app's FileProvider. */
 final class ImageShare {
     private static final String TAG = "OnceImageShare";
-    private static final long FETCH_TIMEOUT_MS = 30000;
     private static final int MAX_BYTES = 25 * 1024 * 1024;
     private static final ExecutorService worker = Executors.newSingleThreadExecutor();
 
@@ -41,7 +36,7 @@ final class ImageShare {
     /** MediaStore needs no storage permission from Android 10 on. */
     static boolean canSave() { return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q; }
 
-    static void copy(Activity activity, GeckoRuntime runtime, String src, String referrer) {
+    static void copy(Activity activity, ImageFetcher runtime, String src, String referrer) {
         load(activity, runtime, src, referrer, image -> {
             Uri uri = cacheFile(activity, image);
             return () -> {
@@ -52,7 +47,7 @@ final class ImageShare {
         });
     }
 
-    static void share(Activity activity, GeckoRuntime runtime, String src, String referrer) {
+    static void share(Activity activity, ImageFetcher runtime, String src, String referrer) {
         load(activity, runtime, src, referrer, image -> {
             Uri uri = cacheFile(activity, image);
             return () -> {
@@ -68,7 +63,7 @@ final class ImageShare {
     }
 
     /** Saves into Downloads, where Files and the gallery's device folders show it. */
-    static void save(Activity activity, GeckoRuntime runtime, String src, String referrer) {
+    static void save(Activity activity, ImageFetcher runtime, String src, String referrer) {
         if (!canSave()) return;
         load(activity, runtime, src, referrer, image -> {
             ContentResolver resolver = activity.getContentResolver();
@@ -96,7 +91,7 @@ final class ImageShare {
     /** Runs on the worker with the loaded image; returns what to do on the UI thread. */
     private interface Step { Runnable run(Fetched image) throws Throwable; }
 
-    private static void load(Activity activity, GeckoRuntime runtime, String src, String referrer, Step step) {
+    private static void load(Activity activity, ImageFetcher runtime, String src, String referrer, Step step) {
         worker.execute(() -> {
             try {
                 Fetched image = src.startsWith("data:") ? decode(src) : fetch(runtime, src, referrer);
@@ -135,23 +130,18 @@ final class ImageShare {
         Fetched(byte[] bytes, String mime) { this.bytes = bytes; this.mime = mime; }
     }
 
-    /** The image's bytes, fetched by Gecko like Copy/Save image; blocks, so never on the UI thread. */
-    static byte[] bytes(GeckoRuntime runtime, String src, String referrer) throws Throwable {
+    /** The image's bytes, fetched by the engine like Copy/Save image; blocks, so never on the UI thread. */
+    static byte[] bytes(ImageFetcher runtime, String src, String referrer) throws Throwable {
         return (src.startsWith("data:") ? decode(src) : fetch(runtime, src, referrer)).bytes;
     }
 
-    private static Fetched fetch(GeckoRuntime runtime, String src, String referrer) throws Throwable {
-        WebRequest.Builder request = new WebRequest.Builder(src).header("Accept", "image/*");
-        if (referrer != null) request.referrer(referrer);
-        // poll blocks, so this runs on the worker thread, never the UI thread.
-        WebResponse response = new GeckoWebExecutor(runtime).fetch(request.build()).poll(FETCH_TIMEOUT_MS);
-        if (response.statusCode < 200 || response.statusCode > 299 || response.body == null) {
-            throw new IOException("HTTP " + response.statusCode);
-        }
-        String mime = mimeOf(response.headers.get("Content-Type"));
-        if (mime == null) mime = mimeOf(response.headers.get("content-type"));
-        try (InputStream body = response.body) {
-            return new Fetched(readAll(body), requireImage(mime));
+    private static Fetched fetch(ImageFetcher runtime, String src, String referrer) throws Throwable {
+        // The fetch blocks, so this runs on the worker thread, never the UI thread.
+        try (ImageFetcher.Response response = runtime.fetch(src, referrer)) {
+            if (response.status < 200 || response.status > 299 || response.body == null) {
+                throw new IOException("HTTP " + response.status);
+            }
+            return new Fetched(readAll(response.body), requireImage(mimeOf(response.contentType)));
         }
     }
 

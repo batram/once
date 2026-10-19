@@ -193,7 +193,7 @@ test("the Android copy adds the relay after Violentmonkey's background and reins
 })
 
 test("Android packages the adapted Violentmonkey and relays to it from a plugin of its own", () => {
-  const java = path.join(root, "apps/mobile/android/app/src/main/java/com/zmarn/once")
+  const java = path.join(root, "apps/mobile/android/app/src/gecko/java/com/zmarn/once")
   const engine = fs.readFileSync(path.join(java, "GeckoEngine.java"), "utf8")
   const relay = fs.readFileSync(path.join(java, "ViolentmonkeyRelayPlugin.java"), "utf8")
   const gradle = fs.readFileSync(path.join(root, "apps/mobile/android/app/build.gradle"), "utf8")

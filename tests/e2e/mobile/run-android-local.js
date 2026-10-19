@@ -2,11 +2,17 @@ const fs = require("fs")
 const path = require("path")
 const { spawnSync } = require("child_process")
 const { androidDeviceAbi, androidDeviceCommands } = require("./android-device")
+const { mobileEngine } = require("../../../apps/mobile/scripts/android-engine")
 
 const root = path.resolve(__dirname, "../../..")
 const npmCli = process.env.npm_execpath
 if (!npmCli) throw new Error("Run mobile E2E through an npm script")
 const visual = process.argv.includes("--visual")
+// --engine lite runs the suite against Once Lite; ONCE_MOBILE_ENGINE does the same.
+const engineFlag = process.argv.indexOf("--engine")
+let engine
+try { engine = mobileEngine(engineFlag >= 0 ? process.argv[engineFlag + 1] : process.env.ONCE_MOBILE_ENGINE) }
+catch (error) { console.error(`mobile-e2e: ${error.message}`); process.exit(1) }
 
 function fail(message) {
   console.error(`mobile-e2e: ${message}`)
@@ -81,7 +87,7 @@ function requireConnectedDevice(sdk, env) {
     fail("no Android device is ready; start an emulator or connect a device and try again")
   }
   if (!requested && connected.length > 1) {
-    const script = visual ? "inspect:mobile:android" : "test:mobile:e2e:android:local"
+    const script = (visual ? "inspect:mobile:android" : "test:mobile:e2e:android:local") + (engine === "lite" ? ":lite" : "")
     const commands = androidDeviceCommands(connected, script)
     fail(
       `multiple Android devices are ready (${connected.join(", ")}).\n` +
@@ -104,12 +110,12 @@ function ensureUiAutomatorDriver(env) {
 
 const android = androidEnvironment()
 const { adb, serial } = requireConnectedDevice(android.sdk, android.env)
-const env = { ...android.env, ONCE_ANDROID_UDID: serial, ANDROID_SERIAL: serial }
+const env = { ...android.env, ONCE_ANDROID_UDID: serial, ANDROID_SERIAL: serial, ONCE_MOBILE_ENGINE: engine }
 ensureUiAutomatorDriver(env)
 let abi
 try { abi = androidDeviceAbi(adb, serial, env, spawnSync) } catch (error) { fail(error.message) }
 // Package only the device's ABI so the APK fits the emulator's /data.
-runNpm(["run", "mobile", "--", "package", "android", "--channel", "dev", "--e2e"], {
+runNpm(["run", "mobile", "--", "package", "android", "--channel", "dev", "--e2e", "--engine", engine], {
   ...env,
   ONCE_ANDROID_PACKAGE_ABIS: abi
 })

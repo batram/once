@@ -13,7 +13,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.json.JSONObject;
 import org.json.JSONTokener;
-import org.mozilla.geckoview.WebExtension;
 
 /**
  * A tab's image text selection, as far as the app shows it natively: the bar
@@ -21,17 +20,18 @@ import org.mozilla.geckoview.WebExtension;
  * shows through the bridge port, and the out-of-page overlay prototype (see
  * ImageTextOverlay), opened and given its words by the shell
  * (mobileImageText.ts) and placed by the page's probe. Both end when the page
- * goes away.
+ * goes away. A page is identified by an opaque token the engine chooses (the
+ * bridge port on GeckoView, the document's observer on Once Lite).
  */
 final class ImageTextOverlays {
     private final Supplier<Activity> activity;
     private final Supplier<FrameLayout> container;
     /** The visible page view, or null. */
     private final Supplier<View> page;
-    /** The current page's bridge port, for the prototype's overlay. */
-    private final Supplier<WebExtension.Port> port;
-    /** Runs a script in a page's bridge content script, through its port, without an answer. */
-    private final BiConsumer<String, WebExtension.Port> evaluate;
+    /** The current page's identity, for the prototype's overlay. */
+    private final Supplier<Object> port;
+    /** Runs a script in a page, given its identity, without an answer. */
+    private final BiConsumer<String, Object> evaluate;
     /** Runs a script there and hands its JSON-encoded value (null when it failed) back. */
     private final ScriptRequest request;
     /** A double-tapped image in the current page, `{ image, referrer }`: the shell selects its text. */
@@ -39,16 +39,16 @@ final class ImageTextOverlays {
     private ImageTextOverlay current;
     private ImageTextBar bar;
     private String barToken;
-    /** The port of the page whose selection the bar belongs to: the bar talks to that page alone. */
-    private WebExtension.Port barPort;
+    /** The page whose selection the bar belongs to: the bar talks to that page alone. */
+    private Object barPort;
     private final androidx.activity.OnBackPressedCallback back = new androidx.activity.OnBackPressedCallback(false) {
         @Override public void handleOnBackPressed() { if (barToken != null) done(barToken); }
     };
 
-    interface ScriptRequest { void run(String script, WebExtension.Port port, Consumer<String> answer); }
+    interface ScriptRequest { void run(String script, Object port, Consumer<String> answer); }
 
     ImageTextOverlays(Supplier<Activity> activity, Supplier<FrameLayout> container, Supplier<View> page,
-                      Supplier<WebExtension.Port> port, BiConsumer<String, WebExtension.Port> evaluate, ScriptRequest request,
+                      Supplier<Object> port, BiConsumer<String, Object> evaluate, ScriptRequest request,
                       Consumer<JSONObject> requested) {
         this.port = port;
         this.requested = requested;
@@ -70,7 +70,7 @@ final class ImageTextOverlays {
             View view = page.get();
             if (view == null || container.get() == null || fit == null) { call.reject("There is no page to select in"); return; }
             close();
-            WebExtension.Port port = this.port.get();
+            Object port = this.port.get();
             current = new ImageTextOverlay(activity.get(), container.get(), view, token, fit, new ImageTextOverlay.Host() {
                 @Override public void evaluate(String code) { ImageTextOverlays.this.evaluate.accept(code, port); }
                 @Override public void closed(ImageTextOverlay overlay) { if (current == overlay) current = null; }
@@ -85,7 +85,7 @@ final class ImageTextOverlays {
      * Takes a page port's image text reports: `{ token, bar }` or `{ token, fit }`, and
      * double-tapped images (content.js), from the current page only. False for other messages.
      */
-    boolean receive(JSONObject message, WebExtension.Port from) {
+    boolean receive(JSONObject message, Object from) {
         if ("image-text-request".equals(message.optString("type"))) {
             if (from == port.get() && !message.optString("image").isEmpty()) requested.accept(message);
             return true;
@@ -99,8 +99,8 @@ final class ImageTextOverlays {
         return true;
     }
 
-    /** A page's port went away: so did that page's selection. */
-    void closed(WebExtension.Port port) {
+    /** A page went away: so did that page's selection. */
+    void closed(Object port) {
         if (port == barPort) removeBar();
         if (current != null && port == this.port.get()) current.close();
     }
@@ -111,7 +111,7 @@ final class ImageTextOverlays {
         removeBar();
     }
 
-    private void showBar(String token, JSONObject state, WebExtension.Port from) {
+    private void showBar(String token, JSONObject state, Object from) {
         if (state == null) {
             if (token.equals(barToken)) removeBar();
             return;
@@ -149,7 +149,7 @@ final class ImageTextOverlays {
     }
 
     private void done(String token) {
-        WebExtension.Port port = barPort;
+        Object port = barPort;
         removeBar();
         evaluate.accept("window.__onceImageText?.token === " + JSONObject.quote(token) + " && window.__onceImageText.close()", port);
     }

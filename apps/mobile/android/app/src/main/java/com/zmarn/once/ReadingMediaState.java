@@ -4,10 +4,15 @@ import android.graphics.Bitmap;
 import android.media.MediaMetadata;
 import android.media.session.PlaybackState;
 import android.os.SystemClock;
-import org.mozilla.geckoview.MediaSession;
 
-/** Android advances the progress bar between Gecko updates. */
+/** Android advances the progress bar between the page's updates. */
 final class ReadingMediaState {
+    /** Media session features, numbered as GeckoView's MediaSession.Feature bits. */
+    static final class Feature {
+        static final long SEEK_TO = 1L << 3, NEXT_TRACK = 1L << 7, PREVIOUS_TRACK = 1L << 8;
+        private Feature() {}
+    }
+
     String title = "Once reading media", artist = "", album = "";
     Bitmap artwork;
     long duration = -1, position = PlaybackState.PLAYBACK_POSITION_UNKNOWN;
@@ -36,7 +41,7 @@ final class ReadingMediaState {
     }
 
     boolean supports(long feature) { return (features & feature) != 0; }
-    boolean canSeek() { return duration > 0 && (pageSeekable || supports(MediaSession.Feature.SEEK_TO)); }
+    boolean canSeek() { return duration > 0 && (pageSeekable || supports(Feature.SEEK_TO)); }
 
     MediaMetadata metadata() {
         MediaMetadata.Builder result = new MediaMetadata.Builder()
@@ -51,8 +56,8 @@ final class ReadingMediaState {
     PlaybackState playbackState() {
         long actions = PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_STOP;
         if (canSeek()) actions |= PlaybackState.ACTION_SEEK_TO | PlaybackState.ACTION_REWIND | PlaybackState.ACTION_FAST_FORWARD;
-        if (supports(MediaSession.Feature.NEXT_TRACK)) actions |= PlaybackState.ACTION_SKIP_TO_NEXT;
-        if (supports(MediaSession.Feature.PREVIOUS_TRACK)) actions |= PlaybackState.ACTION_SKIP_TO_PREVIOUS;
+        if (supports(Feature.NEXT_TRACK)) actions |= PlaybackState.ACTION_SKIP_TO_NEXT;
+        if (supports(Feature.PREVIOUS_TRACK)) actions |= PlaybackState.ACTION_SKIP_TO_PREVIOUS;
         PlaybackState.Builder result = new PlaybackState.Builder().setActions(actions)
             .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED, positionNow(), playing ? (float) rate : 0);
         if (canSeek()) {

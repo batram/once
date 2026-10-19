@@ -18,7 +18,6 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import org.mozilla.geckoview.GeckoRuntime;
 
 /** On-device ML Kit text recognition with the bundled Latin model (no Play services,
  * no model download). Limits and messages match iOS's TextRecognition.swift.
@@ -39,11 +38,11 @@ final class TextRecognition {
 
     /**
      * Recognizes `{ base64 }` (the shell's text retrieval) or `{ url, referrer }`, an image of
-     * the open page that Gecko fetches like Copy image does (the long-press "Select text in
+     * the open page that the engine fetches like Copy image does (the long-press "Select text in
      * image"). `lines` and `lineBounds` answer the retrieval port; `words` adds each word's
      * corners, normalized with a top-left origin, for the selection overlay.
      */
-    static void recognize(PluginCall call, GeckoRuntime runtime) {
+    static void recognize(PluginCall call, ImageFetcher runtime) {
         String url = call.getString("url");
         if (url != null) {
             if (!url.startsWith("https://") && !url.startsWith("http://") && !url.startsWith("data:image/")) {

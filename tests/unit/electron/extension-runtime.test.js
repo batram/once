@@ -2,7 +2,6 @@ const assert = require("node:assert/strict")
 const { EventEmitter } = require("node:events")
 const fs = require("node:fs")
 const Module = require("node:module")
-const os = require("node:os")
 const path = require("node:path")
 const test = require("node:test")
 const ts = require("typescript")
@@ -36,25 +35,15 @@ test.after(() => {
 const root = path.resolve(__dirname, "../../..")
 const extensionsDir = path.join(root, "apps/electron/src/extensions")
 const load = (name) => require(path.join(extensionsDir, `${name}.ts`))
-const details = load("webRequestDetails")
-const scheme = load("ExtensionScheme")
-const loaded = load("LoadedExtension")
+const { EXTENSION_IPC, canInjectFrame, isExtensionPageDocument } = require("@once/webext-runtime")
 const extensionProtocol = load("ExtensionProtocol")
-const { ExtensionStorage } = load("ExtensionStorage")
-const { ExtensionContexts } = load("ExtensionContexts")
-const api = load("ExtensionApi")
-const permissions = load("extensionPermissions")
-const targets = load("apiTargets")
+const { ElectronExtensionContexts } = load("electronContexts")
 const { ExtensionHost } = load("ExtensionHost")
-const { EXTENSION_IPC } = load("protocol")
 const { ExtensionRuntime } = load("ExtensionRuntime")
 const { ContentFrames } = load("contentFrames")
 
 test("a registered extension view loses page trust after cross-origin navigation", () => {
-  assert.equal(scheme.isExtensionPageDocument("moz-extension://owner/page.html", "owner"), true)
-  assert.equal(scheme.isExtensionPageDocument("https://example.test/page", "owner"), false)
-  assert.equal(scheme.isExtensionPageDocument("moz-extension://other/page.html", "owner"), false)
-  assert.equal(scheme.isExtensionPageDocument("about:blank", "owner"), false)
+  assert.equal(isExtensionPageDocument("moz-extension://other/page.html", "owner"), false)
   const contents = fakeContents(71)
   const frame = { url: "moz-extension://owner/page.html" }
   contents.mainFrame = frame
@@ -67,8 +56,6 @@ test("a registered extension view loses page trust after cross-origin navigation
   frame.url = "https://example.test/page"
   assert.throws(() => runtime.requireContext(event), /Untrusted extension IPC sender/)
 })
-
-const fixture = path.join(root, "tests/fixtures/extensions/blocker")
 
 test("extension protocols register on first use and replace their handler on re-enable", () => {
   let registered = false
@@ -99,218 +86,8 @@ function fakeContents(id) {
   return contents
 }
 
-test("Electron resource types map onto WebExtension request types", () => {
-  assert.equal(details.webExtResourceType("mainFrame"), "main_frame")
-  assert.equal(details.webExtResourceType("xhr"), "xmlhttprequest")
-  assert.equal(details.webExtResourceType("cspReport"), "csp_report")
-  assert.equal(details.webExtResourceType("somethingNew"), "other")
-})
-
-test("a sub-resource carries its document, the main frame does not", () => {
-  const base = {
-    id: 7, method: "GET", referrer: "", timestamp: 1, tabId: 3,
-    frame: { frameId: 0, parentFrameId: -1, documentUrl: "https://site.test/page", topUrl: "https://site.test/page" }
-  }
-  const script = details.buildWebRequestDetails({
-    ...base, url: "https://cdn.ads.test/x.js", resourceType: "script",
-    requestHeaders: { Accept: "*/*", Cookie: ["a=1", "b=2"] }
-  })
-  assert.equal(script.requestId, "7")
-  assert.equal(script.type, "script")
-  assert.equal(script.documentUrl, "https://site.test/page")
-  assert.equal(script.originUrl, "https://site.test/page")
-  assert.equal(script.thirdParty, true)
-  assert.deepEqual(script.requestHeaders, [
-    { name: "Accept", value: "*/*" }, { name: "Cookie", value: "a=1" }, { name: "Cookie", value: "b=2" }
-  ])
-
-  const main = details.buildWebRequestDetails({
-    ...base, url: "https://site.test/next", resourceType: "mainFrame"
-  })
-  // Absent, not null: uBlock checks for undefined and then calls startsWith.
-  assert.equal("documentUrl" in main, false)
-  assert.equal("originUrl" in main, false)
-  assert.equal(main.frameId, 0)
-  assert.equal(main.parentFrameId, -1)
-  assert.equal(main.thirdParty, false)
-})
-
-test("header conversion round-trips through the WebExtension shape", () => {
-  const list = details.headersToWebExt({ "Set-Cookie": ["a", "b"], "X-One": "1" })
-  assert.deepEqual(details.headersFromWebExt(list), { "Set-Cookie": ["a", "b"], "X-One": "1" })
-})
-
-test("listener filters decide by URL, type, and tab; extraInfoSpec sets capabilities", () => {
-  const filter = new details.CompiledRequestFilter({
-    filter: { urls: ["*://*.ads.test/*"], types: ["script", "image"], tabId: 3 },
-    extraInfoSpec: ["blocking", "requestHeaders"]
-  })
-  const hit = { url: "https://cdn.ads.test/x.js", type: "script", tabId: 3 }
-  assert.equal(filter.matches(hit), true)
-  assert.equal(filter.matches({ ...hit, type: "xmlhttprequest" }), false)
-  assert.equal(filter.matches({ ...hit, tabId: 4 }), false)
-  assert.equal(filter.matches({ ...hit, url: "https://site.test/x.js" }), false)
-  assert.equal(filter.blocking, true)
-  assert.equal(filter.wantsRequestHeaders, true)
-  assert.equal(filter.wantsResponseHeaders, false)
-  assert.throws(() => new details.CompiledRequestFilter({ filter: { urls: [] }, extraInfoSpec: [] }))
-  // Violentmonkey's installer filter names its own scheme alongside web
-  // ones; the whole filter used to be discarded for it.
-  const installer = new details.CompiledRequestFilter({
-    filter: { urls: ["*://*/*.user.js", "moz-extension://abc/*.user.js"], types: ["main_frame"] },
-    extraInfoSpec: ["blocking"]
-  })
-  assert.equal(installer.matches({ url: "http://127.0.0.1:1/once.user.js", type: "main_frame", tabId: 1 }), true)
-})
-
-test("blocking responses merge with Firefox precedence", () => {
-  const merged = details.mergeBlockingResponses([
-    undefined,
-    { redirectUrl: "https://first.test/" },
-    { requestHeaders: [{ name: "A", value: "1" }] },
-    { redirectUrl: "https://second.test/", requestHeaders: [{ name: "B", value: "2" }] },
-    { cancel: true },
-    "not an object"
-  ])
-  assert.deepEqual(merged, {
-    cancel: true,
-    redirectUrl: "https://first.test/",
-    requestHeaders: [{ name: "B", value: "2" }]
-  })
-})
-
-test("a document response is held for onResponseStarted; redirects and sub-resources are not", () => {
-  assert.equal(details.startsDocument("main_frame", 200), true)
-  assert.equal(details.startsDocument("sub_frame", 404), true)
-  assert.equal(details.startsDocument("main_frame", 302), false)
-  assert.equal(details.startsDocument("main_frame", 304), false)
-  assert.equal(details.startsDocument("xmlhttprequest", 200), false)
-  assert.equal(details.startsDocument("script", 200), false)
-})
-
-test("extension ids become stable opaque hosts and URLs parse back", () => {
-  const host = scheme.hostForExtensionId("uBlock0@raymondhill.net")
-  assert.match(host, /^[0-9a-f]{32}$/)
-  assert.equal(host, scheme.hostForExtensionId("uBlock0@raymondhill.net"))
-  assert.notEqual(host, scheme.hostForExtensionId("other@example.org"))
-  const url = scheme.extensionUrl(host, "js/a b.js")
-  assert.equal(url, `moz-extension://${host}/js/a b.js`)
-  assert.deepEqual(scheme.parseExtensionUrl(url), { host, path: "/js/a b.js" })
-  assert.deepEqual(scheme.parseExtensionUrl(`moz-extension://${host}/x?y#z`), { host, path: "/x" })
-  assert.equal(scheme.parseExtensionUrl("https://example.org/"), null)
-})
-
-test("an unpacked extension loads with its locale and a generated background page", async () => {
-  const extension = await loaded.loadUnpackedExtension(fixture, "de")
-  assert.equal(extension.id, "blocker@once.test")
-  assert.equal(extension.name, "Once Test Blocker")
-  assert.equal(extension.backgroundPage, loaded.GENERATED_BACKGROUND_PAGE)
-  assert.equal(extension.manifest.permissions.has("webRequestBlocking"), true)
-  assert.deepEqual(extension.manifest.hostPermissions, ["<all_urls>"])
-  assert.equal(loaded.resolveExtensionFile(extension, "/../manifest.json"), null)
-  assert.equal(loaded.resolveExtensionFile(extension, "/"), null)
-  assert.equal(path.basename(loaded.resolveExtensionFile(extension, "background.js")), "background.js")
-})
-
-test("the protocol serves extension files, the generated page, and nothing outside", async () => {
-  const extension = await loaded.loadUnpackedExtension(fixture, "en")
-  const lookup = (host) => (host === extension.host ? extension : undefined)
-  const serve = (p) => extensionProtocol.serveExtensionRequest(scheme.extensionUrl(extension.host, p), lookup)
-
-  const page = await serve(loaded.GENERATED_BACKGROUND_PAGE)
-  assert.equal(page.status, 200)
-  assert.match(await page.text(), /<script src="background\.js"><\/script>/)
-
-  const script = await serve("background.js")
-  assert.equal(script.headers.get("content-type"), "text/javascript; charset=utf-8")
-  assert.match(await script.text(), /onBeforeRequest/)
-
-  assert.equal((await serve("../package.json")).status, 404)
-  assert.equal((await serve("missing.js")).status, 404)
-  assert.equal((await extensionProtocol.serveExtensionRequest("moz-extension://nobody/x", lookup)).status, 404)
-})
-
-test("extension pages carry Firefox's default policy unless the manifest declares one", async () => {
-  const extension = await loaded.loadUnpackedExtension(fixture, "en")
-  const lookup = (host) => (host === extension.host ? extension : undefined)
-  const serve = (p) => extensionProtocol.serveExtensionRequest(scheme.extensionUrl(extension.host, p), lookup)
-  const mv2Default = "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
-  assert.equal((await serve(loaded.GENERATED_BACKGROUND_PAGE)).headers.get("content-security-policy"), mv2Default)
-  assert.equal((await serve("background.js")).headers.get("content-security-policy"), mv2Default)
-
-  const policy = (rawManifest) => loaded.extensionPagePolicy({ ...extension, rawManifest })
-  assert.equal(policy({ manifest_version: 2, content_security_policy: "script-src 'self' 'unsafe-eval'" }),
-    "script-src 'self' 'unsafe-eval'")
-  assert.equal(policy({ manifest_version: 3 }), "script-src 'self'; upgrade-insecure-requests;")
-  assert.equal(policy({ manifest_version: 3, content_security_policy: { extension_pages: "script-src 'self'" } }),
-    "script-src 'self'")
-  // An MV2-style string means nothing to MV3, which keeps its default.
-  assert.equal(policy({ manifest_version: 3, content_security_policy: "script-src *" }),
-    "script-src 'self'; upgrade-insecure-requests;")
-})
-
-test("storage.local keeps items, reports changes, and survives a reload", async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "once-ext-storage-"))
-  const file = path.join(dir, "storage.json")
-  try {
-    const storage = new ExtensionStorage(file)
-    assert.deepEqual(await storage.get(null), {})
-    assert.deepEqual(await storage.set({ a: 1, b: "two", skipped: undefined }), {
-      a: { oldValue: undefined, newValue: 1 },
-      b: { oldValue: undefined, newValue: "two" }
-    })
-    assert.deepEqual(await storage.get("a"), { a: 1 })
-    assert.deepEqual(await storage.get(["a", "missing"]), { a: 1 })
-    assert.deepEqual(await storage.get({ a: 0, c: "default" }), { a: 1, c: "default" })
-    assert.deepEqual(await storage.remove("b"), { b: { oldValue: "two" } })
-    await storage.flush()
-
-    const reloaded = new ExtensionStorage(file)
-    assert.deepEqual(await reloaded.get(null), { a: 1 })
-    assert.equal(await reloaded.getBytesInUse(null) > 0, true)
-    assert.deepEqual(await reloaded.clear(), { a: { oldValue: 1 } })
-    await reloaded.flush()
-    assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), {})
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-test("contexts route events to the listeners that asked and collect replies", async () => {
-  const contexts = new ExtensionContexts()
-  const background = fakeContents(1)
-  const popup = fakeContents(2)
-  contexts.add(background, "background")
-  contexts.add(popup, "popup")
-  contexts.addListener(1, "webRequest", "onBeforeRequest", 10, {
-    filter: { urls: ["<all_urls>"] }, extraInfoSpec: ["blocking"]
-  })
-  contexts.addListener(1, "runtime", "onMessage", 11, null)
-
-  contexts.emit("runtime", "onMessage", ["hi"], 2)
-  assert.equal(popup.sent.length, 0)
-  assert.equal(background.sent.length, 1)
-  assert.deepEqual(background.sent[0].message, {
-    api: "runtime", event: "onMessage", args: ["hi"], listeners: [11]
-  })
-
-  const [target] = contexts.targets("webRequest", "onBeforeRequest")
-  const pending = contexts.request(target, "webRequest", "onBeforeRequest", [{ url: "x" }], 1000)
-  const sent = background.sent[1].message
-  assert.equal(typeof sent.token, "number")
-  contexts.handleReply(2, { token: sent.token, result: [{ cancel: true }] })
-  contexts.handleReply(1, { token: sent.token, result: [{ cancel: true }] })
-  assert.deepEqual(await pending, [{ cancel: true }])
-
-  const timedOut = contexts.request(target, "webRequest", "onBeforeRequest", [{}], 5)
-  assert.deepEqual(await timedOut, [])
-
-  background.close()
-  assert.equal(contexts.targets("runtime", "onMessage").length, 0)
-})
-
 test("an iframe of an extension page is its own context, reached through the frame", () => {
-  const contexts = new ExtensionContexts()
+  const contexts = new ElectronExtensionContexts()
   const page = fakeContents(3)
   const frame = { frameTreeNodeId: 7, detached: false, url: "moz-extension://abc/settings.html", sent: [] }
   frame.send = (channel, message) => frame.sent.push({ channel, message })
@@ -341,115 +118,19 @@ test("an iframe of an extension page is its own context, reached through the fra
   assert.equal(contexts.get("3"), undefined)
 })
 
-test("scripting registrations map onto the host's dynamic content scripts", () => {
-  const handlers = api.createApiHandlers()
-  const registered = new Map()
-  let next = 1
-  const host = {
-    extension: { manifest: { permissions: new Set(["scripting"]), hostPermissions: ["<all_urls>"] } },
-    registeredScripts: registered,
-    registerContentScript(script) {
-      const id = next++
-      registered.set(id, script)
-      return id
-    }
-  }
-  const call = () => ({ host, sender: null })
-  const scripts = () => [...registered.values()]
-  handlers["scripting.registerContentScripts"](call(), [
-    { id: "a", matches: ["https://a.test/*"], js: ["a.js"], runAt: "document_start", world: "MAIN" },
-    { id: "b", matches: ["<all_urls>"], css: ["b.css"], allFrames: true }
-  ])
-  assert.equal(registered.size, 2)
-  assert.equal(scripts()[0].spec.world, "MAIN")
-  assert.equal(scripts()[0].spec.runAt, "document_start")
-  assert.equal(scripts()[1].spec.allFrames, true)
-  assert.throws(
-    () => handlers["scripting.registerContentScripts"](call(), [{ id: "a", matches: ["<all_urls>"], js: ["x.js"] }]),
-    /already registered/
-  )
-  assert.throws(
-    () => handlers["scripting.registerContentScripts"](call(), [
-      { id: "c", matches: ["<all_urls>"], js: ["c.js"] },
-      { id: "_d", matches: ["<all_urls>"], js: ["d.js"] }
-    ]),
-    /does not start with/
-  )
-  assert.equal(registered.size, 2, "a rejected batch registers nothing")
-  assert.deepEqual(
-    handlers["scripting.getRegisteredContentScripts"](call(), { ids: ["b"] }).map((script) => script.id),
-    ["b"]
-  )
-  handlers["scripting.updateContentScripts"](call(), [{ id: "b", css: ["b2.css"] }])
-  assert.equal(registered.size, 2)
-  assert.deepEqual(scripts()[1].spec.css, ["b2.css"])
-  handlers["scripting.unregisterContentScripts"](call(), { ids: ["a"] })
-  assert.deepEqual(handlers["scripting.getRegisteredContentScripts"](call()).map((script) => script.id), ["b"])
-  assert.throws(() => handlers["scripting.unregisterContentScripts"](call(), { ids: ["a"] }), /Nonexistent/)
-  handlers["scripting.unregisterContentScripts"](call())
-  assert.equal(registered.size, 0)
-
-  assert.match(loaded.generatedBackgroundHtml(["worker.js"], true), /<script type="module" src="worker.js">/)
-  assert.doesNotMatch(loaded.generatedBackgroundHtml(["bg.js"]), /module/)
-})
-
-test("dynamic scripts require both their API and complete host grants", () => {
-  const handlers = api.createApiHandlers()
-  const host = {
-    extension: { manifest: { permissions: new Set(), hostPermissions: ["https://allowed.test/*"] } },
-    registeredScripts: new Map(),
-    registerContentScript() { throw new Error("should not register") }
-  }
-  const call = { host, sender: null }
-  const script = [{ id: "x", matches: ["https://allowed.test/*"], js: ["x.js"] }]
-  assert.throws(() => handlers["scripting.registerContentScripts"](call, script), /scripting permission/)
-  host.extension.manifest.permissions.add("scripting")
-  assert.throws(() => handlers["scripting.registerContentScripts"](call,
-    [{ id: "x", matches: ["<all_urls>"], js: ["x.js"] }]), /host permission/)
-  assert.doesNotThrow(() => permissions.requireHostPattern(host.extension, "https://allowed.test/*"))
-  assert.throws(() => permissions.requireHostPattern(host.extension, "https://*.allowed.test/*"), /host permission/)
-})
-
-test("contentScripts.register needs host grants but no nonexistent API permission", () => {
-  const handlers = api.createApiHandlers()
-  let registered = 0
-  const host = {
-    extension: { manifest: { permissions: new Set(), hostPermissions: ["https://allowed.test/*"] } },
-    registerContentScript() { registered++; return registered }
-  }
-  const call = { host, sender: null }
-  assert.equal(handlers["contentScripts.register"](call,
-    { matches: ["https://allowed.test/*"], js: [{ file: "a.js" }] }), 1)
-  assert.throws(() => handlers["contentScripts.register"](call,
-    { matches: ["<all_urls>"], js: [{ file: "a.js" }] }), /host permission/)
-  assert.equal(registered, 1)
-})
-
-test("blank frames do not abort authorized all-frame injections", () => {
-  const extension = { manifest: { permissions: new Set(), hostPermissions: ["https://allowed.test/*"] } }
-  const host = { extension, hooks: { tabs: () => [{ id: 4, url: "https://allowed.test/page" }] } }
-  const frames = [
-    { url: () => "https://allowed.test/page" },
-    { url: () => "about:blank", creatorUrl: () => "https://allowed.test/page" },
-    { url: () => "https://other.test/frame" },
-    { url: () => "about:blank", creatorUrl: () => "https://other.test/frame" }
-  ]
-  assert.deepEqual(targets.authorizedFrames(host, 4, frames), frames.slice(0, 2))
-})
-
 test("activeTab grant is scoped to a clicked tab and expires on navigation", () => {
   const tab = { id: 4, url: "https://allowed.test/page" }
   const host = Object.create(ExtensionHost.prototype)
   host.extension = { manifest: { permissions: new Set(["activeTab"]), hostPermissions: [] } }
   host.hooks = { tabs: () => [tab] }
   host.activeTabGrants = new Map()
-  assert.equal(targets.canInjectFrame(host, 4, tab.url), false)
+  assert.equal(canInjectFrame(host, 4, tab.url), false)
   host.grantActiveTab(tab)
-  assert.equal(targets.canInjectFrame(host, 4, tab.url), true)
-  assert.equal(targets.canInjectFrame(host, 4, "https://other.test/frame"), false)
-  assert.equal(targets.canInjectFrame(host, 5, tab.url), false)
+  assert.equal(canInjectFrame(host, 4, tab.url), true)
+  assert.equal(canInjectFrame(host, 4, "https://other.test/frame"), false)
+  assert.equal(canInjectFrame(host, 5, tab.url), false)
   host.revokeActiveTab(4)
-  assert.equal(targets.canInjectFrame(host, 4, tab.url), false)
+  assert.equal(canInjectFrame(host, 4, tab.url), false)
 })
 
 test("an injection creates the top-frame content context when no manifest script did", () => {
@@ -467,6 +148,7 @@ test("an injection creates the top-frame content context when no manifest script
     hooks: { tabs: () => [{ id: 4, url: frame.url }] },
     hasActiveTabGrant: () => true,
     worldId: 1000,
+    platform: { locale: () => "en-US" },
     contexts: {
       get: (id) => entries.get(id),
       addFrame: (_contents, target) => {
@@ -489,113 +171,4 @@ test("an injection creates the top-frame content context when no manifest script
   frames.init(new Map(), contents, child, "text/html")
   frames.ensure(host, contents, 4, undefined, true)
   assert.equal(sent.length, 2, "same-origin child gets a world for allFrames")
-})
-
-test("host patterns are compiled once and domain cookies follow permitted subdomains", () => {
-  const extension = { manifest: { hostPermissions: ["https://mail.example.com/*"] } }
-  assert.equal(permissions.permittedHosts(extension), permissions.permittedHosts(extension))
-  assert.equal(permissions.canAccessCookie(extension,
-    { domain: ".example.com", hostOnly: false, secure: true }), true)
-  assert.equal(permissions.canAccessCookie(extension,
-    { domain: "example.com", hostOnly: true, secure: true }), false)
-  assert.equal(permissions.canAccessCookie(extension,
-    { domain: ".other.com", hostOnly: false, secure: true }), false)
-  const wildcard = { manifest: { hostPermissions: ["*://*.example.com/*"] } }
-  assert.equal(permissions.canAccessCookie(wildcard,
-    { domain: ".mail.example.com", hostOnly: false, secure: true }), true)
-})
-
-test("cookies.get returns a parent-domain cookie for a permitted child host", async () => {
-  const extension = { manifest: {
-    permissions: new Set(["cookies"]), hostPermissions: ["https://mail.example.com/*"]
-  } }
-  const cookie = { name: "SID", value: "secret", domain: ".example.com",
-    hostOnly: false, secure: true, path: "/" }
-  const call = { host: { extension, cookies: { get: async () => [cookie] } }, sender: null }
-  const result = await api.createApiHandlers()["cookies.get"](call,
-    { url: "https://mail.example.com/", name: "SID" })
-  assert.equal(result.value, "secret")
-})
-
-test("cookies.getAll filters a shared cookie store by permission and host", async () => {
-  const handlers = api.createApiHandlers()
-  const cookies = [
-    { name: "allowed", value: "1", domain: "allowed.test", path: "/", secure: true },
-    { name: "private", value: "2", domain: "private.test", path: "/", secure: true }
-  ]
-  const host = {
-    extension: { manifest: { permissions: new Set(), hostPermissions: ["https://allowed.test/*"] } },
-    cookies: { get: async () => cookies }
-  }
-  const call = { host, sender: null }
-  await assert.rejects(handlers["cookies.getAll"](call, {}), /cookies permission/)
-  host.extension.manifest.permissions.add("cookies")
-  const result = await handlers["cookies.getAll"](call, {})
-  assert.deepEqual(result.map((cookie) => cookie.name), ["allowed"])
-  await assert.rejects(handlers["cookies.getAll"](call, { url: "https://private.test/" }), /host permission/)
-})
-
-test("API handlers answer tabs, messages, i18n, and storage change events", async () => {
-  const handlers = api.createApiHandlers()
-  const extension = await loaded.loadUnpackedExtension(fixture, "en")
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "once-ext-api-"))
-  const contexts = new ExtensionContexts()
-  const background = fakeContents(1)
-  const popup = fakeContents(2)
-  contexts.add(background, "background")
-  contexts.add(popup, "popup")
-  contexts.addListener(1, "runtime", "onMessage", 5, null)
-  contexts.addListener(2, "storage", "onChanged", 6, null)
-  const tabs = [
-    { id: 30, windowId: 1, index: 0, url: "https://a.test/", title: "A", active: false, status: "complete", audible: false, mutedInfo: { muted: false } },
-    { id: 31, windowId: 1, index: 1, url: "https://b.test/page", title: "B", active: true, status: "loading", audible: true, mutedInfo: { muted: false } }
-  ]
-  const host = {
-    extension,
-    contexts,
-    storage: new ExtensionStorage(path.join(dir, "storage.json")),
-    hooks: { tabs: () => tabs, moveTab: async (id, index) => ({ moved: [id, index] }) },
-    action: new api.BrowserActionState("Blocker"),
-    alarms: new api.AlarmScheduler(() => undefined)
-  }
-  const call = (sender) => ({ host, sender: contexts.get(sender) })
-  try {
-    assert.deepEqual(handlers["tabs.query"](call(1), { active: true }).map((tab) => tab.id), [31])
-    assert.deepEqual(handlers["tabs.query"](call(1), { url: "*://a.test/*" }).map((tab) => tab.id), [30])
-    assert.deepEqual(handlers["tabs.query"](call(1), { audible: true, status: "loading" }).map((tab) => tab.id), [31])
-    assert.equal(handlers["tabs.get"](call(1), 30).title, "A")
-    assert.throws(() => handlers["tabs.get"](call(1), 99), /Invalid tab ID/)
-    // uBlock moves its own pages after `tabs.update`; -1 means the end.
-    assert.deepEqual(await handlers["tabs.move"](call(1), 30, { index: -1 }), { moved: [30, -1] })
-    assert.deepEqual(await handlers["tabs.move"](call(1), [30, 31], { index: 0 }), [
-      { moved: [30, 0] }, { moved: [31, 0] }
-    ])
-
-    assert.equal(handlers["i18n.getMessage"](call(1), "extName"), "Once Test Blocker")
-    assert.equal(handlers["i18n.getMessage"](call(1), "nope"), "")
-    assert.equal(handlers["management.getSelf"](call(1)).name, "Once Test Blocker")
-
-    handlers["browserAction.setBadgeText"](call(1), { text: "12", tabId: 31 })
-    assert.equal(handlers["browserAction.getBadgeText"](call(1), { tabId: 31 }), "12")
-    assert.equal(handlers["browserAction.getBadgeText"](call(1), {}), "")
-    assert.equal(handlers["browserAction.getTitle"](call(1), {}), "Blocker")
-    // Manifest V3 reaches the same button as `action`.
-    handlers["action.setBadgeText"](call(1), { text: "3" })
-    assert.equal(handlers["browserAction.getBadgeText"](call(1), {}), "3")
-    assert.equal(handlers["action.getTitle"](call(1), {}), "Blocker")
-
-    const reply = handlers["runtime.sendMessage"](call(2), { ping: true })
-    const sent = background.sent.find((item) => item.message.event === "onMessage")
-    assert.deepEqual(sent.message.args[0], { ping: true })
-    assert.equal(sent.message.args[1].id, "blocker@once.test")
-    contexts.handleReply(1, { token: sent.message.token, result: [undefined, { pong: true }] })
-    assert.deepEqual(await reply, { pong: true })
-
-    await handlers["storage.local.set"](call(1), { key: "value" })
-    const change = popup.sent.find((item) => item.channel === EXTENSION_IPC.event)
-    assert.deepEqual(change.message.args, [{ key: { oldValue: undefined, newValue: "value" } }, "local"])
-    await host.storage.flush()
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true })
-  }
 })

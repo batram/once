@@ -64,7 +64,7 @@ test.after(() => {
 
 // Only loadable once the TypeScript loader above is installed; the stub's
 // sendSync reads EXTENSION_IPC lazily, when the preload asks for its inits.
-const { EXTENSION_IPC, INTERNAL_API } = require(path.join(root, "apps/electron/src/extensions/protocol.ts"))
+const { EXTENSION_IPC, INTERNAL_API } = require("@once/webext-runtime/preload")
 require(path.join(root, "apps/electron/src/extensions/contentPreload.ts"))
 const onEvent = electronStub.ipcRenderer.handlers.get(EXTENSION_IPC.event)
 const inject = (event, css, host = init.host) =>

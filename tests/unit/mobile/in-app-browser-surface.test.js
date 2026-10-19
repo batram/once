@@ -107,7 +107,7 @@ test("native embedded browsers sit in front of the shell", () => {
   const root = path.resolve(__dirname, "../../..")
   const android = fs.readFileSync(path.join(
     root,
-    "apps/mobile/android/app/src/main/java/com/zmarn/once/ReadingSurfaceHost.java"
+    "apps/mobile/android/app/src/gecko/java/com/zmarn/once/ReadingSurfaceHost.java"
   ), "utf8")
   const ios = fs.readFileSync(path.join(
     root,
@@ -126,11 +126,11 @@ test("native embedded browsers report forward history and iOS hands unhandled ed
   const root = path.resolve(__dirname, "../../..")
   const androidHost = fs.readFileSync(path.join(
     root,
-    "apps/mobile/android/app/src/main/java/com/zmarn/once/ReadingSurfaceHost.java"
+    "apps/mobile/android/app/src/gecko/java/com/zmarn/once/ReadingSurfaceHost.java"
   ), "utf8")
   const androidPlugin = fs.readFileSync(path.join(
     root,
-    "apps/mobile/android/app/src/main/java/com/zmarn/once/InAppBrowserSurfacePlugin.java"
+    "apps/mobile/android/app/src/gecko/java/com/zmarn/once/InAppBrowserSurfacePlugin.java"
   ), "utf8")
   const ios = fs.readFileSync(path.join(
     root,
@@ -157,7 +157,7 @@ test("native embedded browsers support pull-to-refresh", () => {
   const root = path.resolve(__dirname, "../../..")
   const android = fs.readFileSync(path.join(
     root,
-    "apps/mobile/android/app/src/main/java/com/zmarn/once/ReadingSurfaceHost.java"
+    "apps/mobile/android/app/src/gecko/java/com/zmarn/once/ReadingSurfaceHost.java"
   ), "utf8")
   const ios = fs.readFileSync(path.join(
     root,
@@ -204,11 +204,11 @@ test("Android hands synced settings to its trusted Gecko bridge", () => {
   const root = path.resolve(__dirname, "../../..")
   const android = fs.readFileSync(path.join(
     root,
-    "apps/mobile/android/app/src/main/java/com/zmarn/once/InAppBrowserSurfacePlugin.java"
+    "apps/mobile/android/app/src/gecko/java/com/zmarn/once/InAppBrowserSurfacePlugin.java"
   ), "utf8")
   const androidSettings = fs.readFileSync(path.join(
     root,
-    "apps/mobile/android/app/src/main/java/com/zmarn/once/ExtensionSettingsSync.java"
+    "apps/mobile/android/app/src/gecko/java/com/zmarn/once/ExtensionSettingsSync.java"
   ), "utf8")
   const manifest = JSON.parse(fs.readFileSync(path.join(
     root, "apps/mobile/extensions/once-surface/manifest.json"
@@ -232,7 +232,7 @@ test("native embedded browsers present menus and prompts above web content", () 
   const root = path.resolve(__dirname, "../../..")
   const android = fs.readFileSync(path.join(
     root,
-    "apps/mobile/android/app/src/main/java/com/zmarn/once/InAppBrowserSurfacePlugin.java"
+    "apps/mobile/android/app/src/gecko/java/com/zmarn/once/InAppBrowserSurfacePlugin.java"
   ), "utf8")
   const ios = fs.readFileSync(path.join(
     root,

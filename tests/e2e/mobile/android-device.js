@@ -63,7 +63,8 @@ function adbFailureDetail(result, operation) {
 }
 
 const SUPPORTED_ANDROID_ABIS = ["arm64-v8a", "x86_64"]
-const ONCE_DEV_PACKAGE = "com.zmarn.once.dev"
+// Both engines' dev apps (com.zmarn.once.dev, com.zmarn.once.lite.dev) are test installs.
+const ONCE_DEV_PACKAGES = require("../../../apps/mobile/scripts/android-engine").devPackages()
 // Play Store updates that the test session itself depends on; reverting them
 // mid-run restarts Google Play services or swaps the WebView Appium drives.
 const KEPT_SYSTEM_UPDATES = new Set([
@@ -131,7 +132,7 @@ function ensureAndroidInstallSpace({ adb, serial, apkBytes, env, spawnSync, keep
   }
   log(`Android emulator ${serial} has ${mib(free)} free on /data; reclaiming space for the ${mib(apkBytes)} test APK`)
   const steps = [
-    ...(keepApp ? [] : [["pm", "uninstall", ONCE_DEV_PACKAGE]]),
+    ...(keepApp ? [] : ONCE_DEV_PACKAGES.map(name => ["pm", "uninstall", name])),
     ["pm", "trim-caches", "64G"]
   ]
   for (const step of steps) adbShell(adb, serial, step, env, spawnSync, 60_000)

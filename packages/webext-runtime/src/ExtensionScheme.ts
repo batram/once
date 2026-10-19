@@ -1,0 +1,44 @@
+import { EXTENSION_SCHEME } from "./protocol"
+import { sha256Hex } from "./sha256"
+
+/**
+ * Extension ids such as `uBlock0@raymondhill.net` are not valid hostnames, so
+ * each extension gets a stable, opaque host derived from its id, the way
+ * Firefox gives every install a `moz-extension://<uuid>` origin.
+ */
+export function hostForExtensionId(id: string): string {
+  return sha256Hex(id).slice(0, 32)
+}
+
+export function extensionUrl(host: string, path = "/"): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`
+  return `${EXTENSION_SCHEME}://${host}${normalized}`
+}
+
+export interface ExtensionUrlParts {
+  host: string
+  /** Decoded path with a leading slash; query and fragment removed. */
+  path: string
+}
+
+export function parseExtensionUrl(url: string): ExtensionUrlParts | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== `${EXTENSION_SCHEME}:` || !parsed.hostname) return null
+  let path: string
+  try {
+    path = decodeURIComponent(parsed.pathname)
+  } catch {
+    return null
+  }
+  return { host: parsed.hostname, path }
+}
+
+/** A registered view stays trusted only while its current document is its owner's page. */
+export function isExtensionPageDocument(url: string, ownerHost: string): boolean {
+  return parseExtensionUrl(url)?.host === ownerHost
+}

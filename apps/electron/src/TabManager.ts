@@ -36,8 +36,8 @@ import { WindowLifecycle, showWindow } from "./browser/WindowLifecycle"
 import { ClosedTabRecord, isUntouchedBlank } from "./browser/ClosedTabs"
 import { profileTabStores } from "./browser/OpenTabs"
 import { activeTabContentsId, createExtensionTabHooks } from "./browser/ExtensionTabHooks"
-import { parseExtensionUrl } from "./extensions/ExtensionScheme"
-import { ExtensionShellHooks, PageProfile } from "./extensions/runtimeTypes"
+import { parseExtensionUrl } from "@once/webext-runtime"
+import { ElectronShellHooks, PageProfile } from "./extensions/runtimeTypes"
 import { isModifiedChord } from "@once/core"
 
 /** A generous ceiling; the real list is one chord per bound command. */
@@ -623,7 +623,7 @@ export class BrowserCoordinator {
   }
 
   /** What the extension runtime may know and do about tabs. */
-  extensionHooks(): ExtensionShellHooks {
+  extensionHooks(): ElectronShellHooks {
     return createExtensionTabHooks({
       ownership: this.ownership,
       createTab: (owner, url, active) => this.createTab(owner, url, active),

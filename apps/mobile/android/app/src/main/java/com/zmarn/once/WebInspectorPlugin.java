@@ -14,6 +14,9 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  * Whether chrome://inspect (the shell's WebView) and Firefox's remote
  * debugging (GeckoView pages) may attach, release builds included. Off unless
  * the user turns it on in the error log; debuggable builds stay inspectable.
+ * Once Lite keeps WebView debugging on always: its extension runtime attaches
+ * to the app's own DevTools socket (see docs/plans/once-lite-plan.md), so the
+ * switch reports as on and locked there.
  */
 @CapacitorPlugin(name = "WebInspector")
 public class WebInspectorPlugin extends Plugin {
@@ -25,18 +28,20 @@ public class WebInspectorPlugin extends Plugin {
     }
 
     static boolean allowed(Context context) {
-        return enabled(context) || (context.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        return EngineSurface.ALWAYS_INSPECTABLE || enabled(context)
+            || (context.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
     }
 
     @Override
     public void load() {
-        if (enabled(getContext())) WebView.setWebContentsDebuggingEnabled(true);
+        if (EngineSurface.ALWAYS_INSPECTABLE || enabled(getContext())) WebView.setWebContentsDebuggingEnabled(true);
     }
 
     @PluginMethod
     public void get(PluginCall call) {
         JSObject result = new JSObject();
-        result.put("enabled", enabled(getContext()));
+        result.put("enabled", EngineSurface.ALWAYS_INSPECTABLE || enabled(getContext()));
+        if (EngineSurface.ALWAYS_INSPECTABLE) result.put("alwaysOn", true);
         call.resolve(result);
     }
 
@@ -48,9 +53,8 @@ public class WebInspectorPlugin extends Plugin {
         boolean allowed = allowed(getContext());
         getActivity().runOnUiThread(() -> {
             WebView.setWebContentsDebuggingEnabled(allowed);
-            // Not started yet, the engine reads the setting when it is.
-            GeckoEngine engine = GeckoEngine.started();
-            if (engine != null) engine.runtime.getSettings().setRemoteDebuggingEnabled(allowed);
+            ReadingSurfaceEngine surface = ((MainActivity) getActivity()).surface();
+            if (surface != null) surface.setRemoteDebugging(allowed);
             call.resolve();
         });
     }

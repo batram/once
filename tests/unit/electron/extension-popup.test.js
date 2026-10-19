@@ -36,7 +36,7 @@ function harness() {
   }).outputText
   const module = { exports: {} }
   Function("exports", "require", compiled)(module.exports, name => {
-    if (name === "./protocol") return { EXTENSION_IPC: { popupSize: "once-ext:popup-size" } }
+    if (name === "@once/webext-runtime") return { EXTENSION_IPC: { popupSize: "once-ext:popup-size" } }
     assert.equal(name, "electron")
     return { WebContentsView: View }
   })

@@ -6,10 +6,8 @@
 import { BrowserWindow, IpcMainInvokeEvent, Session, WebContents, dialog, ipcMain, webContents } from "electron"
 import { ELECTRON_IPC, ElectronExtensionPreview } from "@once/platform-electron/bridge"
 import { BrowserCoordinator } from "../TabManager"
-import { ExtensionManager } from "./ExtensionManager"
+import { AMO_ORIGIN, AmoAddonState, AmoInstallOutcome, ExtensionManager, amoSourceKind } from "@once/webext-runtime"
 import { ExtensionRuntime } from "./ExtensionRuntime"
-import { amoSourceKind } from "./ExtensionPackage"
-import { AMO_ORIGIN, AmoAddonState, AmoInstallOutcome } from "./amoBridge"
 
 interface AmoHandlerOptions {
   coordinator: BrowserCoordinator

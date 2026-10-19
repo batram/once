@@ -186,6 +186,7 @@ test("Android emulators reclaim space by reverting Play Store updates until the 
   ensureAndroidInstallSpace({ adb: "adb", serial: "emulator-5554", apkBytes: 200 * MiB, env: {}, spawnSync: device.spawnSync, log() {} })
   assert.deepEqual(device.calls.filter(call => call.startsWith("pm")), [
     "pm uninstall com.zmarn.once.dev",
+    "pm uninstall com.zmarn.once.lite.dev",
     "pm trim-caches 64G",
     "pm list packages -s -f",
     "pm uninstall-system-updates com.android.chrome",

@@ -10,7 +10,7 @@ import android.graphics.drawable.Icon;
 import android.media.session.MediaSession;
 import java.util.ArrayList;
 import java.util.List;
-import org.mozilla.geckoview.MediaSession.Feature;
+import com.zmarn.once.ReadingMediaState.Feature;
 
 final class ReadingMediaNotification {
     private static final String CHANNEL = "background-media";

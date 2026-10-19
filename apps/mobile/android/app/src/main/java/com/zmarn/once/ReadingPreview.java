@@ -14,17 +14,32 @@ import java.io.ByteArrayOutputStream;
 /** Small, in-memory thumbnails of the visible content, never the browser chrome. */
 final class ReadingPreview {
     private static final int WIDTH = 240;
+    private static final String TAG = "OnceSurface";
 
-    static void capture(ReadingSurfaceHost host, WebView shell, PluginCall call) {
+    /** The engine's page pixels: the full-size capture, or a failure, exactly once. */
+    interface PageCapture {
+        /** False when there is no painted page to capture (the call resolves empty). */
+        boolean available();
+        void capture(java.util.function.Consumer<Bitmap> image, Runnable failed);
+    }
+
+    static void capture(PageCapture page, WebView shell, PluginCall call) {
         // A preview is optional: any failure settles the call empty, never leaves it pending.
         try {
             if (call.getBoolean("reader", false)) captureShell(shell, call);
-            else if (host.surface == null || !host.surface.isShown() || !host.documentPainted) call.resolve();
-            else host.surface.capturePixels().accept(image -> resolve(image, call), error -> call.resolve());
+            else if (!page.available()) call.resolve();
+            else page.capture(image -> resolve(image, call), call::resolve);
         } catch (RuntimeException | OutOfMemoryError error) {
-            Log.w(ReadingSurfaceHost.TAG, "Preview capture failed", error);
+            Log.w(TAG, "Preview capture failed", error);
             call.resolve();
         }
+    }
+
+    /** A system WebView's visible pixels, drawn into a bitmap of its own size. */
+    static Bitmap draw(android.view.View view) {
+        Bitmap image = Bitmap.createBitmap(Math.max(1, view.getWidth()), Math.max(1, view.getHeight()), Bitmap.Config.ARGB_8888);
+        view.draw(new Canvas(image));
+        return image;
     }
 
     private static void captureShell(WebView shell, PluginCall call) {
@@ -45,8 +60,8 @@ final class ReadingPreview {
         } finally { image.recycle(); }
     }
 
-    /** Runs inside a GeckoResult callback, which swallows exceptions: settle here. */
-    private static void resolve(Bitmap image, PluginCall call) {
+    /** May run inside an engine callback that swallows exceptions: settle here. */
+    static void resolve(Bitmap image, PluginCall call) {
         Bitmap small = null;
         try {
             // Crop and scale in one draw, and free the full-size capture before encoding.
@@ -57,7 +72,7 @@ final class ReadingPreview {
             image.recycle();
             call.resolve(encode(small));
         } catch (RuntimeException | OutOfMemoryError error) {
-            Log.w(ReadingSurfaceHost.TAG, "Preview capture failed", error);
+            Log.w(TAG, "Preview capture failed", error);
             call.resolve();
         } finally {
             if (small != null) small.recycle();

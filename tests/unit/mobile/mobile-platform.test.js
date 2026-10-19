@@ -100,16 +100,27 @@ test("mobile build channels select stable names, identifiers, schemes, and flavo
   Function("exports", "module", "require", "process", compiled)(
     compiledModule.exports, compiledModule, require, process
   )
-  const { createCapacitorConfig, mobileBuildChannel } = compiledModule.exports
+  const { createCapacitorConfig, mobileBuildChannel, mobileEngine } = compiledModule.exports
   const dev = createCapacitorConfig("dev")
   const release = createCapacitorConfig("release")
 
+  // The engine is the first flavour dimension: gecko (the default) or lite.
   assert.deepEqual([dev.appId, dev.appName, dev.android.flavor, dev.ios.scheme], [
-    "com.zmarn.once.dev", "Once Dev", "development", "Once Dev"
+    "com.zmarn.once.dev", "Once Dev", "geckoDevelopment", "Once Dev"
   ])
   assert.deepEqual([release.appId, release.appName, release.android.flavor, release.ios.scheme], [
-    "com.zmarn.once", "Once", "production", "Once"
+    "com.zmarn.once", "Once", "geckoProduction", "Once"
   ])
+  const liteDev = createCapacitorConfig("dev", "lite")
+  const liteRelease = createCapacitorConfig("release", "lite")
+  assert.deepEqual([liteDev.appId, liteDev.appName, liteDev.android.flavor], [
+    "com.zmarn.once.lite.dev", "Once Lite Dev", "liteDevelopment"
+  ])
+  assert.deepEqual([liteRelease.appId, liteRelease.appName, liteRelease.android.flavor], [
+    "com.zmarn.once.lite", "Once Lite", "liteProduction"
+  ])
+  assert.equal(mobileEngine(undefined), "gecko")
+  assert.throws(() => mobileEngine("webkit"), /must be gecko or lite/)
   assert.equal(dev.plugins.CapacitorHttp.enabled, false)
   assert.equal(release.plugins.CapacitorHttp.enabled, false)
   assert.equal(dev.android.allowMixedContent, true)
@@ -127,6 +138,15 @@ test("mobile build channels select stable names, identifiers, schemes, and flavo
     root,
     "apps/mobile/android/app/src/development/res/mipmap-mdpi/ic_launcher_dev.png"
   )))
+  // Once Lite has its own launcher icons; the variant manifests outrank the dev flavour's.
+  for (const [variant, icon] of [["liteDevelopment", "ic_launcher_lite_dev"], ["liteProduction", "ic_launcher_lite"]]) {
+    const manifest = fs.readFileSync(path.join(root, `apps/mobile/android/app/src/${variant}/AndroidManifest.xml`), "utf8")
+    assert.match(manifest, new RegExp(`android:icon="@mipmap/${icon}"`))
+    assert.match(manifest, /tools:replace="android:icon,android:roundIcon"/)
+    for (const density of ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"]) {
+      assert.ok(fs.existsSync(path.join(root, `apps/mobile/android/app/src/lite/res/mipmap-${density}/${icon}.png`)), `${icon} ${density}`)
+    }
+  }
 
   // The Debug configuration builds "Once Dev"; Release keeps the store icon.
   const pbxproj = fs.readFileSync(
@@ -154,7 +174,11 @@ test("mobile release package commands select production native artifacts", () =>
     rootPackage.scripts["package:mobile:ios"],
     "npm run mobile -- package ios --channel release"
   )
-  assert.match(mobileCli, /"bundleProductionRelease"/)
+  const { gradleTask } = require(path.join(root, "apps/mobile/scripts/android-engine"))
+  assert.match(mobileCli, /gradleTask\(engine, channel, channel === "release" \? "bundle" : "assemble"\)/)
+  assert.equal(gradleTask("gecko", "release", "bundle"), "bundleGeckoProductionRelease")
+  assert.equal(gradleTask("lite", "release", "bundle"), "bundleLiteProductionRelease")
+  assert.equal(rootPackage.scripts["package:mobile:android:lite"], "npm run mobile -- package android --channel release --engine lite")
   assert.match(mobileCli, /"-scheme", release \? "Once" : "Once Dev"/)
   assert.match(mobileCli, /"-destination", "generic\/platform=iOS"/)
   assert.match(mobileCli, /"CODE_SIGNING_ALLOWED=NO", "archive"/)

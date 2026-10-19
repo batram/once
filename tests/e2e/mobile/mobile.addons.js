@@ -1,6 +1,9 @@
 /* global browser, describe, it, $ */
 const assert = require("node:assert/strict")
 const fixture = require("../shared/ai-addon-fixture")
+const { mobileEngine, packageName } = require("../../../apps/mobile/scripts/android-engine")
+// The Android app under test: com.zmarn.once.dev, or com.zmarn.once.lite.dev for Once Lite.
+const androidPackage = packageName(mobileEngine(), "dev")
 
 async function click(selector) {
   const element = await $(selector)
@@ -63,7 +66,7 @@ describe("Native AI addon", () => {
     const baseUrl = process.env.ONCE_MOBILE_TEST_URL || `http://${platform === "android" ? "10.0.2.2" : "127.0.0.1"}:${process.env.ONCE_MOBILE_TEST_PORT}`
     await browser.waitUntil(async () => {
       const contexts = (await browser.getContexts()).map(context => typeof context === "string" ? context : context.id)
-      const webview = contexts.find(context => context.includes(platform === "android" ? "WEBVIEW_com.zmarn.once.dev" : "WEBVIEW"))
+      const webview = contexts.find(context => context.includes(platform === "android" ? `WEBVIEW_${androidPackage}` : "WEBVIEW"))
       if (!webview) return false
       await browser.switchContext(webview)
       return true

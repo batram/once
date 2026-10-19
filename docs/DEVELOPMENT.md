@@ -164,9 +164,38 @@ npm run deploy:mobile:android
 npm run deploy:mobile:ios
 ```
 
-Release identity is `com.zmarn.once` / "Once"; dev is `com.zmarn.once.dev` /
-"Once Dev". Set `ONCE_BUILD_NUMBER` to an increasing integer in CI. Production
-artifacts stop before store signing.
+Android has two engines (`docs/plans/once-lite-plan.md`): the GeckoView app
+and Once Lite on the system WebView. `--engine lite` (or
+`ONCE_MOBILE_ENGINE=lite`) selects Lite for every `mobile` command, the e2e
+runners and the `*:lite` scripts; the default is `gecko`. iOS has one engine.
+
+| App | Channel | Package | Name | Gradle flavour | Debug APK |
+| --- | --- | --- | --- | --- | --- |
+| GeckoView | release | `com.zmarn.once` | Once | `geckoProduction` | `apk/geckoProduction/debug/app-gecko-production-debug.apk` |
+| GeckoView | dev | `com.zmarn.once.dev` | Once Dev | `geckoDevelopment` | `apk/geckoDevelopment/debug/app-gecko-development-debug.apk` |
+| Once Lite | release | `com.zmarn.once.lite` | Once Lite | `liteProduction` | `apk/liteProduction/debug/app-lite-production-debug.apk` |
+| Once Lite | dev | `com.zmarn.once.lite.dev` | Once Lite Dev | `liteDevelopment` | `apk/liteDevelopment/debug/app-lite-development-debug.apk` |
+
+iOS release identity is `com.zmarn.once` / "Once"; dev is `com.zmarn.once.dev`
+/ "Once Dev". Set `ONCE_BUILD_NUMBER` to an increasing integer in CI.
+Production artifacts stop before store signing.
+
+```bash
+npm run run:mobile:android:lite                        # Once Lite Dev on a device or emulator
+npm run package:mobile:android:lite                    # unsigned Once Lite production AAB
+npm run deploy:mobile:android:lite                     # replaces com.zmarn.once.lite on the paired phone
+npm run test:mobile:e2e:android:lite:local             # the smoke suite against Once Lite
+npm run inspect:mobile:android:lite
+cd apps/mobile/android && ./gradlew lintLiteDevelopmentDebug testLiteDevelopmentDebugUnitTest
+ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedLiteDevelopmentDebugAndroidTest -PonceDeployAbis=arm64-v8a  # LiteDevToolsTest
+```
+
+The Gecko sources live in `apps/mobile/android/app/src/gecko`, Lite's in
+`src/lite` (its DevTools client under `devtools/`), and `src/main` holds what
+both share; `src/main` and `src/lite` import nothing from `org.mozilla`.
+Once Lite keeps `WebView.setWebContentsDebuggingEnabled(true)` on in every
+build: its extension runtime drives Chromium through the app's own DevTools
+socket, and Settings shows Allow Web Inspector as on and locked there.
 
 `deploy:mobile:android` builds the release-channel production flavor with the
 local debug signature, for the device's ABI only, and replaces `com.zmarn.once`
@@ -196,8 +225,8 @@ content and installs it with `xcrun devicectl` on `ONCE_IOS_DEVICE`, replacing
   warnings, uncaught errors and unhandled rejections (the last 300).
 - **Allow Web Inspector**, below it, lets a trusted computer attach to the
   running app: Safari → Develop on iOS, `chrome://inspect` for the Android
-  shell, `about:debugging` in Firefox for GeckoView pages. Debug builds are
-  always inspectable.
+  shell and Once Lite's pages, `about:debugging` in Firefox for GeckoView
+  pages. Debug builds, and every Once Lite build, are always inspectable.
 
 `npm run inspect:ios --` reaches the app on an iPhone from the command line,
 over USB or Wi-Fi, through
