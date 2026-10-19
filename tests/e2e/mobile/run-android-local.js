@@ -92,17 +92,13 @@ function requireConnectedDevice(sdk, env) {
   return { adb, serial: requested || connected[0] }
 }
 
+// The driver is a pinned devDependency hoisted to the root node_modules, which
+// wdio.shared.conf.js uses as APPIUM_HOME. Check it there; `appium driver
+// install` would npm-install into the workspace and rewrite the lockfile.
 function ensureUiAutomatorDriver(env) {
-  const list = runNpm(
-    ["exec", "--workspace", "@once/mobile", "--", "appium", "driver", "list", "--installed"],
-    env,
-    true
-  )
+  const list = runNpm(["exec", "--", "appium", "driver", "list", "--installed"], { ...env, APPIUM_HOME: root }, true)
   if (!/uiautomator2@8\.1\.0\b/.test(`${list.stdout}\n${list.stderr}`)) {
-    runNpm(
-      ["exec", "--workspace", "@once/mobile", "--", "appium", "driver", "install", "uiautomator2@8.1.0"],
-      env
-    )
+    fail("Appium's uiautomator2@8.1.0 driver is missing from node_modules; run npm ci")
   }
 }
 

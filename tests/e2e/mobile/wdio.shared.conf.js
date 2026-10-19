@@ -1,5 +1,6 @@
 /* global browser */
 
+const fs = require("fs")
 const path = require("path")
 
 function configFor(platform) {
@@ -49,6 +50,11 @@ function configFor(platform) {
     common["appium:appPackage"] = "com.zmarn.once.dev"
     common["appium:appActivity"] = "com.zmarn.once.MainActivity"
     common["appium:chromedriverAutodownload"] = true
+    // Keep downloaded chromedrivers out of node_modules, where npm ci wipes
+    // them and forces a fresh download on the next session.
+    const chromedrivers = path.join(root, ".tmp", "chromedriver")
+    fs.mkdirSync(chromedrivers, { recursive: true })
+    common["appium:chromedriverExecutableDir"] = chromedrivers
   } else {
     common["appium:deviceName"] = process.env.ONCE_MOBILE_DEVICE || "iPhone 17 Pro"
     // Pin the simulator runtime only when explicitly requested. The macos-26
