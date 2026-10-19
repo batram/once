@@ -100,14 +100,16 @@ test("opening asks for the explanation and summary at once and shows whichever l
   const opened = f.run({ type: "open" })
   await new Promise(resolve => setImmediate(resolve))
   for (let attempt = 0; pending.length < 2 && attempt < 100; attempt++) await new Promise(resolve => setTimeout(resolve, 5))
-  // Both are in flight before either answers.
-  assert.deepEqual(pending.map(request => request.summary), [false, true])
-  pending[1].resolve(reply("The summary."))
+  // Both are in flight before either answers, in whichever order they reached the transport.
+  assert.deepEqual(pending.map(request => request.summary).sort(), [false, true])
+  const summary = pending.find(request => request.summary)
+  const explanation = pending.find(request => !request.summary)
+  summary.resolve(reply("The summary."))
   await new Promise(resolve => setImmediate(resolve))
   // Progress-only updates carry no messages; the answers are what is counted here.
   const answered = () => f.updates.filter(view => view.messages.length)
   assert.deepEqual(answered().map(view => view.messages.map(message => message.title ?? message.text)), [["Summary"]])
-  pending[0].resolve(reply("The explanation."))
+  explanation.resolve(reply("The explanation."))
   const result = await opened
   assert.deepEqual(result.messages.map(message => message.title ?? message.text), ["The explanation.", "Summary"])
   // The last answer is the returned view; no redundant update.
@@ -539,16 +541,20 @@ test("a YouTube story is read from its captions, timestamped and headed by its d
   assert.equal(f.fetched[0].context.client.clientName, "ANDROID")
   assert.equal(f.fetched[1], CAPTIONS)
   assert.equal(f.extracts(), 0)
+  // The explanation and summary run at once, so they may reach the transport in either order.
   const ai = f.requests.filter(request => request.connection !== "youtube")
   assert.equal(ai.length, 2)
-  const source = JSON.parse(JSON.parse(ai[0].request.body).messages[1].content.split("\n").slice(1).join("\n"))
+  const lastMessage = request => JSON.parse(request.request.body).messages.at(-1).content
+  const summary = ai.find(request => lastMessage(request) === "Summarize this video transcript.")
+  assert.ok(summary, "no summary request was sent")
+  const explanation = ai.find(request => request !== summary)
+  const source = JSON.parse(JSON.parse(explanation.request.body).messages[1].content.split("\n").slice(1).join("\n"))
   assert.equal(source.article.kind, "video transcript")
   assert.equal(source.article.title, "Never Gonna Give You Up")
   assert.equal(source.article.sourceUrl, VIDEO)
   assert.match(source.note, /transcript of a YouTube video/)
   assert.equal(source.article.text,
     "Channel: Rick Astley\n\nDuration: 3:33\n\nDescription:\nThe official video.\n\nTranscript (English):\n[0:01] [♪♪♪] We're no strangers\n[0:31] Second 'paragraph' <3")
-  assert.equal(JSON.parse(ai[1].request.body).messages.at(-1).content, "Summarize this video transcript.")
   assert.equal(result.status, "Using the video transcript (English). No web sources used.")
   // The transcript is kept for the follow-up; the story is not asked again.
   await f.run({ type: "submit", text: "Who sings?" })
