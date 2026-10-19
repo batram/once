@@ -57,18 +57,20 @@ document.addEventListener('DOMContentLoaded', () => {
 });`
 
 // Page injection: the script shares the page's world, so it sees the page's
-// globals directly and unsafeWindow is window itself.
+// globals directly and its writes land in the page's variables. `@grant none`
+// switches Violentmonkey's window wrapper off (with a grant, `window` inside
+// the script is a sandbox that hides the page's own globals, in every browser).
 const PAGE_USERSCRIPT = `// ==UserScript==
 // @name Lite page probe
 // @namespace once-e2e
 // @match <all_urls>
 // @run-at document-end
 // @inject-into page
-// @grant unsafeWindow
+// @grant none
 // ==/UserScript==
 const root = document.documentElement;
 root.dataset.vmPageSecret = String(window.pageSecret);
-root.dataset.vmPageUnsafeIsWindow = String(unsafeWindow === window);
+root.dataset.vmPageCounter = String(++window.pageCounter);
 root.dataset.vmPageStart = document.readyState;`
 
 /** browser.waitUntil whose failure message can describe the last state seen. */
@@ -93,8 +95,12 @@ function nativeDescriptionStartsWith(text) {
   return `android=new UiSelector().descriptionStartsWith("${text}")`
 }
 
-/** The e2e hook that opens a URL: the reading panel's address form. */
-async function openInBrowser(url) {
+/**
+ * The e2e hook that opens a URL: the reading panel's address form. The Lite
+ * fixtures set `probeLoaded` from their load event; a page without that
+ * script (the smoke suite's article) is opened with `loadProbe: false`.
+ */
+async function openInBrowser(url, { loadProbe = true } = {}) {
   // The flag belongs to the document being left; a same-URL submit still
   // loads a new document, and the wait below must not read the old one.
   try { await evaluateSurface("delete document.documentElement.dataset.probeLoaded; null") } catch { /* no page yet */ }
@@ -115,6 +121,7 @@ async function openInBrowser(url) {
     timeout: 30_000,
     timeoutMsg: `${url} did not finish loading in the embedded browser`
   })
+  if (!loadProbe) return
   await browser.waitUntil(async () => {
     try { return (await evaluateSurface("document.documentElement.dataset.probeLoaded || null")) === "true" }
     catch { return false }
@@ -125,7 +132,9 @@ async function openInBrowser(url) {
 async function readUblockProbe() {
   return evaluateSurface(`({
     adsEnabledAtTop: document.documentElement.dataset.adsEnabledAtTop || null,
-    adsEnabled: String(window.liteAdsEnabled),
+    // The page reports the pinned value itself at load: this probe runs in
+    // Once's own world, which shares the DOM but not the page's globals.
+    adsEnabled: document.documentElement.dataset.adsEnabled || null,
     adScript: document.documentElement.dataset.adScript || null,
     slotDisplay: getComputedStyle(document.querySelector('.lite-ad-slot')).display,
     htmlFiltered: document.querySelector('#lite-html-filtered') ? 'present' : 'removed',
@@ -206,7 +215,11 @@ async function readDetailFlags() {
   })
 }
 
-/** The shell's extension page frame (apps/mobile/src/extensionPageFrame.ts). */
+/**
+ * The shell's extension page frame (apps/mobile/src/extensionPageFrame.ts).
+ * The result must not carry a `status` key: Appium reads one as a legacy
+ * JSONWP status code and fails the command.
+ */
 async function readExtensionPageFrame() {
   return browser.execute(() => {
     const frame = document.querySelector("#extension_page_frame")
@@ -215,7 +228,7 @@ async function readExtensionPageFrame() {
       open: !frame.hidden,
       popup: frame.classList.contains("extension_page_frame--popup"),
       title: frame.querySelector(".extension_page_title")?.textContent ?? "",
-      status: frame.querySelector(".extension_page_status")?.textContent ?? ""
+      statusText: frame.querySelector(".extension_page_status")?.textContent ?? ""
     }
   })
 }
@@ -241,30 +254,33 @@ async function closeExtensionPageFrame() {
 }
 
 /**
- * The Appium context of a WebView whose page URL matches; on Lite every
- * extension page is a Chromium WebView of the app, listed as WEBVIEW_<package>
- * with its own URL. Returns to the shell's context afterwards.
+ * Switches to the WebView page whose URL matches. On Lite every extension
+ * page is a Chromium WebView of the app: they all share the app's
+ * WEBVIEW_<package> context, each as a window of it (chromedriver lists the
+ * pages as window handles). Returns to the shell page afterwards.
  */
 async function withExtensionPageContext(pagePath, work) {
-  const shell = await browser.getContext()
   await browser.waitUntil(async () => {
-    const contexts = await browser.getContexts()
-    for (const context of contexts) {
+    for (const context of await browser.getContexts()) {
       const name = contextName(context)
       if (!name.includes(`WEBVIEW_${androidPackage}`)) continue
       try {
         await browser.switchContext(name)
-        const url = await browser.getUrl()
-        if (url.includes(EXTENSION_PAGE_HOST) && url.includes(pagePath)) return true
-      } catch { /* a WebView that is already gone or not yet inspectable */ }
+      } catch { continue }
+      for (const handle of await browser.getWindowHandles()) {
+        try {
+          await browser.switchToWindow(handle)
+          const url = await browser.getUrl()
+          if (url.includes(EXTENSION_PAGE_HOST) && url.includes(pagePath)) return true
+        } catch { /* a page that is already gone or not yet inspectable */ }
+      }
     }
-    await browser.switchContext(contextName(shell))
     return false
-  }, { timeout: 30_000, timeoutMsg: `no WebView context serves https://<host>${EXTENSION_PAGE_HOST}${pagePath}` })
+  }, { timeout: 30_000, timeoutMsg: `no WebView page serves https://<host>${EXTENSION_PAGE_HOST}${pagePath}` })
   try {
     return await work()
   } finally {
-    await browser.switchContext(contextName(shell))
+    await switchToWebView()
   }
 }
 
@@ -273,31 +289,34 @@ async function withExtensionPageContext(pagePath, work) {
 // extension names; a row with both an action and options has a "⚙" beside it
 // (content description "<name> settings").
 async function openNativeBrowserMenu() {
-  const webview = await browser.getContext()
   await clickWeb(await $("#reading_browser_menu"))
   await browser.switchContext("NATIVE_APP")
   const expand = await $(nativeDescriptionStartsWith("Extensions ("))
   await expand.waitForDisplayed({ timeout: 10_000 })
-  return { webview, expand }
+  return expand
 }
 
 async function tapExtensionMenuRow(name) {
-  const { webview, expand } = await openNativeBrowserMenu()
+  const expand = await openNativeBrowserMenu()
   const description = await expand.getAttribute("content-desc")
   if (description.endsWith(", collapsed")) await expand.click()
   const row = await $(nativeText(name))
   await row.waitForDisplayed({ timeout: 10_000 })
   await row.click()
-  await browser.switchContext(contextName(webview))
+  // Back to the shell page: the WebView context has several pages on Lite.
+  await switchToWebView()
 }
 
-/** Accepts the native permission prompt an AMO install shows (title "Install <name>"). */
-async function acceptNativePrompt(titleStart, button = "Allow") {
-  const webview = await browser.getContext()
+/**
+ * Accepts the native prompt an AMO install shows (title "Install <name>",
+ * confirm button "Install"; liteManagement.ts). The dialog's positive button
+ * is clicked by its Android id, since "Install" is also part of the title.
+ */
+async function acceptNativePrompt(titleStart) {
   await browser.switchContext("NATIVE_APP")
   await $(nativeTextContains(titleStart)).waitForDisplayed({ timeout: 60_000 })
-  await $(nativeText(button)).click()
-  await browser.switchContext(contextName(webview))
+  await $("android=new UiSelector().resourceId(\"android:id/button1\")").click()
+  await switchToWebView()
 }
 
 // One device journey across the describe blocks below: each phase builds on
@@ -322,8 +341,9 @@ describe("Once Lite extensions: filtering and userscripts", () => {
     expect(await $("[data-testid='app-version']").getAttribute("data-build-channel")).toBe("dev")
     await openSettingsSection("extensions")
     const catalog = await readExtensionCatalog()
-    assert.deepEqual(catalog.map(item => item.name).sort(), [UBLOCK, VIOLENTMONKEY],
-      `extension catalog: Settings → Browser Extensions lists ${JSON.stringify(catalog.map(item => item.name))}, expected exactly the two bundled extensions`)
+    // In bundle order: uBlock Origin first, then Violentmonkey (a default sort would put "V" before "u").
+    assert.deepEqual(catalog.map(item => item.name), [UBLOCK, VIOLENTMONKEY],
+      `extension catalog: Settings → Browser Extensions lists ${JSON.stringify(catalog.map(item => item.name))}, expected exactly the two bundled extensions in bundle order`)
     for (const item of catalog) {
       assert.equal(item.label, `Manage ${item.name}`, `extension catalog: the ${item.name} row is not labelled "Manage ${item.name}"`)
       assert.equal(item.enabled, true, `extension catalog: ${item.name} is not enabled after install`)
@@ -390,7 +410,8 @@ describe("Once Lite extensions: filtering and userscripts", () => {
     assert.equal(probe.vmUnsafe, "page-secret", `unsafeWindow: the content script read ${probe.vmUnsafe} instead of the page global`)
     assert.equal(probe.vmUnsafeIsWindow, "false", "unsafeWindow: in the content world unsafeWindow must not be the world's window")
     assert.equal(probe.vmPageSecret, "page-secret", `@inject-into page: the page-world script saw window.pageSecret as ${probe.vmPageSecret}`)
-    assert.equal(probe.vmPageUnsafeIsWindow, "true", "@inject-into page: unsafeWindow must be the page window")
+    // The surface evaluates in the bridge world, so the page's own variable is read through the script: 2 means it saw the page's 1.
+    assert.equal(probe.vmPageCounter, "2", `@inject-into page: the page-world script's increment of window.pageCounter gave ${probe.vmPageCounter}`)
   })
 
 })
@@ -438,15 +459,19 @@ describe("Once Lite extensions: extension pages and management", () => {
     await clickDetailButton("Open extension settings")
     await waitForExtensionPageFrame({ popup: false })
     // Violentmonkey's dashboard lists each script with an Enable/Disable
-    // button (i18n buttonDisable = "Disable"). Toggle the content probe.
+    // toggle: the ghost button bound to the Space hotkey (its tooltip,
+    // i18n buttonDisable = "Disable", is only rendered on hover). Toggle the content probe.
     await withExtensionPageContext(VIOLENTMONKEY_OPTIONS_PAGE, async () => {
+      // The options page opens on its Settings tab (options_ui's URL ends in #settings); the scripts live on the Installed tab.
+      await browser.execute(() => { location.hash = "#scripts" })
       await browser.waitUntil(async () => browser.execute(() =>
         Array.from(document.querySelectorAll(".script")).some(item => item.textContent.includes("Lite content probe"))), {
         timeout: 20_000, timeoutMsg: "Violentmonkey dashboard: the synced scripts are not listed"
       })
       const toggled = await browser.execute(() => {
         const item = Array.from(document.querySelectorAll(".script")).find(node => node.textContent.includes("Lite content probe"))
-        const button = item && Array.from(item.querySelectorAll("a, button")).find(node => (node.getAttribute("title") || node.textContent.trim()) === "Disable")
+        const button = item && (item.querySelector("a[data-hotkey='space']") ||
+          Array.from(item.querySelectorAll("a, button")).find(node => (node.getAttribute("title") || node.textContent.trim()) === "Disable"))
         if (!button) return false
         button.click()
         return true
@@ -485,7 +510,8 @@ describe("Once Lite extensions: extension pages and management", () => {
     await waitForOnceReady()
     await openSettingsSection("extensions")
     const catalog = await readExtensionCatalog()
-    assert.deepEqual(catalog.map(item => `${item.name}:${item.enabled}`).sort(), [`${UBLOCK}:true`, `${VIOLENTMONKEY}:true`],
+    // Bundle order, as phase a asserts (sorting would put "Violentmonkey" before "uBlock Origin").
+    assert.deepEqual(catalog.map(item => `${item.name}:${item.enabled}`), [`${UBLOCK}:true`, `${VIOLENTMONKEY}:true`],
       `storage persistence: after a restart the catalog is ${JSON.stringify(catalog)}`)
     await openInBrowser(`${baseUrl}/fixtures/ublock/page.html`)
     expectUblockApplied(await readUblockProbe(), "page.html after restart: persisted filter list")
@@ -522,12 +548,12 @@ describe("Once Lite extensions: extension pages and management", () => {
     await clickDetailButton("Install extension")
     await setWebValue(await $("#mobile-extension-source"), "https://addons.mozilla.org/en-US/firefox/addon/darkreader/")
     await clickDetailButton("Review and install")
-    await acceptNativePrompt("Install", "Allow")
+    await acceptNativePrompt("Install")
     await browser.waitUntil(async () => (await readExtensionCatalog()).some(item => item.name === "Dark Reader" && item.enabled), {
       timeout: 120_000, timeoutMsg: "AMO install: Dark Reader did not appear enabled in the catalog"
     })
     assert.equal((await readExtensionCatalog()).find(item => item.name === "Dark Reader").bundled, false, "AMO install: Dark Reader must not be marked as included")
-    await openInBrowser(`${baseUrl}/fixtures/article.html`)
+    await openInBrowser(`${baseUrl}/fixtures/article.html`, { loadProbe: false })
     await browser.waitUntil(async () => {
       const darkest = await evaluateSurface(`document.documentElement.getAttribute('data-darkreader-mode') === 'dynamic'
         ? Math.max(...getComputedStyle(document.body).backgroundColor.match(/[0-9]+/g).map(Number)) : 255`)
@@ -536,11 +562,12 @@ describe("Once Lite extensions: extension pages and management", () => {
     await openExtensionDetail("Dark Reader")
     await clickDetailButton("Remove extension…")
     await clickDetailButton("Remove extension and data")
-    // A native confirmation, when the runtime shows one, is accepted here.
-    await browser.switchContext("NATIVE_APP")
-    const confirm = await $(nativeText("Remove"))
-    if (await confirm.isExisting()) await confirm.click()
-    await switchToWebView()
+    // The runtime confirms the removal in a native dialog (title "Remove
+    // extension", confirm button "Remove"; liteManagement.ts): it is accepted
+    // once it shows, through the dialog's positive button.
+    await acceptNativePrompt("Remove extension")
+    // The detail page of a removed extension is gone with it; read the catalog from the overview.
+    await openSettingsSection("extensions")
     await browser.waitUntil(async () => !(await readExtensionCatalog()).some(item => item.name === "Dark Reader"), {
       timeout: 30_000, timeoutMsg: "AMO install: Dark Reader is still listed after removal"
     })

@@ -89,7 +89,6 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
     protected final LiteDisplay display = new LiteDisplay(this);
     protected final LiteVideo video = new LiteVideo(this);
     protected LiteBackgroundMedia backgroundMedia;
-    protected final LiteMediaObserver media = new LiteMediaObserver(this);
     protected final Runnable watchdog = this::checkDeadline;
     /** The tab as the extension runtime numbers it; assigned with the first view. */
     protected int liteTabId;
@@ -253,9 +252,6 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         view.setOnLongClickListener(ignored -> LiteContextMenu.longPressed(this, view));
         LiteExtensionEngine engine = engine();
         if (liteTabId == 0) liteTabId = engine.nextTabId();
-        // Media stays with the main-world observer: the bridge world's snapshot carries no playing state and
-        // takes no play/pause yet (docs/plans/once-lite-broker-protocol.md, bridge world); PiP and scripts ride the bridge.
-        media.attach(view);
         com.zmarn.once.lite.LitePage.listenInTab(view, engine.channel, liteTabId);
         attachment = engine.targets().register(view, view.marker, "tab", liteTabId, null, bridge, !adoptingWindow());
         bridge.attach(attachment);
@@ -293,7 +289,6 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         if (old == null) return;
         video.reset();
         pauseWatchdog();
-        media.detach(old);
         if (backgroundMedia != null) backgroundMedia.detach();
         old.setWebChromeClient(null);
         old.stopLoading();
@@ -474,6 +469,8 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
     private final class BridgeEvents implements LiteBridge.Listener {
         @Override public void documentChanged(Object token) {
             failPendingEvaluations("The page navigated away");
+            // The bridge world reports the document's media and takes play/pause/seek back.
+            if (backgroundMedia != null) backgroundMedia.attachPage(bridge::send);
             pip.connected();
             healthSentAt = 0;
             requestHealthCheck();
@@ -486,7 +483,7 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         @Override public void message(org.json.JSONObject message, Object token) {
             String type = message.optString("type");
             if ("health".equals(type)) healthReply(message);
-            else if ("media-snapshot".equals(type)) { /* the main-world observer reports media; see createView */ }
+            else if ("media-snapshot".equals(type)) { if (backgroundMedia != null) backgroundMedia.pageSnapshot(message); }
             else if ("pip-request".equals(type)) pip.receive(message);
             else bridgeMessage(message, token);
         }

@@ -47,6 +47,27 @@ async function switchToWebView() {
     })
   } else {
     await browser.switchContext(webview)
+    // Once Lite runs several pages in the app's WebView context (the extension
+    // broker, background pages, the reading tab): the shell is the one at the
+    // Capacitor origin, whichever window chromedriver landed on.
+    await browser.waitUntil(async () => {
+      for (const handle of await browser.getWindowHandles()) {
+        try {
+          await browser.switchToWindow(handle)
+          const url = await browser.getUrl()
+          if (url.startsWith("https://localhost/") && !url.includes("lite-runtime")) return true
+        } catch {
+          // The window went away between listing and switching.
+        }
+      }
+      return false
+    }, {
+      timeout: 60_000,
+      timeoutMsg: "Capacitor WebView did not expose the shell page"
+    })
+    // The shell page is listed as soon as it starts loading, which on Once
+    // Lite is well before GeckoView's startup would have let a spec in.
+    await waitForOnceReady()
   }
 }
 

@@ -161,6 +161,9 @@ function ublockProbePage(title) {
     "onerror=\"document.documentElement.dataset.adScript = 'blocked'\"></script>" +
     "<script nonce=\"fixture\">window.addEventListener('load', () => {" +
     "const root = document.documentElement;" +
+    // Under a strict policy the inline onload/onerror attributes above never
+    // run; ad.js marks itself 'ran' when it loads, so the load listener settles it.
+    "root.dataset.adScript = root.dataset.adScript === 'ran' ? 'loaded' : (root.dataset.adScript || 'blocked');" +
     "root.dataset.adsEnabled = String(window.liteAdsEnabled);" +
     "root.dataset.slotDisplay = getComputedStyle(document.querySelector('.lite-ad-slot')).display;" +
     "root.dataset.htmlFiltered = document.querySelector('#lite-html-filtered') ? 'present' : 'removed';" +

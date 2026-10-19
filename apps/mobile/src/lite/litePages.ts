@@ -19,6 +19,7 @@ import { JavaChannel } from "./javaChannel"
 import { pageContextId } from "./liteContexts"
 import { LiteExtensionHost } from "./liteHosts"
 import {
+  BLOB_API,
   PageInit,
   PageLifecycleParams,
   PageMessageParams,
@@ -61,6 +62,14 @@ export class LitePages {
     channel.onEvent("page.message", (params) => this.message(params as PageMessageParams))
     channel.onEvent("page.loaded", (params) => this.loaded(params as PageLifecycleParams))
     channel.onEvent("page.closed", (params) => this.closed(params as PageLifecycleParams))
+  }
+
+  /** The document-start source for one of the host's pages shown inside a tab (kind `page`). */
+  tabPageSource(host: LiteExtensionHost): string {
+    return pageDocumentStartSource(this.bundle(), {
+      id: host.extension.id, host: host.extension.host, kind: "page",
+      manifest: host.extension.rawManifest, messages: host.extension.messages, uiLanguage: this.locale()
+    })
   }
 
   /** Opens a page of the extension; `url` may be in either form. */
@@ -115,7 +124,10 @@ export class LitePages {
   }
 
   private context(page: OpenPage, params: PageMessageParams) {
-    const extensionUrl = extensionUrlFromPageUrl(params.url)
+    // Java knows a subframe's origin only; the bootstrap says where it really is.
+    const reported = typeof params.message.href === "string" && pageHostOf(params.message.href) === pageHostOf(params.url)
+      ? params.message.href : params.url
+    const extensionUrl = extensionUrlFromPageUrl(reported)
     if (pageHostOf(params.url) !== page.host.extension.host) throw new Error("Untrusted extension page frame")
     const existing = page.frames.get(params.frameId)
     if (existing) {
@@ -181,6 +193,18 @@ export class LitePages {
         } satisfies PageResizeParams).catch(() => undefined)
       }
     }
+  }
+
+  /**
+   * One of the extension's `blob:` URLs as text, read by its background page
+   * (`__liteBlob` event, answered like any event with a token).
+   */
+  async readBlob(host: LiteExtensionHost, blobUrl: string): Promise<string | null> {
+    const background = this.pagesOf(host).map((pageId) => this.pages.get(pageId)).find((page) => page?.kind === "background")
+    const entry = background && host.contexts.get(pageContextId(background.pageId, 0))
+    if (!entry) return null
+    const [text] = await host.contexts.request({ entry, listenerIds: [] }, BLOB_API, "read", [{ url: blobUrl }], 10_000)
+    return typeof text === "string" ? text : null
   }
 
   private loaded(params: PageLifecycleParams): void {

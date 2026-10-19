@@ -22,7 +22,7 @@ import {
 } from "@once/webext-runtime/preload"
 import { sha256Hex } from "@once/webext-runtime"
 import { MatchPatternSet } from "@once/core"
-import { BrokerToWorldMessage, WORLD_BINDING, WORLD_DELIVER, WorldConfig, WorldScript, WorldToBrokerMessage, pageHostOf, pageUrlFromExtensionUrl } from "./protocol"
+import { BLOB_PATH, BrokerToWorldMessage, WORLD_BINDING, WORLD_DELIVER, WorldConfig, WorldDynamicConfig, WorldScript, WorldToBrokerMessage, dynamicAnswerPath, pageHostOf, pageOrigin, pageUrlFromExtensionUrl } from "./protocol"
 
 type Scope = typeof globalThis & Record<string, unknown>
 
@@ -30,10 +30,15 @@ interface World {
   config: WorldConfig
   api: PreloadApi
   styles: Map<string, HTMLStyleElement>
+  frame: { url: string; topUrl: string; isTop: boolean }
+  scripts: PageScripts | null
   send(message: WorldToBrokerMessage): void
   /** Undoes the prototype patches; for tests that boot several worlds in one document. */
   dispose(): void
 }
+
+/** Where the booted world is kept on the global, so a second boot in the same context is a no-op. */
+const WORLD_KEY = "__onceLiteWorld"
 
 /** The event the main-world helper answers synchronously, scoped by the token. */
 export function accessEventName(token: string): string {
@@ -176,6 +181,16 @@ class PageScripts {
       if (element instanceof Script) element.nonce = nonce
       return element
     } as typeof Document.prototype.createElement
+    const nsProto = owningPrototype(document, "createElementNS") as typeof Document.prototype
+    const createNS = nsProto.createElementNS
+    if (typeof createNS === "function") {
+      restores.push(() => { nsProto.createElementNS = createNS })
+      nsProto.createElementNS = function (this: Document, ...args: unknown[]) {
+        const element = (createNS as (...rest: unknown[]) => Element).apply(this, args)
+        if (element instanceof Script) element.nonce = nonce
+        return element
+      } as typeof Document.prototype.createElementNS
+    }
     const probe = (): boolean => this.probe()
     const evaluateInMain = (code: string): void =>
       this.world.send({ host: this.world.config.init.host, type: "main-eval", code })
@@ -216,8 +231,81 @@ function removeStyle(world: World, css: string): void {
   world.styles.delete(css)
 }
 
+/**
+ * A content script runs with a sandbox object as `this`, as in Firefox,
+ * rather than the world's global: Violentmonkey hands `this` to userscripts
+ * as `unsafeWindow`, and a page global must be readable through it while it
+ * stays distinct from the world's `window`. The sandbox forwards to the
+ * world's global (with the global as receiver, since the window's accessors
+ * refuse any other, and methods bound to it); a name the world does not
+ * have is read from the page through `wrappedJSObject`. Its `window`, `self`,
+ * `top` and the like are the sandbox itself, so Violentmonkey's browser
+ * detection (`this !== this.window` means Firefox) keeps it on its Chrome
+ * path, whose page bridge works without xray wrappers. Bare names still
+ * resolve to the world's globals through the scope chain.
+ */
+const SANDBOX_KEY = "__onceLiteSandbox"
+
+function sandbox(scope: Scope): object {
+  const existing = scope[SANDBOX_KEY] as object | undefined
+  if (existing) return existing
+  const bound = new WeakMap<object, unknown>()
+  // Only the global's native methods are bound: a script's own function must
+  // stay itself (Violentmonkey stringifies its bridge into the page).
+  const forward = (value: unknown): unknown => {
+    if (value === scope) return box
+    if (typeof value !== "function" || Object.prototype.hasOwnProperty.call(value, "prototype")) return value
+    if (!Function.prototype.toString.call(value).includes("[native code]")) return value
+    let method = bound.get(value)
+    if (!method) {
+      method = (value as (...args: unknown[]) => unknown).bind(scope)
+      bound.set(value, method)
+    }
+    return method
+  }
+  const box: object = new Proxy(Object.create(null) as object, {
+    get: (_target, key) => {
+      if (key === SANDBOX_KEY) return box
+      if (key in scope) return forward(Reflect.get(scope, key, scope))
+      const page = scope.wrappedJSObject as Record<string | symbol, unknown> | undefined
+      return typeof key === "string" && page ? page[key] : undefined
+    },
+    set: (_target, key, value) => Reflect.set(scope, key, value, scope),
+    has: (_target, key) => key in scope,
+    deleteProperty: (_target, key) => Reflect.deleteProperty(scope, key),
+    // A non-configurable definition is mirrored on the target: proxies may
+    // only report such properties when the target holds them.
+    defineProperty: (target, key, descriptor) => {
+      if (!Reflect.defineProperty(scope, key, descriptor)) return false
+      if (descriptor.configurable === false) Reflect.defineProperty(target, key, descriptor)
+      return true
+    },
+    getPrototypeOf: () => Object.getPrototypeOf(scope) as object | null,
+    preventExtensions: () => false,
+    ownKeys: () => Reflect.ownKeys(scope),
+    getOwnPropertyDescriptor: (target, key) => {
+      const found = Reflect.getOwnPropertyDescriptor(scope, key)
+      if (!found) return undefined
+      const mirrored = Reflect.getOwnPropertyDescriptor(target, key)
+      const descriptor = { ...found, configurable: !(mirrored && mirrored.configurable === false) }
+      // Descriptors hand out the global's accessors and methods bound the same way.
+      if ("value" in descriptor) descriptor.value = forward(descriptor.value)
+      if (descriptor.get) descriptor.get = forward(descriptor.get) as () => unknown
+      if (descriptor.set) descriptor.set = forward(descriptor.set) as (value: unknown) => void
+      return descriptor
+    }
+  })
+  Object.defineProperty(scope, SANDBOX_KEY, { value: box, writable: false, configurable: true, enumerable: false })
+  return box
+}
+
+// A direct eval inside a sloppy function (the bundle itself is strict, and a
+// userscript may use `with`) keeps that function's `this` and still yields
+// the script's completion value, which `tabs.executeScript` answers.
+const runInSandbox = new Function("text", "return eval(text)") as (this: object, text: string) => unknown
+
 function runIsolated(code: string, url: string | undefined): unknown {
-  return (0, eval)(url ? `${code}\n//# sourceURL=${url}` : code)
+  return runInSandbox.call(sandbox(globalThis as Scope), url ? `${code}\n//# sourceURL=${url}` : code)
 }
 
 function runBatch(world: World, scripts: PageScripts, batch: WorldScript[]): void {
@@ -286,11 +374,81 @@ function defineWrappedJSObject(scope: Scope, token: string): void {
     }
   })
   Object.defineProperty(scope, "wrappedJSObject", { value: wrapped, writable: true, configurable: true, enumerable: false })
+  // Firefox's xray helpers: there is no membrane here, so a function or object is its own export.
+  if (typeof scope.exportFunction !== "function") scope.exportFunction = (fn: unknown) => fn
+  if (typeof scope.cloneInto !== "function") scope.cloneInto = (value: unknown) => value
+}
+
+/**
+ * A `blob:` URL of the extension's origin (Violentmonkey's synchronous
+ * injection hands the content script one) cannot be read from the page's
+ * origin; it is requested as `<page origin>/_once/blob/<id>`, which the
+ * broker answers through the extension's background page. Both URL forms of
+ * the origin are recognised.
+ */
+export function mapBlobUrl(host: string, url: string): string {
+  const origin = pageOrigin(host)
+  for (const prefix of [`blob:${origin}/`, `blob:moz-extension://${host}/`]) {
+    if (url.startsWith(prefix)) return `${origin}${BLOB_PATH}${url.slice(prefix.length)}`
+  }
+  return url
+}
+
+function patchBlobRequests(scope: Scope, host: string): void {
+  const Xhr = scope.XMLHttpRequest as typeof XMLHttpRequest | undefined
+  if (Xhr) {
+    const open = Xhr.prototype.open
+    Xhr.prototype.open = function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
+      return (open as (...args: unknown[]) => void).call(this, method, mapBlobUrl(host, String(url)), ...rest)
+    } as typeof open
+  }
+  const originalFetch = scope.fetch as typeof fetch | undefined
+  if (originalFetch) {
+    scope.fetch = ((input: RequestInfo | URL, init?: RequestInit) =>
+      originalFetch.call(scope, typeof input === "string" ? mapBlobUrl(host, input) : input, init)) as typeof fetch
+  }
+}
+
+/**
+ * The extension's scripts registered at run time, asked for synchronously
+ * at document start so they run before the page's own scripts (uBlock's
+ * scriptlets are registered during the document's held onResponseStarted).
+ * The request never leaves the device: the broker answers it at the Fetch
+ * request stage. Nothing, or an empty list, when it cannot be asked.
+ */
+export function fetchDynamicScripts(host: string, scope: Scope): WorldDynamicConfig | null {
+  const Xhr = scope.XMLHttpRequest as typeof XMLHttpRequest | undefined
+  // Only documents with a URL to match: a blank one (the tab's marker page,
+  // a frame yet to navigate) would block its renderer while the target is
+  // still being set up.
+  if (!Xhr || !/^https?:/.test(location.href)) return null
+  try {
+    const request = new Xhr()
+    request.open("GET", `${pageOrigin(host)}${dynamicAnswerPath(location.href)}`, false)
+    request.send()
+    if (request.status !== 200) return null
+    const config = JSON.parse(request.responseText) as WorldDynamicConfig
+    return config && config.host === host && Array.isArray(config.scripts) ? config : null
+  } catch {
+    return null
+  }
+}
+
+/** Registered scripts for the booted world: matched and scheduled like the manifest's. */
+export function addDynamicScripts(config: WorldDynamicConfig, scope: Scope = globalThis as Scope): void {
+  const world = scope[WORLD_KEY] as World | undefined
+  if (!world || world.config.init.host !== config.host || !world.scripts) return
+  if (typeof config.cookie === "string" && config.cookie) {
+    try { document.cookie = `${config.cookie}; SameSite=Lax; path=/` } catch { /* a cookie-less document */ }
+  }
+  schedule(world, world.scripts, selectScripts(config.scripts, world.frame))
 }
 
 export function bootWorld(config: WorldConfig, scope: Scope = globalThis as Scope): World | null {
   const binding = scope[WORLD_BINDING] as ((payload: string) => void) | undefined
   if (typeof binding !== "function") return null
+  // Installed again on a live document: the first boot's listeners and ports stay.
+  if (scope[WORLD_KEY]) return scope[WORLD_KEY] as World
   const host = config.init.host
   const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>()
   let nextId = 1
@@ -311,8 +469,10 @@ export function bootWorld(config: WorldConfig, scope: Scope = globalThis as Scop
     reply: (token, result) => send({ host, type: "reply", token, result }),
     listen: (change) => send({ host, type: "listen", change })
   })
-  const world: World = { config, api, styles: new Map(), send, dispose: () => undefined }
+  const world: World = { config, api, styles: new Map(), frame, scripts: null, send, dispose: () => undefined }
+  scope[WORLD_KEY] = world
   const scripts = new PageScripts(world)
+  world.scripts = scripts
   scope[WORLD_DELIVER] = (json: string) => {
     let message: BrokerToWorldMessage
     try { message = JSON.parse(json) } catch { return }
@@ -337,9 +497,16 @@ export function bootWorld(config: WorldConfig, scope: Scope = globalThis as Scop
   const selected = ownPage ? [] : selectScripts(config.scripts, frame)
   send({ host, type: "hello", url: frame.url, topUrl: frame.topUrl, creatorUrl: frame.creatorUrl, matched: selected.length > 0 })
   if (ownPage) return world
+  patchBlobRequests(scope, host)
   defineWrappedJSObject(scope, config.token)
-  world.dispose = scripts.patchDocument()
+  const undo = scripts.patchDocument()
+  world.dispose = () => {
+    undo()
+    Reflect.deleteProperty(scope, WORLD_KEY)
+  }
   schedule(world, scripts, selected)
+  const dynamic = fetchDynamicScripts(host, scope)
+  if (dynamic) addDynamicScripts(dynamic, scope)
   return world
 }
 

@@ -70,6 +70,12 @@ export interface LiteWebRequestOptions {
   token(): string
   /** Resolves when documents may proceed; the Violentmonkey hand-off holds them. */
   documentsReleased(): Promise<void>
+  /**
+   * Before a document continues: the answers Java serves to the document's
+   * worlds' synchronous requests must be in place (registered scripts, and
+   * the blob Violentmonkey named in a `Set-Cookie` of these headers).
+   */
+  prepareDocument?(headers: HttpHeader[], input: WebRequestDetailsInput): Promise<HttpHeader[]>
 }
 
 /** The nonce the broker adds to a document's `script-src` and the world recomputes from `location`. */
@@ -111,6 +117,23 @@ export function withDocumentNonce(headers: HttpHeader[], nonce: string): HttpHea
     : header)
 }
 
+/** `connect-src` (or the `default-src` it falls back to) with the extension origins allowed. */
+export function withConnectGrant(headers: HttpHeader[], origins: string[]): HttpHeader[] {
+  if (origins.length === 0) return headers
+  return headers.map((header) => {
+    if (header.name.toLowerCase() !== "content-security-policy") return header
+    const directives = header.value.split(";").map((part) => part.trim()).filter(Boolean)
+    const names = directives.map((directive) => directive.split(/\s+/)[0].toLowerCase())
+    let index = names.indexOf("connect-src")
+    if (index < 0) index = names.indexOf("default-src")
+    if (index < 0) return header
+    const addition = origins.filter((origin) => !directives[index].includes(origin)).join(" ")
+    if (!addition) return header
+    directives[index] = `${directives[index].replace(/\s*'none'/, "")} ${addition}`
+    return { name: header.name, value: directives.join("; ") }
+  })
+}
+
 /** Electron's grant: permissive CORS for a permitted host, as Firefox lets extension pages read. */
 export function withCorsGrant(headers: HttpHeader[], origin: string): HttpHeader[] {
   return [
@@ -140,6 +163,8 @@ function fromBase64(base64: string): Uint8Array {
 
 export class LiteWebRequest {
   private readonly records = new Map<string, RequestRecord>()
+  /** Documents held at their response stage: `tabId:frameId` → how many. */
+  private readonly pendingDocuments = new Map<string, number>()
   private readonly ids = new Map<string, number>()
   private readonly filters: ResponseBodyFilter[] = []
   private nextId = 1
@@ -195,6 +220,18 @@ export class LiteWebRequest {
       })
       this.forget(targetId, networkId)
     }
+  }
+
+  /** Whether a document for the frame is held at its response stage right now. */
+  isDocumentPending(tabId: number, frameId: number): boolean {
+    return (this.pendingDocuments.get(`${tabId}:${frameId}`) ?? 0) > 0
+  }
+
+  private holdDocument(tabId: number, frameId: number, held: boolean): void {
+    const key = `${tabId}:${frameId}`
+    const next = (this.pendingDocuments.get(key) ?? 0) + (held ? 1 : -1)
+    if (next <= 0) this.pendingDocuments.delete(key)
+    else this.pendingDocuments.set(key, next)
   }
 
   forgetTarget(targetId: string): void {
@@ -267,11 +304,12 @@ export class LiteWebRequest {
       return
     }
     const sent = headers.requestHeaders ?? headersToWebExt(event.request.headers)
+    // Told before the request goes on: Violentmonkey prepares a document's injection from it.
+    this.options.router.sendHeaders({ ...input, requestHeaders: headersFromWebExt(sent) })
     await this.cdp(targetId, "Fetch.continueRequest", {
       requestId: event.requestId,
       ...(headers.requestHeaders ? { headers: headers.requestHeaders } : {})
     })
-    this.options.router.sendHeaders({ ...input, requestHeaders: headersFromWebExt(sent) })
   }
 
   /** An extension's own URL: served from the package, as the protocol handler would. */
@@ -296,8 +334,11 @@ export class LiteWebRequest {
       ownPages: this.options.ownPages
     })
     const body = new Uint8Array(await response.arrayBuffer())
-    const headers: HttpHeader[] = [...response.headers.entries()].map(([name, value]) => ({ name, value }))
-    if (!fromOwnPage) headers.push({ name: "Access-Control-Allow-Origin", value: "*" })
+    let headers: HttpHeader[] = [...response.headers.entries()].map(([name, value]) => ({ name, value }))
+    // Chromium sees `https://<host>.moz-extension.localhost` and `moz-extension://<host>`
+    // as different origins, so an own page's reads need the grant Electron's session gives.
+    if (fromOwnPage) headers = withCorsGrant(headers, pageOrigin(extensionHost))
+    else headers.push({ name: "Access-Control-Allow-Origin", value: "*" })
     await this.cdp(targetId, "Fetch.fulfillRequest", {
       requestId: event.requestId, responseCode: response.status, responseHeaders: headers, body: toBase64(body)
     })
@@ -322,6 +363,25 @@ export class LiteWebRequest {
       await this.cdp(targetId, "Fetch.continueResponse", { requestId: event.requestId })
       return
     }
+    const isDocument = input.resourceType === "mainFrame" || input.resourceType === "subFrame"
+    if (isDocument) this.holdDocument(target.tabId, input.frame.frameId, true)
+    try {
+      await this.documentResponse(targetId, target, event, input, detailed, isDocument)
+    } finally {
+      if (isDocument) this.holdDocument(target.tabId, input.frame.frameId, false)
+    }
+  }
+
+  private async documentResponse(
+    targetId: string,
+    target: RequestTarget,
+    event: FetchRequestPaused,
+    input: WebRequestDetailsInput,
+    detailed: WebRequestDetailsInput,
+    isDocument: boolean
+  ): Promise<void> {
+    const networkId = event.networkId ?? event.requestId
+    const statusCode = event.responseStatusCode ?? 0
     const decision = await this.options.router.headersReceived(detailed)
     if (decision.cancel) {
       await this.cdp(targetId, "Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" })
@@ -329,8 +389,14 @@ export class LiteWebRequest {
       return
     }
     let headers = decision.responseHeaders ?? event.responseHeaders ?? []
-    if (input.resourceType === "mainFrame" || input.resourceType === "subFrame") {
+    let policyChanged = false
+    if (isDocument) {
+      const before = JSON.stringify(headers)
       headers = withDocumentNonce(headers, documentNonce(this.options.token(), event.request.url))
+      // The worlds' synchronous requests for registered scripts must pass the page's policy.
+      headers = withConnectGrant(headers, [...this.options.hosts()].map((host) => pageOrigin(host.extension.host)))
+      policyChanged = JSON.stringify(headers) !== before
+      if (this.options.prepareDocument) headers = await this.options.prepareDocument(headers, detailed)
     }
     if (target.kind === "page" && target.pageHost && /^https?:/.test(event.request.url)) {
       const host = this.hostFor(target.pageHost)
@@ -341,10 +407,24 @@ export class LiteWebRequest {
     const filter = this.filters.find((candidate) => candidate.wants(event.requestId))
     if (filter) {
       await this.rewriteBody(targetId, event, headers, statusCode, filter)
+    } else if (policyChanged) {
+      // Chromium enforces a document's policy from the original headers,
+      // not from ones changed through `Fetch.continueResponse`; a fulfilled
+      // response carries the changed ones (the author's instrumentation
+      // test proved that path), at the cost of the body's round trip.
+      await this.fulfillWithBody(targetId, event, headers, statusCode)
     } else {
       await this.cdp(targetId, "Fetch.continueResponse", { requestId: event.requestId, responseCode: statusCode, responseHeaders: headers })
     }
     this.options.router.responseStarted({ ...detailed, responseHeaders: headersFromWebExt(headers) })
+  }
+
+  /** The response delivered again as a fulfilled one, body unchanged, so its changed headers take effect. */
+  private async fulfillWithBody(targetId: string, event: FetchRequestPaused, headers: HttpHeader[], statusCode: number): Promise<void> {
+    const result = await this.cdp(targetId, "Fetch.getResponseBody", { requestId: event.requestId }) as { body: string; base64Encoded: boolean }
+    const body = result.base64Encoded ? result.body : toBase64(new TextEncoder().encode(result.body))
+    const kept = headers.filter((header) => !["content-length", "content-encoding", "transfer-encoding"].includes(header.name.toLowerCase()))
+    await this.cdp(targetId, "Fetch.fulfillRequest", { requestId: event.requestId, responseCode: statusCode, responseHeaders: kept, body })
   }
 
   /** The whole body is fetched, offered to the filter and delivered again: `filterResponseData`'s round trip. */

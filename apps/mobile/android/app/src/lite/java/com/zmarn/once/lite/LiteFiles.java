@@ -4,16 +4,19 @@ import android.content.Context;
 import android.content.res.AssetManager;
 import android.net.Uri;
 import android.util.Base64;
+import android.util.Log;
 import android.webkit.JavascriptInterface;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -40,6 +43,19 @@ public final class LiteFiles {
 
     private final Context context;
     final File storageRoot;
+    /** Values arriving through `writeChunk`, by token, until a store request names them. */
+    private final java.util.Map<String, FileOutputStream> incoming = new java.util.HashMap<>();
+    /** Documents going out through `readChunk`, by token. */
+    private final java.util.Map<String, java.io.PushbackInputStream> outgoing = new java.util.HashMap<>();
+    private static final long INLINE_LIMIT = 256 * 1024;
+    /** Documents up to this stay one file; larger ones are split into one file per key when patched. */
+    private static final long SPLIT_LIMIT = 1024 * 1024;
+
+    private static boolean hasChunkedValue(JSONObject set) {
+        if (set == null) return false;
+        for (Iterator<String> keys = set.keys(); keys.hasNext(); ) if (set.opt(keys.next()) instanceof JSONObject) return true;
+        return false;
+    }
     private final ExecutorService io = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "once-lite-files");
         thread.setDaemon(true);
@@ -56,27 +72,83 @@ public final class LiteFiles {
 
     /** Staging directories of unfinished installs from an earlier process. */
     private void clearStaging() {
-        io.execute(() -> delete(new File(new File(storageRoot, "packages"), ".staging")));
+        io.execute(() -> { delete(new File(new File(storageRoot, "packages"), ".staging")); delete(new File(storageRoot, ".chunks")); });
     }
 
     void close() { io.shutdownNow(); }
 
     void register(BrokerChannel channel) {
+        // A store document is either one file, or (once patched) a directory
+        // with one file per top-level key, see ShallowJson; readers never see
+        // a torn document because every operation runs on this one thread.
+        // Large documents never cross the channel as one message: a read beyond
+        // the inline limit answers a token for `readChunk`, and a large value
+        // arrives through `writeChunk` before the request names its token.
         channel.onRequest("store.read", (params, reply) -> io.execute(() -> {
             try {
-                File file = new File(resolveDirectory(params.getString("directory")), fileName(params.getString("name")));
-                reply.resolve(new JSONObject().put("json", file.isFile() ? new String(readAll(file), StandardCharsets.UTF_8) : JSONObject.NULL));
+                File file = storeFile(params.getString("directory"), params.getString("name"));
+                File split = splitDirectory(file);
+                File source = file;
+                if (split.isDirectory()) {
+                    source = new File(chunkDirectory(), "read-" + java.util.UUID.randomUUID());
+                    try (Writer out = new java.io.OutputStreamWriter(new FileOutputStream(source), StandardCharsets.UTF_8)) { ShallowJson.join(split, out); }
+                }
+                if (!source.isFile()) { reply.resolve(new JSONObject().put("json", JSONObject.NULL)); return; }
+                if (source.length() <= INLINE_LIMIT) {
+                    String text = new String(readAll(source), StandardCharsets.UTF_8);
+                    if (source != file) delete(source);
+                    reply.resolve(new JSONObject().put("json", text));
+                    return;
+                }
+                String token = java.util.UUID.randomUUID().toString();
+                synchronized (outgoing) { outgoing.put(token, new java.io.PushbackInputStream(new java.io.BufferedInputStream(new java.io.FileInputStream(source)), 8)); }
+                if (source != file) //noinspection ResultOfMethodCallIgnored
+                    source.delete(); // the open stream keeps reading it
+                reply.resolve(new JSONObject().put("json", JSONObject.NULL).put("chunked", token));
             } catch (Exception error) { reply.reject(error.getMessage()); }
         }));
         channel.onRequest("store.write", (params, reply) -> io.execute(() -> {
             try {
-                File directory = resolveDirectory(params.getString("directory"));
-                //noinspection ResultOfMethodCallIgnored
-                directory.mkdirs();
-                File file = new File(directory, fileName(params.getString("name")));
-                File temp = new File(directory, file.getName() + ".tmp");
-                try (FileOutputStream out = new FileOutputStream(temp)) { out.write(params.getString("json").getBytes(StandardCharsets.UTF_8)); }
-                if (!temp.renameTo(file)) throw new IOException("Could not replace " + file.getName());
+                File file = storeFile(params.getString("directory"), params.getString("name"));
+                placeValue(params.get("json"), file);
+                delete(splitDirectory(file));
+                if (Log.isLoggable("OnceLiteStore", Log.DEBUG)) Log.d("OnceLiteStore", "write " + file.getName() + " " + file.length() + " bytes");
+                reply.resolve(null);
+            } catch (Exception error) { reply.reject(error.getMessage()); }
+        }));
+        channel.onRequest("store.patch", (params, reply) -> io.execute(() -> {
+            try {
+                File file = storeFile(params.getString("directory"), params.getString("name"));
+                File split = splitDirectory(file);
+                JSONArray remove = params.optJSONArray("remove");
+                JSONObject set = params.optJSONObject("set");
+                // A small document stays one file (the catalogue, the settings
+                // records): merged as an object and written whole.
+                if (!split.isDirectory() && (!file.isFile() || file.length() <= SPLIT_LIMIT) && !hasChunkedValue(set)) {
+                    JSONObject document = file.isFile() ? new JSONObject(new String(readAll(file), StandardCharsets.UTF_8)) : new JSONObject();
+                    if (remove != null) for (int index = 0; index < remove.length(); index++) document.remove(remove.getString(index));
+                    if (set != null) for (Iterator<String> keys = set.keys(); keys.hasNext(); ) {
+                        String key = keys.next();
+                        document.put(key, new org.json.JSONTokener(set.getString(key)).nextValue());
+                    }
+                    ShallowJson.writeAtomically(file, document.toString());
+                    if (Log.isLoggable("OnceLiteStore", Log.DEBUG)) Log.d("OnceLiteStore", "patch " + file.getName() + " (whole) set=" + (set == null ? 0 : set.length()) + " remove=" + (remove == null ? 0 : remove.length()));
+                    reply.resolve(null);
+                    return;
+                }
+                if (!split.isDirectory()) {
+                    if (file.isFile()) { ShallowJson.split(file, split); if (!file.delete()) throw new IOException("Could not replace " + file.getName()); }
+                    else if (!split.mkdirs()) throw new IOException("Could not create " + split.getName());
+                }
+                if (remove != null) for (int index = 0; index < remove.length(); index++) {
+                    //noinspection ResultOfMethodCallIgnored
+                    ShallowJson.keyFile(split, remove.getString(index)).delete();
+                }
+                if (set != null) for (Iterator<String> keys = set.keys(); keys.hasNext(); ) {
+                    String key = keys.next();
+                    placeValue(set.get(key), ShallowJson.keyFile(split, key));
+                }
+                if (Log.isLoggable("OnceLiteStore", Log.DEBUG)) Log.d("OnceLiteStore", "patch " + file.getName() + " set=" + (set == null ? 0 : set.length()) + " remove=" + (remove == null ? 0 : remove.length()));
                 reply.resolve(null);
             } catch (Exception error) { reply.reject(error.getMessage()); }
         }));
@@ -176,6 +248,98 @@ public final class LiteFiles {
             try { return new JSONObject().put("error", error.getMessage() == null ? error.toString() : error.getMessage()).toString(); }
             catch (Exception ignored) { return "{\"error\":\"unzip failed\"}"; }
         }
+    }
+
+    private File storeFile(String directory, String name) throws IOException {
+        File parent = resolveDirectory(directory);
+        //noinspection ResultOfMethodCallIgnored
+        parent.mkdirs();
+        return new File(parent, fileName(name));
+    }
+
+    /** A store value: inline text written atomically, or `{chunked: token}` moved from the chunk file. */
+    private void placeValue(Object value, File target) throws IOException {
+        if (value instanceof JSONObject) {
+            String token = ((JSONObject) value).optString("chunked");
+            FileOutputStream stream;
+            synchronized (incoming) { stream = incoming.remove(token); }
+            File chunk = chunkFile(token);
+            if (stream != null) stream.close();
+            if (!chunk.isFile()) throw new IOException("No chunked value " + token);
+            //noinspection ResultOfMethodCallIgnored
+            target.delete();
+            if (!chunk.renameTo(target)) throw new IOException("Could not place " + target.getName());
+            return;
+        }
+        ShallowJson.writeAtomically(target, String.valueOf(value));
+    }
+
+    private File chunkDirectory() throws IOException {
+        File directory = new File(storageRoot, ".chunks");
+        if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("Could not create the chunk directory");
+        return directory;
+    }
+
+    private File chunkFile(String token) throws IOException {
+        if (token == null || !TOKEN.matcher(token).matches()) throw new IOException("Invalid chunk token");
+        return new File(chunkDirectory(), token);
+    }
+
+    /** `onceLiteFiles.writeChunk`: appends the text's UTF-8 to the pending value named by the token. Any thread. */
+    @JavascriptInterface
+    public String writeChunk(String token, String text) {
+        try {
+            FileOutputStream stream;
+            synchronized (incoming) {
+                stream = incoming.get(token);
+                if (stream == null) { stream = new FileOutputStream(chunkFile(token), true); incoming.put(token, stream); }
+            }
+            synchronized (stream) { stream.write(text.getBytes(StandardCharsets.UTF_8)); }
+            return "ok";
+        } catch (Exception error) { return error.getMessage() == null ? error.toString() : error.getMessage(); }
+    }
+
+    /**
+     * `onceLiteFiles.readChunk`: the next piece of a chunked `store.read`,
+     * cut on a UTF-8 boundary, as `{"text", "done"}`; the stream closes with
+     * the last piece.
+     */
+    @JavascriptInterface
+    public String readChunk(String token, int maxBytes) {
+        java.io.PushbackInputStream in;
+        synchronized (outgoing) { in = outgoing.get(token); }
+        try {
+            if (in == null) return new JSONObject().put("error", "Unknown read token").toString();
+            byte[] buffer = new byte[Math.max(16, Math.min(maxBytes, 4 * 1024 * 1024))];
+            int total = 0;
+            while (total < buffer.length) {
+                int read = in.read(buffer, total, buffer.length - total);
+                if (read == -1) break;
+                total += read;
+            }
+            // Finish a multi-byte sequence cut by the buffer end.
+            while (total > 0) {
+                int next = in.read();
+                if (next == -1) break;
+                if ((next & 0xC0) != 0x80) { in.unread(next); break; }
+                if (total == buffer.length) buffer = java.util.Arrays.copyOf(buffer, buffer.length + 8);
+                buffer[total++] = (byte) next;
+            }
+            int peek = in.read();
+            boolean done = peek == -1;
+            if (!done) in.unread(peek);
+            else { in.close(); synchronized (outgoing) { outgoing.remove(token); } }
+            return new JSONObject().put("text", new String(buffer, 0, total, StandardCharsets.UTF_8)).put("done", done).toString();
+        } catch (Exception error) {
+            try { if (in != null) in.close(); } catch (IOException ignored) { /* already closed */ }
+            synchronized (outgoing) { outgoing.remove(token); }
+            try { return new JSONObject().put("error", String.valueOf(error.getMessage())).toString(); } catch (Exception ignored) { return "{\"error\":\"read failed\"}"; }
+        }
+    }
+
+    /** Where a patched document keeps one file per key. */
+    private static File splitDirectory(File file) {
+        return new File(file.getParentFile(), file.getName() + ".d");
     }
 
     /** The built web asset (`public/<name>`), or null. */

@@ -93,6 +93,9 @@ public final class LiteExtensionEngine {
     private JSONObject lastSettings;
     private long settingsRevision;
     private long appliedRevision;
+    private int settingsInFlight;
+    private int settingsApplications;
+    private boolean violentmonkeyConnected;
 
     /** The process's engine, created on first use (main thread). */
     public static synchronized LiteExtensionEngine get(Context context) {
@@ -144,7 +147,11 @@ public final class LiteExtensionEngine {
 
     private String wrap(String bundle) { return "(function (ONCE_LITE_TOKEN) {\n" + bundle + "\n})(" + JSONObject.quote(token) + ");"; }
 
+    /** The broker page's DevTools session, for commands the browser target does not take (`Network.*`). */
     private String brokerSession() {
+        LiteTargets.Attachment attachment = brokerAttachment;
+        DevToolsClient.Target bound = attachment == null ? null : attachment.target;
+        if (bound != null) return bound.sessionId;
         for (DevToolsClient.Target target : devtools.targets()) {
             if (target.url != null && target.url.startsWith(BrokerView.RUNTIME_URL)) return target.sessionId;
         }
@@ -182,7 +189,7 @@ public final class LiteExtensionEngine {
     private void registerHandlers() {
         channel.onEvent("broker.hello", params -> onHello());
         channel.onEvent("extensions.changed", params -> { if (listener != null) listener.extensionsChanged(); });
-        channel.onEvent("violentmonkey.connected", params -> { if (listener != null) listener.violentmonkeyConnected(); });
+        channel.onEvent("violentmonkey.connected", params -> { violentmonkeyConnected = true; if (listener != null) listener.violentmonkeyConnected(); });
         channel.onEvent("violentmonkey.dashboardChanged", params -> { if (listener != null) listener.violentmonkeyDashboardChanged(); });
         channel.onEvent("log", params -> {
             String level = params.optString("level");
@@ -259,6 +266,7 @@ public final class LiteExtensionEngine {
     }
 
     private void start() {
+        violentmonkeyConnected = false;
         JSONObject params = new JSONObject();
         try {
             JSONArray bundled = new JSONArray();
@@ -341,9 +349,25 @@ public final class LiteExtensionEngine {
         return sendSettings(settings, revision);
     }
 
+    /** Whether Violentmonkey's background has started listening since the broker started. */
+    public boolean isViolentmonkeyConnected() { return violentmonkeyConnected; }
+
+    /** Settings applications the broker has not acknowledged yet (tests wait for the shell's own). */
+    public int settingsInFlight() { return settingsInFlight; }
+
+    /** How many settings applications were sent since the engine started. */
+    public int settingsApplications() { return settingsApplications; }
+
     private CompletableFuture<Void> sendSettings(JSONObject settings, long revision) {
         CompletableFuture<Void> result = new CompletableFuture<>();
+        settingsInFlight++;
+        settingsApplications++;
+        JSONObject lists = settings.optJSONObject("filterLists");
+        Log.i(TAG, "applying extension settings #" + settingsApplications + ": " + (lists == null || lists.optJSONArray("lists") == null ? "?" : lists.optJSONArray("lists").length()) + " filter lists");
+        long sentAt = System.currentTimeMillis();
         channel.request("settings.apply", settings).whenComplete((answer, error) -> main.post(() -> {
+            settingsInFlight--;
+            Log.i(TAG, "extension settings " + (error == null ? "applied" : "failed") + " after " + (System.currentTimeMillis() - sentAt) + " ms");
             if (error != null) { Log.w(TAG, "Extension settings were not applied: " + error.getMessage()); result.completeExceptionally(error); }
             else result.complete(null);
             appliedRevision = Math.max(appliedRevision, revision);

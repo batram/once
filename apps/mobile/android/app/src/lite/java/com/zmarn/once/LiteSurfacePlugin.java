@@ -3,6 +3,7 @@ package com.zmarn.once;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Looper;
+import android.util.Log;
 import android.webkit.WebView;
 import androidx.activity.result.ActivityResult;
 import com.getcapacitor.JSObject;
@@ -34,6 +35,8 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
     private String tabId;
     private String tabGeneration;
     private String selectedTab;
+    /** Bumped by every bounds or visibility change the shell makes; a gated open yields to newer ones. */
+    private final java.util.concurrent.atomic.AtomicLong surfaceState = new java.util.concurrent.atomic.AtomicLong();
     private boolean adoptedWindow;
     /** Opened by a page's window.open, so that page's script may close it again. */
     private boolean openedByPage;
@@ -385,13 +388,20 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
             return;
         }
         long request = requestedSequence.incrementAndGet();
+        long state = surfaceState.get();
         ready(call, () -> {
             if (request != requestedSequence.get()) { call.resolve(); return; }
             desktopSite.setEnabled(call.getBoolean("desktopSite", false));
             ensureSurface();
             LiteNavigation.applyDesktopSite(surface, desktopSite.isEnabled());
-            applyBounds(call.getObject("bounds", new JSObject()));
-            setSurfaceVisible(call.getBoolean("visible", true));
+            // The readiness gate can hold an open for seconds; bounds and
+            // visibility the shell set meanwhile (hiding the surface behind
+            // the story list, say) are newer than this call's.
+            if (Log.isLoggable("OnceLiteSurface", Log.DEBUG)) Log.d("OnceLiteSurface", "open applied " + LogRedaction.redact(url) + " visible=" + call.getBoolean("visible", true) + " stale=" + (state != surfaceState.get()));
+            if (state == surfaceState.get()) {
+                applyBounds(call.getObject("bounds", new JSObject()));
+                setSurfaceVisible(call.getBoolean("visible", true));
+            }
             if (adoptedWindow) {
                 // Chromium started loading the window before the shell listened to it.
                 adoptedWindow = false;
@@ -492,6 +502,7 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
     @PluginMethod
     public void setBounds(PluginCall call) {
         if (!route(call, Missing.RESOLVE, tab -> tab.setBounds(call))) return;
+        surfaceState.incrementAndGet();
         getActivity().runOnUiThread(() -> {
             if (refreshSurface != null) applyBounds(call.getData());
             call.resolve();
@@ -507,6 +518,8 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
     @PluginMethod
     public void setVisible(PluginCall call) {
         if (!route(call, Missing.RESOLVE, tab -> tab.setVisible(call))) return;
+        surfaceState.incrementAndGet();
+        if (Log.isLoggable("OnceLiteSurface", Log.DEBUG)) Log.d("OnceLiteSurface", "setVisible " + call.getBoolean("visible", false) + " covered=" + call.getBoolean("covered", false));
         getActivity().runOnUiThread(() -> {
             display.show(call.getBoolean("visible", false), call.getBoolean("covered", false));
             call.resolve();

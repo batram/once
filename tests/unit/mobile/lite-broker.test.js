@@ -28,7 +28,7 @@ function manifestFor(id, name, extra = {}) {
 
 const memory = {
   "/bundles/ublock": { "manifest.json": manifestFor(UBLOCK_ID, "uBlock Origin"), "background.js": "" },
-  "/bundles/violentmonkey": { "manifest.json": manifestFor(VIOLENTMONKEY_ID, "Violentmonkey"), "background.js": "" }
+  "/bundles/violentmonkey": { "manifest.json": manifestFor(VIOLENTMONKEY_ID, "Violentmonkey", { permissions: ["storage", "webRequest", "webRequestBlocking", "<all_urls>"] }), "background.js": "" }
 }
 
 async function startBroker(bundled) {
@@ -132,7 +132,11 @@ test("requests pause at both stages: a blocked image, a document with the held o
   const before = java.cdp.filter((command) => command.params.requestId === "R3" && command.method === "Fetch.continueResponse")
   assert.equal(before.length, 0, "headers are still held")
   java.pageMessage(pageId, { type: "reply", token: started.params.message.message.token, result: [undefined] })
-  const response = await java.nextCdp("Fetch.continueResponse")
+  // A changed policy only takes effect on a fulfilled response: the body is fetched and delivered again.
+  const response = await java.nextCdp("Fetch.fulfillRequest")
+  assert.equal(response.params.params.requestId, "R3")
+  assert.ok(java.cdp.some((c) => c.method === "Fetch.getResponseBody" && c.params.requestId === "R3"))
+  assert.equal(Buffer.from(response.params.params.body, "base64").toString(), "<html>body</html>")
   const csp = response.params.params.responseHeaders.find((header) => header.name === "Content-Security-Policy")
   const nonce = worldNonce(TOKEN, "https://site.test/page")
   assert.equal(csp.value, `script-src 'self' 'nonce-${nonce}'`)
@@ -183,6 +187,14 @@ test("a world says hello, sends a runtime message to the background and gets the
   const tabs = result.params.message.result.value
   assert.deepEqual(tabs.map((tab) => [tab.id, tab.url, tab.active, tab.audible]), [[7, "https://site.test/", true, false], [8, "https://other.test/", false, true]])
 
+  // The active tab stays active while something (a popup, the native menu) covers its view;
+  // another tab becoming active takes it over.
+  java.event("tab.changed", { tabId: 7, generation: 1, targetId: "T1", url: "https://site.test/", title: "Site", active: false, index: 0, status: "complete", audible: false, muted: false })
+  assert.deepEqual(broker.tabs.tabs().map((tab) => [tab.id, tab.active]), [[7, true], [8, false]])
+  java.event("tab.changed", { tabId: 8, generation: 1, url: "https://other.test/", title: "Other", active: true, index: 1, status: "complete", audible: true, muted: false })
+  assert.deepEqual(broker.tabs.tabs().map((tab) => [tab.id, tab.active]), [[7, false], [8, true]])
+  java.event("tab.changed", { tabId: 7, generation: 1, targetId: "T1", url: "https://site.test/", title: "Site", active: true, index: 0, status: "complete", audible: false, muted: false })
+
   // A world context that goes away is removed.
   java.cdpEvent("T1", "Runtime.executionContextDestroyed", { executionContextId: 5 })
   assert.equal(host.contexts.get("world:T1:5"), undefined)
@@ -201,10 +213,17 @@ test("storage.local round-trips through the Java store and dynamic DNR rules blo
     if (!envelope.params.message.result.ok) throw new Error(envelope.params.message.result.error)
     return envelope.params.message.result.value
   }
-  await invoke(1, "storage.local", "set", [{ answer: 42 }])
+  await invoke(1, "storage.local", "set", [{ answer: 42, big: "x".repeat(1000) }])
   assert.deepEqual(await invoke(2, "storage.local", "get", ["answer"]), { answer: 42 })
   await host.storage.flush()
-  assert.equal(java.stores.get(`/storage/${host.extension.host}/storage.json`), JSON.stringify({ answer: 42 }))
+  assert.deepEqual(JSON.parse(java.stores.get(`/storage/${host.extension.host}/storage.json`)), { answer: 42, big: "x".repeat(1000) })
+  // Later writes carry only the keys that changed, never the whole document.
+  await invoke(10, "storage.local", "set", [{ answer: 43 }])
+  await invoke(11, "storage.local", "remove", ["big"])
+  await host.storage.flush()
+  const patch = java.patches.find((entry) => entry.name === "storage.json")
+  assert.deepEqual(patch, { name: "storage.json", set: ["answer"], remove: ["big"] })
+  assert.deepEqual(JSON.parse(java.stores.get(`/storage/${host.extension.host}/storage.json`)), { answer: 43 })
 
   await invoke(3, "declarativeNetRequest", "updateDynamicRules", [{ addRules: [
     { id: 1, priority: 1, action: { type: "block" }, condition: { urlFilter: "||ads.test^", resourceTypes: ["script"] } }
@@ -231,20 +250,25 @@ test("applyExtensionSettings hands the lists to uBlock's dashboard port and the 
     userscripts: { version: 1, scripts: [] }
   })
   // uBlock's background, played here: the port opens and the dashboard channel answers.
-  const connect = await java.nextPageEvent(ublockPage, "runtime", "onConnect")
-  const { portId, name } = connect.params.message.message.args[0]
-  assert.equal(name, "once-settings")
+  const connect = await java.next((e) => e.type === "request" && e.method === "page.post" && e.params.pageId === ublockPage &&
+    e.params.message.type === "event" && e.params.message.message.event === "onConnect" && e.params.message.message.args[0].name === "once-settings")
+  const { portId } = connect.params.message.message.args[0]
+  // uBlock's background answers every dashboard port: the settings port, and
+  // the broker's readiness checks (`getLists` after start-up and after the reload).
   const dashboard = []
-  for (;;) {
-    const post = await java.next((e) => e.type === "request" && e.method === "page.post" && e.params.pageId === ublockPage &&
-      e.params.message.type === "event" && e.params.message.message.api === "__port" && e.params.message.message.event === "message")
-    java.forget(post)
-    const envelope = post.params.message.message.args[0].message
-    dashboard.push(envelope.msg.what)
-    const reply = envelope.msg.what === "getLists" ? { available: { "easylist": { off: false } } } : {}
-    java.pageMessage(ublockPage, { type: "invoke", id: 100 + dashboard.length, api: "__port", method: "post", args: [{ portId, message: { msgId: envelope.msgId, msg: reply } }] })
-    if (envelope.msg.what === "reloadAllFilters") break
+  let answered = 0
+  const answerPorts = async () => {
+    for (;;) {
+      const post = await java.next((e) => e.type === "request" && e.method === "page.post" && e.params.pageId === ublockPage &&
+        e.params.message.type === "event" && e.params.message.message.api === "__port" && e.params.message.message.event === "message")
+      java.forget(post)
+      const { portId: onPort, message: envelope } = post.params.message.message.args[0]
+      if (onPort === portId) dashboard.push(envelope.msg.what)
+      const reply = envelope.msg.what === "getLists" ? { available: { "easylist": { off: false } } } : {}
+      java.pageMessage(ublockPage, { type: "invoke", id: 100 + answered++, api: "__port", method: "post", args: [{ portId: onPort, message: { msgId: envelope.msgId, msg: reply } }] })
+    }
   }
+  void answerPorts().catch(() => undefined)
   await applied
   assert.deepEqual(dashboard, ["getLists", "applyFilterListSelection", "reloadAllFilters"])
   assert.ok(java.stores.has(`/storage/${ublock.extension.host}/once-filter-lists.json`))
@@ -256,6 +280,11 @@ test("applyExtensionSettings hands the lists to uBlock's dashboard port and the 
   await java.request("violentmonkey.send", { cmd: "OnceWriteRecords", data: { a: { id: 1 } } })
   assert.deepEqual(await java.request("violentmonkey.send", { cmd: "OnceReadRecords" }), { value: { a: { id: 1 } } })
   java.pageMessage(vmPage, { type: "listen", change: { action: "add", api: "runtime", event: "onMessage", id: 1 } })
+  // Synchronous page mode is turned on before the plugin hears `connected`.
+  const options = await java.nextPageEvent(vmPage, "runtime", "onMessage")
+  assert.deepEqual(options.params.message.message.args[0], { cmd: "SetOptions", data: { xhrInject: true } })
+  java.forget(options)
+  java.pageMessage(vmPage, { type: "reply", token: options.params.message.message.token, result: [null] })
   await java.next((e) => e.type === "event" && e.event === "violentmonkey.connected")
   const exported = java.request("violentmonkey.send", { cmd: "ExportZip", data: { values: false } })
   const command = await java.nextPageEvent(vmPage, "runtime", "onMessage")
@@ -336,4 +365,91 @@ test("extension pages are served from the package through Fetch and an XPI insta
   assert.equal([...java.pages.values()].some((p) => p.kind === "options" && p.url === `${origin}/options.html`), true)
   assert.deepEqual(await java.request("extension.command", { action: "action", id: FIXTURE_ID }), { noPage: false })
   assert.equal([...java.pages.values()].some((p) => p.kind === "popup"), true)
+})
+
+test("scripts registered during a document's held onResponseStarted are served to the world's synchronous request", async () => {
+  const { java, broker } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
+  const host = hostOf(broker, FIXTURE_ID)
+  const pageId = host.backgroundPage
+  registerBackground(java, pageId)
+  java.event("tab.changed", { tabId: 7, generation: 1, targetId: "T1", url: "https://site.test/", title: "", active: true, index: 0, status: "loading", audible: false, muted: false })
+  java.event("target.attached", { targetId: "T1", kind: "tab", tabId: 7, frameTree: { frame: { id: "F1", url: "about:blank" } } })
+  java.cdpEvent("T1", "Fetch.requestPaused", { requestId: "R1", networkId: "N1", frameId: "F1", resourceType: "Document",
+    request: { url: "https://site.test/page", method: "GET", headers: {} } })
+  await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.params.requestId === "R1")
+  java.cdpEvent("T1", "Fetch.requestPaused", { requestId: "R1", networkId: "N1", frameId: "F1", resourceType: "Document",
+    request: { url: "https://site.test/page", method: "GET", headers: {} }, responseStatusCode: 200,
+    responseHeaders: [{ name: "Content-Type", value: "text/html" }, { name: "Content-Security-Policy", value: "default-src 'self'; connect-src 'none'" }] })
+  const started = await java.nextPageEvent(pageId, "webRequest", "onResponseStarted")
+  const setsBefore = java.requests.filter((e) => e.method === "worlds.set").length
+  // The background registers the document's scriptlet from the listener, as uBlock does, then returns.
+  java.pageMessage(pageId, { type: "invoke", id: 50, api: "contentScripts", method: "register", args: [{
+    matches: ["https://site.test/*"], js: [{ code: "window.scriptlet = 1" }], runAt: "document_start", world: "MAIN"
+  }] })
+  await java.next((e) => e.type === "request" && e.method === "page.post" && e.params.message.type === "result" && e.params.message.id === 50)
+  java.pageMessage(pageId, { type: "reply", token: started.params.message.message.token, result: [undefined] })
+  const continued = await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.method === "Fetch.fulfillRequest" && e.params.params.requestId === "R1")
+  const origin = `https://${host.extension.host}.moz-extension.localhost`
+  const csp = continued.params.params.responseHeaders.find((h) => h.name === "Content-Security-Policy").value
+  assert.ok(csp.includes(`connect-src ${origin}`), `the world's request passes the policy: ${csp}`)
+  // No registration was re-installed on the paused target; Java got the answer to serve instead.
+  assert.equal(java.requests.filter((e) => e.method === "worlds.set").length, setsBefore)
+  const answered = java.requests.filter((e) => e.method === "sync.set")
+  assert.equal(answered.length, 1)
+  assert.ok(java.requests.indexOf(answered[0]) < java.requests.indexOf(continued), "handed to Java before the document continued")
+  const body = JSON.parse(java.syncAnswers.get(`${host.extension.host}/_once/dynamic`))
+  assert.equal(body.host, host.extension.host)
+  assert.equal(body.scripts.length, 1)
+  assert.equal(body.scripts[0].world, "MAIN")
+  assert.equal(body.scripts[0].js[0].code, "window.scriptlet = 1")
+
+  // A bootstrap that runs again in a live context does not replace the entry.
+  java.cdpEvent("T1", "Runtime.executionContextCreated", { context: { id: 5, name: `once-ext:${host.extension.host}`, auxData: { frameId: "F1", isDefault: false } } })
+  const hello = JSON.stringify({ host: host.extension.host, type: "hello", url: "https://site.test/page", topUrl: "https://site.test/page", creatorUrl: "", matched: true })
+  java.cdpEvent("T1", "Runtime.bindingCalled", { name: WORLD_BINDING, payload: hello, executionContextId: 5 })
+  await new Promise((resolve) => setImmediate(resolve))
+  const entry = host.contexts.get("world:T1:5")
+  host.contexts.addListener(entry.id, "runtime", "onMessage", 1, null)
+  java.cdpEvent("T1", "Runtime.bindingCalled", { name: WORLD_BINDING, payload: hello, executionContextId: 5 })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(host.contexts.get("world:T1:5"), entry, "the same entry")
+  assert.equal(host.contexts.targets("runtime", "onMessage").some((t) => t.entry === entry), true, "listeners kept")
+})
+
+test("a blob Violentmonkey names in a document's Set-Cookie is read through its page and handed to Java before the document continues", async () => {
+  const { java, broker } = await startBroker([{ id: VIOLENTMONKEY_ID, directory: "/bundles/violentmonkey", present: true }])
+  const host = hostOf(broker, VIOLENTMONKEY_ID)
+  const pageId = host.backgroundPage
+  java.pageMessage(pageId, { type: "listen", change: { action: "add", api: "webRequest", event: "onHeadersReceived", id: 1,
+    spec: { filter: { urls: ["*://*/*"], types: ["main_frame", "sub_frame"] }, extraInfoSpec: ["blocking", "responseHeaders"] } } })
+  await new Promise((resolve) => setImmediate(resolve))
+  java.event("tab.changed", { tabId: 7, generation: 1, targetId: "T1", url: "https://site.test/", title: "", active: true, index: 0, status: "loading", audible: false, muted: false })
+  java.event("target.attached", { targetId: "T1", kind: "tab", tabId: 7, frameTree: { frame: { id: "F1", url: "about:blank" } } })
+  java.cdpEvent("T1", "Fetch.requestPaused", { requestId: "R1", networkId: "N1", frameId: "F1", resourceType: "Document",
+    request: { url: "https://site.test/page", method: "GET", headers: {} }, responseStatusCode: 200, responseHeaders: [{ name: "Content-Type", value: "text/html" }] })
+  const received = await java.nextPageEvent(pageId, "webRequest", "onHeadersReceived")
+  const headers = received.params.message.message.args[0].responseHeaders
+  // From the listener, as Violentmonkey does, the content realm's code goes out with tabs.executeScript
+  // for a document that does not exist yet; it must run from that document's world at its start.
+  java.pageMessage(pageId, { type: "invoke", id: 60, api: "tabs", method: "executeScript", args: [7, { code: "window.vmContent = 1", runAt: "document_start", frameId: 0 }] })
+  const executed = await java.next((e) => e.type === "request" && e.method === "page.post" && e.params.message.type === "result" && e.params.message.id === 60)
+  assert.deepEqual(executed.params.message.result, { ok: true, value: [null] })
+  java.pageMessage(pageId, { type: "reply", token: received.params.message.message.token, result: [{
+    responseHeaders: [...headers, { name: "Set-Cookie", value: `${host.extension.host}=4b2c-uuid; SameSite=Lax` }]
+  }] })
+  // The broker asks the background page for the blob's text.
+  const read = await java.nextPageEvent(pageId, "__liteBlob", "read")
+  assert.deepEqual(read.params.message.message.args, [{ url: `blob:https://${host.extension.host}.moz-extension.localhost/4b2c-uuid` }])
+  java.pageMessage(pageId, { type: "reply", token: read.params.message.message.token, result: ["{\"inject\":true}"] })
+  const continued = await java.nextCdp("Fetch.continueResponse")
+  assert.ok(continued.params.params.responseHeaders.some((h) => h.name === "Set-Cookie"))
+  assert.equal(java.syncAnswers.get(`${host.extension.host}/_once/blob/4b2c-uuid`), "{\"inject\":true}")
+  // The document's own dynamic answer carries the cookie the content script reads the id from.
+  const perDocument = JSON.parse(java.syncAnswers.get(`${host.extension.host}/_once/dynamic?u=${encodeURIComponent("https://site.test/page")}`))
+  assert.equal(perDocument.cookie, `${host.extension.host}=4b2c-uuid`)
+  assert.equal(perDocument.scripts.length, 1, "the queued injection joins the document's answer")
+  assert.equal(perDocument.scripts[0].js[0].code, "window.vmContent = 1")
+  assert.equal(perDocument.scripts[0].runAt, "document_start")
+  const handed = java.requests.find((e) => e.method === "sync.set")
+  assert.ok(java.requests.indexOf(handed) < java.requests.indexOf(continued), "handed to Java before the document continued")
 })

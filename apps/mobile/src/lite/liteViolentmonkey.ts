@@ -47,7 +47,22 @@ export class LiteViolentmonkey {
       if (!this.applying) this.channel.event("violentmonkey.dashboardChanged")
     })
     void host.contexts.whenListening("runtime", "onMessage", STARTUP_TIMEOUT_MS).then(
-      () => { if (this.host === host) this.channel.event("violentmonkey.connected") },
+      async () => {
+        if (this.host !== host) return
+        // Synchronous page mode, as the Gecko relay turned on: the background
+        // prepares each document's injection at its response stage and the
+        // content script fetches it with a synchronous request, so
+        // `@run-at document-start` scripts run before the page's own.
+        const context = new VirtualContext(host)
+        try {
+          await context.sendMessage({ cmd: "SetOptions", data: { xhrInject: true } })
+        } catch (error) {
+          this.channel.log("warn", `Violentmonkey did not take xhrInject: ${String(error)}`)
+        } finally {
+          context.close()
+        }
+        this.channel.event("violentmonkey.connected")
+      },
       () => undefined
     )
   }

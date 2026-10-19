@@ -10,8 +10,10 @@ import {
   LoadedExtension,
   OwnPageRequests,
   RuntimePlatform,
+  UBLOCK_ORIGIN_ID,
   WebRequestRouter,
   createApiHandlers,
+  extensionUrl,
   loadExtension,
   parseExtensionUrl
 } from "@once/webext-runtime"
@@ -23,11 +25,12 @@ import { LiteManagement } from "./liteManagement"
 import { LitePages } from "./litePages"
 import { LiteTabs } from "./liteTabs"
 import { LiteWorlds } from "./liteWorlds"
+import { LiteSyncAnswers } from "./liteSync"
 import { LiteWebRequest, RequestTarget, ownPageGrant } from "./liteWebRequest"
 import { LiteViolentmonkey } from "./liteViolentmonkey"
 import { liteCookieStore } from "./liteCookies"
 import { LiteJsonStore } from "./liteStorage"
-import { createLiteSettingsCoordinator, readSettings } from "./liteSettings"
+import { createLiteSettingsCoordinator, readSettings, waitForUblockLists } from "./liteSettings"
 import { LiteWorldMessages } from "./liteWorldMessages"
 import {
   CdpEventParams,
@@ -38,6 +41,8 @@ import {
   TargetAttachedParams,
   TargetKind
 } from "./protocol"
+
+const LISTS_WAIT_MS = 20_000
 
 interface Target {
   targetId: string
@@ -62,10 +67,13 @@ export class LiteBroker {
   private readonly worlds: LiteWorlds
   private readonly worldMessages: LiteWorldMessages
   private readonly violentmonkey: LiteViolentmonkey
+  private readonly sync: LiteSyncAnswers
   private readonly cookies
   private readonly settings
   private management: LiteManagement | null = null
   private start: StartParams | null = null
+  /** Tab documents wait for uBlock's lists after it loads, bounded; see `holdForLists`. */
+  private listsReady: Promise<void> = Promise.resolve()
   private readonly bundles = new Map<string, string>()
   private platform: RuntimePlatform = { locale: () => "en", os: "android", arch: "arm" }
 
@@ -79,6 +87,7 @@ export class LiteBroker {
       requestFrom: ownPageGrant(() => this.hosts.values(), this.ownPages)
     })
     this.violentmonkey = new LiteViolentmonkey(this.channel)
+    this.sync = new LiteSyncAnswers(this.channel, (host, blobUrl) => this.pages.readBlob(host, blobUrl))
     this.webRequest = new LiteWebRequest({
       channel: this.channel,
       router: this.router,
@@ -86,7 +95,11 @@ export class LiteBroker {
       hosts: () => this.hosts.values(),
       target: (targetId) => this.requestTarget(targetId),
       token: () => this.start?.token ?? "",
-      documentsReleased: () => this.violentmonkey.documentsReleased()
+      documentsReleased: () => Promise.all([this.violentmonkey.documentsReleased(), this.listsReady]).then(() => undefined),
+      prepareDocument: async (headers, input) => {
+        await this.sync.flush()
+        return this.sync.prepareBlobs(this.hosts.values(), headers, input)
+      }
     })
     this.tabs = new LiteTabs({
       channel: this.channel,
@@ -103,7 +116,8 @@ export class LiteBroker {
       () => this.bundle("lite-world-bootstrap.js"),
       () => this.hosts.values(),
       () => this.platform.locale(),
-      () => this.start?.token ?? ""
+      () => this.start?.token ?? "",
+      (host) => this.pages.tabPageSource(host)
     )
     this.worldMessages = new LiteWorldMessages({
       channel: this.channel,
@@ -119,6 +133,35 @@ export class LiteBroker {
       }
     })
     this.registerHandlers()
+    this.deferHeldInjections()
+  }
+
+  /**
+   * `tabs.executeScript {runAt: "document_start"}` aimed at a document the
+   * broker still holds at its response stage runs from that document's
+   * world when it starts, as Firefox would run it; the shared handler would
+   * reach the frame's previous document instead.
+   */
+  private deferHeldInjections(): void {
+    const original = this.handlers["tabs.executeScript"]
+    this.handlers["tabs.executeScript"] = (call, first, second) => {
+      const hasId = typeof first === "number"
+      const details = (typeof (hasId ? second : first) === "object" && (hasId ? second : first) !== null
+        ? (hasId ? second : first) : {}) as Record<string, unknown>
+      const host = call.host as LiteExtensionHost
+      const tabId = hasId ? first as number : this.tabs.tabs().find((tab) => tab.active)?.id ?? -1
+      const frameId = typeof details.frameId === "number" ? details.frameId : 0
+      if (details.runAt === "document_start" && tabId >= 0 && this.webRequest.isDocumentPending(tabId, frameId)) {
+        const code = typeof details.code === "string" ? details.code
+          : typeof details.file === "string" ? host.files.read(details.file) : null
+        if (code !== null) {
+          const url = typeof details.file === "string" ? extensionUrl(host.extension.host, details.file) : extensionUrl(host.extension.host, "_executed_script.js")
+          this.sync.queueInjection(host, tabId, frameId, code, url)
+          return [undefined]
+        }
+      }
+      return original(call, first, second)
+    }
   }
 
   hostsLoaded(): LiteExtensionHost[] {
@@ -127,6 +170,13 @@ export class LiteBroker {
 
   host(extensionHost: string): LiteExtensionHost | undefined {
     return this.hosts.get(extensionHost)
+  }
+
+  /** The named world contexts the broker knows in a target (diagnostics; the instrumentation test reads it). */
+  worldContexts(targetId: string): { name: string; contextId: number; frameId: string }[] {
+    const target = this.targets.get(targetId)
+    if (!target) return []
+    return target.frames.allWorlds().map((world) => ({ name: world.name, contextId: world.contextId, frameId: world.frameId }))
   }
 
   private bundle(name: string): string {
@@ -186,17 +236,19 @@ export class LiteBroker {
       throw new Error(`${directory} is ${extension.id}, not the listed ${expectedId}`)
     }
     if (this.hosts.has(extension.host)) await this.unload(extension.host)
+    let created: LiteExtensionHost | null = null
     const host = new LiteExtensionHost({
       extension,
-      store: new LiteJsonStore(this.channel, `${this.start?.storageRoot ?? ""}/${extension.host}`),
+      store: new LiteJsonStore(this.channel, `${this.start?.storageRoot ?? ""}/${extension.host}`, this.files),
       channel: this.channel,
       cookies: this.cookies,
       platform: this.platform,
       hooks: this.tabs,
-      onScriptsChanged: () => this.worlds.schedule(),
+      onScriptsChanged: () => { if (created) this.sync.scriptsChanged(created) },
       openPage: (owner, kind, url) => this.pages.open(owner, kind, url),
       closePage: (pageId) => this.pages.close(pageId)
     })
+    created = host
     this.hosts.set(extension.host, host)
     host.action.onChanged(() => this.channel.event("extensions.changed"))
     try {
@@ -208,10 +260,22 @@ export class LiteBroker {
       throw error
     }
     this.violentmonkey.hostChanged(this.hosts.values())
+    if (host.extension.id === UBLOCK_ORIGIN_ID) this.holdForLists(host)
     if (this.start) await this.worlds.update()
     this.channel.event("extensions.changed")
     await this.settings.applyTo(host)
     return extension
+  }
+
+  /**
+   * uBlock answers `getLists` only once its start-up has loaded its lists
+   * (`isReadyPromise`); until then a document would go unfiltered, as its
+   * suspending listener holds requests longer than the router waits.
+   */
+  private holdForLists(host: LiteExtensionHost): void {
+    this.listsReady = waitForUblockLists(host, LISTS_WAIT_MS).catch((error) => {
+      this.channel.log("warn", `uBlock Origin did not report its lists: ${String(error)}`)
+    })
   }
 
   async unload(extensionHost: string): Promise<void> {
@@ -219,6 +283,7 @@ export class LiteBroker {
     if (!host) return
     this.hosts.delete(extensionHost)
     this.settings.forget(host)
+    this.sync.forget(host)
     for (const pageId of this.pages.pagesOf(host)) await this.pages.close(pageId).catch(() => undefined)
     await host.dispose()
     this.violentmonkey.hostChanged(this.hosts.values())

@@ -14,6 +14,7 @@
 
 import {
   ArchiveEntry,
+  BUNDLED_EXTENSIONS,
   ExtensionManager,
   ExtensionPackageHost,
   ExtensionPackageStore,
@@ -153,8 +154,14 @@ export class LiteManagement {
     }, options.runtime)
   }
 
+  /** Bundled extensions first, in bundle order, then installed ones in install order. */
   async catalog(): Promise<CatalogEntry[]> {
-    return (await this.manager.list()).map(catalogEntry)
+    const listed = (await this.manager.list()).map(catalogEntry)
+    const rank = (entry: CatalogEntry): number => {
+      const index = BUNDLED_EXTENSIONS.findIndex((bundle) => bundle.id === entry.id)
+      return entry.bundled && index >= 0 ? index : BUNDLED_EXTENSIONS.length
+    }
+    return listed.map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry) - rank(b.entry) || a.index - b.index).map(({ entry }) => entry)
   }
 
   /** The shell's `extensionCommand`. */

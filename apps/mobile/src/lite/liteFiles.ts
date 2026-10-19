@@ -16,6 +16,14 @@ export interface FilesInterface {
   read(directory: string, path: string): string | null
   /** Unpacks a base64 archive into the staging directory named by token; answers the entry list as JSON. */
   unzip?(token: string, archiveBase64: string): string
+  /**
+   * Store documents too large for one message: `writeChunk` appends UTF-8 text
+   * to the pending value named by `token` (a `store.write`/`store.patch` then
+   * names it as `{chunked: token}`); `readChunk` answers the next piece of a
+   * `store.read` that came back `chunked`, as JSON `{"text", "done"}`.
+   */
+  writeChunk?(token: string, text: string): string
+  readChunk?(token: string, maxBytes: number): string
 }
 
 export type PreloadedFiles = Readonly<Record<string, { text?: string; base64?: string }>>

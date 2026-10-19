@@ -132,12 +132,21 @@ public class LiteExtensionEngineTest {
         }
 
         // 2. The synced filter list is handed to uBlock, and a tab registers with its target before loading.
-        // The shell in the activity applies its own (empty) synced documents at startup; ours must come after.
-        until("the shell must have applied its settings", () -> !filterRecord().startsWith("missing"), 60);
+        // The shell in the activity applies its own (empty) synced documents at startup and again when
+        // Violentmonkey connects, whenever that happens to be; ours is applied again until it is the last.
         long applyStarted = System.currentTimeMillis();
-        await(engine.applySettings(new JSONObject()
+        JSONObject synced = new JSONObject()
             .put("filterLists", new JSONObject().put("version", 1).put("lists", new JSONArray().put(new JSONObject().put("url", fixture.url("/list.txt")).put("enabled", true))))
-            .put("userscripts", new JSONObject().put("version", 1).put("scripts", new JSONArray()))));
+            .put("userscripts", new JSONObject().put("version", 1).put("scripts", new JSONArray()));
+        for (int attempt = 0; ; attempt++) {
+            int before = engine.settingsApplications();
+            await(engine.applySettings(synced));
+            long quiet = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+            while (System.nanoTime() < quiet && engine.settingsApplications() == before + 1) Thread.sleep(200);
+            until("settings applications must settle", () -> engine.settingsInFlight() == 0, 60);
+            if (engine.settingsApplications() == before + 1 || attempt >= 4) break;
+            Log.i(TAG, "the shell applied its settings beside ours; applying again");
+        }
         results.put("settingsApplied", true);
         results.put("settingsApplyMs", System.currentTimeMillis() - applyStarted);
         results.put("filterRecordAtOnce", filterRecord());
@@ -249,19 +258,21 @@ public class LiteExtensionEngineTest {
             String session = null;
             for (com.zmarn.once.devtools.DevToolsClient.Target target : client.targets()) if (target.targetId.equals(targetId)) session = target.sessionId;
             if (session == null) return "no session";
-            // Runtime.enable again replays executionContextCreated for live contexts.
-            java.util.Map<String, Integer> contexts = new java.util.concurrent.ConcurrentHashMap<>();
-            String finalSession = session;
-            com.zmarn.once.devtools.DevToolsClient.Listener listener = (sid, method, params) -> {
-                if (!finalSession.equals(sid) || !"Runtime.executionContextCreated".equals(method)) return;
-                JSONObject context = params.optJSONObject("context");
-                if (context != null) contexts.put(context.optString("name") + "@" + (context.optJSONObject("auxData") == null ? "" : context.optJSONObject("auxData").optString("frameId")), context.optInt("id"));
-            };
-            client.addListener(listener);
-            client.call(session, "Runtime.disable", null, 5000);
-            client.call(session, "Runtime.enable", null, 5000);
-            Thread.sleep(500);
-            client.removeListener(listener);
+            // The broker knows the target's world contexts; asking the session to replay them
+            // (Runtime.disable + enable) would drop the bindings the worlds talk through.
+            String brokerSession = null;
+            for (com.zmarn.once.devtools.DevToolsClient.Target target : client.targets()) {
+                if (target.url != null && target.url.startsWith("https://localhost/lite-runtime")) brokerSession = target.sessionId;
+            }
+            if (brokerSession == null) return "no broker session";
+            JSONObject known = client.call(brokerSession, "Runtime.evaluate", new JSONObject().put("returnByValue", true)
+                .put("expression", "JSON.stringify(window.onceLiteBroker.worldContexts(" + JSONObject.quote(targetId) + "))"), 5000);
+            JSONArray worlds = new JSONArray(known.getJSONObject("result").getString("value"));
+            java.util.Map<String, Integer> contexts = new java.util.LinkedHashMap<>();
+            for (int index = 0; index < worlds.length(); index++) {
+                JSONObject world = worlds.getJSONObject(index);
+                contexts.put(world.getString("name") + "@" + world.getString("frameId"), world.getInt("contextId"));
+            }
             JSONObject report = new JSONObject().put("contexts", new JSONObject(contexts));
             for (java.util.Map.Entry<String, Integer> context : contexts.entrySet()) {
                 if (!context.getKey().startsWith("once-ext:fef00e74")) continue;
@@ -270,6 +281,8 @@ public class LiteExtensionEngineTest {
                     + "sheets: vAPI.userStylesheet && vAPI.userStylesheet.added ? [...vAPI.userStylesheet.added].map(c => c.slice(0, 160)) : null, "
                     + "specific: vAPI.domFilterer && vAPI.domFilterer.specificSelectors ? vAPI.domFilterer.specificSelectors.length : null, "
                     + "ready: document.readyState, deliver: typeof __onceLiteDeliver, boot: typeof __onceLiteWorldBoot, browser: typeof browser, "
+                    + "surveyor: !!vAPI.domSurveyor, pending: vAPI.messaging && vAPI.messaging.pending ? vAPI.messaging.pending.size : null, "
+                    + "noGen: vAPI.noGenericCosmeticFiltering, noSpec: vAPI.noSpecificCosmeticFiltering, "
                     + "hidden: getComputedStyle(document.querySelector('.once-hide')).display})"), 5000);
                 report.put("ublockWorld", result.optJSONObject("result") == null ? result.toString() : result.getJSONObject("result").opt("value"));
             }
@@ -389,7 +402,9 @@ public class LiteExtensionEngineTest {
                 } else if (path.startsWith("/list.txt")) {
                     listRequests.incrementAndGet();
                     type = "text/plain";
-                    body = "! Title: Once Lite test list\n/blocked.png$image\n##.once-hide\n".getBytes(StandardCharsets.UTF_8);
+                    // Specific to the fixture host: EasyList excepts generic hiding on 127.0.0.1
+                    // (`@@://127.0.0.1$generichide`); the e2e suites cover generic rules on 10.0.2.2.
+                    body = "! Title: Once Lite test list\n/blocked.png$image\n127.0.0.1##.once-hide\n".getBytes(StandardCharsets.UTF_8);
                 } else if (path.startsWith("/blocked")) {
                     type = "image/png";
                     body = android.util.Base64.decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", android.util.Base64.DEFAULT);

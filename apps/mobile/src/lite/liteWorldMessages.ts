@@ -74,6 +74,10 @@ export class LiteWorldMessages {
     contextId: number,
     message: Extract<WorldToBrokerMessage, { type: "hello" }>
   ): void {
+    const id = worldContextId(target.targetId, contextId)
+    // A bootstrap that ran again in the same context (a re-installed
+    // registration) must not replace the entry: its ports and listeners live on.
+    if (host.contexts.get(id)) return
     const world = target.frames.world(contextId)
     const frameId = world ? target.frames.webextFrameId(world.frameId) : 0
     const url = message.url

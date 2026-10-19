@@ -43,7 +43,7 @@ assertion names the capability it proves.
 | b | Synced filter list and three userscripts saved from Once's settings; `applyExtensionSettings` acknowledged |
 | c | On `/fixtures/ublock/page.html`: `ad.js` blocked (network), `.lite-ad-slot` hidden (cosmetic), `set-constant` scriptlet ran before the page's first inline script |
 | d | The same under a strict `Content-Security-Policy` header (per-document nonce path) and under a `<meta>` CSP (main-world evaluation path) |
-| e | Userscripts: `@run-at document-start` timing, `GM_setValue/GM_getValue`, `GM_addStyle`, `GM_xmlhttpRequest`, `@inject-into content` isolation (page globals only via `unsafeWindow`), `@inject-into page` sharing the page world |
+| e | Userscripts: `@run-at document-start` timing, `GM_setValue/GM_getValue`, `GM_addStyle`, `GM_xmlhttpRequest`, `@inject-into content` isolation (page globals only via `unsafeWindow`), `@inject-into page` with `@grant none` sharing the page world (its write to a page variable lands there; with a grant Violentmonkey's window wrapper hides page globals in every browser) |
 | f | Native browser menu → Extensions → uBlock Origin opens the popup in the extension page frame (`popup: true`); the popup WebView shows the fixture host and a non-zero blocked count; the frame's Close closes it |
 | g | Settings → uBlock Origin → "Open extension settings" opens the dashboard in the frame (`popup: false`, titled), with `vAPI` and its pane iframe loaded |
 | h | Disabling a script in Violentmonkey's dashboard reaches the synced userscripts document (`dashboardChanged` → reconciliation); re-enabling from Once applies again |

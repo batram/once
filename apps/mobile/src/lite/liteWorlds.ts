@@ -8,10 +8,10 @@
 // Whenever a registration changes (`contentScripts.register`, `scripting`),
 // the whole set is sent again and Java replaces what it installed.
 
-import { ContentScript, LoadedExtension } from "@once/webext-runtime"
+import { ContentScript, LoadedExtension, manifestContentScripts } from "@once/webext-runtime"
 import { JavaChannel } from "./javaChannel"
 import { LiteExtensionHost } from "./liteHosts"
-import { WorldConfig, WorldRegistration, WorldScript, WorldsSetParams, WORLD_BINDING, worldNameFor } from "./protocol"
+import { TabPageRegistration, WorldConfig, WorldDynamicConfig, WorldRegistration, WorldScript, WorldsSetParams, WORLD_BINDING, pageOrigin, worldNameFor } from "./protocol"
 
 /** The function the world bootstrap bundle defines for the boot call. */
 export const WORLD_BOOT = "__onceLiteWorldBoot"
@@ -33,16 +33,21 @@ function scriptEntry(host: LiteExtensionHost, script: ContentScript): WorldScrip
   }
 }
 
-export function worldConfig(host: LiteExtensionHost, locale: string, token: string): WorldConfig {
-  const extension: LoadedExtension = host.extension
-  const scripts: WorldScript[] = []
-  for (const script of host.contentScripts()) {
+function entries(host: LiteExtensionHost, scripts: Iterable<ContentScript>): WorldScript[] {
+  const out: WorldScript[] = []
+  for (const script of scripts) {
     try {
-      scripts.push(scriptEntry(host, script))
+      out.push(scriptEntry(host, script))
     } catch (error) {
-      console.error(`[${extension.name}] content script skipped: ${String(error)}`)
+      console.error(`[${host.extension.name}] content script skipped: ${String(error)}`)
     }
   }
+  return out
+}
+
+export function worldConfig(host: LiteExtensionHost, locale: string, token: string): WorldConfig {
+  const extension: LoadedExtension = host.extension
+  const scripts = entries(host, manifestContentScripts(extension.manifest.contentScripts))
   return {
     init: {
       id: extension.id,
@@ -67,23 +72,33 @@ export function worldSource(bundle: string, config: WorldConfig): string {
 
 export function worldRegistration(bundle: string, host: LiteExtensionHost, locale: string, token: string): WorldRegistration {
   return {
+    id: worldNameFor(host.extension.host),
     worldName: worldNameFor(host.extension.host),
     source: worldSource(bundle, worldConfig(host, locale, token)),
     binding: WORLD_BINDING
   }
 }
 
+/** The registered scripts of a host, as the world's synchronous `_once/dynamic` request is answered. */
+export function dynamicScripts(host: LiteExtensionHost): WorldDynamicConfig {
+  return { host: host.extension.host, scripts: entries(host, host.registeredScripts.values()) }
+}
+
 /** Sends the current registrations to Java; coalesces bursts of changes. */
 export class LiteWorlds {
   private timer: ReturnType<typeof setTimeout> | null = null
   private current: WorldRegistration[] = []
+  private dirty = false
+  private inFlight: Promise<void> | null = null
 
   constructor(
     private readonly channel: JavaChannel,
     private readonly bundle: () => string,
     private readonly hosts: () => Iterable<LiteExtensionHost>,
     private readonly locale: () => string,
-    private readonly token: () => string
+    private readonly token: () => string,
+    /** The page bootstrap source for one of a host's pages shown inside a tab. */
+    private readonly pageSource: (host: LiteExtensionHost) => string = () => ""
   ) {}
 
   registrations(): WorldRegistration[] {
@@ -91,22 +106,54 @@ export class LiteWorlds {
   }
 
   /** Rebuilds and sends; resolves once Java has installed the set. */
-  async update(): Promise<void> {
+  update(): Promise<void> {
     if (this.timer) {
       clearTimeout(this.timer)
       this.timer = null
     }
+    this.dirty = false
     const bundle = this.bundle()
-    this.current = [...this.hosts()].map((host) => worldRegistration(bundle, host, this.locale(), this.token()))
-    await this.channel.request("worlds.set", { registrations: this.current } satisfies WorldsSetParams)
+    const hosts = [...this.hosts()]
+    const sources = this.static(bundle, hosts)
+    this.current = hosts.map((host) => sources.get(host) as WorldRegistration)
+    const pages: TabPageRegistration[] = hosts.map((host) => ({
+      host: host.extension.host, origin: pageOrigin(host.extension.host), documentStartSource: this.pageSource(host)
+    })).filter((page) => page.documentStartSource !== "")
+    const sending = this.channel.request("worlds.set", { registrations: this.current, pages } satisfies WorldsSetParams).then(() => undefined)
+    this.inFlight = sending
+    return sending.finally(() => { if (this.inFlight === sending) this.inFlight = null })
+  }
+
+  /** The bootstrap registrations are rebuilt only when a host's manifest scripts could have changed (a load). */
+  private readonly statics = new WeakMap<LiteExtensionHost, WorldRegistration>()
+
+  private static(bundle: string, hosts: LiteExtensionHost[]): Map<LiteExtensionHost, WorldRegistration> {
+    const map = new Map<LiteExtensionHost, WorldRegistration>()
+    for (const host of hosts) {
+      let registration = this.statics.get(host)
+      if (!registration) {
+        registration = worldRegistration(bundle, host, this.locale(), this.token())
+        this.statics.set(host, registration)
+      }
+      map.set(host, registration)
+    }
+    return map
   }
 
   /** A registration changed; sent after the current burst of changes settles. */
   schedule(): void {
+    this.dirty = true
     if (this.timer) clearTimeout(this.timer)
     this.timer = setTimeout(() => {
       this.timer = null
-      void this.update().catch((error) => this.channel.log("error", `World registration failed: ${String(error)}`))
+      void this.flush()
     }, 50)
+  }
+
+  /** Sends pending changes now and resolves once Java has them. */
+  async flush(): Promise<void> {
+    if (this.inFlight) await this.inFlight.catch(() => undefined)
+    if (!this.dirty) return
+    await this.update().catch((error) => this.channel.log("error", `World registration failed: ${String(error)}`))
   }
 }

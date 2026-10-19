@@ -36,9 +36,41 @@ function installAccess(): void {
       answer = true
     }
     let encoded: string | undefined
-    try { encoded = JSON.stringify(answer) } catch { encoded = undefined }
+    try { encoded = JSON.stringify(serializable(answer, 0)) } catch { encoded = undefined }
     if (encoded !== undefined) root.setAttribute(ACCESS_ATTRIBUTE, encoded)
   })
+}
+
+/**
+ * The value as JSON can carry it: primitives and plain data as they are.
+ * Anything else (the window, nodes, functions, or data holding them) reads as
+ * `undefined`: a content script probing a page global it set to live objects
+ * (Violentmonkey's `parent[key] = [this, 0]` vault) must see the probe fail
+ * and take its event-bridge path, since no cross-world object can cross here.
+ */
+class NotSerializable extends Error {}
+
+function serializable(value: unknown, depth: number): unknown {
+  try {
+    return serialize(value, depth)
+  } catch (error) {
+    if (error instanceof NotSerializable) return undefined
+    throw error
+  }
+}
+
+function serialize(value: unknown, depth: number): unknown {
+  if (value === null || typeof value !== "object") {
+    if (typeof value === "function" || typeof value === "symbol") throw new NotSerializable()
+    return value
+  }
+  if (depth >= 8) throw new NotSerializable()
+  if (Array.isArray(value)) return value.map((entry) => serialize(entry, depth + 1))
+  const proto = Object.getPrototypeOf(value) as unknown
+  if (proto !== Object.prototype && proto !== null) throw new NotSerializable()
+  const out: Record<string, unknown> = {}
+  for (const key of Object.keys(value)) out[key] = serialize((value as Record<string, unknown>)[key], depth + 1)
+  return out
 }
 
 /** Keep the original video attached: moving it can restart a site's player. */

@@ -25,7 +25,7 @@ const TO_MAIN = `once-lite:${token}:to-main`
 /** Main helper → bridge world. */
 const FROM_MAIN = `once-lite:${token}:from-main`
 
-const MEDIA_EVENTS = ["play", "pause", "seeked", "durationchange", "loadedmetadata", "ratechange", "yt-navigate-finish"]
+const MEDIA_EVENTS = ["play", "playing", "pause", "ended", "emptied", "seeked", "durationchange", "loadedmetadata", "ratechange", "yt-navigate-finish"]
 
 /** The HTML-media fallback of the Gecko bridge, reading the shared DOM. */
 export function installMediaBridge(post: (message: unknown) => void): { receive(message: Message): void; cleanup(): void } {
@@ -46,15 +46,24 @@ export function installMediaBridge(post: (message: unknown) => void): { receive(
     const title = youtube ? text("ytm-slim-video-metadata-section-renderer h1, ytd-watch-metadata h1, h1.title") ||
       document.title.replace(/\s*-\s*YouTube\s*$/, "").slice(0, 300) : document.title.slice(0, 300)
     const artist = youtube ? text("ytm-slim-owner-renderer .slim-owner-channel-name, ytd-video-owner-renderer #channel-name a, ytm-video-owner-renderer .yt-core-attributed-string") : ""
+    const frame = media as HTMLVideoElement
     post({ type: "media-snapshot", url: location.href, title, artist,
+      playing: !media.paused && !media.ended,
       duration: Number.isFinite(media.duration) ? media.duration : null,
-      position: media.currentTime, rate: media.playbackRate, seekable: seekable(media) })
+      position: media.currentTime, rate: media.playbackRate, seekable: seekable(media),
+      videoWidth: frame.videoWidth || 0, videoHeight: frame.videoHeight || 0 })
   }
   const changed = (event: Event): void => {
     const target = event.target as HTMLElement | null
-    if (target && ["AUDIO", "VIDEO"].includes(target.tagName) && (!selected || event.type === "play")) selected = target as HTMLMediaElement
+    if (target && ["AUDIO", "VIDEO"].includes(target.tagName) && (!selected || event.type === "play" || event.type === "playing")) {
+      selected = target as HTMLMediaElement
+    }
     send(true)
   }
+  const pagehide = (): void => {
+    if (enabled) post({ type: "media-snapshot", url: location.href, title: "", artist: "", playing: false, duration: null, position: 0, rate: 1, seekable: false, videoWidth: 0, videoHeight: 0 })
+  }
+  window.addEventListener("pagehide", pagehide)
   const progress = (): void => send()
   for (const name of MEDIA_EVENTS) document.addEventListener(name, changed, true)
   document.addEventListener("timeupdate", progress, true)
@@ -64,18 +73,25 @@ export function installMediaBridge(post: (message: unknown) => void): { receive(
         enabled = message.enabled === true
         document.dispatchEvent(new CustomEvent(TO_MAIN, { detail: JSON.stringify({ type: "media-observe", pictureInPicture: message.pictureInPicture === true }) }))
         send(true)
-      } else if (enabled && message.type === "media-command" && message.url === location.href) {
+      } else if (message.type === "media-command" && (message.url === undefined || message.url === location.href)) {
         const media = video()
-        if (message.action === "seek" && media && seekable(media) && typeof message.position === "number" && Number.isFinite(message.position)) {
+        if (!media) return
+        if (message.action === "play") {
+          const started = media.play()
+          if (started && typeof started.catch === "function") started.catch(() => undefined)
+        } else if (message.action === "pause") {
+          media.pause()
+        } else if (message.action === "seek" && seekable(media) && typeof message.position === "number" && Number.isFinite(message.position)) {
           media.currentTime = Math.max(0, Math.min(message.position, media.duration))
-          send(true)
         }
+        send(true)
       }
     },
     cleanup() {
       enabled = false
       for (const name of MEDIA_EVENTS) document.removeEventListener(name, changed, true)
       document.removeEventListener("timeupdate", progress, true)
+      window.removeEventListener("pagehide", pagehide)
     }
   }
 }

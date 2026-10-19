@@ -65,13 +65,13 @@ public final class LiteTargets implements DevToolsClient.Listener {
         volatile DevToolsClient.Target target;
         volatile boolean ready;
         private final List<Runnable> waiting = new ArrayList<>();
-        /** World scripts installed on this target: world name → script identifier, with the source they carry. */
+        /** World scripts installed on this target: registration id → script identifier, with the source they carry. */
         final Map<String, String[]> worlds = new HashMap<>();
+        /** Worlds whose binding this target already has. */
+        final Set<String> bindings = new HashSet<>();
         final List<ScriptHandler> pageScripts = new ArrayList<>();
         /** The bridge world's and main helper's script identifiers on this target. */
         final List<String> bridgeScripts = new ArrayList<>();
-        /** Paused requests by id, for the own-origin grant below. */
-        final Map<String, String> paused = new ConcurrentHashMap<>();
 
         Attachment(String marker, String kind, int tabId, String pageId, WebView view, BridgeListener bridge) {
             this.marker = marker;
@@ -130,6 +130,14 @@ public final class LiteTargets implements DevToolsClient.Listener {
     private final Map<String, List<JSONObject>> queued = new ConcurrentHashMap<>();
     private final Set<String> probing = ConcurrentHashMap.newKeySet();
     private volatile JSONArray registrations = new JSONArray();
+    /**
+     * Answers served from memory to content worlds' synchronous requests
+     * (`sync.set`): `https://<host>.moz-extension.localhost<path>` → JSON
+     * text. Every WebView shares one renderer main thread, so a request that
+     * blocks a tab can never be answered by the broker; it prepares these
+     * before the document continues.
+     */
+    private final Map<String, String> syncAnswers = new ConcurrentHashMap<>();
     private volatile JSONArray pageRegistrations = new JSONArray();
 
     LiteTargets(Supplier<DevToolsClient> devtools, BrokerChannel channel, LiteCookies cookies, Supplier<String[]> bridgeSources) {
@@ -141,7 +149,10 @@ public final class LiteTargets implements DevToolsClient.Listener {
             Attachment attachment = byTarget.get(params.optString("targetId"));
             if (attachment == null || attachment.target == null) { reply.reject("Unknown target " + params.optString("targetId")); return; }
             JSONObject command = params.optJSONObject("params");
-            if (params.getString("method").startsWith("Fetch.") && command != null) command = grantOwnOrigin(attachment, params.getString("method"), command);
+            if (Log.isLoggable("OnceLiteFetch", Log.DEBUG) && params.getString("method").startsWith("Fetch.") && command != null) {
+                String text = command.toString();
+                Log.d("OnceLiteFetch", params.getString("method") + " " + text.substring(0, Math.min(200, text.length())));
+            }
             devtools.get().send(attachment.target.sessionId, params.getString("method"), command).whenComplete((answer, error) -> {
                 if (error != null) { reply.reject(error.getMessage()); return; }
                 JSONObject failure = answer.optJSONObject("error");
@@ -150,13 +161,19 @@ public final class LiteTargets implements DevToolsClient.Listener {
                 reply.resolve(result == null ? new JSONObject() : result);
             });
         });
+        channel.onRequest("sync.set", (params, reply) -> {
+            String key = "https://" + params.optString("host") + LitePage.PAGE_HOST_SUFFIX + params.optString("path");
+            if (params.isNull("body")) syncAnswers.remove(key); else syncAnswers.put(key, params.optString("body"));
+            if (syncAnswers.size() > 256) syncAnswers.clear();
+            reply.resolve(null);
+        });
         channel.onRequest("worlds.set", (params, reply) -> {
             JSONArray next = params.optJSONArray("registrations");
             registrations = next == null ? new JSONArray() : next;
             JSONArray pages = params.optJSONArray("pages");
             pageRegistrations = pages == null ? new JSONArray() : pages;
             worker.execute(() -> {
-                for (Attachment attachment : byTarget.values()) if ("tab".equals(attachment.kind)) applyWorlds(attachment);
+                for (Attachment attachment : byTarget.values()) if ("tab".equals(attachment.kind)) applyWorlds(attachment, false);
                 reply.resolve(null);
             });
             main.post(() -> { for (Attachment attachment : byMarker.values()) if ("tab".equals(attachment.kind)) applyPageScripts(attachment); });
@@ -255,35 +272,41 @@ public final class LiteTargets implements DevToolsClient.Listener {
             else if ("Runtime.executionContextsCleared".equals(method)) attachment.bridge.contextsCleared();
         }
         if (!FORWARDED.contains(method)) return;
-        if ("Fetch.requestPaused".equals(method)) {
+        if ("Fetch.requestPaused".equals(method) && answerSynchronously(attachment, params)) return;
+        if ("Fetch.requestPaused".equals(method) && Log.isLoggable("OnceLiteFetch", Log.DEBUG)) {
             JSONObject request = params.optJSONObject("request");
-            if (attachment.paused.size() < 512) attachment.paused.put(params.optString("requestId"), request == null ? "" : request.optString("url"));
+            Log.d("OnceLiteFetch", "paused " + (request == null ? "" : request.optString("url")) + " " + params.optString("resourceType")
+                + (params.has("responseStatusCode") ? " response " + params.optInt("responseStatusCode") : ""));
         }
         forward(attachment, method, params);
     }
 
-    /**
-     * Chromium sees `https://<host>.moz-extension.localhost` and `moz-extension://<host>`
-     * as different origins, so an extension page's own XHR to a `moz-extension://`
-     * URL the broker fulfils needs the page origin allowed; the broker grants
-     * only `*` to other origins. Added here until the broker grants its own pages.
-     */
-    private JSONObject grantOwnOrigin(Attachment attachment, String method, JSONObject command) {
-        String requestId = command.optString("requestId");
-        String url = attachment.paused.remove(requestId);
-        if (url != null && Log.isLoggable("OnceLiteFetch", Log.DEBUG)) Log.d("OnceLiteFetch", method + " " + url + " " + command.toString().substring(0, Math.min(160, command.toString().length())));
-        if (!"Fetch.fulfillRequest".equals(method) || url == null || !url.startsWith("moz-extension://")) return command;
+    /** A world's synchronous request for a prepared answer, fulfilled here; true when it was one. */
+    private boolean answerSynchronously(Attachment attachment, JSONObject params) {
+        JSONObject request = params.optJSONObject("request");
+        String url = request == null ? "" : request.optString("url");
+        int query = url.indexOf('?');
+        String key = query < 0 ? url : url.substring(0, query);
+        if (!key.contains(LitePage.PAGE_HOST_SUFFIX + "/_once/") || params.has("responseStatusCode") || params.has("responseErrorReason")) return false;
+        // An answer for this document (full URL, served once) before the host's.
+        String body = syncAnswers.remove(url);
+        if (body == null) body = syncAnswers.get(key);
+        if (body != null && key.contains("/_once/blob/")) syncAnswers.remove(key);
         try {
-            String host = android.net.Uri.parse(url).getHost();
-            JSONArray headers = command.optJSONArray("responseHeaders");
-            if (host == null) return command;
-            if (headers == null) command.put("responseHeaders", headers = new JSONArray());
-            for (int index = 0; index < headers.length(); index++) {
-                if ("access-control-allow-origin".equalsIgnoreCase(headers.getJSONObject(index).optString("name"))) return command;
+            JSONObject command = new JSONObject().put("requestId", params.optString("requestId"));
+            if (body == null) {
+                command.put("responseCode", 404).put("responseHeaders", new JSONArray().put(new JSONObject().put("name", "Access-Control-Allow-Origin").put("value", "*")));
+            } else {
+                command.put("responseCode", 200).put("responseHeaders", new JSONArray()
+                    .put(new JSONObject().put("name", "Content-Type").put("value", "application/json; charset=utf-8"))
+                    .put(new JSONObject().put("name", "Cache-Control").put("value", "no-store"))
+                    .put(new JSONObject().put("name", "Access-Control-Allow-Origin").put("value", "*")))
+                    .put("body", android.util.Base64.encodeToString(body.getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP));
             }
-            headers.put(new JSONObject().put("name", "Access-Control-Allow-Origin").put("value", "https://" + host + LitePage.PAGE_HOST_SUFFIX));
-        } catch (Exception ignored) { /* the command goes out as the broker wrote it */ }
-        return command;
+            attachment.send("Fetch.fulfillRequest", command);
+            if (Log.isLoggable("OnceLiteFetch", Log.DEBUG)) Log.d("OnceLiteFetch", "answered " + key + (body == null ? " (none)" : " " + body.length() + " chars"));
+        } catch (Exception error) { Log.w(TAG, "Could not answer " + key, error); }
+        return true;
     }
 
     private void forward(Attachment attachment, String method, JSONObject params) {
@@ -321,9 +344,11 @@ public final class LiteTargets implements DevToolsClient.Listener {
         if (attachment.target != null && !attachment.target.targetId.equals(target.targetId)) detached(attachment.target.targetId);
         attachment.target = target;
         attachment.worlds.clear();
+        attachment.bindings.clear();
         queued.put(target.targetId, new ArrayList<>());
         worker.execute(() -> {
             JSONObject frameTree = null;
+            boolean enabled = false;
             if (!"broker".equals(attachment.kind)) {
                 try {
                     DevToolsClient client = devtools.get();
@@ -333,15 +358,17 @@ public final class LiteTargets implements DevToolsClient.Listener {
                     client.call(target.sessionId, "Fetch.enable", new JSONObject().put("handleAuthRequests", false).put("patterns", new JSONArray()
                         .put(new JSONObject().put("urlPattern", "*").put("requestStage", "Request"))
                         .put(new JSONObject().put("urlPattern", "*").put("requestStage", "Response"))), COMMAND_TIMEOUT_MS);
-                    if ("tab".equals(attachment.kind)) { installBridge(attachment); applyWorlds(attachment); }
                     frameTree = client.call(target.sessionId, "Page.getFrameTree", null, COMMAND_TIMEOUT_MS).optJSONObject("frameTree");
+                    enabled = true;
                 } catch (Exception error) {
                     Log.w(TAG, "Could not enable DevTools domains on " + attachment.kind + " target: " + error.getMessage());
                 }
             }
             if (attachment.target != target) return;
-            Log.i(TAG, "target " + target.targetId + " bound to " + attachment.kind + (attachment.pageId == null ? "" : " " + attachment.pageId)
-                + (attachment.tabId >= 0 ? " tab " + attachment.tabId : "") + " worlds=" + attachment.worlds.size());
+            // The broker hears the target and its queued events before the
+            // world scripts go in: a script run immediately may ask the
+            // broker something synchronously (a world's registered scripts),
+            // which the broker can answer only once it knows the target.
             try {
                 JSONObject params = new JSONObject().put("targetId", target.targetId).put("kind", attachment.kind);
                 if ("tab".equals(attachment.kind)) params.put("tabId", attachment.tabId);
@@ -351,6 +378,13 @@ public final class LiteTargets implements DevToolsClient.Listener {
             } catch (Exception ignored) { /* a constant document */ }
             List<JSONObject> backlog = queued.remove(target.targetId);
             if (backlog != null) synchronized (backlog) { for (JSONObject event : backlog) channel.event("cdp.event", event); }
+            if (enabled && "tab".equals(attachment.kind)) {
+                try { installBridge(attachment); } catch (Exception error) { Log.w(TAG, "Could not install the bridge world: " + error.getMessage()); }
+                applyWorlds(attachment, true);
+            }
+            if (attachment.target != target) return;
+            Log.i(TAG, "target " + target.targetId + " bound to " + attachment.kind + (attachment.pageId == null ? "" : " " + attachment.pageId)
+                + (attachment.tabId >= 0 ? " tab " + attachment.tabId : "") + " worlds=" + attachment.worlds.size());
             attachment.becameReady();
         });
     }
@@ -378,8 +412,14 @@ public final class LiteTargets implements DevToolsClient.Listener {
             new JSONObject().put("source", sources[1]).put("runImmediately", true), COMMAND_TIMEOUT_MS).optString("identifier"));
     }
 
-    /** Installs the current registrations on a tab target, replacing changed ones and removing unlisted ones. On the worker. */
-    private void applyWorlds(Attachment attachment) {
+    /**
+     * Installs the current registrations on a tab target, replacing changed
+     * ones and removing unlisted ones. On the worker. Only a freshly bound
+     * target runs the scripts in its current document (`runImmediately`): a
+     * change reaches the next document, as on Electron, and never boots a
+     * world twice.
+     */
+    private void applyWorlds(Attachment attachment, boolean fresh) {
         DevToolsClient.Target target = attachment.target;
         if (target == null) return;
         DevToolsClient client = devtools.get();
@@ -387,7 +427,7 @@ public final class LiteTargets implements DevToolsClient.Listener {
         Map<String, JSONObject> listed = new LinkedHashMap<>();
         for (int index = 0; index < wanted.length(); index++) {
             JSONObject registration = wanted.optJSONObject(index);
-            if (registration != null) listed.put(registration.optString("worldName"), registration);
+            if (registration != null) listed.put(registration.optString("id", registration.optString("worldName")), registration);
         }
         try {
             for (Map.Entry<String, String[]> installed : new ArrayList<>(attachment.worlds.entrySet())) {
@@ -396,14 +436,17 @@ public final class LiteTargets implements DevToolsClient.Listener {
                 client.call(target.sessionId, "Page.removeScriptToEvaluateOnNewDocument", new JSONObject().put("identifier", installed.getValue()[0]), COMMAND_TIMEOUT_MS);
                 attachment.worlds.remove(installed.getKey());
             }
-            for (JSONObject registration : listed.values()) {
+            for (Map.Entry<String, JSONObject> entry : listed.entrySet()) {
+                if (attachment.worlds.containsKey(entry.getKey())) continue;
+                JSONObject registration = entry.getValue();
                 String world = registration.optString("worldName");
-                if (attachment.worlds.containsKey(world)) continue;
-                client.call(target.sessionId, "Runtime.addBinding",
-                    new JSONObject().put("name", registration.optString("binding")).put("executionContextName", world), COMMAND_TIMEOUT_MS);
+                if (attachment.bindings.add(world)) {
+                    client.call(target.sessionId, "Runtime.addBinding",
+                        new JSONObject().put("name", registration.optString("binding")).put("executionContextName", world), COMMAND_TIMEOUT_MS);
+                }
                 JSONObject added = client.call(target.sessionId, "Page.addScriptToEvaluateOnNewDocument",
-                    new JSONObject().put("source", registration.optString("source")).put("worldName", world).put("runImmediately", true), COMMAND_TIMEOUT_MS);
-                attachment.worlds.put(world, new String[] { added.optString("identifier"), registration.optString("source") });
+                    new JSONObject().put("source", registration.optString("source")).put("worldName", world).put("runImmediately", fresh), COMMAND_TIMEOUT_MS);
+                attachment.worlds.put(entry.getKey(), new String[] { added.optString("identifier"), registration.optString("source") });
             }
         } catch (Exception error) {
             if (attachment.target == target) Log.w(TAG, "World registration failed on tab target: " + error.getMessage());

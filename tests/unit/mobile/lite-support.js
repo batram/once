@@ -75,6 +75,8 @@ class FakeJava {
     this.events = []
     this.requests = []
     this.stores = new Map()
+    this.patches = []
+    this.syncAnswers = new Map()
     this.pending = new Map()
     this.waiters = []
     this.nextId = 1
@@ -83,8 +85,22 @@ class FakeJava {
     this.handlers = {
       "store.read": ({ directory, name }) => ({ json: this.stores.get(`${directory}/${name}`) ?? null }),
       "store.write": ({ directory, name, json }) => { this.stores.set(`${directory}/${name}`, json) },
-      "cdp.command": (params) => { this.cdp.push(params); return this.cdpResult?.(params) ?? {} },
+      // Java merges a patch into the document on disk: parsed, keys set and removed, written back.
+      "store.patch": ({ directory, name, set, remove }) => {
+        const key = `${directory}/${name}`
+        this.patches.push({ name, set: Object.keys(set), remove })
+        const current = this.stores.has(key) ? JSON.parse(this.stores.get(key)) : {}
+        for (const [field, json] of Object.entries(set)) current[field] = JSON.parse(json)
+        for (const field of remove) Reflect.deleteProperty(current, field)
+        this.stores.set(key, JSON.stringify(current))
+      },
+      "cdp.command": (params) => {
+        this.cdp.push(params)
+        if (params.method === "Fetch.getResponseBody") return { body: Buffer.from("<html>body</html>").toString("base64"), base64Encoded: true }
+        return this.cdpResult?.(params) ?? {}
+      },
       "worlds.set": ({ registrations }) => { this.registrations = registrations },
+      "sync.set": ({ host, path, body }) => { this.syncAnswers.set(`${host}${path}`, body) },
       "page.open": (params) => { this.pages.set(params.pageId, params) },
       "page.close": ({ pageId }) => { this.pages.delete(pageId) },
       "page.post": () => undefined,

@@ -9,7 +9,8 @@ import org.json.JSONObject;
 
 /**
  * The reading page's persisted playback policy, independent of view visibility,
- * fed by the page's own media reports (LiteMediaObserver) in place of Gecko's
+ * fed by the page's media reports from Once's bridge world (`media-snapshot`,
+ * answered with `media-observe` and `media-command`) in place of Gecko's
  * MediaSession. Same preference as the GeckoView app: "reading-media" /
  * "background-playback".
  */
@@ -38,6 +39,7 @@ final class LiteBackgroundMedia implements BackgroundMediaService.Owner, Backgro
 
     void setPictureInPicture(boolean enabled) {
         inPictureInPicture = enabled;
+        observePage();
         if (!allowsBackground() && !active && state.playing) send("pause", 0);
         updateService();
     }
@@ -59,6 +61,20 @@ final class LiteBackgroundMedia implements BackgroundMediaService.Owner, Backgro
         page = sender;
         pageUrl = null;
         state.pageSeekable = false;
+        observePage();
+    }
+
+    /** Every tab's media is observed (the shell shows playing state); PiP changes what YouTube is told. */
+    private void observePage() {
+        if (page == null) return;
+        try { page.accept(new JSONObject().put("type", "media-observe").put("enabled", true).put("pictureInPicture", inPictureInPicture)); }
+        catch (Exception error) { Log.w("OnceMedia", "Could not observe page media", error); }
+    }
+
+    /** Only http(s) documents report; the shell's own pages never carry the bridge. */
+    static boolean reports(String url) {
+        String scheme = android.net.Uri.parse(url == null ? "" : url).getScheme();
+        return "https".equals(scheme) || "http".equals(scheme);
     }
 
     void detach() {
@@ -77,7 +93,7 @@ final class LiteBackgroundMedia implements BackgroundMediaService.Owner, Backgro
 
     void pageSnapshot(JSONObject snapshot) {
         String url = snapshot.optString("url", "");
-        if (!LiteMediaObserver.reports(url)) return;
+        if (!reports(url)) return;
         // The bridge world's snapshot says `playing` (or `paused`); older reports leave the state as it was.
         boolean playing = snapshot.has("playing") ? snapshot.optBoolean("playing")
             : snapshot.has("paused") ? !snapshot.optBoolean("paused") : state.playing;
@@ -139,7 +155,7 @@ final class LiteBackgroundMedia implements BackgroundMediaService.Owner, Backgro
 
     private void send(String action, double position) {
         if (page == null) return;
-        try { page.accept(new JSONObject().put("type", "media-command").put("action", action).put("position", position)); }
+        try { page.accept(new JSONObject().put("type", "media-command").put("action", action).put("position", position).put("url", pageUrl)); }
         catch (Exception error) { Log.w("OnceMedia", "Could not command page media", error); }
     }
 }

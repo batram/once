@@ -91,3 +91,59 @@ test("the catalogue entry has the MobileBrowserExtension shape", () => {
   assert.equal(catalogEntry({ ...entry, icon: null, error: "broken", hasPopup: true, permissions: [], warnings: [] }).iconDataUrl, undefined)
   assert.equal(catalogEntry({ ...entry, icon: null, error: "broken", hasPopup: true, permissions: [], warnings: [] }).disabledReason, "broken")
 })
+
+test("store documents are written as patches of the keys whose text changed", () => {
+  const { diffDocuments } = lite("liteStorage")
+  const first = diffDocuments({}, { a: 1, b: { c: [1, 2] }, skipped: undefined })
+  assert.deepEqual(first.set, { a: "1", b: '{"c":[1,2]}' })
+  assert.deepEqual(first.remove, [])
+  const second = diffDocuments(first.encoded, { a: 1, b: { c: [1, 2, 3] } })
+  assert.deepEqual(second.set, { b: '{"c":[1,2,3]}' })
+  const third = diffDocuments(second.encoded, { b: { c: [1, 2, 3] }, d: "x" })
+  assert.deepEqual(third.set, { d: '"x"' })
+  assert.deepEqual(third.remove, ["a"])
+})
+
+test("a content world's blob URL of its extension's origin is routed through the broker", () => {
+  const { mapBlobUrl } = lite("worldBootstrap")
+  const host = "0123456789abcdef0123456789abcdef"
+  const routed = `https://${host}.moz-extension.localhost/_once/blob/4b2c-uuid`
+  assert.equal(mapBlobUrl(host, `blob:https://${host}.moz-extension.localhost/4b2c-uuid`), routed)
+  assert.equal(mapBlobUrl(host, `blob:moz-extension://${host}/4b2c-uuid`), routed)
+  assert.equal(mapBlobUrl(host, "blob:https://site.test/other"), "blob:https://site.test/other")
+  assert.equal(mapBlobUrl(host, "https://site.test/x"), "https://site.test/x")
+})
+
+test("extension pages map moz-extension URLs in fetch, Request, XMLHttpRequest and element sources", () => {
+  const { mapExtensionUrls } = lite("pageBootstrap")
+  const { parseHTML } = require("linkedom")
+  const { window, document } = parseHTML("<html><body></body></html>")
+  const host = "0123456789abcdef0123456789abcdef"
+  const calls = []
+  function FakeRequest(input, init) { this.url = String(input); this.init = init }
+  class FakeXhr { open(method, url) { calls.push(["xhr", method, String(url)]) } }
+  const scope = {
+    fetch: (input) => { calls.push(["fetch", String(input instanceof URL ? input.href : input)]); return Promise.resolve() },
+    Request: FakeRequest,
+    XMLHttpRequest: FakeXhr,
+    navigator: { sendBeacon: (url) => { calls.push(["beacon", String(url)]); return true } },
+    HTMLImageElement: window.HTMLImageElement, HTMLScriptElement: window.HTMLScriptElement, HTMLIFrameElement: window.HTMLIFrameElement,
+    HTMLMediaElement: window.HTMLMediaElement, HTMLSourceElement: window.HTMLSourceElement, HTMLLinkElement: window.HTMLLinkElement,
+    HTMLAnchorElement: window.HTMLAnchorElement, Element: window.Element, URL
+  }
+  mapExtensionUrls(scope)
+  const mapped = `https://${host}.moz-extension.localhost/x.json`
+  void scope.fetch(`moz-extension://${host}/x.json`)
+  void scope.fetch(new URL(`moz-extension://${host}/x.json`))
+  void scope.fetch("https://other.test/")
+  new scope.XMLHttpRequest().open("GET", `moz-extension://${host}/x.json`)
+  scope.navigator.sendBeacon(`moz-extension://${host}/x.json`)
+  assert.deepEqual(calls, [["fetch", mapped], ["fetch", mapped], ["fetch", "https://other.test/"], ["xhr", "GET", mapped], ["beacon", mapped]])
+  assert.equal(new scope.Request(`moz-extension://${host}/x.json`, { method: "POST" }).url, mapped)
+  const image = document.createElement("img")
+  image.setAttribute("src", `moz-extension://${host}/icon.png`)
+  assert.equal(image.getAttribute("src"), `https://${host}.moz-extension.localhost/icon.png`)
+  const anchor = document.createElement("a")
+  anchor.setAttribute("href", "https://other.test/")
+  assert.equal(anchor.getAttribute("href"), "https://other.test/")
+})

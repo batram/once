@@ -131,13 +131,25 @@ export class LiteTabs implements ExtensionShellHooks {
     const existing = this.records.get(state.tabId)
     if (existing && existing.generation !== state.generation) this.removed(state.tabId)
     const previous = this.records.get(state.tabId)
+    // Java reports a tab active while its view is the visible foreground; an
+    // extension's popup or the native menu over it takes that away, but a
+    // browser's active tab stays active until another tab is selected, and
+    // the popup asks for it (`tabs.query {active: true}`).
+    const active = state.active || this.lastActive === state.tabId
     const record: TabRecord = {
       id: state.tabId, generation: state.generation, targetId: state.targetId ?? previous?.targetId ?? null,
-      windowId: 1, index: state.index, url: state.url, title: state.title, active: state.active,
+      windowId: 1, index: state.index, url: state.url, title: state.title, active,
       status: state.status, audible: state.audible, mutedInfo: { muted: state.muted },
-      incognito: false, highlighted: state.active, pinned: false
+      incognito: false, highlighted: active, pinned: false
     }
     this.records.set(state.tabId, record)
+    if (active && this.lastActive !== undefined && this.lastActive !== record.id) {
+      const former = this.records.get(this.lastActive)
+      if (former) {
+        former.active = false
+        former.highlighted = false
+      }
+    }
     const tab = this.snapshot(record)
     if (!previous) {
       this.emit("tabs", "onCreated", [tab])

@@ -72,6 +72,8 @@ export interface StartParams {
   token: string
   /** Where the manager and each extension keep their JSON documents. */
   storageRoot: string
+  /** Whether Java holds a usable DevTools connection; false is Tier 2. */
+  devtools?: boolean
 }
 
 export interface StartResult {
@@ -199,16 +201,33 @@ export interface CdpCommandParams {
 }
 
 export interface WorldRegistration {
+  /** Java keys installed scripts by this: `<worldName>` for the bootstrap, `<worldName>#dynamic` for registered scripts. */
+  id: string
   worldName: string
-  /** Installed with `Page.addScriptToEvaluateOnNewDocument {source, worldName, runImmediately: true}`. */
+  /**
+   * Installed with `Page.addScriptToEvaluateOnNewDocument {source, worldName}`;
+   * `runImmediately` only when a target is first attached (a later change
+   * reaches new documents only, as on Electron).
+   */
   source: string
-  /** `Runtime.addBinding {name, executionContextName: worldName}`. */
+  /** `Runtime.addBinding {name, executionContextName: worldName}`, once per world. */
   binding: string
 }
 
 export interface WorldsSetParams {
   /** The full set for every tab target; Java removes what is no longer listed. */
   registrations: WorldRegistration[]
+  /**
+   * The page bootstrap for frames of tab WebViews at an extension's origin
+   * (uBlock's element picker): `addDocumentStartJavaScript(source, [origin])`.
+   */
+  pages: TabPageRegistration[]
+}
+
+export interface TabPageRegistration {
+  host: string
+  origin: string
+  documentStartSource: string
 }
 
 export interface PageOpenParams {
@@ -252,8 +271,28 @@ export interface StoreReadParams {
   name: string
 }
 
+/** A value too large for one message travels beforehand through `onceLiteFiles.writeChunk(token, text)`. */
+export type StoreValue = string | { chunked: string }
+
 export interface StoreWriteParams extends StoreReadParams {
-  json: string
+  json: StoreValue
+}
+
+/** `store.read`: the text, or a token to read it through `onceLiteFiles.readChunk(token)`. */
+export interface StoreReadResult {
+  json: string | null
+  chunked?: string
+}
+
+/**
+ * A partial write: Java merges `set` (key → JSON text of the value) and
+ * `remove` into the document on disk. uBlock's storage.json runs to tens of
+ * megabytes, so whole-document writes would cross the channel dozens of
+ * times during a list reload.
+ */
+export interface StorePatchParams extends StoreReadParams {
+  set: Record<string, StoreValue>
+  remove: string[]
 }
 
 export interface ConfirmParams {
@@ -274,6 +313,21 @@ export interface UnzipResult {
   entries: { name: string; isDirectory: boolean; size: number }[]
 }
 
+/**
+ * An answer Java serves itself, from memory, to a content world's
+ * synchronous request at `https://<host>.moz-extension.localhost<path>`:
+ * every WebView shares one renderer main thread, so a request that blocks
+ * a tab can never be answered by the broker. The broker prepares these
+ * before a document continues (`/_once/dynamic`: the extension's registered
+ * scripts; `/_once/blob/<id>`: a blob Violentmonkey made for the document).
+ */
+export interface SyncAnswerParams {
+  host: string
+  path: string
+  /** The JSON text to serve, or null to forget the answer. */
+  body: string | null
+}
+
 export interface LogParams {
   level: "log" | "warn" | "error"
   message: string
@@ -282,11 +336,30 @@ export interface LogParams {
 // ---------------------------------------------------------------------------
 // Broker ↔ extension page (over `onceLitePage`).
 
-export type PageToBrokerMessage =
+export type PageToBrokerMessage = (
   | { type: "invoke"; id: number; api: string; method: string; args: unknown[] }
   | { type: "listen"; change: ListenerChange }
   | { type: "reply"; token: number; result: unknown[] }
   | { type: "popup-size"; width: number; height: number }
+) & {
+  /** The frame's `location.href` (https form); Java reports only the origin of subframes. */
+  href?: string
+}
+
+/** Internal event the broker sends an extension page: read one of its blob URLs. */
+export const BLOB_API = "__liteBlob"
+/** Where a content world's request for the extension's `blob:` URL is routed. */
+export const BLOB_PATH = "/_once/blob/"
+/**
+ * Where a content world asks, synchronously at document start, for the
+ * extension's registered scripts: `?u=<document URL without fragment>`. Java
+ * answers a per-document entry (full URL, served once) before the host's.
+ */
+export const DYNAMIC_PATH = "/_once/dynamic"
+
+export function dynamicAnswerPath(documentUrl: string): string {
+  return `${DYNAMIC_PATH}?u=${encodeURIComponent(documentUrl.split("#")[0])}`
+}
 
 export type BrokerToPageMessage =
   | { type: "result"; id: number; result: ExtensionInvokeResult }
@@ -314,8 +387,29 @@ export type BrokerToWorldMessage =
 export interface WorldConfig {
   init: ExtensionContextInit
   token: string
-  /** Every content script of the extension, matched inside the world. */
+  /** The manifest's content scripts, matched inside the world. */
   scripts: WorldScript[]
+}
+
+/**
+ * Scripts registered at run time (`contentScripts.register`, `scripting`).
+ * A world asks for them with a synchronous request to
+ * `<page origin>/_once/dynamic?u=<frame url>` at document start, which the
+ * broker answers at the Fetch request stage, so uBlock's scriptlets
+ * (registered during the document's held `onResponseStarted`) run before
+ * the page's own scripts. A DevTools command on the target would deadlock
+ * while its navigation is paused, so nothing is installed that way.
+ */
+export interface WorldDynamicConfig {
+  host: string
+  scripts: WorldScript[]
+  /**
+   * A cookie the world sets on its document at document start (`name=value`),
+   * for the one answer prepared per document: Violentmonkey's content script
+   * finds the blob id of its injection there, since a `Set-Cookie` added to
+   * the response through DevTools is not stored by Chromium.
+   */
+  cookie?: string
 }
 
 export interface WorldScript {

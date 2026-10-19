@@ -91,6 +91,9 @@ test("the world greets the broker, runs matching scripts and styles, and answers
       assert.equal(document.querySelectorAll("style").length, 1)
       scope[WORLD_DELIVER](JSON.stringify({ type: "event", message: { api: "__content", event: "executeScript", args: [{ code: "1 + 2" }], token: 10 } }))
       assert.deepEqual(sent.at(-1), { host: HOST, type: "reply", token: 10, result: [3] })
+      // Scripts run with a sandbox as `this`: not the world's window, forwarding to it, and its own `window`.
+      scope[WORLD_DELIVER](JSON.stringify({ type: "event", message: { api: "__content", event: "executeScript", args: [{ code: "[this !== window, this.document === document, typeof this.setTimeout]" }], token: 11 } }))
+      assert.deepEqual(sent.at(-1), { host: HOST, type: "reply", token: 11, result: [[true, true, "function"]] })
     })
   })
 }))
@@ -136,4 +139,35 @@ test("blank frames match by their top URL only with match_about_blank and inheri
   assert.equal(selectScripts(scripts, { url: "about:blank", topUrl: "https://www.site.test/", isTop: false }).length, 1)
   assert.equal(selectScripts(scripts, { url: "about:blank", topUrl: "https://other.test/", isTop: false }).length, 0)
   void window
+}))
+
+test("registered scripts are asked for synchronously at boot and run like the manifest's", () => withDom("https://www.site.test/page", ({ sent, boot, scope }) => {
+  const { addDynamicScripts } = lite("worldBootstrap")
+  delete globalThis.__dynamicRan
+  let cookies = ""
+  Object.defineProperty(document, "cookie", { configurable: true, get: () => cookies, set: (value) => { cookies += `${value.split(";")[0]}; ` } })
+  const requests = []
+  class FakeXhr {
+    open(method, url, async) { requests.push([method, url, async]) }
+    send() {
+      this.status = 200
+      this.responseText = JSON.stringify({ host: HOST, cookie: `${HOST}=blob-1`, scripts: [script({ js: [{ url: "d", code: "globalThis.__dynamicRan = (globalThis.__dynamicRan || 0) + 1" }], css: [] })] })
+    }
+  }
+  scope.XMLHttpRequest = FakeXhr
+  try {
+    const world = boot(config([]))
+    assert.deepEqual(requests, [["GET", `https://${HOST}.moz-extension.localhost/_once/dynamic?u=${encodeURIComponent("https://www.site.test/page")}`, false]])
+    assert.equal(globalThis.__dynamicRan, 1, "the registered script ran at document start")
+    assert.ok(String(document.cookie).includes(`${HOST}=blob-1`), `the document got the cookie: ${document.cookie}`)
+    addDynamicScripts({ host: "other", scripts: [script({ js: [{ url: "d3", code: "globalThis.__dynamicRan += 100" }], css: [] })] }, scope)
+    assert.equal(globalThis.__dynamicRan, 1, "another extension's scripts are not this world's")
+    // A second boot in the same context is a no-op that hands back the same world.
+    const again = boot(config([script({})]))
+    assert.equal(again, world)
+    assert.equal(sent.filter((m) => m.type === "hello").length, 1)
+    assert.equal(requests.length, 1)
+  } finally {
+    Reflect.deleteProperty(scope, "XMLHttpRequest")
+  }
 }))

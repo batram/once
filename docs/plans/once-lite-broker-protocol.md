@@ -43,11 +43,11 @@ answered. Order within the channel is preserved; nothing else is.
 
 | Method | Params | Result | Notes |
 | --- | --- | --- | --- |
-| `lite.start` (request) | `{bundled: [{id, directory, present}], locale, arch, token, storageRoot}` | `{ready: true, extensions: CatalogEntry[]}` | Once per broker page, after the broker's `broker.hello` event. `bundled` lists the shipped extensions (ids from `scripts/fetch-extensions.js`: `uBlock0@raymondhill.net` in `ublock-origin`, `{aecec67f-0d10-4fa7-b7c7-609a2db280cf}` in the plain `violentmonkey` bundle, **not** the Gecko-adapted `android/violentmonkey`); `directory` is whatever string `onceLiteFiles.read` resolves (an `asset:` prefix for APK assets is Java's own convention). `token` is a random secret (32+ hex chars) generated per app process and also given to the bridge/main helper scripts. `storageRoot` is the directory JSON stores live under (`<files>/lite-extensions`). The broker restores the catalogue, loads enabled extensions (opening their background pages) and installs the world registrations before answering. |
-| `extension.command` (request) | `{action, id?, source?, enabled?, file?}` | `{extensions?, cancelled?, noPage?}` | The shell's `extensionCommand` verbatim (`MobileExtensionCommand`). `list` answers the catalogue in the exact `MobileBrowserExtension` shape (`id, name, iconDataUrl?, description, version, enabled, bundled, hasOptions, hasAction, permissions, disabledReason`). `install {source}` previews an AMO listing/XPI URL, asks `ui.confirm`, installs. `chooseFile` asks `ui.pickFile` unless `file` is given, then the same. `enable {id, enabled}`, `remove {id}` (confirmed), `update {id}`, `options {id}` and `action {id}` (answer `noPage: true` when the extension has no such page; `action` without a popup fires `browserAction.onClicked`). Errors are answered as request errors; `code: "INVALID_SOURCE"` for a source that is neither AMO nor a file. |
+| `lite.start` (request) | `{bundled: [{id, directory, present}], locale, arch, token, storageRoot, devtools}` | `{ready: true, extensions: CatalogEntry[]}` | Once per broker page, after the broker's `broker.hello` event. `bundled` lists the shipped extensions (ids from `scripts/fetch-extensions.js`: `uBlock0@raymondhill.net` in `ublock-origin`, `{aecec67f-0d10-4fa7-b7c7-609a2db280cf}` in the plain `violentmonkey` bundle, **not** the Gecko-adapted `android/violentmonkey`); `directory` is whatever string `onceLiteFiles.read` resolves (an `asset:` prefix for APK assets is Java's own convention). `token` is a random secret (32+ hex chars) generated per app process and also given to the bridge/main helper scripts. `storageRoot` is the directory JSON stores live under (`<files>/lite-extensions`); `devtools` says whether Java holds a usable DevTools connection (false is Tier 2). The broker restores the catalogue, loads enabled extensions (opening their background pages) and installs the world registrations before answering. |
+| `extension.command` (request) | `{action, id?, source?, enabled?, file?}` | `{extensions?, cancelled?, noPage?}` | The shell's `extensionCommand` verbatim (`MobileExtensionCommand`). `list` answers the catalogue in the exact `MobileBrowserExtension` shape (`id, name, iconDataUrl?, description, version, enabled, bundled, hasOptions, hasAction, permissions, disabledReason`). `install {source}` previews an AMO listing/XPI URL, asks `ui.confirm`, installs. `chooseFile` asks `ui.pickFile` unless `file` is given, then the same (Java's plugin runs the picker itself and sends `chooseFile {file}`; `ui.pickFile` answers `{}`, which is a cancel). `enable {id, enabled}`, `remove {id}` (confirmed), `update {id}`, `options {id}` and `action {id}` (answer `noPage: true` when the extension has no such page; `action` without a popup fires `browserAction.onClicked`). Errors are answered as request errors; `code: "INVALID_SOURCE"` for a source that is neither AMO nor a file. |
 | `extensions.list` (request) | – | `CatalogEntry[]` | The catalogue alone. |
-| `settings.apply` (request) | `{filterLists, userscripts}` | – | The shell's `applyExtensionSettings` documents. Filter lists are handed to uBlock Origin through its dashboard port; userscripts are **not** applied here (the `GeckoViolentmonkey` hand-off below does that), see `liteSettings.ts`. |
-| `violentmonkey.send` (request) | `{cmd, data?}` | `{value}` | `LiteViolentmonkeyPlugin.send`. Error `code: "NOT_RUNNING"` while Violentmonkey is not loaded. `OnceReadRecords`/`OnceWriteRecords` are answered from the Violentmonkey host's JSON store (`once-relay-records.json`); every other command is sent to Violentmonkey's background as a runtime message from a privileged `VirtualContext`. |
+| `settings.apply` (request) | `{filterLists, userscripts}` | – | The shell's `applyExtensionSettings` documents. Filter lists are handed to uBlock Origin through its dashboard port (`getLists`, `applyFilterListSelection`, `reloadAllFilters`, which uBlock answers after loading); the broker then asks `getLists` once more, which uBlock answers only with its lists in force, before answering this request (30 s bound). Userscripts are **not** applied here (the `GeckoViolentmonkey` hand-off below does that), see `liteSettings.ts`. |
+| `violentmonkey.send` (request) | `{cmd, data?}` | `{value}` | `LiteViolentmonkeyPlugin.send`. Error `code: "NOT_RUNNING"` while Violentmonkey is not loaded. `OnceReadRecords`/`OnceWriteRecords` are answered from the Violentmonkey host's JSON store (`once-relay-records.json`); every other command is sent to Violentmonkey's background as a runtime message from a privileged `VirtualContext`. When Violentmonkey's background starts listening the broker sends it `SetOptions {xhrInject: true}` (synchronous page mode, as the Gecko relay did) and only then raises `violentmonkey.connected`. |
 | `violentmonkey.handingOff` (request) | – | – | Holds every tab main-frame document request at the `Fetch` request stage until `settled` (60 s safety release). |
 | `violentmonkey.settled` (request) | – | – | Releases them. |
 
@@ -86,6 +86,13 @@ itself.
 `moz-extension://` URL passed to `tabs.create`/`tabs.update` opens an
 extension page (`page.open`) instead of navigating a tab.
 
+Tab main-frame documents are held at the `Fetch` request stage while the
+Violentmonkey hand-off is in progress (`violentmonkey.handingOff` … `settled`)
+and, after uBlock Origin loads, until its background answers `getLists` for
+the first time (its start-up has loaded the lists by then; 20 s bound): a
+document let through earlier would go unfiltered, since uBlock's own
+suspending listener holds requests longer than the router's blocking timeout.
+
 ## Targets and DevTools events
 
 Java attaches to every WebView through the browser endpoint
@@ -106,11 +113,9 @@ Per attached tab and page target Java enables and forwards:
 - `Network.enable`: `Network.requestWillBeSent` (only ones carrying `redirectResponse` matter), `Network.loadingFinished`, `Network.loadingFailed`.
 - `Fetch.enable {patterns: [{urlPattern: "*", requestStage: "Request"}, {urlPattern: "*", requestStage: "Response"}], handleAuthRequests: false}`: `Fetch.requestPaused`.
 
-The broker target itself needs none of these. **TBD**: whether `Fetch.enable`
-is issued once on the browser target (covers workers) or per page target; the
-broker handles either since every `requestPaused` arrives with a `targetId`
-(for a browser-level enable Java must resolve the target from `networkId`/the
-session and may pass the owning tab's target id).
+The broker target itself needs none of these. `Fetch.enable` is issued per
+page target (LiteDevToolsTest proved it there; workers are not covered yet).
+Every `requestPaused` arrives with a `targetId`.
 
 | Request (broker → Java) | Params | Result |
 | --- | --- | --- |
@@ -124,7 +129,7 @@ stable positive integer per other frame it has met.
 
 | Request (broker → Java) | Params |
 | --- | --- |
-| `worlds.set` | `{registrations: [{worldName, source, binding}]}` — the full set, one per loaded extension. Java applies it to every current and future **tab** target: for each registration `Page.addScriptToEvaluateOnNewDocument {source, worldName, runImmediately: true}` and `Runtime.addBinding {name: binding, executionContextName: worldName}`; registrations no longer listed are removed with `Page.removeScriptToEvaluateOnNewDocument` (Java keeps the script identifiers). The set is resent whenever an extension loads, unloads or changes its content scripts (`contentScripts.register`, `scripting.registerContentScripts`). |
+| `worlds.set` | `{registrations: [{worldName, source, binding}], pages: [{host, origin, documentStartSource}]}` — the full set, one per loaded extension. Java applies it to every current and future **tab** target: for each registration `Page.addScriptToEvaluateOnNewDocument {source, worldName, runImmediately: true}` and `Runtime.addBinding {name: binding, executionContextName: worldName}`; registrations no longer listed are removed with `Page.removeScriptToEvaluateOnNewDocument` (Java keeps the script identifiers). The set is resent whenever an extension loads, unloads or changes its content scripts (`contentScripts.register`, `scripting.registerContentScripts`). |
 
 The `source` is the built `lite-world-bootstrap.js` followed by a boot call
 with the extension's identity and every one of its content scripts (static
@@ -136,7 +141,69 @@ inserted as author-origin `<style>` elements; `tabs.executeScript`,
 `insertCSS`, `removeCSS` and `scripting.*` arrive as `__content` events. The
 world reads the bundle text through `onceLiteFiles.read("@bundle", "lite-world-bootstrap.js")`.
 
+Scripts run with a sandbox object as `this` rather than the world's global,
+through a direct `eval` in a sloppy function (a script's completion value is
+what `tabs.executeScript` answers; top-level declarations are local to the
+script). The sandbox forwards to the world's global: reads with the global
+as receiver (the window's accessors refuse any other) and its native methods
+bound to it, writes and definitions onto the global, and a name the world
+does not have is read from the page through `wrappedJSObject`. Its `window`,
+`self`, `top` and the like are the sandbox itself. Bare names resolve to the
+world's globals through the scope chain as usual. Violentmonkey hands `this`
+to userscripts as `unsafeWindow`, so a content-mode userscript reads page
+globals through it while it stays distinct from the world's `window`; its
+browser detection (`this !== this.window` means Firefox) keeps it on its
+Chrome path, whose page bridge needs no xray wrappers (`exportFunction` and
+`cloneInto` are identity shims all the same).
+A `tabs.executeScript {runAt:
+"document_start"}` call for a document the broker is still holding at the
+response stage (Firefox queues it for the coming document) is queued into
+that document's per-document `/_once/dynamic` answer instead of being
+delivered to a context that does not exist yet; it answers `[null]`.
+
 World → broker messages (the binding payload, JSON): `{host, type: "hello", url, topUrl, creatorUrl, matched}` when a frame's bootstrap starts (registers the context), `invoke {id, api, method, args}`, `listen {change}`, `reply {token, result}`, `main-eval {code}` (a scriptlet the page's `<meta>` policy refused, run by the broker in the frame's main world). Broker → world (`__onceLiteDeliver`): `{type: "result", id, result}` and `{type: "event", message}`.
+
+### Synchronous answers (registered scripts, Violentmonkey's blobs)
+
+Every WebView of the app shares one renderer main thread, so a request that
+blocks a tab (a synchronous `XMLHttpRequest` at document start) can never
+be answered by the broker, which runs in that renderer too. Answers a world
+needs synchronously are therefore prepared by the broker ahead of time and
+served by **Java** from memory at the `Fetch` request stage, never
+forwarded: `sync.set {host, path, body | null}` stores (or forgets) the JSON
+text Java fulfils for `https://<host>.moz-extension.localhost<path>` (200,
+`application/json`, `Cache-Control: no-store`, `Access-Control-Allow-Origin: *`;
+404 when nothing is stored; blob answers are served once). The broker
+flushes them before it continues a document's response.
+
+- `/_once/dynamic?u=<document URL without fragment>`: the extension's
+  scripts registered at run time (`contentScripts.register`, `scripting.*`)
+  plus the `executeScript` calls queued for that document, as
+  `{host, scripts: WorldScript[], cookie?}`. The world bootstrap asks for
+  them with a synchronous request at document start (for `http(s)` documents
+  only) and matches and schedules them like the manifest's, so uBlock's
+  scriptlets, registered during the document's held `onResponseStarted`,
+  run before the page's own scripts. Java serves an entry stored under the
+  full URL (one document, served once) before the host's path entry. The
+  document's `connect-src` (or `default-src`) is widened to the extension
+  origins so the request passes the page's policy. Registrations are
+  **not** re-installed through `Page.addScriptToEvaluateOnNewDocument` for
+  this: a DevTools command on a target whose navigation is paused does not
+  return.
+- `/_once/blob/<id>`: Violentmonkey's synchronous injection. Its
+  `onHeadersReceived` listener adds `Set-Cookie: <host>=<blob id>` to a
+  document it prepared scripts for (from `onSendHeaders`, which the broker
+  raises before the request goes on; the listener is asked again a few
+  times, 25 ms apart, when the headers beat its preparation), in a blob of
+  its own origin. The broker reads that blob through the background page
+  (`__liteBlob` event over the page channel, answered with its text) and
+  hands it to Java under the id before the document continues, together
+  with the document's `/_once/dynamic` entry carrying `cookie:
+  "<host>=<id>"`, which the world sets on the document at document start:
+  Chromium does not store a `Set-Cookie` added through `Fetch.continueResponse`.
+  The content world's request for `blob:<origin>/<id>` (either form of the
+  origin) is rewritten to this path by the world bootstrap, since a blob URL
+  is origin-bound in Chromium.
 
 `wrappedJSObject` in a world is a proxy whose `get`/`has`/`deleteProperty`
 go through a synchronous DOM event channel to the main-world helper
@@ -155,7 +222,17 @@ it). `n = sha256(token + "|" + documentUrlWithoutFragment).slice(0, 32)`; the
 world computes the same from `location.href` (its parent's for blank frames)
 and stamps it on the inline `<script>` it inserts. A document with only a
 `<meta>` policy refuses the script; the world detects that synchronously (a
-marker the script sets) and sends `main-eval` instead.
+marker the script sets) and sends `main-eval` instead. The world stamps the
+nonce through patched `createElement` and `createElementNS` so scripts the
+extensions create (uBlock's scriptlet injector) carry it too.
+
+Chromium enforces the policy of the **original** response headers, not the
+ones passed to `Fetch.continueResponse`. A document whose policy the broker
+changed (nonce, `connect-src` widening, an extension's `onHeadersReceived`
+edit) is therefore re-delivered: `Fetch.getResponseBody` and
+`Fetch.fulfillRequest` with the edited headers (`content-length`,
+`content-encoding` and `transfer-encoding` dropped). Unchanged documents
+are continued as usual.
 
 ## Extension pages
 
@@ -192,14 +269,28 @@ Page bootstrap (`lite-page-bootstrap.js`, prefixed by
 `pageUrlFromExtensionUrl`, `extensionUrlFromPageUrl`, `pageHostOf`,
 `pageOrigin` in `protocol.ts`; Java's `LiteExtensionPages.isExtensionUrl`
 accepts both. Extension pages see the https form in `location` and the
-`moz-extension` form from `runtime.getURL`; content worlds get the https
-form from `runtime.getURL` so the URLs they put into the DOM load.
+`moz-extension` form from `runtime.getURL`; the page bootstrap maps
+`moz-extension://` URLs the page hands to `fetch`, `Request`,
+`XMLHttpRequest.open`, `navigator.sendBeacon`, the `src`/`href` setters of
+images, scripts, frames, media, sources, links and anchors, and
+`setAttribute("src"|"href")` to the https form, since the WebView cannot load
+the scheme. Content worlds get the https form from `runtime.getURL` so the
+URLs they put into the DOM load. Every page message carries `href`, the
+frame's `location.href`, because Java knows only a subframe's origin; the
+broker takes it as the frame's URL when its host matches.
 
-Tab WebViews must also get the page bootstrap for extension origins:
-**TBD** — the broker will send `worlds.set` with an additional
-`pages: [{host, origin, documentStartSource}]` list Java installs with
-`addDocumentStartJavaScript(source, [origin])` on tab WebViews; until then
-the element picker frame runs without `browser`.
+Own-page requests the broker fulfils (the extension's files to its own
+WebViews, and its reads of `moz-extension://` URLs, which Chromium treats as
+another origin than the https one) carry Electron's CORS grant:
+`Access-Control-Allow-Origin: https://<host>.moz-extension.localhost`,
+`-Credentials: true`, `-Headers/-Methods/-Expose-Headers: *`. Web-accessible
+resources served to tabs carry `Access-Control-Allow-Origin: *`.
+
+Tab WebViews also get the page bootstrap for extension origins: `worlds.set`
+carries `pages: [{host, origin, documentStartSource}]` (kind `page`), which
+Java installs with `addDocumentStartJavaScript(source, [origin])` on every
+tab WebView, and `LitePage.listenInTab` carries those frames' messages as
+`pageId: "tab:<tabId>"`.
 
 ## webRequest
 
@@ -234,13 +325,17 @@ is not possible over this round trip.
 string `{"text": "..."}` for text types (`.js .mjs .css .json .html .htm .txt .xml .svg .map`), `{"base64": "..."}` otherwise, or `null` when missing. `directory` may be a bundled asset directory, a package directory under `<storageRoot>/packages/<token>`, a staging directory, or `"@bundle"` for the built `lite-*.js` files from the web assets. **TBD**: a `files.preload {directory}` request answering `{files: {path: {text|base64}}}` for the manifest, locales and content scripts so loads never block on the interface; the reader already takes such a map.
 
 JSON stores (one document per name, atomic replace via temp file + rename):
-`store.read {directory, name}` → `{json: string | null}`; `store.write {directory, name, json}`. Directories: `<storageRoot>/manager` (`installed.json`), `<storageRoot>/<host>` (`storage.json`, `sync.json`, `dnr.json`, `once-filter-lists.json`, `once-relay-records.json`).
+`store.read {directory, name}` → `{json: string | null}`; `store.write {directory, name, json}` (whole document);
+`store.patch {directory, name, set: {key: jsonText}, remove: [keys]}` (Java merges the top-level keys into the
+document on disk, splitting it one level deep into key → raw text once and keeping that map between patches, so
+uBlock's tens of megabytes are never parsed into an object tree). The broker writes a plain-object document whole
+the first time and as patches of the keys whose JSON text changed afterwards; a failed patch makes the next write whole. Directories: `<storageRoot>/manager` (`installed.json`), `<storageRoot>/<host>` (`storage.json`, `sync.json`, `dnr.json`, `once-filter-lists.json`, `once-relay-records.json`).
 
 Packages: `files.mkdir {directory, path}`, `files.write {directory, path, base64}` (must refuse to overwrite), `files.remove {directory}`, `files.list {directory}` → `{entries: [names]}`; `package.fetch {url}` → `{status, headers, bodyBase64}` (HTTPS only, no credentials, redirects **not** followed — answer the 3xx so the broker re-requests; cap 33 MB); `package.readArchive {file}` → `{base64}`; `onceLiteFiles.unzip(token, archiveBase64)` unpacks with `java.util.zip` into `<storageRoot>/packages/.staging/<token>/`, refusing entries whose normalised path leaves it, and returns `{"entries": [{name, isDirectory, size}]}` (names `/`-separated, directories with a trailing slash); the broker then reads each entry back with `onceLiteFiles.read(stagingDirectory, name)` and writes it into the final directory through `files.write`, after the shared validation. Staging directories may be removed by Java on the next start. SHA-256 is computed in the broker.
 
 ## Cookies
 
-`cookies.get {url?, name?, domain?, path?, secure?, session?}` → `{cookies: Network.Cookie[]}` (Java: `Network.getCookies` on the browser target, filtered); `cookies.set {url, name?, value?, domain?, path?, secure?, httpOnly?, expirationDate?, sameSite?}` (Java: `CookieManager.setCookie` with a Set-Cookie line built from the details, then `flush`); `cookies.remove {url, name}` (Java: `Network.deleteCookies {name, url}`); event `cookies.changed {removed, cookie, cause}` from Java (**TBD** mechanism: diffing `Network.getCookies` after writes and after `Network.responseReceivedExtraInfo` with `set-cookie`).
+`cookies.get {url?, name?, domain?, path?, secure?, session?}` → `{cookies: Network.Cookie[]}` (Java: `Network.getCookies` on the broker page's session, the browser target does not take `Network.*`, filtered); `cookies.set {url, name?, value?, domain?, path?, secure?, httpOnly?, expirationDate?, sameSite?}` (Java: `CookieManager.setCookie` with a Set-Cookie line built from the details, then `flush`); `cookies.remove {url, name}` (Java: `Network.deleteCookies {name, url}`); event `cookies.changed {removed, cookie, cause}` from Java (diffing `Network.getCookies` after its own writes and after a `Network.responseReceivedExtraInfo` carrying `set-cookie`).
 
 ## Alarms and timers
 
@@ -254,14 +349,14 @@ The broker's `setTimeout` for delays ≥ 5 s is backed by Java (`timer.set {time
 
 Java installs on every tab target, independently of the broker:
 
-- `lite-bridge-world.js` in world `once-bridge` (`Page.addScriptToEvaluateOnNewDocument {worldName: "once-bridge", runImmediately: true}`), with `Runtime.addBinding {name: "onceLiteBridge", executionContextName: "once-bridge"}`, the source wrapped as `(function (ONCE_LITE_TOKEN) { <bundle> })("<token>")`. Messages to Java (binding payload, JSON) keep the Gecko names: `{type: "health", id, url, readyState, restored, context: null}`, `{id, value}` / `{id, error}` for `{id, code}` evaluations, `image-text`, `image-text-request`, `media-snapshot`, `pip-request`. Java delivers `{type: "health", id}`, `{id, code}`, `media-observe`, `media-command`, `pip-capability`, `pip-state`, `pip-result` with `Runtime.evaluate {expression: "__onceLiteBridgeDeliver(<json>)", contextId}` in the bridge context of the top frame (the world sends `health` first thing so Java learns the context id from `Runtime.bindingCalled`). `context` (the document provenance the Gecko background computed from webRequest) is `null` here; Java fills it from its own navigation record (**TBD** field shape).
+- `lite-bridge-world.js` in world `once-bridge` (`Page.addScriptToEvaluateOnNewDocument {worldName: "once-bridge", runImmediately: true}`), with `Runtime.addBinding {name: "onceLiteBridge", executionContextName: "once-bridge"}`, the source wrapped as `(function (ONCE_LITE_TOKEN) { <bundle> })("<token>")`. Messages to Java (binding payload, JSON) keep the Gecko names: `{type: "health", id, url, readyState, restored, context: null}`, `{id, value}` / `{id, error}` for `{id, code}` evaluations, `image-text`, `image-text-request`, `media-snapshot {url, title, artist, playing, duration, position, rate, seekable, videoWidth, videoHeight}` (sent while `media-observe {enabled: true}` is in force, throttled to one a second except on play/pause; `playing: false` on pagehide), `pip-request`. Java delivers `{type: "health", id}`, `{id, code}`, `media-observe {enabled, pictureInPicture}`, `media-command {action: "play" | "pause" | "seek", position?, url?}` (`url`, when given, must be the document's), `pip-capability`, `pip-state`, `pip-result` with `Runtime.evaluate {expression: "__onceLiteBridgeDeliver(<json>)", contextId}` in the bridge context of the top frame (the world sends `health` first thing so Java learns the context id from `Runtime.bindingCalled`). `context` (the document provenance the Gecko background computed from webRequest) is `null` here; Java fills it from its own navigation record (**TBD** field shape).
 - `lite-pip-main.js` in the main world (no `worldName`), wrapped the same way: the standard PiP polyfill (`requestPictureInPicture`, `exitPictureInPicture`, `pictureInPictureEnabled/Element`, the enter/leave events), the YouTube outer-size shim, and the `wrappedJSObject` answerer for content worlds. It talks to the bridge world only through token-scoped `CustomEvent`s on `document`.
 
 ## Java obligations, in build order
 
-1. **Broker page**: load `https://localhost/lite-runtime.html` in a hidden WebView kept in a 1×1 visible container; `addWebMessageListener("onceLite")`, `addJavascriptInterface(files, "onceLiteFiles")` (`read`, `unzip`); on `broker.hello` send `lite.start`. Implement `log`, `timer.*`, `store.read/write`, `files.*`, `ui.confirm`, `ui.pickFile`. Wire `extensionCommand` → `extension.command`, `applyExtensionSettings` → `settings.apply`, `extensions.changed` → plugin event. (CDP: none.)
+1. **Broker page**: load `https://localhost/lite-runtime.html` in a hidden WebView kept in a 1×1 visible container; `addWebMessageListener("onceLite")`, `addJavascriptInterface(files, "onceLiteFiles")` (`read`, `unzip`, `writeChunk`, `readChunk`); on `broker.hello` send `lite.start`. Implement `log`, `timer.*`, `store.read/write/patch` (chunked values and reads), `files.*`, `ui.confirm`, `ui.pickFile`, `sync.set`. Wire `extensionCommand` → `extension.command`, `applyExtensionSettings` → `settings.apply`, `extensions.changed` → plugin event. (CDP: none.)
 2. **DevTools fan-out**: on every tab/page WebView attach, send `target.attached` with `Page.getFrameTree`; enable `Page`, `Runtime`, `Network`, `Fetch` (patterns above) and forward the listed events as `cdp.event`; answer `cdp.command` by issuing the command on that target's session. Report tabs with `tab.changed`/`tab.removed` and answer `tab.create/update/remove/reload`.
-3. **Worlds**: apply `worlds.set` to every tab target (`Page.addScriptToEvaluateOnNewDocument` + `Runtime.addBinding`, removal on change); forward `Runtime.bindingCalled` (already covered by 2).
+3. **Worlds**: apply `worlds.set` to every tab target (`Page.addScriptToEvaluateOnNewDocument` keyed by registration `id`, `runImmediately` only when the target is first bound, `Runtime.addBinding` once per world, removal on change); send `target.attached` and the queued events before installing them (a script run immediately may make a synchronous request only Java answers); answer `https://<host>.moz-extension.localhost/_once/…` requests from the `sync.set` store at the Fetch request stage without forwarding them; forward `Runtime.bindingCalled` (already covered by 2).
 4. **Extension pages**: `page.open/close/post/resize`, the `onceLitePage` listener per frame with numbered frames, `page.message/loaded/closed/console`, the Firefox user agent, popup placement and sizing, `page.open` for `kind: "page"`/`"options"` into the shell's extension page frame (`extensionPage` plugin contract).
 5. **Violentmonkey plugin**: relay `send/handingOff/settled` to `violentmonkey.*` requests, map `NOT_RUNNING`, fire `connected`/`dashboardChanged` from the events.
 6. **Packages**: `package.fetch` (HttpsURLConnection, manual redirects), `package.readArchive` (content resolver), `onceLiteFiles.unzip`.
@@ -273,7 +368,12 @@ Java installs on every tab target, independently of the broker:
 - Listener registration (`addListener`) is asynchronous to the broker (Electron's is `sendSync`); ordering within a context is preserved, which is what the runtime relies on.
 - Content worlds see https URLs from `runtime.getURL`; pages see `moz-extension://`.
 - `wrappedJSObject` is JSON-only and observable by the page through the event channel.
-- `extension.getBackgroundPage`/`runtime.getBackgroundPage` throw: the background page is another WebView.
+- `extension.getBackgroundPage` returns `null` and `runtime.getBackgroundPage` resolves `null` (as Firefox answers where the page is out of reach): the background page is another WebView; Violentmonkey's pages then fall back to `runtime.sendMessage`.
 - Scriptlets under a `<meta>`-only CSP run through DevTools main-world evaluation (not subject to the page CSP), slightly later than a `<script>` insertion would.
 - `tabs.move` is a no-op; one window.
 - Userscripts are not applied by the settings coordinator (see `settings.apply`).
+- Extension pages: `moz-extension://` URLs are mapped to https in the request and element APIs listed above; code that compares such URLs with `location` must map one side (`location` is https).
+- Violentmonkey runs in synchronous page mode (`xhrInject`), its blobs read through the broker; Electron's worlds read them directly. Its `Set-Cookie` blob name reaches the document through the per-document answer, not the cookie jar.
+- Content scripts run with a sandbox `this` and a direct `eval` (see Content worlds): `this !== window`, `this.window === this`, unknown names read from the page; `exportFunction`/`cloneInto` are identity shims.
+- Documents whose policy the broker changes are re-delivered with `Fetch.fulfillRequest` (body re-read through DevTools), since Chromium ignores header edits from `Fetch.continueResponse` for CSP.
+- The catalogue lists bundled extensions first, in bundle order (uBlock Origin, Violentmonkey), then installed ones in install order.

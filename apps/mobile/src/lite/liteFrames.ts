@@ -92,6 +92,10 @@ export class TargetFrames {
     return this.worlds.get(contextId)
   }
 
+  allWorlds(): WorldContext[] {
+    return [...this.worlds.values()]
+  }
+
   worldsOf(frameId: string): WorldContext[] {
     return [...this.worlds.values()].filter((world) => world.frameId === frameId)
   }
