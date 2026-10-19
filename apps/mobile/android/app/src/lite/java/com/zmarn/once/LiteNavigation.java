@@ -82,7 +82,7 @@ final class LiteNavigation extends WebViewClient {
 
     @Override
     public void onPageStarted(WebView ignored, String url, Bitmap favicon) {
-        if (!current()) return;
+        if (!current() || com.zmarn.once.lite.LiteTargets.isMarkerUrl(url)) return;
         committed = false;
         h.pageStarted(url);
     }
@@ -90,21 +90,21 @@ final class LiteNavigation extends WebViewClient {
     /** Fires on every commit, same-document ones included, as Gecko's onLocationChange. */
     @Override
     public void doUpdateVisitedHistory(WebView ignored, String url, boolean isReload) {
-        if (!current()) return;
+        if (!current() || com.zmarn.once.lite.LiteTargets.isMarkerUrl(url)) return;
         committed = true;
         h.pageCommitted(url);
     }
 
     @Override
     public void onPageCommitVisible(WebView ignored, String url) {
-        if (!current() || committed) return;
+        if (!current() || committed || com.zmarn.once.lite.LiteTargets.isMarkerUrl(url)) return;
         committed = true;
         h.pageCommitted(url);
     }
 
     @Override
     public void onPageFinished(WebView ignored, String url) {
-        if (!current()) return;
+        if (!current() || com.zmarn.once.lite.LiteTargets.isMarkerUrl(url)) return;
         h.finishRefresh();
         h.documentReady();
     }

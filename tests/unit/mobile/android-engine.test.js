@@ -44,6 +44,10 @@ test("the Gradle engine dimension keeps GeckoView and its assets out of Once Lit
   assert.match(gradle, /geckoImplementation "org\.mozilla\.geckoview:geckoview:\$geckoViewVersion"/)
   assert.doesNotMatch(gradle, /\n\s*implementation "org\.mozilla\.geckoview/)
   assert.match(gradle, /onVariants\(selector\(\)\.withFlavor\("engine", "gecko"\)\)[\s\S]*addGeneratedSourceDirectory\(onceExtensionAssets/)
+  // Once Lite ships the plain upstream bundles under assets/extensions/<dir>/ (no Gecko relay copy).
+  assert.match(gradle, /onVariants\(selector\(\)\.withFlavor\("engine", "lite"\)\)[\s\S]*addGeneratedSourceDirectory\(onceLiteExtensionAssets/)
+  assert.match(gradle, /it\.include\('ublock-origin\/\*\*', 'violentmonkey\/\*\*'\)/)
+  assert.doesNotMatch(gradle, /OnceLiteExtensionAssets[\s\S]*android\/violentmonkey/)
   // Both app names come from the variant, since the environment flavour cannot see the engine.
   assert.match(gradle, /\(lite \? "Once Lite" : "Once"\) \+ \(dev \? " Dev" : ""\)/)
   // minSdk is shared and stays at 26 for Lite.
@@ -85,10 +89,49 @@ test("Once Lite registers the shell's plugin names on the system WebView and kee
   const engineSurface = fs.readFileSync(path.join(lite, "EngineSurface.java"), "utf8")
   assert.match(engineSurface, /ALWAYS_INSPECTABLE = true/)
   assert.match(engineSurface, /WebView\.setWebContentsDebuggingEnabled\(true\)/)
-  const manager = fs.readFileSync(path.join(lite, "LiteExtensionManager.java"), "utf8")
-  assert.match(manager, /"extensions", new JSArray\(\)/)
-  assert.match(manager, /Extensions are not available yet/)
   assert.match(fs.readFileSync(path.join(lite, "devtools/DevToolsClient.java"), "utf8"), /webview_devtools_remote_/)
+})
+
+test("the Lite runtime's Java half follows the broker protocol", () => {
+  const lite = path.join(app, "src/lite/java/com/zmarn/once")
+  const engine = fs.readFileSync(path.join(lite, "lite/LiteExtensionEngine.java"), "utf8")
+  // lite.start names the bundles by their fetch-extensions ids and asset directories, and tells the broker about DevTools.
+  assert.match(engine, /UBLOCK_ID = "uBlock0@raymondhill\.net"/)
+  assert.match(engine, /VIOLENTMONKEY_ID = "\{aecec67f-0d10-4fa7-b7c7-609a2db280cf\}"/)
+  assert.match(engine, /\{ UBLOCK_ID, "asset:extensions\/ublock-origin" \}, \{ VIOLENTMONKEY_ID, "asset:extensions\/violentmonkey" \}/)
+  assert.match(engine, /\.put\("devtools", devtools\.available\(\)\)/)
+  assert.match(engine, /DEVTOOLS_UNAVAILABLE = "Extensions limited: DevTools unavailable"/)
+  for (const method of ["ui.confirm", "ui.pickFile", "page.open", "page.close", "page.post", "page.resize", "tab.create", "tab.update", "tab.remove", "tab.reload"]) {
+    assert.match(engine, new RegExp(`onRequest\\("${method.replace(".", "\\.")}"`), method)
+  }
+  for (const event of ["broker.hello", "extensions.changed", "violentmonkey.connected", "violentmonkey.dashboardChanged", "log", "timer.set", "timer.clear"]) {
+    assert.match(engine, new RegExp(`onEvent\\("${event.replace(".", "\\.")}"`), event)
+  }
+  const targets = fs.readFileSync(path.join(lite, "lite/LiteTargets.java"), "utf8")
+  // Fetch is enabled per page target at both stages; the bridge world and binding ride every tab target.
+  assert.match(targets, /"requestStage", "Request"/)
+  assert.match(targets, /"requestStage", "Response"/)
+  assert.match(targets, /BRIDGE_BINDING = "onceLiteBridge"/)
+  assert.match(targets, /BRIDGE_WORLD = "once-bridge"/)
+  assert.match(targets, /onRequest\("worlds\.set"/)
+  const files = fs.readFileSync(path.join(lite, "lite/LiteFiles.java"), "utf8")
+  assert.match(files, /BUNDLE_DIRECTORY = "@bundle"/)
+  assert.match(files, /ASSET_PREFIX = "asset:"/)
+  for (const method of ["store.read", "store.write", "files.mkdir", "files.write", "files.remove", "files.list", "package.readArchive"]) {
+    assert.match(files, new RegExp(`onRequest\\("${method.replace(".", "\\.")}"`), method)
+  }
+  assert.match(fs.readFileSync(path.join(lite, "lite/LitePackages.java"), "utf8"), /setInstanceFollowRedirects\(false\)/)
+  const page = fs.readFileSync(path.join(lite, "lite/LitePage.java"), "utf8")
+  assert.match(page, /Firefox\/128\.0/)
+  assert.match(page, /CHANNEL = "onceLitePage"/)
+  // The surface plugin relays the shell's contract to the engine and holds pages behind its barriers.
+  const surface = fs.readFileSync(path.join(lite, "LiteSurfacePlugin.java"), "utf8")
+  assert.match(surface, /extensions\.whenStarted\(READY_TIMEOUT_MS/)
+  assert.match(surface, /extensions\.whenSettingsApplied\(/)
+  assert.match(surface, /bridge\.evaluate\(script/)
+  assert.match(fs.readFileSync(path.join(lite, "LiteViolentmonkeyPlugin.java"), "utf8"), /engine\(\)\.violentmonkey\("send"/)
+  // The package step fetches the bundles for both engines.
+  assert.doesNotMatch(fs.readFileSync(path.join(root, "apps/mobile/scripts/mobile-cli.js"), "utf8"), /if \(engine === "gecko"\) run\(process\.execPath, \[path\.join\(root, "scripts", "fetch-extensions\.js"\)\]\)/)
 })
 
 test("the e2e harness, CI and docs carry the engine", () => {

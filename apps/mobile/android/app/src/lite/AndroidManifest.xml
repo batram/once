@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Once Lite: the extension runtime's broker hands uBlock Origin's compiled
+     lists and storage through the app's own heap (JSON over a WebMessage
+     channel), so the Lite flavour asks for the large heap. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:largeHeap="true" />
+</manifest>

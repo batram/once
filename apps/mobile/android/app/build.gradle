@@ -101,6 +101,32 @@ def onceExtensionAssets = tasks.register('onceExtensionAssets', OnceExtensionAss
     vendorExtensions = file('../../../../vendor/extensions')
 }
 
+// Once Lite's runtime loads the plain upstream bundles (no Gecko relay) from
+// assets/extensions/<dir>/; LiteFiles resolves `asset:extensions/<dir>`.
+abstract class OnceLiteExtensionAssets extends DefaultTask {
+    @InputDirectory @PathSensitive(PathSensitivity.RELATIVE)
+    abstract DirectoryProperty getVendorExtensions()
+    @OutputDirectory
+    abstract DirectoryProperty getOutputDir()
+    @Inject
+    abstract FileSystemOperations getFs()
+
+    @TaskAction
+    void sync() {
+        fs.sync { spec ->
+            spec.into(outputDir)
+            spec.from(vendorExtensions) {
+                it.into('extensions')
+                it.include('ublock-origin/**', 'violentmonkey/**')
+            }
+        }
+    }
+}
+
+def onceLiteExtensionAssets = tasks.register('onceLiteExtensionAssets', OnceLiteExtensionAssets) {
+    vendorExtensions = file('../../../../vendor/extensions')
+}
+
 androidComponents {
     // app_name per variant: the environment flavour alone cannot see the engine.
     onVariants(selector().all()) { variant ->
@@ -111,10 +137,14 @@ androidComponents {
             variant.resValues.put(variant.makeResValueKey("string", key), new com.android.build.api.variant.ResValue(name, null))
         }
     }
-    // Only the GeckoView engine runs the bundled extensions; Once Lite's
-    // runtime (M2 of docs/plans/once-lite-plan.md) will carry its own copies.
+    // Each engine carries its own copies of the bundled extensions: GeckoView
+    // the adapted ones, Once Lite's runtime (docs/plans/once-lite-plan.md) the
+    // upstream bundles.
     onVariants(selector().withFlavor("engine", "gecko")) { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(onceExtensionAssets, { it.outputDir })
+    }
+    onVariants(selector().withFlavor("engine", "lite")) { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(onceLiteExtensionAssets, { it.outputDir })
     }
 }
 

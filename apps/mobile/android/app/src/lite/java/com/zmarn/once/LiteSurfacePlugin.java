@@ -1,11 +1,17 @@
 package com.zmarn.once;
 
+import android.app.Activity;
+import android.content.Intent;
 import android.os.Looper;
 import android.webkit.WebView;
+import androidx.activity.result.ActivityResult;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.zmarn.once.lite.BrokerChannel;
+import com.zmarn.once.lite.LiteExtensionEngine;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,8 +22,9 @@ import org.json.JSONObject;
  * Once Lite's reading surface: the system WebView beside the Capacitor shell,
  * under the same plugin name, methods, events and tab routing as the GeckoView
  * plugin (InAppBrowserSurfacePlugin), so the shell does not know which engine
- * it drives. Extensions arrive with the Lite runtime (M2 of
- * docs/plans/once-lite-plan.md); until then the catalogue is empty.
+ * it drives. Extensions come from the Lite runtime (LiteExtensionEngine): the
+ * root plugin binds it to the activity, hands it the tabs it owns, and holds
+ * each tab's first page behind the runtime's start and settings barriers.
  */
 @CapacitorPlugin(name = "InAppBrowserSurface")
 public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurfaceEngine {
@@ -35,8 +42,9 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
     private final java.util.Set<String> retiredTabs = new java.util.LinkedHashSet<>();
     private static final int RETIRED_TAB_LIMIT = 256;
     private final TabRecency recency = new TabRecency();
-    private LiteExtensionManager extensions;
+    private LiteExtensionEngine extensions;
     private LiteExtensionPages pages;
+    private static final long READY_TIMEOUT_MS = 30000;
     private final LiteFinder finder = new LiteFinder();
     private ImageFetcher images;
 
@@ -137,8 +145,54 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
     private void ensureExtensions() {
         if (owner != null) { owner.ensureExtensions(); extensions = owner.extensions; pages = owner.pages; return; }
         if (extensions != null) return;
-        extensions = new LiteExtensionManager();
-        pages = new LiteExtensionPages(payload -> notifyListeners("extensionPageChanged", payload));
+        extensions = LiteExtensionEngine.get(getContext());
+        pages = new LiteExtensionPages(getActivity(), () -> getBridge().getWebView(), () -> extensions,
+            payload -> notifyListeners("extensionPageChanged", payload));
+        WebView shell = getBridge().getWebView();
+        extensions.bind(getActivity(), (android.view.ViewGroup) shell.getParent(), new TabShell(), pages, new LiteExtensionEngine.Listener() {
+            @Override public void extensionsChanged() { notifyListeners("extensionsChanged", new JSObject()); }
+            @Override public void violentmonkeyConnected() { LiteViolentmonkeyPlugin.connected(); }
+            @Override public void violentmonkeyDashboardChanged() { LiteViolentmonkeyPlugin.dashboardChanged(); }
+        });
+    }
+
+    @Override protected LiteExtensionEngine engine() { ensureExtensions(); return extensions; }
+    @Override protected boolean adoptingWindow() { return adoptedWindow; }
+    @Override protected int tabIndex() { return owner == null ? 0 : new ArrayList<>(owner.tabs.keySet()).indexOf(tabId); }
+
+    /** The runtime's `tab.*` requests, answered with the shell's own tab flow (as window.open is). */
+    private final class TabShell implements LiteExtensionEngine.TabShell {
+        private LiteSurfacePlugin find(int id) {
+            if (liteTabId == id) return LiteSurfacePlugin.this;
+            for (LiteSurfacePlugin tab : tabs.values()) if (tab.liteTabId == id) return tab;
+            return null;
+        }
+        @Override public int createTab(String url, boolean active) {
+            if (!ReadingAddress.embeddable(url)) { openExternal(url); return -1; }
+            LiteSurfacePlugin tab = newTab(java.util.UUID.randomUUID().toString(), java.util.UUID.randomUUID().toString());
+            tab.ensureExtensions();
+            // The shell hears of the tab as it does of a window, and finds it loading when it opens it.
+            tab.adoptedWindow = true;
+            tab.pageRequested = true;
+            tab.ensureSurface();
+            tab.requestNavigation(url);
+            tab.announceWindow(url);
+            return tab.liteTabId;
+        }
+        @Override public void updateTab(int id, JSONObject params) {
+            LiteSurfacePlugin tab = find(id);
+            if (tab == null || tab.surface == null) return;
+            String url = params.optString("url", "");
+            if (!url.isEmpty() && ReadingAddress.embeddable(url)) { tab.requestedSequence.incrementAndGet(); tab.requestNavigation(url); }
+        }
+        @Override public void removeTab(int id) {
+            LiteSurfacePlugin tab = find(id);
+            if (tab != null && tab.owner != null) tab.notifyListeners("closeRequested", new JSObject());
+        }
+        @Override public void reloadTab(int id) {
+            LiteSurfacePlugin tab = find(id);
+            if (tab != null) tab.reloadSession();
+        }
     }
 
     @PluginMethod
@@ -147,6 +201,7 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
             selectedTab = call.getString("tabId");
             for (LiteSurfacePlugin tab : tabs.values()) {
                 if (!tab.tabId.equals(selectedTab)) tab.setSurfaceVisible(false);
+                tab.reportTab();
             }
             // The root's own surface serves unscoped calls while no tab is
             // selected; a selected tab must never share the screen with it.
@@ -269,6 +324,8 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
             tab.handler.removeCallbacksAndMessages(null);
         }
         tabs.clear();
+        if (pages != null) pages.destroy();
+        if (extensions != null) extensions.unbind(getActivity());
         super.handleOnDestroy();
     }
 
@@ -282,7 +339,41 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
 
     @PluginMethod
     public void extensionCommand(PluginCall call) {
-        getActivity().runOnUiThread(() -> { ensureExtensions(); extensions.command(call); });
+        getActivity().runOnUiThread(() -> {
+            ensureExtensions();
+            if ("chooseFile".equals(call.getString("action"))) {
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("*/*");
+                startActivityForResult(call, intent, "extensionFileChosen");
+            } else command(call, call.getData());
+        });
+    }
+
+    @ActivityCallback
+    private void extensionFileChosen(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) {
+            call.resolve(new JSObject().put("cancelled", true));
+            return;
+        }
+        JSONObject params = new JSObject().put("action", "chooseFile").put("file", result.getData().getData().toString());
+        getActivity().runOnUiThread(() -> { ensureExtensions(); command(call, params); });
+    }
+
+    /** The shell's command, answered by the broker in the shell's own shape. */
+    private void command(PluginCall call, JSONObject params) {
+        extensions.command(params).whenComplete((result, error) -> {
+            if (error == null) {
+                try { call.resolve(new JSObject(result.toString())); }
+                catch (org.json.JSONException failure) { call.reject("Unable to read the answer", failure); }
+                return;
+            }
+            Throwable cause = error instanceof java.util.concurrent.CompletionException && error.getCause() != null ? error.getCause() : error;
+            String code = cause instanceof BrokerChannel.BrokerError ? ((BrokerChannel.BrokerError) cause).code : null;
+            String message = cause.getMessage() == null ? "Extension operation failed" : cause.getMessage();
+            if (code != null) call.reject(message, code); else call.reject(message);
+        });
     }
 
     @PluginMethod
@@ -335,12 +426,13 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
     @PluginMethod
     public void recognizeImage(PluginCall call) { TextRecognition.recognize(call, call.getString("url") == null ? null : images()); }
 
-    /** This tab's image text selection, as far as the app shows it natively (its bar). */
+    /** This tab's image text selection, as far as the app shows it natively (its bar); a page is its bridge document token. */
     private final ImageTextOverlays imageTexts = new ImageTextOverlays(this::getActivity, () -> surfaceContent, () -> visible ? surface : null,
-        () -> surface, (code, view) -> { if (view instanceof WebView) ((WebView) view).evaluateJavascript(code, null); },
-        (code, view, answer) -> { if (view instanceof WebView) ((WebView) view).evaluateJavascript(code, answer::accept); else answer.accept(null); },
+        bridge::token, (code, token) -> bridge.post(code, token), (code, token, answer) -> bridge.request(code, token, answer),
         image -> notifyListeners("contextMenuAction", new JSObject()
             .put("id", LinkContextMenu.IMAGE_TEXT).put("image", image.optString("image")).put("referrer", image.optString("referrer"))));
+
+    @Override protected boolean bridgeMessage(JSONObject message, Object token) { return imageTexts.receive(message, token); }
 
     @PluginMethod
     public void imageTextOverlay(PluginCall call) {
@@ -349,7 +441,7 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
     }
 
     @Override
-    protected void failPendingEvaluations(String reason) { imageTexts.close(); }
+    protected void failPendingEvaluations(String reason) { bridge.failAll(reason); imageTexts.close(); }
 
     @PluginMethod
     public void reload(PluginCall call) {
@@ -504,9 +596,9 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
     public void showPrompt(PluginCall call) { NativeSurfaceDialogs.showPrompt(getBridge(), call); }
 
     /**
-     * Runs the script in the page and answers with its JSON-encoded result.
-     * TODO(M2): evaluate in the Once-owned DevTools world (once-bridge) instead
-     * of the page's main world, as the GeckoView bridge extension does.
+     * Runs the script in the page's Once-owned bridge world (once-bridge) and
+     * answers with its JSON-encoded result, as the GeckoView bridge extension
+     * does; without DevTools (Tier 2) the page's main world runs it.
      */
     @PluginMethod
     public void evaluateJavaScript(PluginCall call) {
@@ -515,6 +607,13 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
         getActivity().runOnUiThread(() -> {
             if (script == null || script.isEmpty()) { call.reject("JavaScript source is required"); return; }
             if (surface == null) { call.reject("There is no open page"); return; }
+            if (engine().devtoolsAvailable()) {
+                bridge.evaluate(script, new com.zmarn.once.lite.LiteBridge.Reply() {
+                    @Override public void resolve(String value) { call.resolve(new JSObject().put("value", value)); }
+                    @Override public void reject(String message) { call.reject(message); }
+                });
+                return;
+            }
             if (committedNavigation != activeNavigation) { call.reject("The page is not ready to run scripts"); return; }
             surface.evaluateJavascript(script, value -> call.resolve(new JSObject().put("value", value == null ? "null" : value)));
         });
@@ -527,7 +626,12 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
             call.reject("filterLists and userscripts are required");
             return;
         }
-        getActivity().runOnUiThread(() -> { ensureExtensions(); extensions.applySettings(data); call.resolve(); });
+        getActivity().runOnUiThread(() -> {
+            ensureExtensions();
+            extensions.applySettings(data).whenComplete((ignored, error) -> {
+                if (error == null) call.resolve(); else call.reject("Extension settings were not applied: " + error.getMessage());
+            });
+        });
     }
 
     @PluginMethod
@@ -566,11 +670,38 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
         });
     }
 
-    /** Nothing to wait for yet: the Lite runtime (M2) will hold the first page behind its settings barrier. */
+    /**
+     * Like the GeckoView plugin's barrier: the first page waits until the
+     * broker answered `lite.start` and acknowledged the synced settings
+     * (bounded), so a document that starts earlier is neither filtered nor
+     * scripted. The Violentmonkey hand-off hold is the broker's own.
+     */
     private void ready(PluginCall call, Runnable work) {
         getActivity().runOnUiThread(() -> {
             if (destroyed) { call.reject("The browser host was closed"); return; }
             ensureExtensions();
+            if (extensions.isStarted()) { settled(call, work); return; }
+            if (waiting.size() >= 16) { call.reject("Too many pending browser operations"); return; }
+            long generation = surfaceGeneration;
+            Runnable timeout = () -> {
+                if (waiting.remove(call) != null) call.reject("Browser extensions did not become ready in time. Try again.");
+            };
+            waiting.put(call, timeout);
+            handler.postDelayed(timeout, READY_TIMEOUT_MS);
+            extensions.whenStarted(READY_TIMEOUT_MS, () -> {
+                Runnable pending = waiting.remove(call);
+                if (pending == null) return;
+                handler.removeCallbacks(pending);
+                if (destroyed || generation != surfaceGeneration) { call.reject("The browser surface was closed"); return; }
+                settled(call, work);
+            });
+        });
+    }
+
+    private void settled(PluginCall call, Runnable work) {
+        long generation = surfaceGeneration;
+        extensions.whenSettingsApplied(() -> {
+            if (destroyed || generation != surfaceGeneration) { call.reject("The browser surface was closed"); return; }
             try { work.run(); } catch (RuntimeException error) { call.reject("Browser operation failed", error); }
         });
     }

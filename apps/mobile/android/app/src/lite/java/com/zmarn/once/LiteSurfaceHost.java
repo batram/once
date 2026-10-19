@@ -18,6 +18,9 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
+import com.zmarn.once.lite.LiteBridge;
+import com.zmarn.once.lite.LiteExtensionEngine;
+import com.zmarn.once.lite.LiteTargets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -33,6 +36,10 @@ import java.util.concurrent.atomic.AtomicLong;
 abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
     protected static final String TAG = "OnceLite";
     protected static final long NAVIGATION_TIMEOUT_MS = 30000;
+    /** A page whose bridge stops answering health checks is restarted, as on GeckoView. */
+    protected static final long RESPONSE_TIMEOUT_MS = 12000;
+    /** How long a load waits for the view's DevTools target before going ahead unfiltered. */
+    protected static final long TARGET_TIMEOUT_MS = 5000;
     protected final Handler handler = new Handler(Looper.getMainLooper());
     protected boolean destroyed;
     protected boolean resumed = true;
@@ -70,6 +77,8 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
     protected boolean canGoForward;
     protected List<String> historyUrls = new ArrayList<>();
     protected int historyIndex = -1;
+    /** The view's own index behind each entry of historyUrls (the marker document is left out). */
+    protected List<Integer> historyViewIndexes = new ArrayList<>();
     /** The app link the current page redirected to, until the next navigation. */
     protected String offeredExternalUrl;
 
@@ -82,6 +91,14 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
     protected LiteBackgroundMedia backgroundMedia;
     protected final LiteMediaObserver media = new LiteMediaObserver(this);
     protected final Runnable watchdog = this::checkDeadline;
+    /** The tab as the extension runtime numbers it; assigned with the first view. */
+    protected int liteTabId;
+    protected LiteTargets.Attachment attachment;
+    protected final LitePip pip = new LitePip(this);
+    protected final LiteBridge bridge = new LiteBridge(handler, new BridgeEvents());
+    protected long healthSentAt;
+    protected long healthId;
+    protected long nextHealthAt;
 
     protected abstract boolean ownsForeground();
     protected abstract void failPendingEvaluations(String reason);
@@ -89,6 +106,14 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
     protected abstract WebView createWindow(String url);
     protected void pageCloseRequested() {}
     protected void showPageContextMenu(LinkContextMenu.Target target) {}
+    /** A bridge message the host does not take (image text); true when handled. */
+    protected boolean bridgeMessage(org.json.JSONObject message, Object token) { return false; }
+    /** The view being created is a window Chromium opens itself (no marker load). */
+    protected boolean adoptingWindow() { return false; }
+    /** This tab's position among the shell's tabs, for the runtime's reports. */
+    protected int tabIndex() { return 0; }
+
+    protected LiteExtensionEngine engine() { return LiteExtensionEngine.get(getContext()); }
 
     @Override public boolean isLive() { return surface != null; }
 
@@ -163,7 +188,12 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
             hiddenState = null;
             createView();
             armNavigation();
-            if (restore == null || surface.restoreState(restore) == null) surface.loadUrl(recoveryUrl());
+            String url = recoveryUrl();
+            LiteWebView view = surface;
+            attachment.whenReady(TARGET_TIMEOUT_MS, () -> {
+                if (surface != view) return;
+                if (restore == null || view.restoreState(restore) == null) view.loadUrl(url);
+            });
             return;
         }
         if (recoveryFailed) { recoverPage("Restarting the page"); return; }
@@ -221,10 +251,39 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
             openExternal(url);
         });
         view.setOnLongClickListener(ignored -> LiteContextMenu.longPressed(this, view));
+        LiteExtensionEngine engine = engine();
+        if (liteTabId == 0) liteTabId = engine.nextTabId();
+        // Media stays with the main-world observer: the bridge world's snapshot carries no playing state and
+        // takes no play/pause yet (docs/plans/once-lite-broker-protocol.md, bridge world); PiP and scripts ride the bridge.
         media.attach(view);
+        com.zmarn.once.lite.LitePage.listenInTab(view, engine.channel, liteTabId);
+        attachment = engine.targets().register(view, view.marker, "tab", liteTabId, null, bridge, !adoptingWindow());
+        bridge.attach(attachment);
         // Below the recovery view and the load status, which stay on top of the page.
         surfaceContent.addView(view, 0, new FrameLayout.LayoutParams(-1, -1));
         if (!visible || !resumed) view.onPause();
+        reportTab();
+    }
+
+    /** Loads once the view's target takes requests, so the first document is filtered too. */
+    protected void load(String url) {
+        LiteWebView view = surface;
+        if (view == null) return;
+        attachment.whenReady(TARGET_TIMEOUT_MS, () -> { if (surface == view) view.loadUrl(url); });
+    }
+
+    /** The tab as the runtime sees it; repeated states are dropped by the engine. */
+    protected void reportTab() {
+        if (liteTabId == 0 || destroyed) return;
+        try {
+            org.json.JSONObject state = new org.json.JSONObject().put("tabId", liteTabId).put("generation", 1)
+                .put("url", currentUrl.isEmpty() ? requestedUrl : currentUrl).put("title", pageTitle)
+                .put("active", visible && ownsForeground()).put("index", tabIndex())
+                .put("status", navigationCompleted ? "complete" : "loading")
+                .put("audible", backgroundMedia != null && backgroundMedia.state.playing).put("muted", false);
+            if (attachment != null && attachment.targetId() != null) state.put("targetId", attachment.targetId());
+            engine().reportTab(liteTabId, state);
+        } catch (org.json.JSONException ignored) { /* a constant document */ }
     }
 
     /** Detaches and destroys the page view; late callbacks from it are ignored by their view check. */
@@ -238,6 +297,10 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         if (backgroundMedia != null) backgroundMedia.detach();
         old.setWebChromeClient(null);
         old.stopLoading();
+        if (attachment != null) engine().targets().unregister(attachment);
+        attachment = null;
+        bridge.reset();
+        healthSentAt = 0;
         if (old.getParent() != null) ((ViewGroup) old.getParent()).removeView(old);
         old.destroy();
         forgetPageState("The page view was replaced");
@@ -260,6 +323,7 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
             if (parent != null) parent.removeView(refreshSurface);
         }
         failPendingEvaluations("The page was closed");
+        if (liteTabId != 0) engine().tabRemoved(liteTabId);
         pageRequested = false;
         refreshSurface = null;
         surfaceContent = null;
@@ -285,6 +349,7 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         if (refreshSurface != null) refreshSurface.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
         if (visible) resumeSurface(); else pauseSurface();
         if (visible && resumed) resumeWatchdog(); else pauseWatchdog();
+        reportTab();
     }
 
     protected void finishRefresh() {
@@ -302,7 +367,7 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         failPendingEvaluations("A new page was requested");
         armNavigation();
         surface.stopLoading();
-        surface.loadUrl(url);
+        load(url);
     }
 
     /** The view's own list, read after every commit: entries and the current position. */
@@ -310,29 +375,34 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         if (surface == null) return;
         WebBackForwardList list = surface.copyBackForwardList();
         List<String> urls = new ArrayList<>();
-        for (int index = 0; index < list.getSize(); index++) urls.add(list.getItemAtIndex(index).getUrl());
+        List<Integer> viewIndexes = new ArrayList<>();
+        int current = list.getCurrentIndex();
+        // The marker document the target was found by is not a page the reader visited.
+        for (int index = 0; index < list.getSize(); index++) {
+            String url = list.getItemAtIndex(index).getUrl();
+            if (LiteTargets.isMarkerUrl(url)) { if (index < current) current--; continue; }
+            urls.add(url);
+            viewIndexes.add(index);
+        }
         historyUrls = urls;
-        historyIndex = list.getCurrentIndex();
-        canGoBack = surface.canGoBack();
-        canGoForward = surface.canGoForward();
+        historyViewIndexes = viewIndexes;
+        historyIndex = Math.min(current, urls.size() - 1);
+        canGoBack = historyIndex > 0;
+        canGoForward = historyIndex >= 0 && historyIndex < urls.size() - 1;
     }
 
     protected void gotoHistory(int index) {
-        if (surface == null || index < 0 || index >= historyUrls.size() || index == historyIndex) return;
+        if (surface == null || index < 0 || index >= historyUrls.size() || index == historyIndex || historyIndex < 0) return;
         requestedSequence.incrementAndGet();
         requestedUrl = currentUrl;
         recoveryAttempts = 0;
         armNavigation();
-        surface.goBackOrForward(index - historyIndex);
+        surface.goBackOrForward(historyViewIndexes.get(index) - historyViewIndexes.get(historyIndex));
     }
 
     protected void moveHistory(boolean forward) {
-        if (surface == null || !(forward ? surface.canGoForward() : surface.canGoBack())) return;
-        requestedSequence.incrementAndGet();
-        requestedUrl = currentUrl;
-        recoveryAttempts = 0;
-        armNavigation();
-        if (forward) surface.goForward(); else surface.goBack();
+        if (surface == null || !(forward ? canGoForward : canGoBack)) return;
+        gotoHistory(historyIndex + (forward ? 1 : -1));
     }
 
     protected void armNavigation() {
@@ -345,22 +415,81 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         resumeWatchdog();
     }
 
-    protected void pauseWatchdog() { handler.removeCallbacks(watchdog); }
+    protected void pauseWatchdog() { handler.removeCallbacks(watchdog); healthSentAt = 0; }
 
     protected void resumeWatchdog() {
         handler.removeCallbacks(watchdog);
-        if (!destroyed && visible && resumed && surface != null && pageRequested && !recoveryFailed && navigationDeadline != 0)
-            handler.postDelayed(watchdog, 1000);
+        if (!destroyed && visible && resumed && surface != null && pageRequested && !recoveryFailed)
+            handler.postDelayed(watchdog, navigationCompleted ? 1000 : 250);
     }
 
-    /** A page that never finishes is restarted once, then left with Retry. */
+    protected void requestHealthCheck() {
+        nextHealthAt = 0;
+        handler.removeCallbacks(watchdog);
+        if (!destroyed && visible && resumed && surface != null && pageRequested && !recoveryFailed) handler.post(watchdog);
+    }
+
+    /**
+     * A page that never finishes is restarted once, then left with Retry; a
+     * bridge that stops answering health checks counts as a stopped page. The
+     * health reply also drives readiness, as ReadingDisplay.checkHealth does.
+     */
     protected void checkDeadline() {
         if (destroyed || !visible || !resumed || surface == null || recoveryFailed) return;
-        if (navigationDeadline != 0 && SystemClock.elapsedRealtime() >= navigationDeadline) {
+        long now = SystemClock.elapsedRealtime();
+        if (healthSentAt != 0 && now - healthSentAt >= RESPONSE_TIMEOUT_MS) {
+            recoverPage("The page stopped responding");
+            return;
+        }
+        if (navigationDeadline != 0 && now >= navigationDeadline) {
             recoverPage("The page did not become ready in time");
             return;
         }
+        if (bridge.isConnected() && healthSentAt == 0 && now >= nextHealthAt && ReadingAddress.embeddable(currentUrl)) {
+            try {
+                healthId++;
+                healthSentAt = now;
+                bridge.send(new org.json.JSONObject().put("type", "health").put("id", healthId));
+            } catch (org.json.JSONException ignored) { healthSentAt = 0; }
+        }
         resumeWatchdog();
+    }
+
+    private void healthReply(org.json.JSONObject reply) {
+        if (reply.optLong("id", -1) != healthId || healthSentAt == 0) return;
+        healthSentAt = 0;
+        nextHealthAt = SystemClock.elapsedRealtime() + (navigationCompleted ? 5000 : 250);
+        String readyState = reply.optString("readyState");
+        if (!navigationCompleted && sameDocument(currentUrl, reply.optString("url"))
+            && ("interactive".equals(readyState) || "complete".equals(readyState))) documentReady();
+    }
+
+    static boolean sameDocument(String left, String right) {
+        if (left == null || right == null) return false;
+        int hashLeft = left.indexOf('#'), hashRight = right.indexOf('#');
+        return (hashLeft < 0 ? left : left.substring(0, hashLeft)).equals(hashRight < 0 ? right : right.substring(0, hashRight));
+    }
+
+    /** What the tab's bridge world says, on the main thread. */
+    private final class BridgeEvents implements LiteBridge.Listener {
+        @Override public void documentChanged(Object token) {
+            failPendingEvaluations("The page navigated away");
+            pip.connected();
+            healthSentAt = 0;
+            requestHealthCheck();
+        }
+        @Override public void documentGone(Object token) {
+            pip.cancel();
+            healthSentAt = 0;
+            failPendingEvaluations("The page navigated away");
+        }
+        @Override public void message(org.json.JSONObject message, Object token) {
+            String type = message.optString("type");
+            if ("health".equals(type)) healthReply(message);
+            else if ("media-snapshot".equals(type)) { /* the main-world observer reports media; see createView */ }
+            else if ("pip-request".equals(type)) pip.receive(message);
+            else bridgeMessage(message, token);
+        }
     }
 
     /**
@@ -385,7 +514,7 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         if (!visible || !resumed) { killedWhileHidden = true; return; }
         createView();
         armNavigation();
-        surface.loadUrl(target);
+        load(target);
     }
 
     protected void showRecovery(String message) {
@@ -471,6 +600,7 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         if (ReadingAddress.surface(currentUrl)) { requestedUrl = currentUrl; armNavigation(); }
         Log.i(TAG, "load started navigation=" + activeNavigation + " visible=" + visible);
         event("navigationStarted", activeNavigation, currentUrl);
+        reportTab();
     }
 
     protected void pageCommitted(String url) {
@@ -480,6 +610,7 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         committedNavigation = activeNavigation;
         event("navigationCommitted", activeNavigation, currentUrl);
         history(activeNavigation);
+        reportTab();
     }
 
     protected void documentReady() {
@@ -494,6 +625,7 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
             + " elapsedMs=" + (loadStartedAt == 0 ? 0 : SystemClock.elapsedRealtime() - loadStartedAt));
         event("navigationFinished", activeNavigation, currentUrl);
         history(activeNavigation);
+        reportTab();
     }
 
     protected void forgetPageState(String message) {

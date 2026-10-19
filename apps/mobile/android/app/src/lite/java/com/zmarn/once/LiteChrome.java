@@ -20,7 +20,9 @@ final class LiteChrome extends WebChromeClient {
     private boolean current() { return h.surface == view; }
 
     @Override public void onReceivedTitle(WebView ignored, String title) {
-        if (current()) h.pageTitle = title == null ? "" : title;
+        if (!current()) return;
+        h.pageTitle = title == null ? "" : title;
+        h.reportTab();
     }
 
     @Override public void onProgressChanged(WebView ignored, int progress) {

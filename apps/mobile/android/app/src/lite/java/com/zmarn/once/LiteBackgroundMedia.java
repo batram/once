@@ -78,7 +78,9 @@ final class LiteBackgroundMedia implements BackgroundMediaService.Owner, Backgro
     void pageSnapshot(JSONObject snapshot) {
         String url = snapshot.optString("url", "");
         if (!LiteMediaObserver.reports(url)) return;
-        boolean playing = snapshot.optBoolean("playing");
+        // The bridge world's snapshot says `playing` (or `paused`); older reports leave the state as it was.
+        boolean playing = snapshot.has("playing") ? snapshot.optBoolean("playing")
+            : snapshot.has("paused") ? !snapshot.optBoolean("paused") : state.playing;
         if (playing != state.playing) state.playing(playing);
         pageUrl = url;
         state.pageSeekable = snapshot.optBoolean("seekable");

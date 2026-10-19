@@ -187,15 +187,24 @@ npm run deploy:mobile:android:lite                     # replaces com.zmarn.once
 npm run test:mobile:e2e:android:lite:local             # the smoke suite against Once Lite
 npm run inspect:mobile:android:lite
 cd apps/mobile/android && ./gradlew lintLiteDevelopmentDebug testLiteDevelopmentDebugUnitTest
-ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedLiteDevelopmentDebugAndroidTest -PonceDeployAbis=arm64-v8a  # LiteDevToolsTest
+ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedLiteDevelopmentDebugAndroidTest -PonceDeployAbis=arm64-v8a  # LiteDevToolsTest, LiteExtensionEngineTest
+npm run test:mobile:e2e:android:lite:extensions:local  # the Lite extension acceptance suite
 ```
 
 The Gecko sources live in `apps/mobile/android/app/src/gecko`, Lite's in
-`src/lite` (its DevTools client under `devtools/`), and `src/main` holds what
-both share; `src/main` and `src/lite` import nothing from `org.mozilla`.
-Once Lite keeps `WebView.setWebContentsDebuggingEnabled(true)` on in every
-build: its extension runtime drives Chromium through the app's own DevTools
-socket, and Settings shows Allow Web Inspector as on and locked there.
+`src/lite` (its DevTools client under `devtools/`, the extension runtime's
+Java half under `lite/`: `LiteExtensionEngine` with the broker WebView,
+files, packages, cookies, the DevTools fan-out and extension pages), and
+`src/main` holds what both share; `src/main` and `src/lite` import nothing
+from `org.mozilla`. Once Lite keeps `WebView.setWebContentsDebuggingEnabled(true)`
+on in every build: its extension runtime drives Chromium through the app's own
+DevTools socket, and Settings shows Allow Web Inspector as on and locked there.
+The broker (`apps/mobile/src/lite`, built into `lite-runtime.html` and the
+`lite-*.js` bundles with the web assets) and Java speak the protocol in
+`docs/plans/once-lite-broker-protocol.md`; the bundled uBlock Origin and
+Violentmonkey come from `vendor/extensions` (the plain upstream copies, under
+`assets/extensions/`), which `scripts/fetch-extensions.js` provides for both
+engines.
 
 `deploy:mobile:android` builds the release-channel production flavor with the
 local debug signature, for the device's ABI only, and replaces `com.zmarn.once`

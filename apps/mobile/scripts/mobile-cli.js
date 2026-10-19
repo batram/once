@@ -476,9 +476,9 @@ else if (command === "run") {
   sync(platform, channel)
   if (platform === "android") {
     // The built-in extension bundles are not in the repository; they are
-    // fetched against pinned hashes before the APK that carries them is built.
-    // Once Lite carries none until its runtime lands (M2 of the Lite plan).
-    if (engine === "gecko") run(process.execPath, [path.join(root, "scripts", "fetch-extensions.js")])
+    // fetched against pinned hashes before the APK that carries them is built
+    // (both engines: GeckoView takes the adapted copies, Once Lite the upstream ones).
+    run(process.execPath, [path.join(root, "scripts", "fetch-extensions.js")])
     const android = androidEnvironment(channel)
     run(android.command, [
       "-classpath",
