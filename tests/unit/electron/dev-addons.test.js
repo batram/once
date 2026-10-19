@@ -78,17 +78,32 @@ test("picker directories persist locally, reload changes and unload without remo
     local.dispose()
     local = new LocalAddonDirectories(file, [], () => { changes++ })
     assert.equal(local.list()[0].directory, directory)
-    // The watcher's latency varies with the filesystem, so the wait is
-    // generous, and running out of it is reported as the watcher not firing
-    // rather than as a bare count mismatch further down.
+    // The watcher's latency varies with the filesystem and grows a lot while
+    // the rest of the suite loads the machine, and a freshly started watcher
+    // (FSEvents on macOS) can drop a change made before it is live. So the
+    // edit is repeated until the watcher reports one, the deadline re-checks
+    // the count before giving up, and running out of time is reported as the
+    // watcher not firing rather than as a count mismatch further down.
     const changed = new Promise((resolve, reject) => {
-      const timer = setInterval(() => { if (changes > 1) { clearInterval(timer); resolve() } }, 20)
+      let edits = 0
+      const edit = () => fs.writeFileSync(path.join(directory, "main.js"), `${ADDON_SCRIPT}\n// edited ${++edits}`)
+      const settle = () => {
+        if (changes <= 1) return false
+        clearInterval(poll)
+        clearInterval(rewrite)
+        resolve()
+        return true
+      }
+      const poll = setInterval(settle, 20)
+      const rewrite = setInterval(edit, 1_000)
       setTimeout(() => {
-        clearInterval(timer)
-        reject(new Error(`the directory watcher did not report the edit within 10s (changes=${changes})`))
-      }, 10_000).unref()
+        if (settle()) return
+        clearInterval(poll)
+        clearInterval(rewrite)
+        reject(new Error(`the directory watcher did not report ${edits} edits within 20s (changes=${changes})`))
+      }, 20_000).unref()
+      edit()
     })
-    fs.writeFileSync(path.join(directory, "main.js"), ADDON_SCRIPT + "\n// edited")
     await changed
     assert.match(local.list()[0].code, /edited/)
     local.remove(directory)
