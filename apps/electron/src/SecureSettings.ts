@@ -210,7 +210,23 @@ export class SecureSettings {
       encoding: "utf8",
       mode: 0o600
     })
-    await fs.rename(temporaryPath, this.filePath)
+    await renameReplacing(temporaryPath, this.filePath)
+  }
+}
+
+/**
+ * Windows refuses to replace a file that another process (antivirus, the
+ * search indexer) briefly holds open, so the rename is retried for about a second.
+ */
+async function renameReplacing(from: string, to: string): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fs.rename(from, to)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code ?? ""
+      if (attempt >= 10 || !["EPERM", "EACCES", "EBUSY"].includes(code)) throw error
+      await new Promise((resolve) => setTimeout(resolve, 20 * attempt))
+    }
   }
 }
 
