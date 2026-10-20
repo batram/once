@@ -646,9 +646,14 @@ credential binding changed before sending. Generation uses one settings snapshot
 Messages accept strings or text/image content blocks. Image blocks carry a bounded
 base64 PNG, JPEG or WebP payload, never a credential-bearing URL.
 
+At most 12 AI requests per consumer (an addon, or the host's model listing and
+search) and 24 overall run at once. Further requests wait their turn rather than
+failing; the 120-second deadline starts when a request runs, and cancelling a
+waiting request takes it out of the queue.
+
 `AiError.code` is preserved across the sandbox boundary. Consumers should handle
 `unsupported-search`, `unsupported-fetch`, `search`, `setup`, `configuration-changed`,
-`busy`, `timeout`, and `cancelled` rather than matching translated error text. A
+`timeout`, and `cancelled` rather than matching translated error text. A
 truncated provider stream is an error, not a completed answer.
 
 AI & Search is a central overview. Addon consumers register from their manifests

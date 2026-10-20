@@ -86,11 +86,35 @@ test("shared request limits apply to built-in consumers and cancellation detache
   const never = () => new Promise(() => {})
   const signal = new AbortController()
   const pending = Array.from({ length: 3 }, () => runner.run("reader", signal.signal, never))
-  await assert.rejects(runner.run("reader", undefined, never), error => error.code === "busy")
   signal.abort()
   await Promise.all(pending.map(request => assert.rejects(request, error => error.code === "cancelled")))
   await assert.rejects(runner.run("reader", undefined, never), error => error.code === "timeout")
   assert.equal(await runner.run("reader", undefined, async () => "next"), "next")
+})
+
+test("requests over the shared limits wait their turn instead of failing", async () => {
+  const runner = new AiRequestRunner(1_000, 2, 3)
+  const started = []
+  const gates = []
+  const held = name => runner.run(name, undefined, () => { started.push(name); return new Promise(resolve => gates.push(resolve)) })
+  const settle = () => new Promise(resolve => setTimeout(resolve, 0))
+  const first = [held("a"), held("a")]
+  const third = held("a")
+  // Consumer a is at its own bound; consumer b still gets the last overall slot.
+  const other = held("b")
+  await settle()
+  assert.deepEqual(started, ["a", "a", "b"])
+  // A waiter that is cancelled leaves the queue without ever starting.
+  const leaving = new AbortController()
+  const cancelled = runner.run("c", leaving.signal, async () => { started.push("c") })
+  leaving.abort()
+  await assert.rejects(cancelled, error => error.code === "cancelled")
+  gates.shift()("done")
+  assert.equal(await first[0], "done")
+  await settle()
+  assert.deepEqual(started, ["a", "a", "b", "a"])
+  gates.forEach(resolve => resolve("done"))
+  assert.deepEqual(await Promise.all([first[1], third, other]), ["done", "done", "done"])
 })
 
 test("migration fingerprints the source, preserves encryption and imports distinct conflicting configurations", async () => {

@@ -38,7 +38,7 @@ export interface AiSource { title: string; url: string }
 export interface AiResult { text: string; sources: AiSource[]; fetched: boolean; model: AiResolvedModel }
 export interface SearchResult extends AiSource { id: string; snippet: string }
 export class AiError extends Error {
-  constructor(message: string, readonly code: "setup" | "request" | "unsupported-search" | "unsupported-fetch" | "search" | "cancelled" | "busy" | "timeout" | "configuration-changed" = "request") { super(message) }
+  constructor(message: string, readonly code: "setup" | "request" | "unsupported-search" | "unsupported-fetch" | "search" | "cancelled" | "timeout" | "configuration-changed" = "request") { super(message) }
 }
 export const emptyAiSettings = (): AiSettings => ({ connections: [], overrides: {}, searchConnections: [] })
 export const AI_VAULT_ID = "ai_vault"
