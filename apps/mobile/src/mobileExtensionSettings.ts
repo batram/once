@@ -13,6 +13,7 @@ export async function bindMobileExtensionSettings(
   violentmonkey: ViolentmonkeyHandOff | null = createViolentmonkeyHandOff()
 ): Promise<() => Promise<void>> {
   let settingsRevision = 0
+  let pending: Promise<void> = Promise.resolve()
   const handToViolentmonkey = async (userscripts: UserscriptsDocument, revision: number): Promise<void> => {
     if (!violentmonkey) return
     const adopted = await violentmonkey.apply(userscripts)
@@ -20,7 +21,7 @@ export async function bindMobileExtensionSettings(
     // comes back here as a change, which then finds nothing left to write.
     if (adopted && revision === settingsRevision) await client.saveUserscripts(adopted)
   }
-  const applyExtensionSettings = async (settings?: {
+  const apply = async (settings?: {
     filterLists: Awaited<ReturnType<typeof client.getFilterLists>>
     userscripts: Awaited<ReturnType<typeof client.getUserscripts>>
   }): Promise<void> => {
@@ -32,13 +33,15 @@ export async function bindMobileExtensionSettings(
       ])
       if (revision !== settingsRevision) return
       await surface.applyExtensionSettings(filterLists, userscripts)
-      await handToViolentmonkey(userscripts, revision)
+      if (revision === settingsRevision) await handToViolentmonkey(userscripts, revision)
     } catch (error) {
       console.error("Failed to apply mobile extension settings", error)
     }
   }
-  // AppRuntime's startup publication precedes this subscription.
-  await applyExtensionSettings()
+  const applyExtensionSettings = (settings?: Parameters<typeof apply>[0]): Promise<void> =>
+    (pending = apply(settings))
+  // Subscribe before the first hand-off: changes and extension restarts
+  // during startup must not be lost while it is awaiting native replies.
   client.subscribe("extensionSettingsChanged", (settings) => {
     void applyExtensionSettings(settings)
   })
@@ -55,5 +58,14 @@ export async function bindMobileExtensionSettings(
       .then(userscripts => handToViolentmonkey(userscripts, revision))
       .catch(error => console.error("Failed to adopt Violentmonkey changes", error))
   })
+  // AppRuntime's startup publication precedes these subscriptions.
+  applyExtensionSettings()
+  // A connected event or a settings edit may supersede the first hand-off.
+  // The startup navigation gate must wait for that replacement as well.
+  for (;;) {
+    const latest = pending
+    await latest
+    if (latest === pending) break
+  }
   return () => applyExtensionSettings()
 }

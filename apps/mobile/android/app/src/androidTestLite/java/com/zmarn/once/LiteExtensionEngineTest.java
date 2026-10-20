@@ -65,7 +65,8 @@ public class LiteExtensionEngineTest {
         assertTrue("Only the Once Lite dev package may be driven: " + pkg, pkg.endsWith(".lite.dev"));
         boolean emulator = Build.HARDWARE.contains("ranchu") || Build.HARDWARE.contains("goldfish") || Build.HARDWARE.contains("cutf")
             || Build.PRODUCT.contains("sdk") || Build.FINGERPRINT.contains("emulator");
-        Assume.assumeTrue("LiteExtensionEngineTest runs on an emulator only", emulator);
+        Assume.assumeTrue("Physical-device probes require explicit allowPhysicalDevice=true", emulator ||
+            "true".equals(InstrumentationRegistry.getArguments().getString("allowPhysicalDevice")));
         shell("input keyevent KEYCODE_WAKEUP");
         shell("wm dismiss-keyguard");
         activity = (MainActivity) instrumentation.startActivitySync(
@@ -226,9 +227,10 @@ public class LiteExtensionEngineTest {
         assertEquals(2, again.length());
         results.put("restarted", true);
 
-        // uBlock reloads its lists after a restart; the surface's settings barrier covers the shell, the test waits itself.
+        // uBlock may restore unchanged lists from its cache after a restart;
+        // readiness and filtering matter, not a second network download.
         long reloadEnd = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
-        while (System.nanoTime() < reloadEnd && !(fixture.listRequests.get() >= 2 && ublockState().contains("\"loading\":false"))) Thread.sleep(500);
+        while (System.nanoTime() < reloadEnd && !ublockState().contains("\"loading\":false")) Thread.sleep(500);
         Thread.sleep(2000);
         results.put("ublockStateAfterRestart", ublockState());
         // 6. The restarted engine filters the tab again: uBlock's own engine blocks the request and hides the element.

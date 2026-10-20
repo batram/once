@@ -15,7 +15,7 @@ import { StorePatchParams, StoreReadParams, StoreReadResult, StoreValue, StoreWr
 /** Values beyond this travel through the synchronous chunk interface, never as one message. */
 export const CHUNK_THRESHOLD = 256 * 1024
 const CHUNK_CHARS = 512 * 1024
-const READ_CHUNK_BYTES = 1024 * 1024
+const READ_CHUNK_BYTES = 256 * 1024
 
 export class LiteJsonStore implements JsonStore {
   constructor(
@@ -29,7 +29,7 @@ export class LiteJsonStore implements JsonStore {
       directory: this.directory, name
     } satisfies StoreReadParams)
     let text = result.json
-    if (result.chunked) text = this.readChunks(result.chunked)
+    if (result.chunked) text = await this.readChunks(result.chunked)
     if (text === null) return undefined
     return JSON.parse(text)
   }
@@ -65,7 +65,7 @@ export class LiteJsonStore implements JsonStore {
     return { chunked: token }
   }
 
-  private readChunks(token: string): string {
+  private async readChunks(token: string): Promise<string> {
     if (typeof this.files?.readChunk !== "function") throw new Error("Chunked store reads are not available")
     const parts: string[] = []
     for (;;) {
@@ -73,6 +73,12 @@ export class LiteJsonStore implements JsonStore {
       if (piece.error) throw new Error(piece.error)
       if (piece.text) parts.push(piece.text)
       if (piece.done) break
+      // The native interface is synchronous and every WebView shares this
+      // renderer thread. Large filter stores must not monopolize it until
+      // their last chunk: let shell input, rendering and broker replies run.
+      const scheduler = (globalThis as typeof globalThis & { scheduler?: { yield(): Promise<void> } }).scheduler
+      if (scheduler?.yield) await scheduler.yield()
+      else await new Promise<void>((resolve) => setTimeout(resolve, 0))
     }
     return parts.join("")
   }

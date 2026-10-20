@@ -16,12 +16,41 @@ export function nativePouchAdapter(bridge) {
       super({ bufferKeys: true, snapshots: true, permanence: true })
       this.name = name
       this.pendingGets = []
+      this.pointReads = []
       this.readCache = new Map()
       this.generation = 0
     }
 
     request(operation, options = {}) {
+      // allDocs({ keys }) opens one exact-key iterator per document. They
+      // are already materialized point snapshots natively, so transport a
+      // bounded group together instead of one bridge round trip per key.
+      if (operation === "iteratorOpen" && options.gte !== undefined && options.gte === options.lte &&
+          options.gt === undefined && options.lt === undefined) {
+        return new Promise((resolve, reject) => {
+          this.pointReads.push({ options, resolve, reject })
+          if (this.pointReads.length === 1) queueMicrotask(() => this.flushPointReads())
+          if (this.pointReads.length >= 128) this.flushPointReads()
+        })
+      }
+      // Preserve snapshot-at-creation ordering when a write or close is
+      // submitted in the same turn, before the scheduled read flush.
+      this.flushPointReads()
       return bridge.execute({ operation, name: this.name, ...options })
+    }
+
+    flushPointReads() {
+      const reads = this.pointReads.splice(0)
+      if (!reads.length) return
+      bridge.execute({ operation: "getMany", name: this.name, keys: reads.map(read => read.options.gte) }).then(result => {
+        reads.forEach(({ options, resolve }, index) => {
+          const value = result.values[index]
+          const rows = value === null || options.limit === 0 ? [] : [{
+            key: options.gte, ...(options.values === false ? {} : { value })
+          }]
+          resolve({ iterator: null, rows, done: true })
+        })
+      }, error => reads.forEach(read => read.reject(error)))
     }
 
     _open(options, callback) {
@@ -57,13 +86,16 @@ export function nativePouchAdapter(bridge) {
       if (this.pendingGets.length !== 1) return
       queueMicrotask(() => {
         const reads = this.pendingGets.splice(0)
-        this.request("getMany", { keys: reads.map(read => read.key) }).then(result => {
-          reads.forEach((read, index) => {
-            const value = result.values[index]
-            if (value === null) read.callback(Object.assign(new Error("NotFound"), { notFound: true, status: 404 }))
-            else read.callback(null, decode(value, read.options.asBuffer))
-          })
-        }, error => reads.forEach(read => read.callback(error)))
+        for (let offset = 0; offset < reads.length; offset += 128) {
+          const batch = reads.slice(offset, offset + 128)
+          this.request("getMany", { keys: batch.map(read => read.key) }).then(result => {
+            batch.forEach((read, index) => {
+              const value = result.values[index]
+              if (value === null) read.callback(Object.assign(new Error("NotFound"), { notFound: true, status: 404 }))
+              else read.callback(null, decode(value, read.options.asBuffer))
+            })
+          }, error => batch.forEach(read => read.callback(error)))
+        }
       })
     }
 

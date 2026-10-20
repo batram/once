@@ -3,6 +3,7 @@ import { App } from "@capacitor/app"
 import { Capacitor } from "@capacitor/core"
 import { createOnceApp } from "@once/app"
 import { bindMobileExtensionSettings } from "./mobileExtensionSettings"
+import { gateBrowserStartup } from "./browserStartupGate"
 import {
   type BrowserNavigationEvent,
   createDefaultMobileNativeBridge,
@@ -116,7 +117,7 @@ function beginStoryLoading(client: Parameters<typeof bindReloadStatus>[0]): void
   bindReloadStatus(client, (message, state) => {
     if (document.body.dataset.onceStage === "error") return
     showStartupState(message, state)
-  })
+  }, { initiallyShown: true })
 }
 
 function installTransientScrollbars(): void {
@@ -262,6 +263,19 @@ async function bindExtensionSettings(
   return async () => browserSurface.applyExtensionSettings(await app.client.getFilterLists(), await app.client.getUserscripts())
 }
 
+function startExtensionSettings(
+  app: ReturnType<typeof createOnceApp>,
+  surface: ReturnType<typeof createInAppBrowserSurface>,
+  gate: ReturnType<typeof gateBrowserStartup>
+): () => Promise<void> {
+  const binding = bindExtensionSettings(app, surface)
+  void binding.then(() => {
+    performance.mark("once:extensions-ready")
+    gate.release()
+  }, gate.fail)
+  return async () => (await binding)()
+}
+
 async function startMobileApp(): Promise<void> {
   document.body.dataset.platform = "mobile"
   document.body.dataset.buildChannel = __ONCE_BUILD_CHANNEL__
@@ -282,9 +296,8 @@ async function startMobileApp(): Promise<void> {
     pdfSandboxUrl: new URL("pdf-sandbox.html", window.location.href).toString()
   })
   const app = createOnceApp(platform)
-  const browserSurface = createInAppBrowserSurface((url) =>
-    nativeBridge.openExternal(url)
-  )
+  const browserSurface = createInAppBrowserSurface(url => nativeBridge.openExternal(url))
+  const browserStartup = gateBrowserStartup(browserSurface)
   const navigationListeners = captureNavigationListeners(browserSurface)
   // The reading card's menu opens a tray above the page, in that tab.
   installStoryMenu(browserSurface, (id, anchor) => anchor.id === "reading_story_menu" && reading.addonTrays.toggle(id))
@@ -345,7 +358,7 @@ async function startMobileApp(): Promise<void> {
   document.body.dataset.onceStage = "app-start"
   showStartupState("Opening saved stories and settings…")
   await app.start()
-  const applyExtensionSettings = await bindExtensionSettings(app, browserSurface)
+  const applyExtensionSettings = startExtensionSettings(app, browserSurface, browserStartup)
   mountTabSyncInTabView(reading, app.client, browserSurface)
   document.body.dataset.onceStage = "ui-mount"
   beginStoryLoading(app.client)
@@ -379,7 +392,8 @@ async function startMobileApp(): Promise<void> {
   if (__ONCE_MOBILE_E2E__) installMobileTestHooks(app, reading, browserSurface, navigationListeners, applyExtensionSettings)
   document.body.dataset.onceStage = "ready"
   document.body.dataset.onceReady = "true"
-  showStartupState("Ready", "ready")
+  // The reload status owns the pill until the initial sources have finished.
+  if (__ONCE_MOBILE_E2E__) showStartupState("Ready", "ready")
 }
 
 document.addEventListener("DOMContentLoaded", () => {

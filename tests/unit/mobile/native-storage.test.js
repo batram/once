@@ -34,9 +34,13 @@ test("native changes read ahead in bounded pages and invalidate cached metadata 
     assert.equal(changes.results.length, 1000)
     assert.ok(reads < 20, `Expected batched reads, observed ${reads}`)
     assert.ok(largest <= 128)
+    reads = 0
+    largest = 0
     const keyed = await db.allDocs({ keys: Array.from({ length: 1000 }, (_, i) => `doc_${i}`), include_docs: true })
     assert.equal(keyed.rows.length, 1000)
     assert.equal(keyed.rows[999].doc.value, 999)
+    assert.ok(reads < 25, `Expected batched keyed snapshots and bodies, observed ${reads}`)
+    assert.ok(largest <= 128)
     const before = await db.get("doc_999")
     await db.put({ ...before, value: "updated" })
     assert.equal((await db.get("doc_999")).value, "updated")
@@ -46,4 +50,64 @@ test("native changes read ahead in bounded pages and invalidate cached metadata 
     await db.destroy()
     fs.rmSync(directory, { recursive: true, force: true })
   }
+})
+
+function rawDatabase(transport) {
+  // Capture LevelPouch's byte-store factory so snapshot ordering is exercised
+  // directly, independently of PouchDB's own operation queues.
+  const module = { exports: {} }
+  const filename = require.resolve("../../../packages/platform-mobile/dist/nativePouchAdapter")
+  const code = fs.readFileSync(filename, "utf8")
+  let factory
+  Function("module", "exports", "require", code)(module, module.exports, name =>
+    name === "pouchdb-adapter-leveldb-core" ? function (options) { factory = options.db } : require(name))
+  module.exports.nativePouchAdapter(transport)({ adapter(_name, Adapter) { new Adapter({}) } })
+  return factory("snapshots")
+}
+
+const invoke = (db, method, ...args) => new Promise((resolve, reject) =>
+  db[method](...args, (error, ...values) => error ? reject(error) : resolve(values)))
+
+test("batched point snapshots precede same-turn writes and respect iterator options", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "once-native-points-"))
+  const bridge = sqliteBridge(directory)
+  const operations = []
+  const db = rawDatabase({ execute: request => {
+    operations.push(request.operation)
+    return bridge.execute(request)
+  } })
+  try {
+    await invoke(db, "open")
+    await invoke(db, "put", "a", "old")
+    operations.length = 0
+    const before = db.iterator({ gte: "a", lte: "a", keyAsBuffer: false, valueAsBuffer: false })
+    const empty = db.iterator({ gte: "a", lte: "a", limit: 0 })
+    const keysOnly = db.iterator({ gte: "a", lte: "a", values: false, keyAsBuffer: false })
+    const missing = db.iterator({ gte: "missing", lte: "missing" })
+    const write = invoke(db, "put", "a", "new")
+    assert.deepEqual(operations, ["getMany", "batch"], "snapshots are sent before the write")
+    await write
+    assert.deepEqual(await invoke(before, "next"), ["a", "old"])
+    assert.deepEqual(await invoke(empty, "next"), [])
+    assert.deepEqual(await invoke(keysOnly, "next"), ["a", undefined])
+    assert.deepEqual(await invoke(missing, "next"), [])
+    await Promise.all([before, empty, keysOnly, missing].map(iterator => invoke(iterator, "end")))
+    const [value] = await invoke(db, "get", "a", { asBuffer: false })
+    assert.equal(value, "new")
+  } finally {
+    await invoke(db, "close")
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test("a failed point-read batch rejects every snapshot", async () => {
+  const db = rawDatabase({ execute: async request => {
+    if (request.operation === "getMany") throw new Error("read failed")
+    return {}
+  } })
+  await invoke(db, "open")
+  const first = db.iterator({ gte: "a", lte: "a" })
+  const second = db.iterator({ gte: "b", lte: "b" })
+  await Promise.all([first, second].map(iterator => assert.rejects(invoke(iterator, "next"), /read failed/)))
+  await invoke(db, "close")
 })

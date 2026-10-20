@@ -1,0 +1,707 @@
+{
+  "commit": "a615e626011bd2884b51b03b968481b268903a70",
+  "device": {
+    "model": "Samsung SM-G780G Galaxy S20 FE",
+    "android": "13",
+    "webview": "155.0.8059.43",
+    "package": "com.zmarn.once.lite",
+    "build": "0.4.0 production identity, debug APK; Tier 1"
+  },
+  "baseline": {
+    "startup": {
+      "n": 4,
+      "firstStoriesMs": {
+        "median": 5475.9,
+        "min": 5109.0,
+        "max": 5799.8,
+        "samples": [
+          5799.8,
+          5159.8,
+          5792.0,
+          5109.0
+        ]
+      },
+      "allStoriesMs": {
+        "median": 5581.3,
+        "min": 5213.2,
+        "max": 5955.0,
+        "samples": [
+          5955.0,
+          5273.1,
+          5889.6,
+          5213.2
+        ]
+      },
+      "configsMs": {
+        "median": 5220.7,
+        "min": 4905.3,
+        "max": 5561.6,
+        "samples": [
+          5561.6,
+          4924.1,
+          5517.3,
+          4905.3
+        ]
+      },
+      "activityMs": {
+        "median": 1188.5,
+        "min": 1143,
+        "max": 1333,
+        "samples": [
+          1333,
+          1143,
+          1152,
+          1225
+        ]
+      },
+      "databaseCalls": {
+        "median": 541.5,
+        "min": 538,
+        "max": 552,
+        "samples": [
+          552,
+          538,
+          539,
+          544
+        ]
+      },
+      "storyCounts": {
+        "median": 109.0,
+        "min": 109,
+        "max": 109,
+        "samples": [
+          109,
+          109,
+          109,
+          109
+        ]
+      }
+    },
+    "pages": {
+      "https://news.ycombinator.com/": {
+        "none": {
+          "n": 3,
+          "medianLoadMs": 287.6,
+          "minLoadMs": 284.2,
+          "maxLoadMs": 291.5,
+          "medianFcpMs": 288
+        },
+        "both": {
+          "n": 3,
+          "medianLoadMs": 451.7,
+          "minLoadMs": 442.6,
+          "maxLoadMs": 482.1,
+          "medianFcpMs": 416
+        }
+      },
+      "https://en.wikipedia.org/wiki/Web_browser": {
+        "none": {
+          "n": 3,
+          "medianLoadMs": 270.9,
+          "minLoadMs": 256.9,
+          "maxLoadMs": 273.2,
+          "medianFcpMs": 200
+        },
+        "both": {
+          "n": 3,
+          "medianLoadMs": 467.5,
+          "minLoadMs": 407.4,
+          "maxLoadMs": 535.8,
+          "medianFcpMs": 288
+        }
+      },
+      "https://www.bbc.com/news": {
+        "none": {
+          "n": 3,
+          "medianLoadMs": 1613,
+          "minLoadMs": 1592.4,
+          "maxLoadMs": 1677.3,
+          "medianFcpMs": 228
+        },
+        "both": {
+          "n": 3,
+          "medianLoadMs": 441.9,
+          "minLoadMs": 433.3,
+          "maxLoadMs": 2049.9,
+          "medianFcpMs": 256
+        }
+      }
+    }
+  },
+  "fixed": {
+    "startup": {
+      "n": 5,
+      "firstStoriesMs": {
+        "median": 2853.0,
+        "min": 2713.9,
+        "max": 4504.7,
+        "samples": [
+          4504.7,
+          4045.7,
+          2817.9,
+          2853.0,
+          2713.9
+        ]
+      },
+      "allStoriesMs": {
+        "median": 2951.6,
+        "min": 2792.4,
+        "max": 4964.3,
+        "samples": [
+          4964.3,
+          4105.3,
+          2951.6,
+          2916.9,
+          2792.4
+        ]
+      },
+      "configsMs": {
+        "median": 2457.7,
+        "min": 2259.5,
+        "max": 2513.6,
+        "samples": [
+          2513.6,
+          2457.7,
+          2456.3,
+          2492.2,
+          2259.5
+        ]
+      },
+      "activityMs": {
+        "median": 1173,
+        "min": 1153,
+        "max": 1256,
+        "samples": [
+          1166,
+          1173,
+          1223,
+          1256,
+          1153
+        ]
+      },
+      "extensionReadyMs": {
+        "median": 4658.6,
+        "min": 4498.4,
+        "max": 5216.2,
+        "samples": [
+          5216.2,
+          4498.4,
+          4636.1,
+          4658.6,
+          4836.0
+        ]
+      },
+      "databaseCalls": {
+        "median": 90,
+        "min": 83,
+        "max": 107,
+        "samples": [
+          107,
+          90,
+          93,
+          89,
+          83
+        ]
+      },
+      "storyCounts": {
+        "median": 110,
+        "min": 110,
+        "max": 110,
+        "samples": [
+          110,
+          110,
+          110,
+          110,
+          110
+        ]
+      }
+    },
+    "pages": {
+      "https://news.ycombinator.com/": {
+        "none": {
+          "n": 3,
+          "medianLoadMs": 277.1,
+          "minLoadMs": 275,
+          "maxLoadMs": 312.9,
+          "medianFcpMs": 280
+        },
+        "both": {
+          "n": 3,
+          "medianLoadMs": 406.9,
+          "minLoadMs": 397.3,
+          "maxLoadMs": 446.2,
+          "medianFcpMs": 376
+        }
+      },
+      "https://en.wikipedia.org/wiki/Web_browser": {
+        "none": {
+          "n": 3,
+          "medianLoadMs": 249,
+          "minLoadMs": 245.2,
+          "maxLoadMs": 252.3,
+          "medianFcpMs": 172
+        },
+        "both": {
+          "n": 3,
+          "medianLoadMs": 411.4,
+          "minLoadMs": 407.4,
+          "maxLoadMs": 438.8,
+          "medianFcpMs": 292
+        }
+      },
+      "https://www.bbc.com/news": {
+        "none": {
+          "n": 3,
+          "medianLoadMs": 1646,
+          "minLoadMs": 1531.7,
+          "maxLoadMs": 1794.5,
+          "medianFcpMs": 240
+        },
+        "both": {
+          "n": 3,
+          "medianLoadMs": 1621,
+          "minLoadMs": 383.2,
+          "maxLoadMs": 1933.1,
+          "medianFcpMs": 272
+        }
+      }
+    }
+  },
+  "startupOnly": {
+    "n": 4,
+    "firstStoriesMs": {
+      "median": 2843.5,
+      "min": 2758.1,
+      "max": 4963.9,
+      "samples": [
+        4963.9,
+        2758.1,
+        2819.8,
+        2867.3
+      ]
+    },
+    "allStoriesMs": {
+      "median": 3739.9,
+      "min": 2902.8,
+      "max": 5305.1,
+      "samples": [
+        5305.1,
+        2902.8,
+        4503.3,
+        2976.6
+      ]
+    },
+    "configsMs": {
+      "median": 2430.9,
+      "min": 2200.7,
+      "max": 2518.1,
+      "samples": [
+        2518.1,
+        2200.7,
+        2447.5,
+        2414.4
+      ]
+    },
+    "activityMs": {
+      "median": 1219.0,
+      "min": 1204,
+      "max": 1234,
+      "samples": [
+        1234,
+        1212,
+        1204,
+        1226
+      ]
+    },
+    "databaseCalls": {
+      "median": 283.0,
+      "min": 276,
+      "max": 543,
+      "samples": [
+        543,
+        276,
+        288,
+        278
+      ]
+    },
+    "storyCounts": {
+      "median": 109.0,
+      "min": 109,
+      "max": 109,
+      "samples": [
+        109,
+        109,
+        109,
+        109
+      ]
+    }
+  },
+  "cspBodyTransport": {
+    "samples": [
+      {
+        "bytes": 65536,
+        "native": true,
+        "ms": 259,
+        "navigationMs": 234,
+        "brokerBodyCharacters": 0,
+        "run": "initial"
+      },
+      {
+        "bytes": 65536,
+        "native": false,
+        "ms": 274,
+        "navigationMs": 207,
+        "brokerBodyCharacters": 174944,
+        "run": "initial"
+      },
+      {
+        "bytes": 65536,
+        "native": false,
+        "ms": 244,
+        "navigationMs": 206,
+        "brokerBodyCharacters": 174944,
+        "run": "initial"
+      },
+      {
+        "bytes": 65536,
+        "native": true,
+        "ms": 208,
+        "navigationMs": 176,
+        "brokerBodyCharacters": 0,
+        "run": "initial"
+      },
+      {
+        "bytes": 65536,
+        "native": true,
+        "ms": 228,
+        "navigationMs": 193,
+        "brokerBodyCharacters": 0,
+        "run": "initial"
+      },
+      {
+        "bytes": 65536,
+        "native": false,
+        "ms": 214,
+        "navigationMs": 181,
+        "brokerBodyCharacters": 174944,
+        "run": "initial"
+      },
+      {
+        "bytes": 524288,
+        "native": true,
+        "ms": 263,
+        "navigationMs": 230,
+        "brokerBodyCharacters": 0,
+        "run": "initial"
+      },
+      {
+        "bytes": 524288,
+        "native": false,
+        "ms": 401,
+        "navigationMs": 331,
+        "brokerBodyCharacters": 1398288,
+        "run": "initial"
+      },
+      {
+        "bytes": 524288,
+        "native": false,
+        "ms": 1071,
+        "navigationMs": 937,
+        "brokerBodyCharacters": 1398288,
+        "run": "initial"
+      },
+      {
+        "bytes": 524288,
+        "native": true,
+        "ms": 323,
+        "navigationMs": 278,
+        "brokerBodyCharacters": 0,
+        "run": "initial"
+      },
+      {
+        "bytes": 524288,
+        "native": true,
+        "ms": 583,
+        "navigationMs": 552,
+        "brokerBodyCharacters": 0,
+        "run": "initial"
+      },
+      {
+        "bytes": 524288,
+        "native": false,
+        "ms": 363,
+        "navigationMs": 321,
+        "brokerBodyCharacters": 1398288,
+        "run": "initial"
+      },
+      {
+        "bytes": 2097152,
+        "native": true,
+        "ms": 641,
+        "navigationMs": 473,
+        "brokerBodyCharacters": 0,
+        "run": "initial"
+      },
+      {
+        "bytes": 2097152,
+        "native": false,
+        "ms": 794,
+        "navigationMs": 760,
+        "brokerBodyCharacters": 5592592,
+        "run": "initial"
+      },
+      {
+        "bytes": 2097152,
+        "native": false,
+        "ms": 779,
+        "navigationMs": 711,
+        "brokerBodyCharacters": 5592592,
+        "run": "initial"
+      },
+      {
+        "bytes": 2097152,
+        "native": true,
+        "ms": 483,
+        "navigationMs": 452,
+        "brokerBodyCharacters": 0,
+        "run": "initial"
+      },
+      {
+        "bytes": 2097152,
+        "native": true,
+        "ms": 551,
+        "navigationMs": 515,
+        "brokerBodyCharacters": 0,
+        "run": "initial"
+      },
+      {
+        "bytes": 2097152,
+        "native": false,
+        "ms": 710,
+        "navigationMs": 669,
+        "brokerBodyCharacters": 5592592,
+        "run": "initial"
+      },
+      {
+        "bytes": 65536,
+        "native": true,
+        "ms": 185,
+        "navigationMs": 165,
+        "brokerBodyCharacters": 0,
+        "run": "final"
+      },
+      {
+        "bytes": 65536,
+        "native": false,
+        "ms": 173,
+        "navigationMs": 156,
+        "brokerBodyCharacters": 174944,
+        "run": "final"
+      },
+      {
+        "bytes": 65536,
+        "native": false,
+        "ms": 193,
+        "navigationMs": 173,
+        "brokerBodyCharacters": 174944,
+        "run": "final"
+      },
+      {
+        "bytes": 65536,
+        "native": true,
+        "ms": 175,
+        "navigationMs": 156,
+        "brokerBodyCharacters": 0,
+        "run": "final"
+      },
+      {
+        "bytes": 65536,
+        "native": true,
+        "ms": 160,
+        "navigationMs": 143,
+        "brokerBodyCharacters": 0,
+        "run": "final"
+      },
+      {
+        "bytes": 65536,
+        "native": false,
+        "ms": 169,
+        "navigationMs": 150,
+        "brokerBodyCharacters": 174944,
+        "run": "final"
+      },
+      {
+        "bytes": 524288,
+        "native": true,
+        "ms": 236,
+        "navigationMs": 216,
+        "brokerBodyCharacters": 0,
+        "run": "final"
+      },
+      {
+        "bytes": 524288,
+        "native": false,
+        "ms": 331,
+        "navigationMs": 309,
+        "brokerBodyCharacters": 1398288,
+        "run": "final"
+      },
+      {
+        "bytes": 524288,
+        "native": false,
+        "ms": 315,
+        "navigationMs": 294,
+        "brokerBodyCharacters": 1398288,
+        "run": "final"
+      },
+      {
+        "bytes": 524288,
+        "native": true,
+        "ms": 233,
+        "navigationMs": 216,
+        "brokerBodyCharacters": 0,
+        "run": "final"
+      },
+      {
+        "bytes": 524288,
+        "native": true,
+        "ms": 278,
+        "navigationMs": 260,
+        "brokerBodyCharacters": 0,
+        "run": "final"
+      },
+      {
+        "bytes": 524288,
+        "native": false,
+        "ms": 304,
+        "navigationMs": 285,
+        "brokerBodyCharacters": 1398288,
+        "run": "final"
+      },
+      {
+        "bytes": 2097152,
+        "native": true,
+        "ms": 492,
+        "navigationMs": 468,
+        "brokerBodyCharacters": 0,
+        "run": "final"
+      },
+      {
+        "bytes": 2097152,
+        "native": false,
+        "ms": 741,
+        "navigationMs": 717,
+        "brokerBodyCharacters": 5592592,
+        "run": "final"
+      },
+      {
+        "bytes": 2097152,
+        "native": false,
+        "ms": 678,
+        "navigationMs": 653,
+        "brokerBodyCharacters": 5592592,
+        "run": "final"
+      },
+      {
+        "bytes": 2097152,
+        "native": true,
+        "ms": 497,
+        "navigationMs": 477,
+        "brokerBodyCharacters": 0,
+        "run": "final"
+      },
+      {
+        "bytes": 2097152,
+        "native": true,
+        "ms": 502,
+        "navigationMs": 473,
+        "brokerBodyCharacters": 0,
+        "run": "final"
+      },
+      {
+        "bytes": 2097152,
+        "native": false,
+        "ms": 707,
+        "navigationMs": 678,
+        "brokerBodyCharacters": 5592592,
+        "run": "final"
+      }
+    ],
+    "medians": {
+      "65536": {
+        "former": 177.0,
+        "native": 170.5
+      },
+      "524288": {
+        "former": 315.0,
+        "native": 245.0
+      },
+      "2097152": {
+        "former": 694.5,
+        "native": 473.0
+      }
+    }
+  },
+  "databaseProbe": {
+    "baseline": {
+      "getMany": 286,
+      "batch": 3,
+      "close": 1,
+      "open": 1,
+      "iteratorOpen": 238,
+      "iteratorNext": 13,
+      "iteratorEnd": 8
+    },
+    "fixed": {
+      "getMany": 69,
+      "batch": 3,
+      "close": 1,
+      "open": 1,
+      "iteratorOpen": 9,
+      "iteratorNext": 15,
+      "iteratorEnd": 9
+    }
+  },
+  "methodology": {
+    "startup": "Four baseline and five final process-cold launches; existing profile retained; cache-first sources may refresh. CDP midpoint clock calibration; DOM observations rather than optical display timings.",
+    "websites": "Four rounds per build and extension state; first round excluded as warmup, three repeats summarized. Normal HTTP cache/cookies retained. Website run precedes the final startup-only storage-yield refinement.",
+    "csp": "Two paired native instrumentation runs, three samples per path/size each, six combined. Former transport emulated in the test on the same build.",
+    "database": "Calls observed after attaching to the shell; not a complete process census or SQLite query-duration measurement."
+  },
+  "validation": {
+    "javascriptTests": 355,
+    "liteJvmTests": 44,
+    "physicalAndroidTests": 6,
+    "viewportCssPixels": [
+      360,
+      800
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "tier2PhysicalDeviceTested": false
+  },
+  "delivery": {
+    "extensions": [
+      {
+        "name": "uBlock Origin",
+        "version": "1.74.0",
+        "enabled": true
+      },
+      {
+        "name": "Violentmonkey",
+        "version": "2.49.0",
+        "enabled": true
+      }
+    ],
+    "theme": "dark",
+    "panel": "stories",
+    "stories": 110,
+    "configs": 5,
+    "instrumentationClean": true,
+    "extensionsReady": true,
+    "installedApkMatchesBuild": true,
+    "apkSha256": "9927ef2d01a6c3a1caf1d708b8d80daadac9a683966b3e507eb891d908bf2e46"
+  }
+}

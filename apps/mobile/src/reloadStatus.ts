@@ -16,6 +16,8 @@ export type ReloadStatusState = "loading" | "done" | "ready"
 export type ShowReloadStatus = (message: string, state: ReloadStatusState) => void
 
 export interface ReloadStatusOptions {
+  /** Startup already displays the pill; source progress must own it from here. */
+  initiallyShown?: boolean
   revealDelay?: number
   doneNotice?: number
   // Where the story list announces a starting reload; the document by default.
@@ -46,7 +48,7 @@ export function bindReloadStatus(
   let processing: ProcessingSource[] = []
   let reveal: ReturnType<typeof setTimeout> | null = null
   let dismiss: ReturnType<typeof setTimeout> | null = null
-  let shown = false
+  let shown = options.initiallyShown ?? false
 
   const clearReveal = (): void => {
     if (reveal !== null) clearTimeout(reveal)

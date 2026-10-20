@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict")
 const test = require("node:test")
 const {
-  ExtensionSettingsCoordinator, ublockSelection, reconcileUblockLists
+  ExtensionSettingsCoordinator, ublockSelection, reconcileUblockLists, applyFilterListsToUblock
 } = require("../../../packages/webext-runtime/dist")
 
 test("settings queues are independent per extension and suppress stale adoption", async () => {
@@ -25,6 +25,67 @@ test("settings queues are independent per extension and suppress stale adoption"
   calls[3].resolve({})
   await latest
   assert.equal(coordinator.status(hosts[0]).state, "applied")
+})
+
+function dashboardFixture() {
+  const commands = []
+  const records = new Map()
+  let entry
+  const host = {
+    extension: { id: "uBlock0@raymondhill.net", host: "ublock", name: "uBlock Origin" },
+    contexts: {
+      whenListening: async () => {},
+      addEntry: value => (entry = value),
+      remove() {}
+    },
+    ports: {
+      connect: () => 1,
+      disconnect() {},
+      post(_sender, portId, envelope) {
+        commands.push(envelope.msg.what)
+        if (envelope.msg.what === "applyFilterListSelection") {
+          for (const [key, asset] of Object.entries(host.table.available)) asset.off = !envelope.msg.toSelect.includes(key)
+        }
+        if (host.failReload && envelope.msg.what === "reloadAllFilters") throw new Error("interrupted reload")
+        entry.send({ api: "__port", event: "message", args: [{
+          portId, message: { msgId: envelope.msgId, msg: envelope.msg.what === "getLists" ? host.table : {} }
+        }] })
+      }
+    },
+    store: { read: async key => records.get(key), write: async (key, value) => { records.set(key, value) } },
+    table: { available: { easylist: { off: false, contentURL: "https://lists.test/easylist" } } }
+  }
+  return { host, commands, records }
+}
+
+test("unchanged uBlock selections wait for readiness without rebuilding filters", async () => {
+  const { host, commands, records } = dashboardFixture()
+  await applyFilterListsToUblock(host, [{ url: "https://lists.test/easylist", enabled: true }])
+  assert.deepEqual(commands, ["getLists"])
+  assert.deepEqual(records.get("once-filter-lists.json"), { "https://lists.test/easylist": true })
+})
+
+test("changed selections reload, but a second identical application does not", async () => {
+  const { host, commands } = dashboardFixture()
+  const lists = [{ url: "https://lists.test/easylist", enabled: false }]
+  await applyFilterListsToUblock(host, lists)
+  assert.deepEqual(commands, ["getLists", "applyFilterListSelection", "reloadAllFilters"])
+  commands.length = 0
+  await applyFilterListsToUblock(host, lists)
+  assert.deepEqual(commands, ["getLists"])
+})
+
+test("an interrupted rebuild is retried even when the selection was already saved", async () => {
+  const { host, commands, records } = dashboardFixture()
+  host.failReload = true
+  const lists = [{ url: "https://lists.test/easylist", enabled: false }]
+  await assert.rejects(applyFilterListsToUblock(host, lists), /interrupted reload/)
+  assert.equal(records.get("once-filter-lists-pending.json"), true)
+  host.failReload = false
+  commands.length = 0
+  await applyFilterListsToUblock(host, lists)
+  assert.deepEqual(commands, ["getLists", "applyFilterListSelection", "reloadAllFilters"])
+  assert.equal(records.get("once-filter-lists-pending.json"), false)
 })
 
 const table = {

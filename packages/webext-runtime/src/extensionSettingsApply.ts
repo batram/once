@@ -15,6 +15,7 @@ import { sha256Hex } from "./sha256"
 import { VirtualContext } from "./VirtualContext"
 
 const FILTER_LISTS_RECORD = "once-filter-lists.json"
+const FILTER_LISTS_PENDING = "once-filter-lists-pending.json"
 const USERSCRIPTS_RECORD = "once-userscripts.json"
 
 export const UBLOCK_ORIGIN_ID = "uBlock0@raymondhill.net"
@@ -129,7 +130,13 @@ export async function applyFilterListsToUblock(
         clearTimeout(timer)
         resolve(value)
       })
-      port.post({ channel: "dashboard", msgId, msg })
+      try {
+        port.post({ channel: "dashboard", msgId, msg })
+      } catch (error) {
+        clearTimeout(timer)
+        pending.delete(msgId)
+        reject(error)
+      }
     })
   try {
     const table = await request({ what: "getLists" }) as UblockListTable | undefined
@@ -140,11 +147,25 @@ export async function applyFilterListsToUblock(
     const value = await host.store.read(FILTER_LISTS_RECORD)
     if (isRecord(value)) previous = Object.fromEntries(Object.entries(value).filter(([, enabled]) => typeof enabled === "boolean")) as Record<string, boolean>
     const next = reconcileUblockLists(table, lists, previous)
+    const selection = ublockSelection(table, next.lists)
+    const selected = Object.entries(table.available).filter(([, asset]) => asset.off !== true).map(([key]) => key)
+    const changed = selection.toImport !== "" || selection.toRemove.length > 0 ||
+      selected.length !== selection.toSelect.length || selected.some((key) => !selection.toSelect.includes(key))
+    const unfinished = await host.store.read(FILTER_LISTS_PENDING)
+    if (!changed && unfinished !== true) {
+      // getLists waits for uBlock's initial filters. An already-correct
+      // selection needs no rebuild, including after a broker restart.
+      // Still record newly managed URLs and forget released ownership.
+      await host.store.write(FILTER_LISTS_RECORD, next.baseline)
+      return
+    }
     // Persist ownership before effects, so an interrupted hand-off can be retried.
     await host.store.write(FILTER_LISTS_RECORD, { ...previous, ...next.baseline })
-    await request({ what: "applyFilterListSelection", ...ublockSelection(table, next.lists) })
+    await host.store.write(FILTER_LISTS_PENDING, true)
+    await request({ what: "applyFilterListSelection", ...selection })
     await request({ what: "reloadAllFilters" }, RELOAD_TIMEOUT_MS)
     await host.store.write(FILTER_LISTS_RECORD, next.baseline)
+    await host.store.write(FILTER_LISTS_PENDING, false)
   } finally {
     port.disconnect()
     context.close()
