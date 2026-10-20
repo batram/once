@@ -1,5 +1,5 @@
 import { uncoveredBox } from "./imageTextCover"
-import { findImage, imageFit, OVERLAY_CSS, viewport } from "./imageTextOverlay"
+import { createSelection, findImage, imageFit, type ImageTextSession, OVERLAY_CSS, viewport } from "./imageTextOverlay"
 import { scrollContainer } from "./imageTextPointer"
 import type { ImageTextFit, ImageTextViewEvent, ImageTextViewLayout, ImageTextViewMessage } from "./imageTextTypes"
 
@@ -96,6 +96,9 @@ function placeHostAt(host: HTMLElement, style: HostStyle, last: { key: string })
   }
 }
 
+/** How long the words frame has, once loaded, to say it runs (see `fallBack`). */
+const READY_WAIT = 1500
+
 /** The bar is the app's control and stays readable over everything. */
 const BAR_LAYER = "2147483647"
 
@@ -179,6 +182,12 @@ class AnchoredSelection {
   readonly source: string
   private port: MessagePort | null = null
   private readonly pending: ImageTextViewMessage[] = []
+  /** Set once the words frame says it runs; see `fallBack`. */
+  private ready = false
+  /** When the frame should have said so; checked each layout frame, as such a page never runs a timer. */
+  private readyBy = performance.now() + READY_WAIT * 4
+  private result: Extract<ImageTextViewMessage, { type: "result" }> | null = null
+  private inPage: ImageTextSession | null = null
   private closed = false
   private animation = 0
   private lastFrame = ""
@@ -226,13 +235,36 @@ class AnchoredSelection {
     this.bar.shadow.append(this.barElement)
     this.mount()
     const origin = new URL(frameUrl).origin
-    this.frame.addEventListener("load", () => this.connect(origin))
+    this.frame.addEventListener("load", () => {
+      this.connect(origin)
+      // A frame the page keeps from loading at all falls back too, later (`readyBy`'s first value).
+      this.readyBy = performance.now() + READY_WAIT
+    })
     this.layout()
+  }
+
+  /**
+   * A page sandboxed by its CSP (raw.githubusercontent.com's `sandbox`) hands
+   * the sandbox to every frame in it, ours too: the words frame loads but runs
+   * no script, and would leave the bar recognizing forever. The selection then
+   * moves into the page itself, in this isolated world's closed shadow root.
+   */
+  private readonly fallBack = (): void => {
+    if (this.closed || this.ready || this.inPage) return
+    cancelAnimationFrame(this.animation)
+    this.port?.close()
+    this.port = null
+    this.words.host.remove()
+    this.bar.host.remove()
+    this.inPage = createSelection(this.image, this.token, false, undefined, () => this.close(true))
+    if (this.result) this.inPage.finish(this.result.result, this.result.message)
   }
 
   message(message: ImageTextViewMessage): void {
     if (this.closed) return
-    if (message.type === "status") { this.status.textContent = message.text; this.lastBar = "" }
+    if (message.type === "result") this.result = message
+    if (this.inPage) { if (message.type === "result") this.inPage.finish(message.result, message.message) }
+    else if (message.type === "status") { this.status.textContent = message.text; this.lastBar = "" }
     else if (this.port) this.port.postMessage(message)
     else this.pending.push(message)
   }
@@ -241,6 +273,7 @@ class AnchoredSelection {
     if (this.closed) return
     this.closed = true
     cancelAnimationFrame(this.animation)
+    this.inPage?.close()
     this.port?.close()
     this.words.host.remove()
     this.bar.host.remove()
@@ -251,6 +284,10 @@ class AnchoredSelection {
   }
 
   state(): ImageTextAnchorState {
+    if (this.inPage) {
+      return { frame: { left: 0, top: 0, width: 0, height: 0 }, clipPath: "", hidden: true, anchored: false,
+        bar: { left: 0, top: 0, right: 0, bottom: 0, text: this.inPage.statusText(), background: "", mode: "in-page" } }
+    }
     const frame = this.frame.getBoundingClientRect(), bar = this.barElement.getBoundingClientRect()
     return {
       frame: { left: frame.left, top: frame.top, width: frame.width, height: frame.height },
@@ -305,7 +342,8 @@ class AnchoredSelection {
 
   private fromFrame(event: ImageTextViewEvent): void {
     if (this.closed || !event || typeof event !== "object") return
-    if (event.type === "close") this.close(true)
+    if (event.type === "ready") this.ready = true
+    else if (event.type === "close") this.close(true)
     else if (event.type === "status") { this.status.textContent = String(event.text); this.lastBar = "" }
     else if (event.type === "sweeping") this.barElement.classList.toggle("sweeping", Boolean(event.sweeping))
     else if (event.type === "words" && Array.isArray(event.boxes)) {
@@ -373,6 +411,7 @@ class AnchoredSelection {
     if (this.closed) return
     const image = this.image
     if (!image.isConnected || (image.currentSrc || image.src) !== this.source || !image.naturalWidth) { this.close(true); return }
+    if (!this.ready && performance.now() > this.readyBy) { this.fallBack(); return }
     const rect = image.getBoundingClientRect()
     const fit = imageFit(image, (box) => uncoveredBox(image, box, ownElement))
     this.mount()

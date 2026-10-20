@@ -92,10 +92,11 @@ const READY = `Drag to select text · ${process.platform === "darwin" ? "⌘C" :
 async function startRecognition(app, selector = "img", url = `${server.origin}/`) {
   await app.evaluate(async ({ webContents, Menu }, { url, selector }) => {
     const page = webContents.getAllWebContents().find(c => c.getURL() === url)
-    const params = await page.executeJavaScript(`(() => {
+    // An isolated world: a page its CSP sandboxes runs none of its own.
+    const params = await page.executeJavaScriptInIsolatedWorld(999, [{ code: `(() => {
       const image = document.querySelector(${JSON.stringify(selector)}), r = image.getBoundingClientRect();
       return {srcURL:image.currentSrc, x:r.left+r.width/2, y:r.top+r.height/2};
-    })()`)
+    })()` }])
     const original = Menu.buildFromTemplate
     let action
     Menu.buildFromTemplate = template => {
@@ -412,6 +413,25 @@ test("an image opened as its own tab from a content-negotiated response is read 
       .some(c => c.getURL() === url && !c.isLoading()), url)).toBe(true)
     await startRecognition(app, "img", url)
     expect(await selectAndCopy(app, url)).toBe("Select these words")
+  } finally { await closeApp(app, userData) }
+})
+
+test("an image in a tab its CSP sandboxes gets the selection in the page, as its words frame runs no script", async () => {
+  const { electronApp: app, userData, window } = await launchApp()
+  try {
+    await window.locator("#urlfield").fill(`${server.origin}/`)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
+    await expect.poll(() => inPage(app, "document.querySelector('img').naturalWidth")).toBe(1000)
+    const png = await inPage(app, "document.querySelector('img').src")
+    server.setImage(Buffer.from(png.split(",")[1], "base64"))
+    const url = `${server.origin}/sandboxed.png`
+    await window.locator("#urlfield").fill(url)
+    await window.locator("#urlfield").press("Enter")
+    await expect.poll(() => app.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+      .some(c => c.getURL() === url && !c.isLoading()), url)).toBe(true)
+    await startRecognition(app, "img", url)
+    expect((await overlayState(app, url)).bar.mode).toBe("in-page")
   } finally { await closeApp(app, userData) }
 })
 

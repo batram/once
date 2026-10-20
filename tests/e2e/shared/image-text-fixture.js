@@ -58,6 +58,14 @@ async function startImageTextServer(port = 0) {
       response.end(raster)
       return
     }
+    if (request.url === "/sandboxed.png" && raster) {
+      // As raw.githubusercontent.com serves files: the sandbox reaches every frame in the
+      // image's tab, the selection's words frame too, which then runs no script.
+      response.writeHead(200, { "content-type": "image/png",
+        "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox" })
+      response.end(raster)
+      return
+    }
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
     // The fixture again inside a cross-site iframe (localhost vs 127.0.0.1),
     // which runs out of process: offset, bordered and in a scrolled page.

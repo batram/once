@@ -7,11 +7,13 @@ import { ImageTextLayer } from "./imageTextLayer"
 import { ImageTextPointer } from "./imageTextPointer"
 import { playRecognitionScan } from "./imageTextScan"
 
-interface ImageTextSession {
+export interface ImageTextSession {
   token: string
   finish(result: ImageTextResult | null, message?: string): void
   /** The text Copy takes: the selection, reflowed, or all recognized text. */
   copyText(): string
+  /** What the bar says. */
+  statusText(): string
   close(): void
 }
 
@@ -114,8 +116,8 @@ export const OVERLAY_CSS = `
   }
 `
 
-function createSelection(image: HTMLImageElement, token: string, textLayer: boolean,
-  appBar?: (token: string, state: ImageTextBarState | null) => void): ImageTextSession {
+export function createSelection(image: HTMLImageElement, token: string, textLayer: boolean,
+  appBar?: (token: string, state: ImageTextBarState | null) => void, onClose?: () => void): ImageTextSession {
   const host = document.createElement("div")
   host.dataset.onceImageText = token
   // Closed: the page's scripts cannot reach in to read or change the recognized words.
@@ -182,6 +184,7 @@ function createSelection(image: HTMLImageElement, token: string, textLayer: bool
     host.remove()
     if (window.__onceImageText?.token === token) delete window.__onceImageText
     appBar?.(token, null)
+    onClose?.()
   }
   const keydown = (event: KeyboardEvent) => {
     // The page's own script cannot close the selection with a synthetic key.
@@ -212,7 +215,7 @@ function createSelection(image: HTMLImageElement, token: string, textLayer: bool
   layout()
   return {
     token, close,
-    copyText: () => blocks.copyText(),
+    copyText: () => blocks.copyText(), statusText: () => status.textContent ?? "",
     finish(result, message) {
       if (closed) return
       if (!result?.lines.some((line) => line.length)) {

@@ -23,4 +23,7 @@ function hostBridge(): ImageTextViewBridge {
   }
 }
 
-startImageTextWordsView(hostBridge())
+const bridge = hostBridge()
+startImageTextWordsView(bridge)
+// Running: the host otherwise takes the frame for one a sandboxed page keeps from running (see imageTextAnchor.ts).
+bridge.send({ type: "ready" })
