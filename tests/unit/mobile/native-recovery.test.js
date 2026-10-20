@@ -101,3 +101,26 @@ test("adapter migration preserves old epoch version so reconciliation is not byp
   assert.equal((await target.get("_local/once-sync-epoch")).version, 3)
   assert.equal((await f.open("once_mobile_v1").get("settings")).value, "pending local setting")
 })
+
+test("prepared databases and local migrations do not read the remote recovery URL", async t => {
+  const prepared = await fixture(t)
+  await prepared.prepare("", () => {})
+  await prepared.prepare(async () => { throw Error("Unneeded secret read") }, () => {})
+  assert.equal(prepared.pointerWrites(), 1)
+  const local = await fixture(t, true)
+  await local.open("once_mobile_v1").put({ _id: "settings", value: "local" })
+  await local.prepare(async () => { throw Error("Unneeded secret read") }, () => {})
+  assert.equal((await local.open("once_mobile_native_v1").get("settings")).value, "local")
+})
+
+test("remote recovery resolves its lazy URL once and propagates lookup failures without activation", async t => {
+  const f = await fixture(t)
+  await f.open("remote").put({ _id: "settings", value: "recovered" })
+  let reads = 0
+  await f.prepare(async () => { reads++; return "https://example.test/once_e2" }, () => {})
+  assert.equal(reads, 1)
+  assert.equal((await f.open("once_mobile_native_v1").get("settings")).value, "recovered")
+  const failed = await fixture(t)
+  await assert.rejects(failed.prepare(async () => { throw Error("Secret unavailable") }, () => {}), /Secret unavailable/)
+  assert.equal(failed.pointerWrites(), 0)
+})

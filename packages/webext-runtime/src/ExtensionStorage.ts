@@ -24,6 +24,7 @@ export class ExtensionStorage {
   private changed(): void { for (const listener of this.listeners) listener() }
   private items: Map<string, unknown> | null = null
   private loading: Promise<void> = Promise.resolve()
+  private pendingRead: { keys: Set<string>; promise: Promise<void> } | null = null
   private complete = false
   private readonly known = new Set<string>()
   private writeTimer: ReturnType<typeof setTimeout> | null = null
@@ -39,9 +40,20 @@ export class ExtensionStorage {
     const keyed = this.store.patch ? this.store.readKeys?.bind(this.store) : undefined
     const wanted = keyed ? keys : null
     if (this.complete || (wanted && wanted.every(key => this.known.has(key)))) return this.items ?? new Map()
+    // Merge requests that have not reached the store yet, including requests
+    // queued behind an in-flight read. Full enumeration remains an ordering barrier.
+    if (wanted && this.pendingRead) {
+      const pending = this.pendingRead
+      for (const key of wanted) pending.keys.add(key)
+      await pending.promise
+      return this.items ?? new Map()
+    }
+    const batch = wanted ? new Set(wanted) : null
+    if (!batch) this.pendingRead = null
     const loading = this.loading.then(async () => {
+      if (this.pendingRead?.keys === batch) this.pendingRead = null
       if (this.complete) return
-      const missing = wanted?.filter(key => !this.known.has(key)) ?? null
+      const missing = batch ? [...batch].filter(key => !this.known.has(key)) : null
       if (missing?.length === 0) return
       let parsed: unknown
       if (missing && keyed) {
@@ -63,6 +75,7 @@ export class ExtensionStorage {
       else this.complete = true
       if (keyed || isRecord(parsed)) this.whole = false
     })
+    if (batch) this.pendingRead = { keys: batch, promise: loading }
     this.loading = loading.catch(() => undefined)
     await loading
     return this.items ?? new Map()

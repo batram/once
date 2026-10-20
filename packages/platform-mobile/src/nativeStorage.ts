@@ -33,7 +33,7 @@ async function optionalDocument(db: PouchDB.Database, id: string): Promise<Recor
 }
 
 /** Block all app writes until a native import/recovery is verified and committed. */
-export async function prepareMobileDatabase(syncUrl: string, progress: (message: string) => void): Promise<void> {
+export async function prepareMobileDatabase(syncUrl: string | (() => Promise<string>), progress: (message: string) => void): Promise<void> {
   if (Capacitor.getPlatform() !== "android") return
   let pointer = String((await NativeLevel.execute({ operation: "readPointer" })).value || "")
   if (pointer) {
@@ -56,9 +56,10 @@ export async function prepareMobileDatabase(syncUrl: string, progress: (message:
   const target = new PouchDB(name, { ...LOCAL_POUCH_OPTIONS, adapter: "native-sqlite" })
   let source: PouchDB.Database | undefined
   try {
-    const ready = await optionalDocument(target, READY)
     // Future epoch copies do not replicate local docs, but do commit their own epoch record.
-    const epoch = await optionalDocument(target, "_local/once-sync-epoch")
+    const [ready, epoch] = await Promise.all([
+      optionalDocument(target, READY), optionalDocument(target, "_local/once-sync-epoch")
+    ])
     if (pointer && (ready || epoch?.destination || epoch?.retired)) {
       nativePointer = storage
       return
@@ -68,6 +69,8 @@ export async function prepareMobileDatabase(syncUrl: string, progress: (message:
     const legacyName = activeLocalDatabaseName("once_mobile_v1")
     const databases = await indexedDB.databases()
     const hasLegacy = databases.some(database => database.name === `_pouch_${legacyName}`)
+    // Normal startup and local migration do not need the remote recovery URL.
+    const recoveryUrl = hasLegacy ? "" : typeof syncUrl === "function" ? await syncUrl() : syncUrl
     let destination: string | undefined
     let epochVersion: unknown = LOCAL_EPOCH_VERSION
     if (hasLegacy) {
@@ -78,9 +81,9 @@ export async function prepareMobileDatabase(syncUrl: string, progress: (message:
       // Moving adapters is not an epoch upgrade. Older data must still pass reconciliation.
       epochVersion = oldEpoch?.version
       progress("Copying existing data to durable storage…")
-    } else if (syncUrl) {
+    } else if (recoveryUrl) {
       progress("Recovering data from sync into durable storage…")
-      const effective = await followSyncEpoch(syncUrl, async url => {
+      const effective = await followSyncEpoch(recoveryUrl, async url => {
         const remote = new PouchDB(url, { fetch: nativeFetch, skip_setup: true })
         try { return await readSyncEpochMarker(remote as unknown as EpochCopyDatabase) } finally { await remote.close() }
       })

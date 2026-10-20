@@ -284,7 +284,7 @@ async function startMobileApp(): Promise<void> {
   installTransientScrollbars()
 
   const nativeBridge = createDefaultMobileNativeBridge()
-  await prepareMobileDatabase(await nativeBridge.getSyncUrl(), message => showStartupState(message))
+  await prepareMobileDatabase(() => nativeBridge.getSyncUrl(), message => showStartupState(message))
   // The reading controller is built below; the closure only runs on a tap.
   const platform = createMobilePlatform(nativeBridge, undefined, {
     openInApp: (url) => reading.openBrowserUrl(url),

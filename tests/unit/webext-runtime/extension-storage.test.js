@@ -130,3 +130,44 @@ test("a full read racing a local change preserves the local value and deletion",
   await storage.flush()
   assert.deepEqual(store.snapshot(), { a: 9, unseen: 3 })
 })
+
+test("concurrent disjoint keyed reads share one request and retain independent defaults", async () => {
+  const store = keyedStore({ a: 1, b: 2, large: "untouched" })
+  const storage = new ExtensionStorage(store, "storage.json")
+  assert.deepEqual(await Promise.all([
+    storage.get({ a: 0, missing: "first" }), storage.get(["b", "a"]), storage.get({ missing: "second" })
+  ]), [{ a: 1, missing: "first" }, { b: 2, a: 1 }, { missing: "second" }])
+  assert.deepEqual(store.reads, [["a", "missing", "b"]])
+})
+
+test("reads queued behind an active request batch together and retry together after failure", async () => {
+  const store = keyedStore({ a: 1, b: 2, c: 3 })
+  const read = store.readKeys
+  let release
+  store.readKeys = async (name, keys) => {
+    if (keys.includes("a")) await new Promise(resolve => { release = resolve })
+    return read(name, keys)
+  }
+  const storage = new ExtensionStorage(store, "storage.json")
+  const first = storage.get("a")
+  await Promise.resolve()
+  const others = [storage.get("b"), storage.get("c")]
+  release()
+  assert.deepEqual(await Promise.all([first, ...others]), [{ a: 1 }, { b: 2 }, { c: 3 }])
+  assert.deepEqual(store.reads, [["a"], ["b", "c"]])
+  store.readKeys = async () => { throw Error("failed batch") }
+  const failed = await Promise.allSettled([storage.get("d"), storage.get("e")])
+  assert.ok(failed.every(result => result.status === "rejected"))
+  store.readKeys = read
+  assert.deepEqual(await Promise.all([storage.get("d"), storage.get("e")]), [{}, {}])
+  assert.deepEqual(store.reads.at(-1), ["d", "e"])
+})
+
+test("full enumeration separates keyed batches and supplies later queued reads", async () => {
+  const store = keyedStore({ a: 1, b: 2 })
+  const storage = new ExtensionStorage(store, "storage.json")
+  assert.deepEqual(await Promise.all([storage.get("a"), storage.get(null), storage.get("b")]), [
+    { a: 1 }, { a: 1, b: 2 }, { b: 2 }
+  ])
+  assert.deepEqual(store.reads, [["a"], null], "the later key was not pulled ahead of full enumeration")
+})
