@@ -1,0 +1,413 @@
+{
+  "date": "2026-10-20",
+  "baseCommit": "1f75e5a7",
+  "device": "Samsung SM-G780G, Android 13, WebView 155.0.8059.43",
+  "notes": [
+    "All runs retain profile/caches and use the production-identity debug APK.",
+    "Ordinary series: five baseline, five preload-only, five final bundled launches.",
+    "Alternating series reinstalls the selected APK before every launch; order A1 B1 B2 A2 A3 B3.",
+    "DOMContentLoaded and uBlock allReadyAfter are not comparable across the new async bootstrap; use shell extension readiness and the JS fetch endpoint.",
+    "JS fetch endpoint is last JavaScript responseEnd before extension readiness, relative to uBlock navigation; it excludes late diagnostic imports."
+  ],
+  "baseline": {
+    "samples": [
+      {
+        "run": 1,
+        "extensionReadyMs": 3316.5,
+        "configsMs": 2211.1,
+        "firstStoriesMs": 3363.4,
+        "javascriptFetchEndMs": 1084.5,
+        "javascriptResourcesBeforeReady": 59,
+        "resourceEntriesObserved": 63,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "361 ms (selfie)",
+          "maxAssetCacheWait": "107 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 2,
+        "extensionReadyMs": 3473.1,
+        "configsMs": 2433.2,
+        "firstStoriesMs": 2820.1,
+        "javascriptFetchEndMs": 1036.5,
+        "javascriptResourcesBeforeReady": 59,
+        "resourceEntriesObserved": 63,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "555 ms (selfie)",
+          "maxAssetCacheWait": "97 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 3,
+        "extensionReadyMs": 3188.7,
+        "configsMs": 2244.7,
+        "firstStoriesMs": 2634.3,
+        "javascriptFetchEndMs": 851.7,
+        "javascriptResourcesBeforeReady": 59,
+        "resourceEntriesObserved": 63,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "520 ms (selfie)",
+          "maxAssetCacheWait": "103 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 4,
+        "extensionReadyMs": 3212.4,
+        "configsMs": 2213.4,
+        "firstStoriesMs": 2678.7,
+        "javascriptFetchEndMs": 1021.7,
+        "javascriptResourcesBeforeReady": 59,
+        "resourceEntriesObserved": 63,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "553 ms (selfie)",
+          "maxAssetCacheWait": "196 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 5,
+        "extensionReadyMs": 3155.0,
+        "configsMs": 2252.8,
+        "firstStoriesMs": 2672.6,
+        "javascriptFetchEndMs": 981.2,
+        "javascriptResourcesBeforeReady": 59,
+        "resourceEntriesObserved": 63,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "553 ms (selfie)",
+          "maxAssetCacheWait": "214 ms",
+          "cacheBackend": "indexedDB"
+        }
+      }
+    ],
+    "medians": {
+      "extensionReadyMs": 3212.4,
+      "configsMs": 2244.7,
+      "firstStoriesMs": 2678.7,
+      "javascriptFetchEndMs": 1021.7
+    },
+    "readyRangeMs": [
+      3155.0,
+      3473.1
+    ]
+  },
+  "preloadOnly": {
+    "samples": [
+      {
+        "run": 1,
+        "extensionReadyMs": 3334.2,
+        "configsMs": 2596.9,
+        "firstStoriesMs": 3017.2,
+        "javascriptFetchEndMs": 529.1,
+        "javascriptResourcesBeforeReady": 59,
+        "resourceEntriesObserved": 63,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "571 ms (selfie)",
+          "maxAssetCacheWait": "212 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 2,
+        "extensionReadyMs": 3310.2,
+        "configsMs": 2246.3,
+        "firstStoriesMs": 2777.4,
+        "javascriptFetchEndMs": 924.2,
+        "javascriptResourcesBeforeReady": 59,
+        "resourceEntriesObserved": 63,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "618 ms (selfie)",
+          "maxAssetCacheWait": "190 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 3,
+        "extensionReadyMs": 3322.9,
+        "configsMs": 2314.1,
+        "firstStoriesMs": 2724.9,
+        "javascriptFetchEndMs": 637.8,
+        "javascriptResourcesBeforeReady": 59,
+        "resourceEntriesObserved": 63,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "739 ms (selfie)",
+          "maxAssetCacheWait": "270 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 4,
+        "extensionReadyMs": 3135.9,
+        "configsMs": 2256.4,
+        "firstStoriesMs": 2649.9,
+        "javascriptFetchEndMs": 704.8,
+        "javascriptResourcesBeforeReady": 59,
+        "resourceEntriesObserved": 63,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "580 ms (selfie)",
+          "maxAssetCacheWait": "99 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 5,
+        "extensionReadyMs": 3091.2,
+        "configsMs": 2421.4,
+        "firstStoriesMs": 2849.1,
+        "javascriptFetchEndMs": 811.5,
+        "javascriptResourcesBeforeReady": 59,
+        "resourceEntriesObserved": 63,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "575 ms (selfie)",
+          "maxAssetCacheWait": "195 ms",
+          "cacheBackend": "indexedDB"
+        }
+      }
+    ],
+    "medians": {
+      "extensionReadyMs": 3310.2,
+      "configsMs": 2314.1,
+      "firstStoriesMs": 2777.4,
+      "javascriptFetchEndMs": 704.8
+    },
+    "readyRangeMs": [
+      3091.2,
+      3334.2
+    ]
+  },
+  "bundled": {
+    "samples": [
+      {
+        "run": 1,
+        "extensionReadyMs": 3327.0,
+        "configsMs": 2536.0,
+        "firstStoriesMs": 2880.5,
+        "javascriptFetchEndMs": 542,
+        "javascriptResourcesBeforeReady": 35,
+        "resourceEntriesObserved": 40,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "906 ms (selfie)",
+          "maxAssetCacheWait": "194 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 2,
+        "extensionReadyMs": 3566.8,
+        "configsMs": 2621.1,
+        "firstStoriesMs": 3136.3,
+        "javascriptFetchEndMs": 924.2,
+        "javascriptResourcesBeforeReady": 35,
+        "resourceEntriesObserved": 40,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "807 ms (selfie)",
+          "maxAssetCacheWait": "347 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 3,
+        "extensionReadyMs": 3188.9,
+        "configsMs": 2274.1,
+        "firstStoriesMs": 2753.7,
+        "javascriptFetchEndMs": 606.4,
+        "javascriptResourcesBeforeReady": 35,
+        "resourceEntriesObserved": 40,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "503 ms (selfie)",
+          "maxAssetCacheWait": "191 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 4,
+        "extensionReadyMs": 3055.8,
+        "configsMs": 2336.6,
+        "firstStoriesMs": 2706.0,
+        "javascriptFetchEndMs": 667.2,
+        "javascriptResourcesBeforeReady": 35,
+        "resourceEntriesObserved": 40,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "780 ms (selfie)",
+          "maxAssetCacheWait": "226 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 5,
+        "extensionReadyMs": 2975.5,
+        "configsMs": 2264.7,
+        "firstStoriesMs": 2704.9,
+        "javascriptFetchEndMs": 564.1,
+        "javascriptResourcesBeforeReady": 35,
+        "resourceEntriesObserved": 40,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "541 ms (selfie)",
+          "maxAssetCacheWait": "164 ms",
+          "cacheBackend": "indexedDB"
+        }
+      }
+    ],
+    "medians": {
+      "extensionReadyMs": 3188.9,
+      "configsMs": 2336.6,
+      "firstStoriesMs": 2753.7,
+      "javascriptFetchEndMs": 606.4
+    },
+    "readyRangeMs": [
+      2975.5,
+      3566.8
+    ]
+  },
+  "postInstallBaseline": {
+    "samples": [
+      {
+        "run": 1,
+        "extensionReadyMs": 4843.5,
+        "configsMs": 3773.7,
+        "firstStoriesMs": 4133.9,
+        "javascriptFetchEndMs": 1127.6,
+        "javascriptResourcesBeforeReady": 59,
+        "resourceEntriesObserved": 63,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "595 ms (selfie)",
+          "maxAssetCacheWait": "226 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 2,
+        "extensionReadyMs": 5089.9,
+        "configsMs": 3864.5,
+        "firstStoriesMs": 4365.6,
+        "javascriptFetchEndMs": 1412.2,
+        "javascriptResourcesBeforeReady": 59,
+        "resourceEntriesObserved": 63,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "761 ms (selfie)",
+          "maxAssetCacheWait": "129 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 3,
+        "extensionReadyMs": 4575.3,
+        "configsMs": 3375.4,
+        "firstStoriesMs": 3891.4,
+        "javascriptFetchEndMs": 1099.4,
+        "javascriptResourcesBeforeReady": 59,
+        "resourceEntriesObserved": 63,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "679 ms (selfie)",
+          "maxAssetCacheWait": "128 ms",
+          "cacheBackend": "indexedDB"
+        }
+      }
+    ],
+    "medians": {
+      "extensionReadyMs": 4843.5,
+      "configsMs": 3773.7,
+      "firstStoriesMs": 4133.9,
+      "javascriptFetchEndMs": 1127.6
+    },
+    "readyRangeMs": [
+      4575.3,
+      5089.9
+    ]
+  },
+  "postInstallBundled": {
+    "samples": [
+      {
+        "run": 1,
+        "extensionReadyMs": 4230.5,
+        "configsMs": 3468.4,
+        "firstStoriesMs": 3978.4,
+        "javascriptFetchEndMs": 638.4,
+        "javascriptResourcesBeforeReady": 35,
+        "resourceEntriesObserved": 40,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "508 ms (selfie)",
+          "maxAssetCacheWait": "202 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 2,
+        "extensionReadyMs": 4551.9,
+        "configsMs": 3693.7,
+        "firstStoriesMs": 4115.9,
+        "javascriptFetchEndMs": 870.4,
+        "javascriptResourcesBeforeReady": 35,
+        "resourceEntriesObserved": 40,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "871 ms (selfie)",
+          "maxAssetCacheWait": "420 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 3,
+        "extensionReadyMs": 4444.2,
+        "configsMs": 3288.0,
+        "firstStoriesMs": 3855.0,
+        "javascriptFetchEndMs": 951.4,
+        "javascriptResourcesBeforeReady": 35,
+        "resourceEntriesObserved": 40,
+        "storiesObserved": 109,
+        "uboStats": {
+          "allReadyAfter": "751 ms (selfie)",
+          "maxAssetCacheWait": "304 ms",
+          "cacheBackend": "indexedDB"
+        }
+      }
+    ],
+    "medians": {
+      "extensionReadyMs": 4444.2,
+      "configsMs": 3468.4,
+      "firstStoriesMs": 3978.4,
+      "javascriptFetchEndMs": 870.4
+    },
+    "readyRangeMs": [
+      4230.5,
+      4551.9
+    ]
+  },
+  "pairedSavingsMs": [
+    613.0,
+    538.0,
+    131.1
+  ],
+  "validation": {
+    "unitTestsPassed": 13,
+    "samsungInstrumentationTestsPassed": 6,
+    "installedApkSha256": "0c10431aaa7ded00d26715e09ba373ab6b27eaf63a4a2aafb10e931ffd5c5ea6",
+    "localApkSha256": "0c10431aaa7ded00d26715e09ba373ab6b27eaf63a4a2aafb10e931ffd5c5ea6",
+    "networkFilters": 260221,
+    "cosmeticFilters": 44204,
+    "stories": 109,
+    "sourceConfigs": 5,
+    "profilingHooksRemoved": true
+  }
+}

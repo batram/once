@@ -106,6 +106,12 @@ def onceExtensionAssets = tasks.register('onceExtensionAssets', OnceExtensionAss
 abstract class OnceLiteExtensionAssets extends DefaultTask {
     @InputDirectory @PathSensitive(PathSensitivity.RELATIVE)
     abstract DirectoryProperty getVendorExtensions()
+    @InputFile @PathSensitive(PathSensitivity.RELATIVE)
+    abstract RegularFileProperty getModulePreloadScript()
+    @InputFiles @PathSensitive(PathSensitivity.RELATIVE)
+    abstract ConfigurableFileCollection getModuleBuildInputs()
+    @Inject
+    abstract ExecOperations getExecOps()
     @OutputDirectory
     abstract DirectoryProperty getOutputDir()
     @Inject
@@ -132,11 +138,17 @@ abstract class OnceLiteExtensionAssets extends DefaultTask {
                 }
             }
         }
+        execOps.exec {
+            commandLine 'node', modulePreloadScript.get().asFile.absolutePath,
+                new File(outputDir.get().asFile, 'extensions/ublock-origin').absolutePath
+        }
     }
 }
 
 def onceLiteExtensionAssets = tasks.register('onceLiteExtensionAssets', OnceLiteExtensionAssets) {
     vendorExtensions = file('../../../../vendor/extensions')
+    modulePreloadScript = file('../../../../scripts/prepare-lite-extension-modules.js')
+    moduleBuildInputs.from(file('../../../../scripts/bundle-lite-extension-modules.js'), file('../../../../package-lock.json'))
 }
 
 androidComponents {

@@ -184,6 +184,7 @@ public class LiteExtensionEngineTest {
         Thread.sleep(3000);
         results.put("worlds", worldState(attachment.get().targetId()));
         untilEvaluates("getComputedStyle(document.querySelector('.once-hide')).display", "\"none\"", 20);
+        untilEvaluates("window.onceScriptletProbe", "true", 20);
         results.put("firstLoadFiltered", true);
         // 3. The bridge world answers a script through its binding (once the fixture document, not the marker, is up).
         untilEvaluates("document.title", "\"filter probe\"", 20);
@@ -247,6 +248,7 @@ public class LiteExtensionEngineTest {
         results.put("ublockStateAtEnd", ublockState());
         untilEvaluates("document.getElementById('i').dataset.r", "\"error\"", 20);
         untilEvaluates("getComputedStyle(document.querySelector('.once-hide')).display", "\"none\"", 20);
+        untilEvaluates("window.onceScriptletProbe", "true", 20);
         results.put("requestBlocked", true);
         results.put("elementHidden", true);
         results.put("ublockAfterFirstBlock", ublockState());
@@ -611,7 +613,7 @@ public class LiteExtensionEngineTest {
                     type = "text/plain";
                     // Specific to the fixture host: EasyList excepts generic hiding on 127.0.0.1
                     // (`@@://127.0.0.1$generichide`); the e2e suites cover generic rules on 10.0.2.2.
-                    body = "! Title: Once Lite test list\n/blocked.png$image\n127.0.0.1##.once-hide\n".getBytes(StandardCharsets.UTF_8);
+                    body = "! Title: Once Lite test list\n/blocked.png$image\n127.0.0.1##.once-hide\n127.0.0.1##+js(set-constant, onceScriptletProbe, true)\n".getBytes(StandardCharsets.UTF_8);
                 } else if (path.startsWith("/blocked")) {
                     type = "image/png";
                     body = android.util.Base64.decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", android.util.Base64.DEFAULT);

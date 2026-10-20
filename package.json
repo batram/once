@@ -113,6 +113,7 @@
     "@types/pouchdb": "^6.4.0",
     "copy-webpack-plugin": "^14.0.0",
     "electron": "45.0.0-alpha.6",
+    "esbuild": "0.28.2",
     "eslint": "^9.39.5",
     "express": "4.21.2",
     "express-pouchdb": "4.2.0",
@@ -143,7 +144,7 @@
   },
   "allowScripts": {
     "electron-winstaller@5.4.4": true,
-    "esbuild@0.28.1": true,
+    "esbuild@0.28.2": true,
     "fs-xattr@0.3.1": true,
     "leveldown@5.6.0": true,
     "leveldown@6.1.1": true,
