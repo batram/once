@@ -1,4 +1,5 @@
 const { spawnSync } = require("child_process")
+const fs = require("fs")
 const path = require("path")
 const { FusesPlugin } = require("@electron-forge/plugin-fuses")
 const { WebpackPlugin } = require("@electron-forge/plugin-webpack")
@@ -62,7 +63,14 @@ module.exports = {
         path.resolve(__dirname, ".native/window-cloak.node")
       ] : []),
       linuxWindowIcon
-    ]
+    ],
+    // uBO Lite is fetched beside the others for Once Lite (Android) only.
+    afterCopyExtraResources: [(buildPath, _electronVersion, platform, _arch, done) => {
+      const resources = platform === "darwin"
+        ? path.join(buildPath, fs.readdirSync(buildPath).find((name) => name.endsWith(".app")), "Contents", "Resources")
+        : path.join(buildPath, "resources")
+      fs.rm(path.join(resources, "extensions", "ublock-origin-lite"), { recursive: true, force: true }, done)
+    }]
   },
   hooks: {
     // Packaging rewrites Info.plist and the resources, which invalidates the

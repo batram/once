@@ -270,7 +270,7 @@ function writeWebStamp(channel) {
 function sync(platform, channel) {
   // Both deploy and package must refresh adaptations when a relay changes.
   // Cached upstream bundles are verified locally before any download is needed.
-  if (platform === "android") run(process.execPath, [path.join(root, "scripts", "fetch-extensions.js"), ...(engine === "lite" ? ["--ubolite"] : [])])
+  if (platform === "android") run(process.execPath, [path.join(root, "scripts", "fetch-extensions.js")])
   buildWeb(channel)
   cap(["sync", platform], platformEnvironment(platform, channel))
   if (platform === "ios") {

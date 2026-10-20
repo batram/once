@@ -37,12 +37,11 @@ const BUNDLES = [
 ]
 
 // Once Lite's Tier 2 (no DevTools) enforces uBlock Origin Lite's rulesets
-// itself, so Lite builds (`--ubolite`, passed by apps/mobile/scripts/mobile-cli.js)
-// also need the uBO Lite bundle iOS ships: the same Safari build, pinned to the
-// same version and hash as scripts/fetch-ios-extensions.js (a unit test keeps
-// the two pins equal), since it carries the declarativeNetRequest rulesets
-// and the generic cosmetic tables. Electron packages vendor/extensions whole,
-// so it is fetched for Lite only.
+// itself, so Lite builds and the Lite unit tests also need the uBO Lite bundle
+// iOS ships: the same Safari build, pinned to the same version and hash as
+// scripts/fetch-ios-extensions.js (a unit test keeps the two pins equal), since
+// it carries the declarativeNetRequest rulesets and the generic cosmetic tables.
+// It is always fetched; Electron's package leaves it out (forge.config.js).
 const UBOLITE = {
   name: "ublock-origin-lite",
   version: "2026.930.1227",
@@ -96,7 +95,7 @@ async function fetchBundle(bundle) {
 async function main() {
   fs.mkdirSync(vendorRoot, { recursive: true })
   for (const bundle of BUNDLES) await fetchBundle(bundle)
-  if (process.argv.includes("--ubolite")) await fetchBundle(UBOLITE)
+  await fetchBundle(UBOLITE)
   // Android hands userscripts to its own copy of Violentmonkey, which carries
   // the relay the app talks to.
   const violentmonkey = BUNDLES.find((bundle) => bundle.name === "violentmonkey")

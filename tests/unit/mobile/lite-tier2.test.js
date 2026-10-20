@@ -284,8 +284,10 @@ test("Lite fetches the uBO Lite bundle iOS pins, and ships its Tier 2 files", ()
   const iosHash = /const sha256 = "([0-9a-f]{64})"/.exec(ios)[1]
   const pin = /const UBOLITE = \{[^}]*version: "([^"]+)"[^}]*sha256: "([0-9a-f]{64})"/s.exec(android)
   assert.deepEqual([pin[1], pin[2]], [iosVersion, iosHash])
-  const cli = fs.readFileSync(path.join(root, "apps/mobile/scripts/mobile-cli.js"), "utf8")
-  assert.match(cli, /fetch-extensions\.js"\), \.\.\.\(engine === "lite" \? \["--ubolite"\] : \[\]\)/)
+  // Every fetch brings it, so the Lite unit tests find it; Electron's package leaves it out.
+  assert.match(android, /^ {2}await fetchBundle\(UBOLITE\)$/m)
+  const forge = fs.readFileSync(path.join(root, "apps/electron/forge.config.js"), "utf8")
+  assert.match(forge, /afterCopyExtraResources[\s\S]*"ublock-origin-lite"/)
   // The asset task carries the default rulesets the manifest enables, and what the cosmetics need.
   const gradle = fs.readFileSync(path.join(root, "apps/mobile/android/app/build.gradle"), "utf8")
   const manifest = JSON.parse(fs.readFileSync(path.join(UBOLITE_DIR, "manifest.json"), "utf8"))
