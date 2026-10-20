@@ -76,7 +76,7 @@ final class GeckoEngine {
         List<GeckoResult<WebExtension>> installs = new ArrayList<>();
         String[][] bundles = {
             { "once-surface", BRIDGE_ID },
-            { "ublock-origin", "uBlock0@raymondhill.net" },
+            { "android/ublock-origin", "uBlock0@raymondhill.net" },
             // The Android copy, which carries the relay for synced userscripts.
             { "android/violentmonkey", VIOLENTMONKEY_ID }
         };
