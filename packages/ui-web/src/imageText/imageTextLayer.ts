@@ -26,12 +26,14 @@ const FRAME_CSS = `
   /* Anchored at the page's origin; below the overlay's bar, which shares the topmost z-index. */
   :host { all: initial; position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 2147483646; }
   iframe { all: initial; position: absolute; display: block; border: 0; margin: 0; padding: 0;
-    background: transparent; color-scheme: normal; }
+    background: transparent; color-scheme: light; }
   iframe[hidden] { display: none; }
 `
 
 const FRAME_DOCUMENT_CSS = `
-  :root, body { margin: 0; padding: 0; height: 100%; overflow: clip; background: transparent; color-scheme: normal; }
+  :root, body { margin: 0; padding: 0; height: 100%; overflow: clip; background: transparent; }
+  /* Must match the iframe's or it paints opaque; \`normal\` resolves differently on each side under a dark preference. */
+  :root:root { color-scheme: light !important; }
 `
 
 const INLINE_CSS = `

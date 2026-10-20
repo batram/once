@@ -6,7 +6,10 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'none'">
     <title>Image text</title>
     <!-- The frame is transparent over the page's image; all else is in the overlay's shadow root. -->
-    <style>html, body { margin: 0; background: transparent; overflow: hidden; }</style>
+    <!-- A color-scheme unlike the iframe element's paints an opaque backdrop; `normal`
+         resolves differently on each side under a dark preference, so both say `light`. -->
+    <style>html, body { margin: 0; background: transparent; overflow: hidden; }
+      :root:root { color-scheme: light !important; }</style>
   </head>
   <body></body>
 </html>

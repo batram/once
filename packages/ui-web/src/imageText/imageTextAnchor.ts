@@ -101,7 +101,7 @@ const BAR_LAYER = "2147483647"
 
 const FRAME_CSS = `
   iframe { position: absolute; display: block; border: 0; margin: 0; padding: 0; background: transparent;
-    pointer-events: auto; color-scheme: normal; }
+    pointer-events: auto; color-scheme: light !important; }
   .bar { left: 0; top: 0; }
 `
 
