@@ -18,6 +18,7 @@ import {
   VIOLENTMONKEY_ID,
   WebRequestDetailsInput,
   buildWebRequestDetails,
+  canInjectFrame,
   mergeBlockingResponses,
   sha256Hex
 } from "@once/webext-runtime"
@@ -37,6 +38,7 @@ interface QueuedInjection {
   tabId: number
   frameId: number
   script: WorldScript
+  document: WebRequestDetailsInput
 }
 
 interface RegisteredScripts {
@@ -55,8 +57,8 @@ export class LiteSyncAnswers {
     private readonly token: () => string
   ) {}
 
-  private set(host: string, path: string, body: string | null): Promise<void> {
-    return this.channel.request("sync.set", { host, path, body } satisfies SyncAnswerParams).then(() => undefined)
+  private set(host: string, path: string, body: string | null, document: { targetId: string; frameId: string }): Promise<void> {
+    return this.channel.request("sync.set", { host, path, body, ...document } satisfies SyncAnswerParams).then(() => undefined)
   }
 
   /** The host's registered scripts changed; the next document takes the new set. */
@@ -75,19 +77,19 @@ export class LiteSyncAnswers {
    * Violentmonkey's synchronous injection relies on that for the content
    * realm. It joins the document's own answer and runs from the world.
    */
-  queueInjection(host: LiteExtensionHost, tabId: number, frameId: number, code: string, url: string): void {
+  queueInjection(host: LiteExtensionHost, tabId: number, frameId: number, code: string, url: string, document: WebRequestDetailsInput): void {
     if (this.queued.length >= 256) this.queued.shift()
-    this.queued.push({ host, tabId, frameId, script: {
+    this.queued.push({ host, tabId, frameId, document, script: {
       matches: ["<all_urls>"], excludeMatches: [], allFrames: true, matchAboutBlank: true,
       runAt: "document_start", world: "ISOLATED", js: [{ url, code }], css: []
     } })
   }
 
-  private takeQueued(host: LiteExtensionHost, tabId: number, frameId: number): WorldScript[] {
-    const mine = this.queued.filter((entry) => entry.host === host && entry.tabId === tabId && entry.frameId === frameId)
+  private takeQueued(host: LiteExtensionHost, input: WebRequestDetailsInput): WorldScript[] {
+    const mine = this.queued.filter((entry) => entry.host === host && entry.document.id === input.id)
     if (mine.length === 0) return []
     this.queued = this.queued.filter((entry) => !mine.includes(entry))
-    return mine.map((entry) => entry.script)
+    return canInjectFrame(host, input.tabId, input.url) ? mine.map((entry) => entry.script) : []
   }
 
   /** The host's registered scripts whose patterns match the document; the world still checks frames. */
@@ -115,7 +117,7 @@ export class LiteSyncAnswers {
    * is answered without the broker. Answers the headers, possibly with the
    * cookie added late.
    */
-  async prepareDocument(hosts: Iterable<LiteExtensionHost>, headers: HttpHeader[], input: WebRequestDetailsInput): Promise<HttpHeader[]> {
+  async prepareDocument(hosts: Iterable<LiteExtensionHost>, headers: HttpHeader[], input: WebRequestDetailsInput, document: { targetId: string; frameId: string }): Promise<HttpHeader[]> {
     const all = [...hosts]
     const violentmonkey = all.find((host) => host.extension.id === VIOLENTMONKEY_ID)
     if (violentmonkey && !namesBlob(headers, violentmonkey.extension.host)) {
@@ -127,7 +129,7 @@ export class LiteSyncAnswers {
     const work: Promise<void>[] = []
     for (const host of all) {
       const name = host.extension.host
-      const scripts = [...this.matching(host, input.url, isTop), ...this.takeQueued(host, input.tabId, input.frame.frameId)]
+      const scripts = [...this.matching(host, input.url, isTop), ...this.takeQueued(host, input)]
       let cookie: string | undefined
       for (const value of cookies) {
         const match = new RegExp(`^\\s*${name}=([^;\\s]+)`).exec(value)
@@ -141,13 +143,13 @@ export class LiteSyncAnswers {
             this.channel.log("warn", `${host.extension.name} named a blob the broker could not read`)
             cookie = undefined
           } else {
-            await this.set(name, blobAnswerPath(key, cookie, input.url), text)
+            await this.set(name, blobAnswerPath(key, cookie, input.url), text, document)
           }
         }
         if (!cookie && scripts.length === 0) return
         const config: WorldDynamicConfig = { host: name, scripts }
         if (cookie) config.cookie = `${name}=${cookie}`
-        await this.set(name, dynamicAnswerPath(key, input.url), JSON.stringify(config))
+        await this.set(name, dynamicAnswerPath(key, input.url), JSON.stringify(config), document)
       })().catch((error) => this.channel.log("warn", `Document answer for ${host.extension.name} not prepared: ${String(error)}`)))
     }
     await Promise.all(work)

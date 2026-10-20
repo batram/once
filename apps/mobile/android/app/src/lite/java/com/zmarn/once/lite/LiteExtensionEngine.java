@@ -77,9 +77,9 @@ public final class LiteExtensionEngine {
     private final LiteCookies cookies;
     private final LiteTier2 tier2;
     private final LiteTargets targets;
-    private final BrokerView broker;
+    private BrokerView broker;
     private final DevToolsClient devtools;
-    private final LiteTargets.Attachment brokerAttachment;
+    private LiteTargets.Attachment brokerAttachment;
     /**
      * The broker's secret: document nonces and the keys of the synchronous
      * answers derive from it. Only the broker and the extension worlds hold
@@ -364,6 +364,7 @@ public final class LiteExtensionEngine {
         channel.request("lite.start", params).whenComplete((result, error) -> main.post(() -> {
             if (error != null) { Log.e(TAG, "The broker did not start: " + error.getMessage()); releaseStartWaiters(); return; }
             started = true;
+            targets.brokerReady();
             JSONArray extensions = result.optJSONArray("extensions");
             catalogue = extensions == null ? new JSONArray() : extensions;
             Log.i(TAG, "broker started with " + catalogue.length() + " extensions");
@@ -388,7 +389,16 @@ public final class LiteExtensionEngine {
     /** The broker renderer was lost: its page restarts and says hello again; open pages are stale. */
     private void restartBroker() {
         started = false;
+        if (destroyed) return;
         for (LitePage page : new ArrayList<>(pages.values())) closePage(page);
+        targets.unregister(brokerAttachment);
+        broker.destroy();
+        targets.resetBroker();
+        for (Runnable fire : timers.values()) main.removeCallbacks(fire);
+        timers.clear();
+        broker = new BrokerView(context, channel, files, () -> main.post(this::restartBroker));
+        brokerAttachment = targets.register(broker.view, broker.marker, "broker", -1, null, null, false);
+        broker.attachTo(hidden);
         broker.load();
     }
 

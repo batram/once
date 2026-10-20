@@ -50,4 +50,28 @@ public class SyncAnswersTest {
         assertFalse(SyncAnswers.isSyncRequest("https://site.test/_once/k1/dynamic"));
         assertFalse(SyncAnswers.isSyncRequest("https://0123.moz-extension.localhost/page.html?x=/_once/"));
     }
+    @Test public void sameUrlQueuesAreBoundedAndScopedToTheRequestingFrame() {
+        SyncAnswers answers = new SyncAnswers();
+        for (int index = 0; index < 10000; index++) answers.set(PAGE, "body " + index, "T1", "F1");
+        assertEquals(SyncAnswers.LIMIT, answers.size());
+        assertNull(answers.take(PAGE, "T2", "F1"));
+        assertNull(answers.take(PAGE, "T1", "F2"));
+        assertEquals("body " + (10000 - SyncAnswers.LIMIT), answers.take(PAGE, "T1", "F1"));
+        answers.forgetFrame("T1", "F1");
+        assertEquals(0, answers.size());
+        assertEquals(0, answers.bytes());
+    }
+
+    @Test public void abandonedAnswersExpireAndTheByteBudgetBoundsLargeScripts() {
+        long[] now = { 0 };
+        SyncAnswers answers = new SyncAnswers(() -> now[0]);
+        String body = new String(new char[1024 * 1024]).replace('\0', 'x');
+        for (int index = 0; index < 20; index++) answers.set(PAGE, body, "T", "F");
+        assertTrue(answers.bytes() <= SyncAnswers.BYTE_LIMIT);
+        assertTrue(answers.size() < 20);
+        now[0] = SyncAnswers.TTL_MS;
+        assertNull(answers.take(PAGE, "T", "F"));
+        assertEquals(0, answers.bytes());
+    }
+
 }

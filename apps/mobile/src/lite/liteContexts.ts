@@ -1,5 +1,5 @@
 // Extension contexts over Lite's two transports. A page context is one
-// frame of an extension-page WebView: messages travel over the frame's
+// document context of an extension-page WebView: messages travel over the frame's
 // `onceLitePage` WebMessage channel, which Java relays (`page.post`). A
 // world context is one `once-ext:<host>` execution context in a tab target:
 // messages are delivered by having Java evaluate `__onceLiteDeliver(json)`
@@ -36,7 +36,7 @@ export class LiteExtensionContexts extends ExtensionContexts {
     this.onRemoved((entry) => this.gone.add(entry))
   }
 
-  /** One frame of an extension page WebView; the main frame is frame 0. */
+  /** One document context of an extension page WebView, with its monotonic transport ID. */
   addPageFrame(options: PageFrameContextOptions): ContextEntry {
     const destroyed = (): boolean => this.gone.has(entry)
     const entry: ContextEntry = this.addEntry({

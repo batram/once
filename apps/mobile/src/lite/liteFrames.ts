@@ -57,11 +57,27 @@ export class TargetFrames {
     if (frame && url) frame.url = url
   }
 
-  detached(frameId: string): void {
-    this.frames.delete(frameId)
-    for (const [contextId, world] of [...this.worlds]) {
-      if (world.frameId === frameId) this.worlds.delete(contextId)
+  detached(frameId: string): WorldContext[] {
+    const removed = new Set([frameId])
+    // Child frames need cleanup even when Chromium reports only their parent's removal.
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const frame of this.frames.values()) {
+        if (frame.parentId && removed.has(frame.parentId) && !removed.has(frame.id)) {
+          removed.add(frame.id)
+          changed = true
+        }
+      }
     }
+    for (const id of removed) this.frames.delete(id)
+    const gone: WorldContext[] = []
+    for (const [contextId, world] of this.worlds) {
+      if (!removed.has(world.frameId)) continue
+      gone.push(world)
+      this.worlds.delete(contextId)
+    }
+    return gone
   }
 
   contextCreated(context: { id: number; name?: string; auxData?: { frameId?: string; isDefault?: boolean } }): void {

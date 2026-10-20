@@ -106,6 +106,9 @@ export function bootstrapExtensionPage(scope: Scope = globalThis as Scope): void
   const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>()
   let nextId = 1
   const post = (message: PageToBrokerMessage): void => port.postMessage(JSON.stringify({ ...message, href: location.href }))
+  window.addEventListener("pagehide", (event) => {
+    if (!event.persisted) port.postMessage(JSON.stringify({ type: "frame-gone" }))
+  })
   const api = new PreloadApi(init, EXTENSION_API_SURFACE, {
     invoke: (namespace, method, args) => new Promise((resolve, reject) => {
       const id = nextId++

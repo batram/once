@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
+import com.google.re2j.Pattern;
 
 /**
  * Compiled DNR rules in a compact binary form, so uBlock Origin Lite's
@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
  */
 final class DnrRuleCache {
     private static final int MAGIC = 0x4f6e6332; // "Onc2"
-    private static final int VERSION = 2;
+    private static final int VERSION = 3;
     /** Bounds a damaged file cannot get past: it is refused, never allocated. */
     private static final int MAX_COUNT = 4_000_000, MAX_LIST = 1_000_000, MAX_STRING = 64 * 1024 * 1024;
 

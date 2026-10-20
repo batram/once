@@ -12,6 +12,7 @@ import {
   UBLOCK_ORIGIN_ID,
   WebRequestRouter,
   broadcastCookieChange,
+  canInjectFrame,
   createApiHandlers,
   extensionUrl,
   loadExtension,
@@ -99,7 +100,7 @@ export class LiteBroker {
       target: (targetId) => this.requestTarget(targetId),
       token: () => this.start?.token ?? "",
       documentsReleased: () => Promise.all([this.violentmonkey.documentsReleased(), this.listsReady]).then(() => undefined),
-      prepareDocument: (headers, input) => this.sync.prepareDocument(this.hosts.values(), headers, input)
+      prepareDocument: (headers, input, document) => this.sync.prepareDocument(this.hosts.values(), headers, input, document)
     })
     this.tabs = new LiteTabs({
       channel: this.channel,
@@ -150,11 +151,13 @@ export class LiteBroker {
       const tabId = hasId ? first as number : this.tabs.tabs().find((tab) => tab.active)?.id ?? -1
       const frameId = typeof details.frameId === "number" ? details.frameId : 0
       if (details.runAt === "document_start" && tabId >= 0 && this.webRequest.isDocumentPending(tabId, frameId)) {
+        const pending = this.webRequest.pendingDocument(tabId, frameId)
+        if (!pending || !canInjectFrame(host, tabId, pending.url)) throw new Error("Missing host permission for pending document")
         const code = typeof details.code === "string" ? details.code
           : typeof details.file === "string" ? host.files.read(details.file) : null
         if (code !== null) {
           const url = typeof details.file === "string" ? extensionUrl(host.extension.host, details.file) : extensionUrl(host.extension.host, "_executed_script.js")
-          this.sync.queueInjection(host, tabId, frameId, code, url)
+          this.sync.queueInjection(host, tabId, frameId, code, url, pending)
           return [undefined]
         }
       }
@@ -447,7 +450,7 @@ export class LiteBroker {
         this.tabs.frameNavigated(target.tabId, String(record.url), facts.frameId, facts.parentFrameId, true)
       }
     } else if (method === "Page.frameDetached") {
-      frames.detached(String(record.frameId))
+      for (const world of frames.detached(String(record.frameId))) this.worldMessages.contextGone(target.targetId, world.contextId)
     } else if (method === "Page.frameTree") {
       frames.snapshot(record as unknown as CdpFrameTree)
     } else if (method === "Page.domContentEventFired" && target.kind === "tab") {

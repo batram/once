@@ -52,11 +52,11 @@ public class LiteExtensionEngineTest {
     private static final String TAG = "LiteExtensionEngineTest";
     private static final String UBLOCK_ID = "uBlock0@raymondhill.net";
     private final Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
-    private final JSONObject results = new JSONObject();
-    private MainActivity activity;
-    private Fixture fixture;
-    private LiteExtensionEngine engine;
-    private WebView tab;
+    final JSONObject results = new JSONObject();
+    MainActivity activity;
+    Fixture fixture;
+    LiteExtensionEngine engine;
+    WebView tab;
     private final List<LitePage> openedPages = Collections.synchronizedList(new ArrayList<>());
 
     @Before
@@ -262,9 +262,15 @@ public class LiteExtensionEngineTest {
         assertTrue("DevTools must be available on the emulator", engine.devtoolsAvailable());
         AtomicReference<LiteTargets.Attachment> attachment = new AtomicReference<>();
         int tabId = engine.nextTabId();
+        CountDownLatch finished = new CountDownLatch(1);
         ui(() -> {
             tab = new WebView(activity);
             tab.getSettings().setJavaScriptEnabled(true);
+            tab.setWebViewClient(new android.webkit.WebViewClient() {
+                @Override public void onPageFinished(WebView view, String url) {
+                    if (url.endsWith("/sync.html")) finished.countDown();
+                }
+            });
             activity.addContentView(tab, new ViewGroup.LayoutParams(600, 600));
             attachment.set(engine.targets().register(tab, "once-tab-" + java.util.UUID.randomUUID(), "tab", tabId, null, null, true));
         });
@@ -274,8 +280,11 @@ public class LiteExtensionEngineTest {
         attachment.get().whenReady(10000, () -> { tab.loadUrl(pageUrl); loading.countDown(); });
         assertTrue(loading.await(15, TimeUnit.SECONDS));
         long started = System.nanoTime();
-        untilEvaluates("document.title", "\"sync:ok\"", 40);
-        results.put("syncRequestMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+        assertTrue("the synchronous XHR document finishes", finished.await(30, TimeUnit.SECONDS));
+        long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+        untilEvaluates("document.title", "\"sync:ok\"", 10);
+        results.put("syncRequestMs", elapsed);
+        results.put("syncXhrMs", Long.parseLong(evaluate("Math.round(window.__syncXhrMs)")));
         // The broker answers again once the renderer is free.
         JSONArray extensions = await(engine.command(new JSONObject().put("action", "list"))).getJSONArray("extensions");
         assertEquals(2, extensions.length());
@@ -333,6 +342,60 @@ public class LiteExtensionEngineTest {
             if (value != null) answered.complete(value); else Thread.sleep(500);
         }
         assertEquals("\"filter probe\"", answered.getNow(null));
+        ui(() -> engine.targets().unregister(attachment.get()));
+    }
+
+    @Test
+    public void extensionPageReloadCreatesANewWorkingReplyChannel() throws Exception {
+        await(engine.command(new JSONObject().put("action", "options").put("id", UBLOCK_ID)));
+        until("options page opens", () -> !openedPages.isEmpty(), 15);
+        LitePage page = openedPages.get(openedPages.size() - 1);
+        for (int attempt = 0; attempt < 2; attempt++) {
+            if (attempt > 0) ui(() -> engine.reloadPage(page));
+            long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            boolean answered = false;
+            while (System.nanoTime() < end) {
+                evaluateIn(page.view, "if (typeof browser !== 'undefined') browser.storage.local.get('once-review-probe').then(() => window.__replyWorks = true)");
+                if ("true".equals(evaluateIn(page.view, "window.__replyWorks === true"))) { answered = true; break; }
+                Thread.sleep(100);
+            }
+            assertTrue("storage API replies after load/reload " + attempt, answered);
+            if (attempt == 0) evaluateIn(page.view, "delete window.__replyWorks");
+        }
+    }
+
+    @Test
+    public void rendererTerminationRecreatesTheBroker() throws Exception {
+        Assume.assumeTrue(androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.WEB_VIEW_RENDERER_TERMINATE));
+        java.lang.reflect.Field brokerField = LiteExtensionEngine.class.getDeclaredField("broker");
+        brokerField.setAccessible(true);
+        Object oldBroker = brokerField.get(engine);
+        java.lang.reflect.Field viewField = oldBroker.getClass().getDeclaredField("view");
+        viewField.setAccessible(true);
+        WebView oldView = (WebView) viewField.get(oldBroker);
+        ui(() -> {
+            androidx.webkit.WebViewRenderProcess renderer = androidx.webkit.WebViewCompat.getWebViewRenderProcess(oldView);
+            assertNotNull(renderer);
+            assertTrue(renderer.terminate());
+        });
+        until("the engine observes renderer termination", () -> !engine.isStarted(), 15);
+        until("a fresh broker starts", engine::isStarted, 90);
+        assertNotSame(oldBroker, brokerField.get(engine));
+        assertEquals(2, await(engine.command(new JSONObject().put("action", "list"))).getJSONArray("extensions").length());
+        AtomicReference<LiteTargets.Attachment> attachment = new AtomicReference<>();
+        int tabId = engine.nextTabId();
+        ui(() -> {
+            tab = new WebView(activity);
+            tab.getSettings().setJavaScriptEnabled(true);
+            activity.addContentView(tab, new ViewGroup.LayoutParams(600, 600));
+            attachment.set(engine.targets().register(tab, "once-tab-" + java.util.UUID.randomUUID(), "tab", tabId, null, null, true));
+        });
+        reportTab(tabId, fixture.url("/page.html"), attachment.get());
+        CountDownLatch ready = new CountDownLatch(1);
+        attachment.get().whenReady(10000, () -> { tab.loadUrl(fixture.url("/page.html")); ready.countDown(); });
+        assertTrue(ready.await(15, TimeUnit.SECONDS));
+        untilEvaluates("document.title", "\"filter probe\"", 30);
+        untilOffMain("new tabs have extension worlds after renderer recovery", () -> worldCount(attachment.get().targetId()) >= 2, 20);
         ui(() -> engine.targets().unregister(attachment.get()));
     }
 
@@ -446,7 +509,7 @@ public class LiteExtensionEngineTest {
         } catch (Exception error) { return "error: " + error.getMessage(); }
     }
 
-    private void reportTab(int tabId, String url, LiteTargets.Attachment attachment) throws Exception {
+    void reportTab(int tabId, String url, LiteTargets.Attachment attachment) throws Exception {
         JSONObject state = new JSONObject().put("tabId", tabId).put("generation", 1).put("url", url).put("title", "")
             .put("active", true).put("index", 0).put("status", "loading").put("audible", false).put("muted", false);
         if (attachment.targetId() != null) state.put("targetId", attachment.targetId());
@@ -464,7 +527,7 @@ public class LiteExtensionEngineTest {
         return size.get();
     }
 
-    private String evaluate(String code) throws Exception { return evaluateIn(tab, code); }
+    String evaluate(String code) throws Exception { return evaluateIn(tab, code); }
 
     private String evaluateIn(WebView view, String code) throws Exception {
         // Longer than a page's synchronous request holds the shared renderer before Java releases
@@ -478,7 +541,7 @@ public class LiteExtensionEngineTest {
         throw new AssertionError("evaluateJavascript never answered " + code);
     }
 
-    private void untilEvaluates(String code, String expected, int seconds) throws Exception {
+    void untilEvaluates(String code, String expected, int seconds) throws Exception {
         long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
         String last;
         do {
@@ -489,7 +552,7 @@ public class LiteExtensionEngineTest {
         fail(code + " was " + last + ", expected " + expected);
     }
 
-    private void ui(Runnable work) { instrumentation.runOnMainSync(work); }
+    void ui(Runnable work) { instrumentation.runOnMainSync(work); }
 
     private void until(String message, BooleanSupplier condition, int seconds) throws Exception {
         long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
@@ -507,7 +570,7 @@ public class LiteExtensionEngineTest {
     }
 
     /** A loopback HTTP fixture: the probe page, the image a filter blocks, and the list itself. */
-    private static final class Fixture implements AutoCloseable {
+    static final class Fixture implements AutoCloseable {
         final ServerSocket server = new ServerSocket(0);
         final ExecutorService workers = Executors.newCachedThreadPool();
         final java.util.concurrent.atomic.AtomicInteger listRequests = new java.util.concurrent.atomic.AtomicInteger();
@@ -529,13 +592,17 @@ public class LiteExtensionEngineTest {
                 String path = request.split(" ")[1];
                 String type = "text/html";
                 byte[] body;
-                if (path.equals("/page.html")) {
+                if (path.startsWith("/large/")) {
+                    int bytes = Integer.parseInt(path.substring(7, path.indexOf('?')));
+                    String prefix = "<!doctype html><title>" + path + "</title><div hidden>";
+                    body = (prefix + new String(new char[bytes]).replace('\0', 'x') + "</div>").getBytes(StandardCharsets.UTF_8);
+                } else if (path.equals("/page.html")) {
                     body = ("<!doctype html><title>filter probe</title>"
                         + "<img id='i' src='/blocked.png' onload=\"this.dataset.r='load'\" onerror=\"this.dataset.r='error'\">"
                         + "<div class='once-hide'>hidden by the list</div><p>visible</p>").getBytes(StandardCharsets.UTF_8);
                 } else if (path.equals("/sync.html")) {
                     body = ("<!doctype html><title>sync</title><script>var request = new XMLHttpRequest();"
-                        + "request.open('GET', '/ok', false); request.send(); document.title = 'sync:' + request.responseText;</script>")
+                        + "request.open('GET', '/ok', false); var started = performance.now(); request.send(); window.__syncXhrMs = performance.now()-started; document.title = 'sync:' + request.responseText;</script>")
                         .getBytes(StandardCharsets.UTF_8);
                 } else if (path.startsWith("/list.txt")) {
                     listRequests.incrementAndGet();
@@ -551,6 +618,7 @@ public class LiteExtensionEngineTest {
                     body = "ok".getBytes(StandardCharsets.UTF_8);
                 }
                 connection.getOutputStream().write(("HTTP/1.1 200 OK\r\nContent-Type: " + type + "\r\nContent-Length: " + body.length
+                    + (path.startsWith("/large/") ? "\r\nContent-Security-Policy: script-src 'none'; connect-src 'none'" : "")
                     + "\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
                 connection.getOutputStream().write(body);
             } catch (Exception ignored) { /* the client went away */ }

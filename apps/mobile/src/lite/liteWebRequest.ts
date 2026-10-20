@@ -35,6 +35,8 @@ export interface RequestTarget {
 }
 
 export interface FetchRequestPaused {
+  /** Java identifies this pause, since Fetch reuses requestId at the response stage. */
+  oncePause?: number
   requestId: string
   request: { url: string; method: string; headers: Record<string, string>; postData?: string; hasPostData?: boolean }
   frameId: string
@@ -74,7 +76,7 @@ export interface LiteWebRequestOptions {
    * worlds' synchronous requests must be in place (registered scripts, and
    * the blob Violentmonkey named in a `Set-Cookie` of these headers).
    */
-  prepareDocument?(headers: HttpHeader[], input: WebRequestDetailsInput): Promise<HttpHeader[]>
+  prepareDocument?(headers: HttpHeader[], input: WebRequestDetailsInput, document: { targetId: string; frameId: string }): Promise<HttpHeader[]>
 }
 
 /** The nonce the broker adds to a document's `script-src` and the world recomputes from `location`. */
@@ -183,7 +185,7 @@ function fromBase64(base64: string): Uint8Array {
 export class LiteWebRequest {
   private readonly records = new Map<string, RequestRecord>()
   /** Documents held at their response stage: `tabId:frameId` → how many. */
-  private readonly pendingDocuments = new Map<string, number>()
+  private readonly pendingDocuments = new Map<string, Set<WebRequestDetailsInput>>()
   private readonly ids = new Map<string, number>()
   private readonly filters: ResponseBodyFilter[] = []
   private nextId = 1
@@ -198,7 +200,7 @@ export class LiteWebRequest {
   async requestPaused(targetId: string, event: FetchRequestPaused): Promise<void> {
     const target = this.options.target(targetId)
     if (!target) {
-      await this.cdp(targetId, "Fetch.continueRequest", { requestId: event.requestId })
+      await this.cdp(targetId, "Fetch.continueRequest", { requestId: event.requestId, oncePause: event.oncePause })
       return
     }
     try {
@@ -211,7 +213,7 @@ export class LiteWebRequest {
       // Java went on with it while the shared renderer was blocked (FetchWatchdog).
       if (error instanceof RequestError && error.code === "RELEASED") return
       this.options.channel.log("error", `Request ${event.request.url} failed in the broker: ${String(error)}`)
-      await this.cdp(targetId, "Fetch.continueRequest", { requestId: event.requestId }).catch(() => undefined)
+      await this.cdp(targetId, "Fetch.continueRequest", { requestId: event.requestId, oncePause: event.oncePause }).catch(() => undefined)
     }
   }
 
@@ -245,14 +247,22 @@ export class LiteWebRequest {
 
   /** Whether a document for the frame is held at its response stage right now. */
   isDocumentPending(tabId: number, frameId: number): boolean {
-    return (this.pendingDocuments.get(`${tabId}:${frameId}`) ?? 0) > 0
+    return (this.pendingDocuments.get(`${tabId}:${frameId}`)?.size ?? 0) > 0
   }
 
-  private holdDocument(tabId: number, frameId: number, held: boolean): void {
-    const key = `${tabId}:${frameId}`
-    const next = (this.pendingDocuments.get(key) ?? 0) + (held ? 1 : -1)
-    if (next <= 0) this.pendingDocuments.delete(key)
-    else this.pendingDocuments.set(key, next)
+  pendingDocument(tabId: number, frameId: number): WebRequestDetailsInput | undefined {
+    const documents = this.pendingDocuments.get(`${tabId}:${frameId}`)
+    // Concurrent navigations are ambiguous: never grant against an arbitrary one.
+    return documents?.size === 1 ? documents.values().next().value : undefined
+  }
+
+  private holdDocument(input: WebRequestDetailsInput, held: boolean): void {
+    const key = `${input.tabId}:${input.frame.frameId}`
+    const documents = this.pendingDocuments.get(key) ?? new Set<WebRequestDetailsInput>()
+    if (held) documents.add(input)
+    else documents.delete(input)
+    if (documents.size) this.pendingDocuments.set(key, documents)
+    else this.pendingDocuments.delete(key)
   }
 
   forgetTarget(targetId: string): void {
@@ -307,7 +317,7 @@ export class LiteWebRequest {
     if (input.resourceType === "mainFrame" && target.kind === "tab") await this.options.documentsReleased()
     const decision = await this.options.router.beforeRequest(input)
     if (decision.cancel) {
-      await this.cdp(targetId, "Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" })
+      await this.cdp(targetId, "Fetch.failRequest", { requestId: event.requestId, oncePause: event.oncePause, errorReason: "BlockedByClient" })
       this.options.router.errorOccurred({ ...input, error: "NS_ERROR_ABORT" })
       this.forget(targetId, event.networkId ?? event.requestId)
       return
@@ -315,13 +325,13 @@ export class LiteWebRequest {
     if (decision.redirectUrl) {
       const location = pageHostOf(decision.redirectUrl) ? pageUrlOf(decision.redirectUrl) : decision.redirectUrl
       await this.cdp(targetId, "Fetch.fulfillRequest", {
-        requestId: event.requestId, responseCode: 307, responseHeaders: [{ name: "Location", value: location }]
+        requestId: event.requestId, oncePause: event.oncePause, responseCode: 307, responseHeaders: [{ name: "Location", value: location }]
       })
       return
     }
     const headers = await this.options.router.beforeSendHeaders({ ...input, requestHeaders: event.request.headers })
     if (headers.cancel) {
-      await this.cdp(targetId, "Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" })
+      await this.cdp(targetId, "Fetch.failRequest", { requestId: event.requestId, oncePause: event.oncePause, errorReason: "BlockedByClient" })
       this.forget(targetId, event.networkId ?? event.requestId)
       return
     }
@@ -329,7 +339,7 @@ export class LiteWebRequest {
     // Told before the request goes on: Violentmonkey prepares a document's injection from it.
     this.options.router.sendHeaders({ ...input, requestHeaders: headersFromWebExt(sent) })
     await this.cdp(targetId, "Fetch.continueRequest", {
-      requestId: event.requestId,
+      requestId: event.requestId, oncePause: event.oncePause,
       ...(headers.requestHeaders ? { headers: headers.requestHeaders } : {})
     })
   }
@@ -346,7 +356,7 @@ export class LiteWebRequest {
     const host = this.hostFor(extensionHost)
     const decision = host ? await this.options.router.beforeRequest({ ...input, url }) : {}
     if (!host || decision.cancel) {
-      await this.cdp(targetId, "Fetch.fulfillRequest", { requestId: event.requestId, responseCode: 404, responseHeaders: [] })
+      await this.cdp(targetId, "Fetch.fulfillRequest", { requestId: event.requestId, oncePause: event.oncePause, responseCode: 404, responseHeaders: [] })
       return
     }
     // Decided per request from the document that makes it: for a navigation
@@ -373,7 +383,7 @@ export class LiteWebRequest {
     if (fromOwnPage) headers = withCorsGrant(headers, pageOrigin(extensionHost))
     else headers.push({ name: "Access-Control-Allow-Origin", value: "*" })
     await this.cdp(targetId, "Fetch.fulfillRequest", {
-      requestId: event.requestId, responseCode: response.status, responseHeaders: headers, body: toBase64(body)
+      requestId: event.requestId, oncePause: event.oncePause, responseCode: response.status, responseHeaders: headers, body: toBase64(body)
     })
     this.forget(targetId, event.networkId ?? event.requestId)
   }
@@ -382,7 +392,7 @@ export class LiteWebRequest {
     const input = this.input(targetId, target, event)
     const networkId = event.networkId ?? event.requestId
     if (event.responseErrorReason !== undefined) {
-      await this.cdp(targetId, "Fetch.continueRequest", { requestId: event.requestId })
+      await this.cdp(targetId, "Fetch.continueRequest", { requestId: event.requestId, oncePause: event.oncePause })
       return
     }
     const statusCode = event.responseStatusCode ?? 0
@@ -393,15 +403,15 @@ export class LiteWebRequest {
     if (record) record.input = detailed
     if (statusCode >= 300 && statusCode < 400 && (event.responseHeaders ?? []).some((header) => header.name.toLowerCase() === "location")) {
       // `Network.requestWillBeSent` reports the redirect with its new URL.
-      await this.cdp(targetId, "Fetch.continueResponse", { requestId: event.requestId })
+      await this.cdp(targetId, "Fetch.continueResponse", { requestId: event.requestId, oncePause: event.oncePause })
       return
     }
     const isDocument = input.resourceType === "mainFrame" || input.resourceType === "subFrame"
-    if (isDocument) this.holdDocument(target.tabId, input.frame.frameId, true)
+    if (isDocument) this.holdDocument(input, true)
     try {
       await this.documentResponse(targetId, target, event, input, detailed, isDocument)
     } finally {
-      if (isDocument) this.holdDocument(target.tabId, input.frame.frameId, false)
+      if (isDocument) this.holdDocument(input, false)
     }
   }
 
@@ -417,7 +427,7 @@ export class LiteWebRequest {
     const statusCode = event.responseStatusCode ?? 0
     const decision = await this.options.router.headersReceived(detailed)
     if (decision.cancel) {
-      await this.cdp(targetId, "Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" })
+      await this.cdp(targetId, "Fetch.failRequest", { requestId: event.requestId, oncePause: event.oncePause, errorReason: "BlockedByClient" })
       this.forget(targetId, networkId)
       return
     }
@@ -429,7 +439,7 @@ export class LiteWebRequest {
       // The worlds' synchronous requests for registered scripts must pass the page's policy.
       headers = withConnectGrant(headers, [...this.options.hosts()].map((host) => pageOrigin(host.extension.host)))
       policyChanged = JSON.stringify(headers) !== before
-      if (this.options.prepareDocument) headers = await this.options.prepareDocument(headers, detailed)
+      if (this.options.prepareDocument) headers = await this.options.prepareDocument(headers, detailed, { targetId, frameId: event.frameId })
     }
     if (target.kind === "page" && target.pageHost && /^https?:/.test(event.request.url)) {
       const host = this.hostFor(target.pageHost)
@@ -444,20 +454,20 @@ export class LiteWebRequest {
       // Chromium enforces a document's policy from the original headers,
       // not from ones changed through `Fetch.continueResponse`; a fulfilled
       // response carries the changed ones (the author's instrumentation
-      // test proved that path), at the cost of the body's round trip.
+      // test proved that path), with the body kept on Java's CDP transport.
       await this.fulfillWithBody(targetId, event, headers, statusCode)
     } else {
-      await this.cdp(targetId, "Fetch.continueResponse", { requestId: event.requestId, responseCode: statusCode, responseHeaders: headers })
+      await this.cdp(targetId, "Fetch.continueResponse", { requestId: event.requestId, oncePause: event.oncePause, responseCode: statusCode, responseHeaders: headers })
     }
     this.options.router.responseStarted({ ...detailed, responseHeaders: headersFromWebExt(headers) })
   }
 
   /** The response delivered again as a fulfilled one, body unchanged, so its changed headers take effect. */
   private async fulfillWithBody(targetId: string, event: FetchRequestPaused, headers: HttpHeader[], statusCode: number): Promise<void> {
-    const result = await this.cdp(targetId, "Fetch.getResponseBody", { requestId: event.requestId }) as { body: string; base64Encoded: boolean }
-    const body = result.base64Encoded ? result.body : toBase64(new TextEncoder().encode(result.body))
     const kept = headers.filter((header) => !["content-length", "content-encoding", "transfer-encoding"].includes(header.name.toLowerCase()))
-    await this.cdp(targetId, "Fetch.fulfillRequest", { requestId: event.requestId, responseCode: statusCode, responseHeaders: kept, body })
+    await this.cdp(targetId, "Fetch.fulfillWithBody", {
+      requestId: event.requestId, oncePause: event.oncePause, responseCode: statusCode, responseHeaders: kept
+    })
   }
 
   /** The whole body is fetched, offered to the filter and delivered again: `filterResponseData`'s round trip. */
@@ -468,16 +478,16 @@ export class LiteWebRequest {
     statusCode: number,
     filter: ResponseBodyFilter
   ): Promise<void> {
-    const result = await this.cdp(targetId, "Fetch.getResponseBody", { requestId: event.requestId }) as { body: string; base64Encoded: boolean }
+    const result = await this.cdp(targetId, "Fetch.getResponseBody", { requestId: event.requestId, oncePause: event.oncePause }) as { body: string; base64Encoded: boolean }
     const body = result.base64Encoded ? fromBase64(result.body) : new TextEncoder().encode(result.body)
     const rewritten = await filter.rewrite(event.requestId, body, headers)
     if (rewritten === null) {
-      await this.cdp(targetId, "Fetch.continueResponse", { requestId: event.requestId, responseCode: statusCode, responseHeaders: headers })
+      await this.cdp(targetId, "Fetch.continueResponse", { requestId: event.requestId, oncePause: event.oncePause, responseCode: statusCode, responseHeaders: headers })
       return
     }
     const kept = headers.filter((header) => !["content-length", "content-encoding", "transfer-encoding"].includes(header.name.toLowerCase()))
     await this.cdp(targetId, "Fetch.fulfillRequest", {
-      requestId: event.requestId, responseCode: statusCode, responseHeaders: kept, body: toBase64(rewritten)
+      requestId: event.requestId, oncePause: event.oncePause, responseCode: statusCode, responseHeaders: kept, body: toBase64(rewritten)
     })
   }
 }

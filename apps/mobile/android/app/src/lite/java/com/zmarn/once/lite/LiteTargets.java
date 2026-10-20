@@ -131,6 +131,7 @@ public final class LiteTargets implements DevToolsClient.Listener {
     });
     private final Map<String, Attachment> byMarker = new ConcurrentHashMap<>();
     private final Map<String, Attachment> byTarget = new ConcurrentHashMap<>();
+    private final Map<String, Attachment> bySession = new ConcurrentHashMap<>();
     /** Events of a target whose `target.attached` is not out yet. */
     private final Map<String, List<JSONObject>> queued = new ConcurrentHashMap<>();
     private final Set<String> probing = ConcurrentHashMap.newKeySet();
@@ -163,10 +164,16 @@ public final class LiteTargets implements DevToolsClient.Listener {
                     if (done.compareAndSet(false, true)) answered.accept(error == null);
                 }));
             }
-            @Override public void release(String targetId, String requestId) {
+            @Override public void release(String targetId, String requestId, boolean responseStage) {
                 Attachment attachment = byTarget.get(targetId);
                 Log.w(TAG, "The broker did not answer a paused request in time (its renderer is blocked); continuing it");
-                try { if (attachment != null) attachment.send("Fetch.continueRequest", new JSONObject().put("requestId", requestId)); }
+                try {
+                    JSONObject command = new JSONObject().put("requestId", requestId);
+                    // A synchronous XHR blocks the shared renderer through its response too.
+                    // Once released unchanged, do not pause it a second time for another watchdog cycle.
+                    if (!responseStage) command.put("interceptResponse", false);
+                    if (attachment != null) attachment.send("Fetch.continueRequest", command);
+                }
                 catch (Exception ignored) { /* a constant document */ }
             }
         });
@@ -176,10 +183,15 @@ public final class LiteTargets implements DevToolsClient.Listener {
             JSONObject command = params.optJSONObject("params");
             String method = params.getString("method");
             if (method.startsWith("Fetch.") && command != null && command.has("requestId")
-                && !watchdog.answered(params.optString("targetId"), command.optString("requestId"), !"Fetch.getResponseBody".equals(method))) {
+                && command.has("oncePause") && !watchdog.answered(params.optString("targetId"), command.optString("requestId"), command.optLong("oncePause"), !"Fetch.getResponseBody".equals(method) && !"Fetch.fulfillWithBody".equals(method))) {
                 reply.reject("The request was released while the broker was blocked", "RELEASED");
                 return;
             }
+            if ("Fetch.fulfillWithBody".equals(method)) {
+                fulfillWithBody(attachment, command, reply);
+                return;
+            }
+            if (command != null) command.remove("oncePause");
             if (Log.isLoggable("OnceLiteFetch", Log.DEBUG) && params.getString("method").startsWith("Fetch.") && command != null) {
                 String text = command.toString();
                 Log.d("OnceLiteFetch", params.getString("method") + " " + text.substring(0, Math.min(200, text.length())));
@@ -194,7 +206,7 @@ public final class LiteTargets implements DevToolsClient.Listener {
         });
         channel.onRequest("sync.set", (params, reply) -> {
             String url = "https://" + params.optString("host") + LitePage.PAGE_HOST_SUFFIX + params.optString("path");
-            syncAnswers.set(url, params.isNull("body") ? null : params.optString("body"));
+            syncAnswers.set(url, params.isNull("body") ? null : params.optString("body"), params.getString("targetId"), params.getString("frameId"));
             reply.resolve(null);
         });
         channel.onRequest("worlds.set", (params, reply) -> {
@@ -212,8 +224,53 @@ public final class LiteTargets implements DevToolsClient.Listener {
         });
     }
 
+    /** Keep unchanged CSP document bodies on the native CDP transport, out of the broker renderer. */
+    private void fulfillWithBody(Attachment attachment, JSONObject command, BrokerChannel.Reply reply) throws Exception {
+        DevToolsClient.Target target = attachment.target;
+        String requestId = command.getString("requestId");
+        long generation = command.optLong("oncePause");
+        JSONObject read = new JSONObject().put("requestId", requestId);
+        devtools.get().send(target.sessionId, "Fetch.getResponseBody", read).whenCompleteAsync((answer, error) -> {
+            if (error != null) { reply.reject(error.getMessage()); return; }
+            if (answer.has("error")) { reply.reject(answer.optJSONObject("error").optString("message")); return; }
+            try {
+                JSONObject result = answer.getJSONObject("result");
+                String body = result.getString("body");
+                if (!result.optBoolean("base64Encoded")) body = android.util.Base64.encodeToString(
+                    body.getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
+                if (attachment.target != target || !watchdog.answered(target.targetId, requestId, generation, true)) {
+                    reply.reject("The document pause was released", "RELEASED"); return;
+                }
+                command.remove("oncePause");
+                command.put("body", body);
+                devtools.get().send(target.sessionId, "Fetch.fulfillRequest", command).whenComplete((fulfilled, failure) -> {
+                    if (failure != null) reply.reject(failure.getMessage());
+                    else if (fulfilled.has("error")) reply.reject(fulfilled.optJSONObject("error").optString("message"));
+                    else reply.resolve(null);
+                });
+            } catch (Exception failure) { reply.reject(failure.getMessage()); }
+        }, worker);
+    }
+
     /** Set in Tier 2: targets are left alone, so nothing pauses requests Java enforces itself. */
     private volatile boolean passive;
+    private volatile boolean recoveringBroker;
+
+    void resetBroker() {
+        recoveringBroker = true;
+        syncAnswers.clear();
+        for (Attachment attachment : new ArrayList<>(byTarget.values())) {
+            DevToolsClient.Target target = attachment.target;
+            if (target == null || !"tab".equals(attachment.kind)) continue;
+            removeInstalled(attachment, target);
+            detached(target.targetId);
+        }
+    }
+
+    void brokerReady() {
+        recoveringBroker = false;
+        for (DevToolsClient.Target target : devtools.get().targets()) consider(target);
+    }
 
     boolean available() { DevToolsClient client = devtools.get(); return !passive && client != null && client.available(); }
 
@@ -287,6 +344,7 @@ public final class LiteTargets implements DevToolsClient.Listener {
             if (target != null) detached(target.targetId);
         }
         byTarget.clear();
+        bySession.clear();
         probing.clear();
     }
 
@@ -311,10 +369,7 @@ public final class LiteTargets implements DevToolsClient.Listener {
             default: break;
         }
         if (sessionId == null) return;
-        Attachment attachment = null;
-        for (Attachment candidate : byTarget.values()) {
-            if (candidate.target != null && sessionId.equals(candidate.target.sessionId)) { attachment = candidate; break; }
-        }
+        Attachment attachment = bySession.get(sessionId);
         if (attachment == null) return;
         if ("Network.responseReceivedExtraInfo".equals(method)) {
             JSONObject headers = params.optJSONObject("headers");
@@ -329,6 +384,7 @@ public final class LiteTargets implements DevToolsClient.Listener {
             if ("Runtime.executionContextDestroyed".equals(method)) attachment.bridge.contextDestroyed(params.optInt("executionContextId"));
             else if ("Runtime.executionContextsCleared".equals(method)) attachment.bridge.contextsCleared();
         }
+        if ("Page.frameDetached".equals(method)) syncAnswers.forgetFrame(attachment.target.targetId, params.optString("frameId"));
         if (!FORWARDED.contains(method)) return;
         // The broker reads requestWillBeSent for redirects only; the rest (with initiator stacks) stays here.
         if ("Network.requestWillBeSent".equals(method) && !params.has("redirectResponse")) return;
@@ -336,7 +392,13 @@ public final class LiteTargets implements DevToolsClient.Listener {
             if (answerSynchronously(attachment, params)) return;
             // An extension's own URL only the broker can serve (from its package): continuing it would send it to the network.
             JSONObject paused = params.optJSONObject("request");
-            if (paused == null || !LitePage.isExtensionUrl(paused.optString("url"))) watchdog.paused(attachment.target.targetId, params.optString("requestId"));
+            if ("Document".equals(params.optString("resourceType")) && !params.has("responseStatusCode") && !params.has("responseErrorReason")) {
+                syncAnswers.forgetFrame(attachment.target.targetId, params.optString("frameId"));
+            }
+            if (paused == null || !LitePage.isExtensionUrl(paused.optString("url"))) {
+                try { params.put("oncePause", watchdog.paused(attachment.target.targetId, params.optString("requestId"), params.has("responseStatusCode") || params.has("responseErrorReason"))); }
+                catch (org.json.JSONException error) { throw new IllegalStateException(error); }
+            }
         }
         if ("Fetch.requestPaused".equals(method) && Log.isLoggable("OnceLiteFetch", Log.DEBUG)) {
             JSONObject request = params.optJSONObject("request");
@@ -356,7 +418,7 @@ public final class LiteTargets implements DevToolsClient.Listener {
         String url = request == null ? "" : request.optString("url");
         if (!SyncAnswers.isSyncRequest(url) || params.has("responseStatusCode") || params.has("responseErrorReason")) return false;
         String origin = SyncAnswers.allowedOrigin(url, header(request.optJSONObject("headers"), "Origin"));
-        String body = origin == null ? null : syncAnswers.take(url);
+        String body = origin == null ? null : syncAnswers.take(url, attachment.target.targetId, params.optString("frameId"));
         try {
             JSONObject command = new JSONObject().put("requestId", params.optString("requestId"));
             JSONArray headers = new JSONArray().put(new JSONObject().put("name", "Cache-Control").put("value", "no-store"));
@@ -415,9 +477,11 @@ public final class LiteTargets implements DevToolsClient.Listener {
     }
 
     private void bind(DevToolsClient.Target target, Attachment attachment) {
+        if (recoveringBroker && "tab".equals(attachment.kind)) return;
         if (byTarget.putIfAbsent(target.targetId, attachment) != null) return;
         if (attachment.target != null && !attachment.target.targetId.equals(target.targetId)) detached(attachment.target.targetId);
         attachment.target = target;
+        bySession.put(target.sessionId, attachment);
         synchronized (attachment) {
             attachment.worlds.clear();
             attachment.bindings.clear();
@@ -472,7 +536,9 @@ public final class LiteTargets implements DevToolsClient.Listener {
         Attachment attachment = byTarget.remove(targetId);
         queued.remove(targetId);
         watchdog.forgetTarget(targetId);
+        syncAnswers.forgetTarget(targetId);
         if (attachment == null) return;
+        if (attachment.target != null) bySession.remove(attachment.target.sessionId, attachment);
         if (attachment.target != null && attachment.target.targetId.equals(targetId)) { attachment.target = null; attachment.ready = false; }
         if (attachment.bridge != null) attachment.bridge.contextsCleared();
         try { channel.event("target.detached", new JSONObject().put("targetId", targetId)); }
@@ -556,6 +622,7 @@ public final class LiteTargets implements DevToolsClient.Listener {
     void close() {
         for (Attachment attachment : new ArrayList<>(byTarget.values())) if (attachment.target != null) removeInstalled(attachment, attachment.target);
         byTarget.clear();
+        bySession.clear();
         worker.shutdown();
     }
 }

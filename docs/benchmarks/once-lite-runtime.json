@@ -1,0 +1,489 @@
+{
+  "date": "2026-10-20",
+  "reviewedCommit": "4e094a19",
+  "android": {
+    "device": "Pixel 9 emulator, Android 16 / API 36",
+    "webview": "155.0.8059.43",
+    "cspBodySamples": [
+      {
+        "bytes": 65536,
+        "native": true,
+        "ms": 405,
+        "navigationMs": 364,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 65536,
+        "native": false,
+        "ms": 255,
+        "navigationMs": 227,
+        "brokerBodyCharacters": 174944
+      },
+      {
+        "bytes": 65536,
+        "native": false,
+        "ms": 279,
+        "navigationMs": 245,
+        "brokerBodyCharacters": 174944
+      },
+      {
+        "bytes": 65536,
+        "native": true,
+        "ms": 240,
+        "navigationMs": 207,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 65536,
+        "native": true,
+        "ms": 216,
+        "navigationMs": 184,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 65536,
+        "native": false,
+        "ms": 331,
+        "navigationMs": 306,
+        "brokerBodyCharacters": 174944
+      },
+      {
+        "bytes": 524288,
+        "native": true,
+        "ms": 341,
+        "navigationMs": 309,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 524288,
+        "native": false,
+        "ms": 446,
+        "navigationMs": 413,
+        "brokerBodyCharacters": 1398288
+      },
+      {
+        "bytes": 524288,
+        "native": false,
+        "ms": 681,
+        "navigationMs": 582,
+        "brokerBodyCharacters": 1398288
+      },
+      {
+        "bytes": 524288,
+        "native": true,
+        "ms": 678,
+        "navigationMs": 643,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 524288,
+        "native": true,
+        "ms": 754,
+        "navigationMs": 719,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 524288,
+        "native": false,
+        "ms": 1238,
+        "navigationMs": 1174,
+        "brokerBodyCharacters": 1398288
+      },
+      {
+        "bytes": 2097152,
+        "native": true,
+        "ms": 757,
+        "navigationMs": 731,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 2097152,
+        "native": false,
+        "ms": 1304,
+        "navigationMs": 1280,
+        "brokerBodyCharacters": 5592592
+      },
+      {
+        "bytes": 2097152,
+        "native": false,
+        "ms": 1117,
+        "navigationMs": 1095,
+        "brokerBodyCharacters": 5592592
+      },
+      {
+        "bytes": 2097152,
+        "native": true,
+        "ms": 492,
+        "navigationMs": 469,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 2097152,
+        "native": true,
+        "ms": 515,
+        "navigationMs": 492,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 2097152,
+        "native": false,
+        "ms": 1079,
+        "navigationMs": 1056,
+        "brokerBodyCharacters": 5592592
+      },
+      {
+        "bytes": 65536,
+        "native": true,
+        "ms": 467,
+        "navigationMs": 433,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 65536,
+        "native": false,
+        "ms": 1409,
+        "navigationMs": 1253,
+        "brokerBodyCharacters": 174944
+      },
+      {
+        "bytes": 65536,
+        "native": false,
+        "ms": 820,
+        "navigationMs": 644,
+        "brokerBodyCharacters": 174944
+      },
+      {
+        "bytes": 65536,
+        "native": true,
+        "ms": 1054,
+        "navigationMs": 942,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 65536,
+        "native": true,
+        "ms": 1016,
+        "navigationMs": 838,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 65536,
+        "native": false,
+        "ms": 713,
+        "navigationMs": 606,
+        "brokerBodyCharacters": 174944
+      },
+      {
+        "bytes": 524288,
+        "native": true,
+        "ms": 1211,
+        "navigationMs": 1036,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 524288,
+        "native": false,
+        "ms": 1650,
+        "navigationMs": 1412,
+        "brokerBodyCharacters": 1398288
+      },
+      {
+        "bytes": 524288,
+        "native": false,
+        "ms": 1037,
+        "navigationMs": 896,
+        "brokerBodyCharacters": 1398288
+      },
+      {
+        "bytes": 524288,
+        "native": true,
+        "ms": 1803,
+        "navigationMs": 982,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 524288,
+        "native": true,
+        "ms": 895,
+        "navigationMs": 721,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 524288,
+        "native": false,
+        "ms": 1019,
+        "navigationMs": 924,
+        "brokerBodyCharacters": 1398288
+      },
+      {
+        "bytes": 2097152,
+        "native": true,
+        "ms": 1347,
+        "navigationMs": 1228,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 2097152,
+        "native": false,
+        "ms": 1810,
+        "navigationMs": 1730,
+        "brokerBodyCharacters": 5592592
+      },
+      {
+        "bytes": 2097152,
+        "native": false,
+        "ms": 2522,
+        "navigationMs": 2386,
+        "brokerBodyCharacters": 5592592
+      },
+      {
+        "bytes": 2097152,
+        "native": true,
+        "ms": 969,
+        "navigationMs": 892,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 2097152,
+        "native": true,
+        "ms": 852,
+        "navigationMs": 823,
+        "brokerBodyCharacters": 0
+      },
+      {
+        "bytes": 2097152,
+        "native": false,
+        "ms": 1746,
+        "navigationMs": 1632,
+        "brokerBodyCharacters": 5592592
+      }
+    ],
+    "watchdog": {
+      "comparison": "Same fixed runtime and timing probe; baseline retains response-stage interception on watchdog release. Baseline-only source change was restored after the run.",
+      "baseline": {
+        "documentMs": 18544,
+        "synchronousXhrMs": 10295
+      },
+      "fixed": {
+        "documentMs": 13297,
+        "synchronousXhrMs": 5423
+      },
+      "note": "Document time includes cold startup. XHR duration is measured inside the page with performance.now(). Each mode has one measured run."
+    },
+    "cspRuns": [
+      {
+        "context": "engine suite",
+        "firstSample": 0,
+        "sampleCount": 18
+      },
+      {
+        "context": "standalone transport suite",
+        "firstSample": 18,
+        "sampleCount": 18
+      }
+    ]
+  },
+  "hostJvm": {
+    "platform": "macOS arm64",
+    "jdk": "OpenJDK 21.0.10 (Android Studio JBR)",
+    "workload": "112k shipped uBO Lite rules; 50 prebuilt script requests, 1000 warmups per URL size; five rounds of 5000 short or 200 long requests",
+    "reviewedCommit": {
+      "compiledRules": 112543,
+      "compileMs": 183.361792,
+      "samples": [
+        {
+          "length": 100.0,
+          "round": 0.0,
+          "us": 64.021625,
+          "allocated_bytes": 721128.0
+        },
+        {
+          "length": 100.0,
+          "round": 1.0,
+          "us": 67.233875,
+          "allocated_bytes": 721080.0
+        },
+        {
+          "length": 100.0,
+          "round": 2.0,
+          "us": 61.3340334,
+          "allocated_bytes": 721072.0
+        },
+        {
+          "length": 100.0,
+          "round": 3.0,
+          "us": 61.032925,
+          "allocated_bytes": 721072.0
+        },
+        {
+          "length": 100.0,
+          "round": 4.0,
+          "us": 62.2517082,
+          "allocated_bytes": 721072.0
+        },
+        {
+          "length": 32000.0,
+          "round": 0.0,
+          "us": 925.21875,
+          "allocated_bytes": 2308864.0
+        },
+        {
+          "length": 32000.0,
+          "round": 1.0,
+          "us": 887.229375,
+          "allocated_bytes": 2308864.0
+        },
+        {
+          "length": 32000.0,
+          "round": 2.0,
+          "us": 905.180415,
+          "allocated_bytes": 2308864.0
+        },
+        {
+          "length": 32000.0,
+          "round": 3.0,
+          "us": 905.4677099999999,
+          "allocated_bytes": 2308864.0
+        },
+        {
+          "length": 32000.0,
+          "round": 4.0,
+          "us": 885.8158349999999,
+          "allocated_bytes": 2308864.0
+        }
+      ]
+    },
+    "re2BeforeRequestOptimizations": {
+      "compiledRules": 112542,
+      "compileMs": 195.384875,
+      "samples": [
+        {
+          "length": 100.0,
+          "round": 0.0,
+          "us": 91.62725,
+          "allocated_bytes": 649560.0
+        },
+        {
+          "length": 100.0,
+          "round": 1.0,
+          "us": 84.3392166,
+          "allocated_bytes": 649512.0
+        },
+        {
+          "length": 100.0,
+          "round": 2.0,
+          "us": 83.98178320000001,
+          "allocated_bytes": 649504.0
+        },
+        {
+          "length": 100.0,
+          "round": 3.0,
+          "us": 84.8268084,
+          "allocated_bytes": 649504.0
+        },
+        {
+          "length": 100.0,
+          "round": 4.0,
+          "us": 85.3820334,
+          "allocated_bytes": 649504.0
+        },
+        {
+          "length": 32000.0,
+          "round": 0.0,
+          "us": 6057.138540000001,
+          "allocated_bytes": 1989136.0
+        },
+        {
+          "length": 32000.0,
+          "round": 1.0,
+          "us": 6059.527290000001,
+          "allocated_bytes": 1989136.0
+        },
+        {
+          "length": 32000.0,
+          "round": 2.0,
+          "us": 6049.357709999999,
+          "allocated_bytes": 1989136.0
+        },
+        {
+          "length": 32000.0,
+          "round": 3.0,
+          "us": 6029.137915,
+          "allocated_bytes": 1989136.0
+        },
+        {
+          "length": 32000.0,
+          "round": 4.0,
+          "us": 6263.524584999999,
+          "allocated_bytes": 1989136.0
+        }
+      ]
+    },
+    "fixed": {
+      "compiledRules": 112542,
+      "compileMs": 153.527,
+      "samples": [
+        {
+          "length": 100.0,
+          "round": 0.0,
+          "us": 49.651575,
+          "allocated_bytes": 16653.0
+        },
+        {
+          "length": 100.0,
+          "round": 1.0,
+          "us": 49.5717584,
+          "allocated_bytes": 16619.0
+        },
+        {
+          "length": 100.0,
+          "round": 2.0,
+          "us": 50.3951082,
+          "allocated_bytes": 16608.0
+        },
+        {
+          "length": 100.0,
+          "round": 3.0,
+          "us": 48.3552834,
+          "allocated_bytes": 16608.0
+        },
+        {
+          "length": 100.0,
+          "round": 4.0,
+          "us": 48.9992418,
+          "allocated_bytes": 16608.0
+        },
+        {
+          "length": 32000.0,
+          "round": 0.0,
+          "us": 5711.371040000001,
+          "allocated_bytes": 782112.0
+        },
+        {
+          "length": 32000.0,
+          "round": 1.0,
+          "us": 5707.640625,
+          "allocated_bytes": 782112.0
+        },
+        {
+          "length": 32000.0,
+          "round": 2.0,
+          "us": 5954.038125,
+          "allocated_bytes": 782112.0
+        },
+        {
+          "length": 32000.0,
+          "round": 3.0,
+          "us": 5745.787915000001,
+          "allocated_bytes": 782112.0
+        },
+        {
+          "length": 32000.0,
+          "round": 4.0,
+          "us": 5702.8089549999995,
+          "allocated_bytes": 782112.0
+        }
+      ]
+    }
+  }
+}

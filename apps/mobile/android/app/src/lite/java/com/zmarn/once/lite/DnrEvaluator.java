@@ -10,9 +10,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
+import com.google.re2j.Matcher;
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
 
 /**
  * Tier 2's {@code declarativeNetRequest} matcher (docs/plans/once-lite-plan.md):
@@ -50,9 +50,6 @@ public final class DnrEvaluator {
         for (int index = 0; index < METHODS.length; index++) METHOD_BITS.put(METHODS[index], 1 << index);
     }
     private static final int MAIN_FRAME = 1;
-    private static final Pattern NOT_RE2 = Pattern.compile("\\(\\?(?:[=!>]|<[=!])|(?<!\\\\)\\\\[1-9]");
-    /** A regexFilter sees this much of a URL at most: java.util.regex backtracks where RE2 would not. */
-    static final int REGEX_INPUT_LIMIT = 4096;
     private static final int ALL_TYPES = (1 << RESOURCE_TYPES.length) - 1;
 
     public enum Outcome { NONE, ALLOW, ALLOW_ALL_REQUESTS, BLOCK, UPGRADE_SCHEME, REDIRECT }
@@ -258,8 +255,6 @@ public final class DnrEvaluator {
         if (urlFilter instanceof String && regexFilter != null) throw new Unsupported("urlFilter and regexFilter are exclusive");
         if (urlFilter instanceof String) rule.filter = new DnrUrlFilter((String) urlFilter, caseSensitive);
         if (regexFilter instanceof String) {
-            // RE2's syntax only, as Chrome takes it: no lookaround, backreferences or atomic groups, which backtrack.
-            if (NOT_RE2.matcher((String) regexFilter).find()) throw new Unsupported("regexFilter uses syntax RE2 does not have");
             try {
                 rule.regex = Pattern.compile((String) regexFilter, caseSensitive ? 0 : Pattern.CASE_INSENSITIVE);
             } catch (PatternSyntaxException error) {
@@ -318,7 +313,13 @@ public final class DnrEvaluator {
     /** The last two labels stand in for the registrable domain, as in @once/core. */
     static String site(String host) {
         // An address is its own site.
-        if (host.startsWith("[") || host.matches("[0-9.]+")) return host;
+        if (host.startsWith("[")) return host;
+        boolean address = !host.isEmpty();
+        for (int index = 0; address && index < host.length(); index++) {
+            char c = host.charAt(index);
+            address = c == '.' || c >= '0' && c <= '9';
+        }
+        if (address) return host;
         int last = host.lastIndexOf('.');
         if (last <= 0) return host;
         int previous = host.lastIndexOf('.', last - 1);
@@ -355,16 +356,16 @@ public final class DnrEvaluator {
             size = rules.size();
         }
 
-        Rule best(Rule best, Request request, String lowerUrl, Set<String> tokens, int typeBit, String requestHost, String initiatorHost) {
+        Rule best(Rule best, Request request, String lowerUrl, Set<String> tokens, Set<String> trigrams, int typeBit, String requestHost, String initiatorHost, boolean thirdParty) {
             for (String token : tokens) {
                 List<Rule> bucket = byToken.get(token);
-                if (bucket != null) for (Rule rule : bucket) best = better(best, rule, request, lowerUrl, typeBit, requestHost, initiatorHost);
+                if (bucket != null) for (Rule rule : bucket) best = better(best, rule, request, lowerUrl, typeBit, requestHost, initiatorHost, thirdParty);
             }
-            if (!byTrigram.isEmpty()) for (String trigram : trigrams(lowerUrl)) {
+            if (!byTrigram.isEmpty()) for (String trigram : trigrams) {
                 List<Rule> bucket = byTrigram.get(trigram);
-                if (bucket != null) for (Rule rule : bucket) best = better(best, rule, request, lowerUrl, typeBit, requestHost, initiatorHost);
+                if (bucket != null) for (Rule rule : bucket) best = better(best, rule, request, lowerUrl, typeBit, requestHost, initiatorHost, thirdParty);
             }
-            for (Rule rule : fallback) best = better(best, rule, request, lowerUrl, typeBit, requestHost, initiatorHost);
+            for (Rule rule : fallback) best = better(best, rule, request, lowerUrl, typeBit, requestHost, initiatorHost, thirdParty);
             return best;
         }
     }
@@ -399,10 +400,10 @@ public final class DnrEvaluator {
             size += index.size;
         }
 
-        Decision evaluate(Request request, String lowerUrl, Set<String> tokens, String requestHost, String initiatorHost) {
+        Decision evaluate(Request request, String lowerUrl, Set<String> tokens, Set<String> trigrams, String requestHost, String initiatorHost, boolean thirdParty) {
             Rule best = null;
             int typeBit = TYPE_BITS.containsKey(request.type) ? TYPE_BITS.get(request.type) : TYPE_BITS.get("other");
-            for (Index part : parts) best = part.best(best, request, lowerUrl, tokens, typeBit, requestHost, initiatorHost);
+            for (Index part : parts) best = part.best(best, request, lowerUrl, tokens, trigrams, typeBit, requestHost, initiatorHost, thirdParty);
             Integer frameAllow = request.frameAllow.get(id);
             if (frameAllow != null && (best == null || best.priority <= frameAllow)) return new Decision(Outcome.ALLOW, id, null, null, null, frameAllow);
             if (best == null) return Decision.NONE;
@@ -424,12 +425,12 @@ public final class DnrEvaluator {
         }
     }
 
-    private static Rule better(Rule best, Rule rule, Request request, String lowerUrl, int typeBit, String requestHost, String initiatorHost) {
+    private static Rule better(Rule best, Rule rule, Request request, String lowerUrl, int typeBit, String requestHost, String initiatorHost, boolean thirdParty) {
         if (best != null && (rule.priority < best.priority || (rule.priority == best.priority && RANK[rule.action] <= RANK[best.action]))) return best;
-        return matches(rule, request, lowerUrl, typeBit, requestHost, initiatorHost) ? rule : best;
+        return matches(rule, request, lowerUrl, typeBit, requestHost, initiatorHost, thirdParty) ? rule : best;
     }
 
-    private static boolean matches(Rule rule, Request request, String lowerUrl, int typeBit, String requestHost, String initiatorHost) {
+    private static boolean matches(Rule rule, Request request, String lowerUrl, int typeBit, String requestHost, String initiatorHost, boolean thirdParty) {
         if ((rule.types & typeBit) == 0) return false;
         if (!rule.anyMethod) {
             Integer bit = METHOD_BITS.get(request.method);
@@ -439,7 +440,7 @@ public final class DnrEvaluator {
             if (rule.tabIds != null && Arrays.binarySearch(rule.tabIds, request.tabId) < 0) return false;
             if (rule.excludedTabIds != null && Arrays.binarySearch(rule.excludedTabIds, request.tabId) >= 0) return false;
         }
-        if (rule.domainType != 0 && (rule.domainType == 2) != thirdParty(requestHost, initiatorHost)) return false;
+        if (rule.domainType != 0 && (rule.domainType == 2) != thirdParty) return false;
         if (rule.requestDomains != null && (requestHost == null || !inDomains(requestHost, rule.requestDomains))) return false;
         if (rule.excludedRequestDomains != null && requestHost != null && inDomains(requestHost, rule.excludedRequestDomains)) return false;
         // A request without an initiator matches no domain list, and no exclusion list excludes it, as in Chrome.
@@ -448,16 +449,12 @@ public final class DnrEvaluator {
         if (rule.filter != null && !rule.filter.matches(request.url, lowerUrl)) return false;
         // An upgrade of a URL that is secure already, or a redirect to the URL itself, does not apply, as in Chrome.
         if (rule.action == ACTION_UPGRADE && upgraded(request.url) == null) return false;
-        if (rule.regex != null && !rule.regex.matcher(regexInput(request.url)).find()) return false;
+        if (rule.regex != null && !rule.regex.matcher(request.url).find()) return false;
         if (rule.action == ACTION_REDIRECT && rule.extensionPath == null) {
             String target = redirectTarget(rule, request.url);
             if (target == null || target.equals(request.url)) return false;
         }
         return true;
-    }
-
-    static String regexInput(String url) {
-        return url.length() > REGEX_INPUT_LIMIT ? url.substring(0, REGEX_INPUT_LIMIT) : url;
     }
 
     static String upgraded(String url) {
@@ -469,7 +466,7 @@ public final class DnrEvaluator {
     private static String redirectTarget(Rule rule, String url) {
         if (rule.redirectUrl != null) return rule.redirectUrl;
         if (rule.regexSubstitution != null) {
-            Matcher matcher = rule.regex.matcher(regexInput(url));
+            Matcher matcher = rule.regex.matcher(url);
             if (!matcher.find()) return null;
             StringBuilder out = new StringBuilder(url.substring(0, matcher.start()));
             String template = rule.regexSubstitution;
@@ -571,8 +568,14 @@ public final class DnrEvaluator {
     // The evaluator
 
     private final List<Group> groups;
+    private final boolean usesTrigrams;
 
-    public DnrEvaluator(List<Group> groups) { this.groups = new ArrayList<>(groups); }
+    public DnrEvaluator(List<Group> groups) {
+        this.groups = new ArrayList<>(groups);
+        boolean needed = false;
+        for (Group group : groups) for (Index part : group.parts) needed |= !part.byTrigram.isEmpty();
+        usesTrigrams = needed;
+    }
 
     public static final DnrEvaluator EMPTY = new DnrEvaluator(Collections.emptyList());
 
@@ -602,12 +605,15 @@ public final class DnrEvaluator {
         if (groups.isEmpty()) return new Result(Decision.NONE, Collections.emptyMap());
         String lowerUrl = request.url.toLowerCase(Locale.ROOT);
         Set<String> tokens = tokens(lowerUrl);
+        // Shared by all ruleset parts and extensions, rather than allocating a set per part.
+        Set<String> trigrams = usesTrigrams ? trigrams(lowerUrl) : Collections.emptySet();
         String requestHost = hostOf(request.url);
         String initiatorHost = hostOf(request.initiator);
+        boolean thirdParty = thirdParty(requestHost, initiatorHost);
         Decision block = null, redirect = null, allow = null;
         Map<String, Integer> allowAll = new HashMap<>();
         for (Group group : groups) {
-            Decision decision = group.evaluate(request, lowerUrl, tokens, requestHost, initiatorHost);
+            Decision decision = group.evaluate(request, lowerUrl, tokens, trigrams, requestHost, initiatorHost, thirdParty);
             switch (decision.outcome) {
                 case BLOCK: if (block == null) block = decision; break;
                 case REDIRECT: case UPGRADE_SCHEME: if (redirect == null) redirect = decision; break;

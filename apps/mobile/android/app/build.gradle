@@ -171,6 +171,7 @@ dependencies {
     implementation "androidx.webkit:webkit:$androidxWebkitVersion"
     implementation project(':capacitor-android')
     // Firefox's engine, in the gecko variants only; Once Lite is the system WebView.
+    liteImplementation "com.google.re2j:re2j:1.8"
     geckoImplementation "org.mozilla.geckoview:geckoview:$geckoViewVersion"
     implementation "androidx.exifinterface:exifinterface:$androidxExifInterfaceVersion"
     // Bundled Latin model: on-device, no Play services or model download.

@@ -80,7 +80,7 @@ public class Tier2RobustnessTest {
         assertEquals("https://me@a.example/x?y", DnrEvaluator.transformed("https://u:p@a.example/x?y", transform));
     }
 
-    @Test public void regexFiltersStayInRe2AndSeeABoundedUrl() {
+    @Test public void regexFiltersUseRe2AndMatchTheWholeUrl() {
         DnrEvaluator.Compiled compiled = DnrEvaluator.compileArray("["
             + "{\"id\":1,\"action\":{\"type\":\"block\"},\"condition\":{\"regexFilter\":\"^https://(?=x)\"}},"
             + "{\"id\":2,\"action\":{\"type\":\"block\"},\"condition\":{\"regexFilter\":\"(a)\\\\1\"}},"
@@ -93,6 +93,17 @@ public class Tier2RobustnessTest {
         assertEquals(DnrEvaluator.Outcome.NONE, decide(rules, url.toString(), "image", null).outcome);
         assertTrue("bounded", (System.nanoTime() - started) / 1000000 < 200);
         assertEquals(DnrEvaluator.Outcome.BLOCK, decide(rules, "https://x.example/a/sw1.js", "script", null).outcome);
+    }
+
+    @Test(timeout = 2000) public void adversarialRegexesCannotBacktrackOrOverflowTheStack() {
+        String[] patterns = { "^https://x[.]example/(a|aa)+$", "^https://x[.]example/a*a*a*a*b" };
+        String url = "https://x.example/" + new String(new char[64000]).replace('\0', 'a') + "!";
+        for (String pattern : patterns) {
+            DnrEvaluator rules = evaluator("[{\"id\":1,\"action\":{\"type\":\"block\"},\"condition\":{\"regexFilter\":\"" + pattern + "\"}}]");
+            assertEquals(DnrEvaluator.Outcome.NONE, decide(rules, url, "image", null).outcome);
+        }
+        DnrEvaluator suffix = evaluator("[{\"id\":1,\"action\":{\"type\":\"block\"},\"condition\":{\"regexFilter\":\"blocked$\"}}]");
+        assertEquals(DnrEvaluator.Outcome.BLOCK, decide(suffix, url + "blocked", "image", null).outcome);
     }
 
     @Test public void theRedirectFetchStaysOffThisDeviceAndItsNetwork() {
@@ -136,4 +147,13 @@ public class Tier2RobustnessTest {
         LiteTier2.commit(tab, "https://trusted.example/", rules);
         assertEquals(Integer.valueOf(1), tab.committed.frameAllow.get("g"));
     }
+    @Test public void aPendingSameOriginNavigationDoesNotLendItsAllowRuleToTheOldPage() {
+        LiteTier2.Tab tab = new LiteTier2.Tab(1);
+        tab.committed = new LiteTier2.Document("https://site.test/untrusted", Collections.emptyMap());
+        tab.pending = new LiteTier2.Document("https://site.test/allowed", Collections.singletonMap("g", 1));
+        assertTrue(LiteTier2.documentOf(tab, "https://site.test/untrusted").frameAllow.isEmpty());
+        assertTrue("origin-only referers are ambiguous", LiteTier2.documentOf(tab, "https://site.test/").frameAllow.isEmpty());
+        assertEquals(Integer.valueOf(1), LiteTier2.documentOf(tab, "https://site.test/allowed").frameAllow.get("g"));
+    }
+
 }

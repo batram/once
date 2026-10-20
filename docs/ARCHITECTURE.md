@@ -168,7 +168,13 @@ document, under a key derived from the secret and the document's URL; and
 because every WebView shares one renderer main thread, Java continues a
 paused request itself when the broker stops answering (a page's
 synchronous XMLHttpRequest or a JS dialog blocks it), rather than hold the
-whole app.
+whole app. Pauses have generation IDs, so a late command cannot resolve a
+new pause with the same CDP request ID. Released request stages skip response
+interception to avoid a second watchdog delay. Synchronous answers are scoped
+to the requesting target/frame and bounded by entry count, bytes and age.
+CSP document bodies are fetched and fulfilled directly in Java; only headers
+cross the broker channel. This removes duplicate body transfers through the
+broker renderer, although CDP still buffers each document in full.
 
 Extensions' hosts are random per install, as Firefox's per-install UUIDs
 are, so a page cannot recognise an extension by a host every install shares;

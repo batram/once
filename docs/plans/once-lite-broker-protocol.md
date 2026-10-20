@@ -19,7 +19,7 @@ it is unit-tested in Node with a fake Java.
 | --- | --- | --- |
 | `window.onceLite` | Java ↔ broker | `WebViewCompat.addWebMessageListener(brokerView, "onceLite", ["https://broker.once-lite.localhost"])` (the broker's own origin, served by its WebView's `shouldInterceptRequest`; not the shell's `https://localhost`). The broker calls `onceLite.postMessage(string)` and assigns `onceLite.onmessage`. Java posts through the `JavaScriptReplyProxy` it got on the first message from the page (the broker sends a `broker.hello` event at load so Java has the proxy before `lite.start`). |
 | `window.onceLiteFiles` | broker → Java, synchronous | `addJavascriptInterface(obj, "onceLiteFiles")` on the broker WebView only. `String read(String directory, String path)` and `String unzip(String token, String archiveBase64)`, see Files. |
-| `window.onceLitePage` | Java ↔ extension page frames | `WebViewCompat.addWebMessageListener(pageView, "onceLitePage", [origin])` on every extension page WebView and (restricted to extension origins) on tab WebViews. One `JavaScriptReplyProxy` per frame; Java numbers frames per page (`0` = main frame) and relays each frame's messages as `page.message`. |
+| `window.onceLitePage` | Java ↔ extension page frames | `WebViewCompat.addWebMessageListener(pageView, "onceLitePage", [origin])` on every extension page WebView and (restricted to extension origins) on tab WebViews. One `JavaScriptReplyProxy` per frame; Java numbers document contexts monotonically per page and supplies `mainFrame` separately and relays each frame's messages as `page.message`. |
 | `onceLiteWorld` binding | content world → Java → broker | `Runtime.addBinding {name: "onceLiteWorld", executionContextName: "once-ext:<host>"}` per extension per tab target. `Runtime.bindingCalled` is forwarded as a `cdp.event`. Every world has the same binding, so the broker takes the sender from the calling context's world name (`Runtime.executionContextCreated`), never from the payload, and refuses a payload naming another host; the bootstrap takes the binding off its global once captured. |
 | `__onceLiteDeliver(json)` | broker → world | The broker sends `cdp.command Runtime.evaluate {expression, contextId}`; Java issues it. |
 | `onceLiteBridge` binding, `__onceLiteBridgeDeliver(json)` | Once's own bridge world ↔ Java | Not routed through the broker; Java handles it with its Gecko-era handlers (see Bridge world). |
@@ -167,8 +167,11 @@ Per attached tab and page target Java enables and forwards:
 
 The broker target itself needs none of these. `Fetch.enable` is issued per
 page target (LiteDevToolsTest proved it there; workers are not covered yet).
-Every `requestPaused` arrives with a `targetId`; the broker continues one of
-a target it does not know.
+Every `requestPaused` arrives with a `targetId`; ordinary network pauses also
+carry Java's monotonic `oncePause` generation. The broker echoes it in Fetch
+command params; Java validates and removes it before sending CDP. Request and
+response stages reuse a Fetch request id but have different pause generations.
+The broker continues a pause of a target it does not know.
 
 Every WebView shares one renderer main thread, the broker's included, and
 DevTools never times a paused request out: a page in a synchronous
@@ -177,13 +180,16 @@ therefore tracks each request it forwarded (`FetchWatchdog`): one the broker
 has not ended (continue, fail, fulfill) within 1.5 s makes Java send
 `broker.ping`; without an answer within 3 s, Java continues every request
 stalled that long unchanged, and refuses the broker's later `cdp.command`
-for it with code `RELEASED`, which the broker drops quietly. A broker that
+for that generation with code `RELEASED`, which the broker drops quietly.
+A request-stage release uses `interceptResponse: false`, avoiding another
+watchdog delay while the same synchronous XHR still blocks the renderer.
+A broker that
 answers is holding requests on purpose, and they stay held. Requests for
 extension URLs are never released this way: only the broker can serve them.
 
 | Request (broker → Java) | Params | Result |
 | --- | --- | --- |
-| `cdp.command` | `{targetId, method, params?}` | The CDP result object, or a request error with the CDP error message. The broker uses `Fetch.continueRequest`, `Fetch.failRequest`, `Fetch.fulfillRequest`, `Fetch.continueResponse`, `Fetch.getResponseBody`, `Runtime.evaluate` (with `contextId`). |
+| `cdp.command` | `{targetId, method, params?}` | The CDP result object, or a request error with the CDP error message. Fetch params echo `oncePause` where supplied. Besides ordinary CDP methods, `Fetch.fulfillWithBody` is a host operation: Java gets the existing response body and fulfills it with the supplied status and headers; body bytes never enter the broker renderer. |
 
 Frames: Chromium frame ids stay strings between Java and the broker. The
 broker exposes WebExtension frame ids: `0` for a target's top frame, a
@@ -234,11 +240,13 @@ blocks a tab (a synchronous `XMLHttpRequest` at document start) can never
 be answered by the broker, which runs in that renderer too. Answers a world
 needs synchronously are therefore prepared by the broker for each document
 at its response stage and served by **Java** from memory at the `Fetch`
-request stage, never forwarded: `sync.set {host, path, body | null}` stores
+request stage, never forwarded: `sync.set {host, path, body | null, targetId, frameId}` stores
 the JSON text Java fulfils for `https://<host>.moz-extension.localhost<path>`
-(`null` forgets the path). Each body is served once, in the order stored
-(two tabs loading one URL each get theirs); the oldest paths go when more
-than 256 wait. Java answers only a request whose `Origin` is the document's
+(`null` forgets the scoped path). Answers are served only to their target and
+frame, once, in insertion order. The cache bounds the total number of bodies
+at 256 and their estimated UTF-16 storage at 16 MiB, including duplicate URLs.
+Answers expire after 30 seconds and are removed on a new frame navigation,
+frame/target removal, or broker recovery. Java answers only a request whose `Origin` is the document's
 named in `u` (or `null`, a sandboxed frame of it), with that origin in
 `Access-Control-Allow-Origin` (200, `application/json`,
 `Cache-Control: no-store`; 404 when nothing is stored, or for another
@@ -468,3 +476,24 @@ Java installs on every tab target, independently of the broker:
 - Content scripts run with a sandbox `this` and a direct `eval` (see Content worlds): `this !== window`, `this.window === this`, unknown names read from the page; `exportFunction`/`cloneInto` are identity shims.
 - Documents whose policy the broker changes are re-delivered with `Fetch.fulfillRequest` (body re-read through DevTools), since Chromium ignores header edits from `Fetch.continueResponse` for CSP.
 - The catalogue lists bundled extensions first, in bundle order (uBlock Origin, Violentmonkey), then installed ones in install order.
+
+### Runtime lifecycle and performance checks
+
+Deferred `tabs.executeScript` calls are authorized against the pending document,
+associated with its request identity, and rechecked when preparing that document's
+answer. Detaching a frame retires its extension contexts and descendants before
+removing their CDP mappings. Extension-page frame IDs are monotonic across
+navigations; `page.frameGone {pageId, frameId}` retires the old context and listeners.
+The background blob reader locates the current main-frame context rather than
+assuming frame ID zero. A lost broker renderer requires a new WebView and target;
+reloading a dead WebView is not recovery.
+
+CSP rewriting still buffers an entire document in CDP. The native
+`Fetch.fulfillWithBody` path removes the Java → broker → Java body round trip,
+but does not make streaming HTML or arbitrarily large responses cheap. The
+`cspBodyTransportBenchmark` instrumentation test compares the former algorithm
+with the native path on 64 KiB, 512 KiB and 2 MiB local CSP documents, recording
+Navigation Timing and the number of body characters crossing broker IPC.
+It alternates paths and asserts that the native path transfers zero body
+characters through that channel. Physical-device peak memory and sustained
+navigation measurements remain necessary for a release performance budget.

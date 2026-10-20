@@ -19,7 +19,7 @@ public class FetchWatchdogTest {
         @Override public long now() { return now; }
         @Override public void schedule(Runnable task, long delayMs) { scheduled.add(task); }
         @Override public void ping(long timeoutMs, Consumer<Boolean> answered) { pings.add(answered); }
-        @Override public void release(String targetId, String requestId) { released.add(targetId + "/" + requestId); }
+        @Override public void release(String targetId, String requestId, boolean responseStage) { released.add(targetId + "/" + requestId); }
 
         void runScheduled() {
             List<Runnable> due = new ArrayList<>(scheduled);
@@ -42,7 +42,7 @@ public class FetchWatchdogTest {
         assertEquals(1, host.pings.size());
         host.pings.remove(0).accept(false);
         assertEquals("only the request stalled when the broker was asked", java.util.Arrays.asList("T1/R1"), host.released);
-        assertFalse("the broker's late command is refused", watchdog.answered("T1", "R1", true));
+        assertFalse("the broker's late command is refused", watchdog.answered("T1", "R1", 1, true));
         host.now = 2 * FetchWatchdog.STALL_MS + 1000;
         host.runScheduled();
         host.pings.remove(0).accept(false);
@@ -59,9 +59,9 @@ public class FetchWatchdogTest {
         host.pings.remove(0).accept(true);
         assertTrue(host.released.isEmpty());
         assertEquals("checked again while it is held", 1, host.scheduled.size());
-        assertTrue(watchdog.answered("T1", "R1", false));
+        assertTrue(watchdog.answered("T1", "R1", 1, false));
         assertEquals("reading the body does not end the pause", 1, watchdog.pausedCount());
-        assertTrue(watchdog.answered("T1", "R1", true));
+        assertTrue(watchdog.answered("T1", "R1", 1, true));
         assertEquals(0, watchdog.pausedCount());
         host.runScheduled();
         assertTrue("nothing left to watch", host.scheduled.isEmpty() && host.pings.isEmpty());
@@ -75,4 +75,19 @@ public class FetchWatchdogTest {
         watchdog.forgetTarget("T1");
         assertEquals(1, watchdog.pausedCount());
     }
+    @Test public void aNewResponsePauseAcceptsOnlyItsOwnGeneration() {
+        FakeHost host = new FakeHost();
+        FetchWatchdog watchdog = new FetchWatchdog(host);
+        long request = watchdog.paused("T", "R");
+        host.now = FetchWatchdog.STALL_MS + 1000;
+        host.runScheduled();
+        host.pings.remove(0).accept(false);
+        long response = watchdog.paused("T", "R");
+        assertFalse(watchdog.answered("T", "R", request, true));
+        assertTrue(watchdog.answered("T", "R", response, false));
+        assertTrue(watchdog.answered("T", "R", response, true));
+        assertEquals(0, watchdog.pausedCount());
+        assertFalse("a duplicate reply is stale too", watchdog.answered("T", "R", response, true));
+    }
+
 }

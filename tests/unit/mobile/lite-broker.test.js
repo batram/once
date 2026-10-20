@@ -134,10 +134,10 @@ test("requests pause at both stages: a blocked image, a document with the held o
   assert.equal(before.length, 0, "headers are still held")
   java.pageMessage(pageId, { type: "reply", token: started.params.message.message.token, result: [undefined] })
   // A changed policy only takes effect on a fulfilled response: the body is fetched and delivered again.
-  const response = await java.nextCdp("Fetch.fulfillRequest")
+  const response = await java.nextCdp("Fetch.fulfillWithBody")
   assert.equal(response.params.params.requestId, "R3")
-  assert.ok(java.cdp.some((c) => c.method === "Fetch.getResponseBody" && c.params.requestId === "R3"))
-  assert.equal(Buffer.from(response.params.params.body, "base64").toString(), "<html>body</html>")
+  assert.equal(java.cdp.some((c) => c.method === "Fetch.getResponseBody" && c.params.requestId === "R3"), false, "the body stays off the broker channel")
+  assert.equal(response.params.params.body, undefined, "only the headers cross the broker channel")
   const csp = response.params.params.responseHeaders.find((header) => header.name === "Content-Security-Policy")
   const nonce = worldNonce(TOKEN, "https://site.test/page")
   assert.equal(csp.value, `script-src 'self' 'nonce-${nonce}'`)
@@ -390,7 +390,7 @@ test("scripts registered during a document's held onResponseStarted are served t
   }] })
   await java.next((e) => e.type === "request" && e.method === "page.post" && e.params.message.type === "result" && e.params.message.id === 50)
   java.pageMessage(pageId, { type: "reply", token: started.params.message.message.token, result: [undefined] })
-  const continued = await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.method === "Fetch.fulfillRequest" && e.params.params.requestId === "R1")
+  const continued = await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.method === "Fetch.fulfillWithBody" && e.params.params.requestId === "R1")
   const origin = `https://${host.extension.host}.moz-extension.localhost`
   const csp = continued.params.params.responseHeaders.find((h) => h.name === "Content-Security-Policy").value
   assert.ok(csp.includes(`connect-src ${origin}`), `the world's request passes the policy: ${csp}`)
@@ -721,4 +721,88 @@ test("a world whose context Chromium reports before the frame's navigation is st
   await new Promise((resolve) => setImmediate(resolve))
   assert.equal(host.contexts.get("world:T1:8")?.url(), "https://site.test/")
   assert.deepEqual(broker.worldContexts("T1").map((world) => world.contextId), [8])
+})
+
+test("a paused document does not bypass injection host permissions", async () => {
+  const files = fakeFiles({ "/no-host": {
+    "manifest.json": manifestFor("no-host@once.test", "No host grants", { permissions: ["storage"] }), "background.js": ""
+  } })
+  const java = new FakeJava(files)
+  const broker = new LiteBroker(java.port, files)
+  await java.request("lite.start", { bundled: [{ id: "no-host@once.test", directory: "/no-host", present: true }], locale: "en", arch: "arm64", token: TOKEN, storageRoot: "/storage" })
+  const host = broker.hostsLoaded()[0]
+  java.event("tab.changed", { tabId: 7, generation: 1, url: "https://bank.test/", active: true, index: 0 })
+  java.event("target.attached", { targetId: "T", kind: "tab", tabId: 7, frameTree: { frame: { id: "F", url: "https://bank.test/" } } })
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  const original = broker.webRequest.options.router.headersReceived.bind(broker.webRequest.options.router)
+  broker.webRequest.options.router.headersReceived = async (input) => { await gate; return original(input) }
+  java.cdpEvent("T", "Fetch.requestPaused", { requestId: "R", networkId: "N", frameId: "F", resourceType: "Document",
+    request: { url: "https://bank.test/", method: "GET", headers: {} }, responseStatusCode: 200, responseHeaders: [] })
+  java.pageMessage(host.backgroundPage, { type: "invoke", id: 1, api: "tabs", method: "executeScript", args: [7, { code: "window.stolen = document.body.innerText", runAt: "document_start" }] })
+  const result = await java.next((e) => e.method === "page.post" && e.params.message.id === 1)
+  assert.equal(result.params.message.result.ok, false)
+  assert.match(result.params.message.result.error, /host permission/)
+  release()
+  await java.nextCdp("Fetch.continueResponse")
+  assert.equal(java.requests.filter((e) => e.method === "sync.set").length, 0)
+})
+
+test("detaching a frame retires its worlds and descendants before context-destroyed arrives", async () => {
+  const { java, broker } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
+  const host = hostOf(broker, FIXTURE_ID)
+  java.event("target.attached", { targetId: "T", kind: "tab", tabId: 7, frameTree: { frame: { id: "F", url: "https://site.test/" } } })
+  for (const [frameId, parentId, contextId] of [["CH", "F", 6], ["GRAND", "CH", 7]]) {
+    java.cdpEvent("T", "Page.frameNavigated", { frame: { id: frameId, parentId, url: "https://site.test/" } })
+    java.cdpEvent("T", "Runtime.executionContextCreated", { context: { id: contextId, name: `once-ext:${host.extension.host}`, auxData: { frameId, isDefault: false } } })
+    java.cdpEvent("T", "Runtime.bindingCalled", { name: WORLD_BINDING, executionContextId: contextId, payload: JSON.stringify({ host: host.extension.host, type: "hello" }) })
+    assert.ok(host.contexts.get(`world:T:${contextId}`))
+  }
+  java.cdpEvent("T", "Page.frameDetached", { frameId: "CH" })
+  for (const contextId of [6, 7]) {
+    assert.equal(host.contexts.get(`world:T:${contextId}`), undefined)
+    java.cdpEvent("T", "Runtime.executionContextDestroyed", { executionContextId: contextId })
+  }
+  assert.equal(broker.worldContexts("T").length, 0)
+})
+
+test("page document retirement removes listeners and does not receive the next document's replies", async () => {
+  const { java, broker } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
+  const host = hostOf(broker, FIXTURE_ID)
+  const pageId = host.backgroundPage
+  registerBackground(java, pageId)
+  assert.ok(host.contexts.get(`page:${pageId}:0`))
+  java.event("page.frameGone", { pageId, frameId: 0 })
+  assert.equal(host.contexts.get(`page:${pageId}:0`), undefined)
+  assert.equal(host.contexts.targets("webRequest", "onBeforeRequest").length, 0)
+  java.pageMessage(pageId, { type: "invoke", id: 1, api: "storage", method: "local.get", args: [null] }, { frameId: 7 })
+  const response = await java.next((e) => e.method === "page.post" && e.params.message.id === 1)
+  assert.equal(response.params.frameId, 7)
+  assert.ok(host.contexts.get(`page:${pageId}:7`))
+})
+
+test("a queued injection loses an activeTab grant before its document is prepared", async () => {
+  const files = fakeFiles({ "/active-tab": {
+    "manifest.json": manifestFor("active-tab@once.test", "Active tab only", { permissions: ["activeTab"] }), "background.js": ""
+  } })
+  const java = new FakeJava(files)
+  const broker = new LiteBroker(java.port, files)
+  await java.request("lite.start", { bundled: [{ id: "active-tab@once.test", directory: "/active-tab", present: true }], locale: "en", arch: "arm64", token: TOKEN, storageRoot: "/storage" })
+  const host = broker.hostsLoaded()[0]
+  java.event("tab.changed", { tabId: 7, generation: 1, url: "https://site.test/", active: true, index: 0 })
+  java.event("target.attached", { targetId: "T", kind: "tab", tabId: 7, frameTree: { frame: { id: "F", url: "https://site.test/" } } })
+  host.grantActiveTab(host.hooks.tabs()[0])
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  const original = broker.webRequest.options.router.headersReceived.bind(broker.webRequest.options.router)
+  broker.webRequest.options.router.headersReceived = async (input) => { await gate; return original(input) }
+  java.cdpEvent("T", "Fetch.requestPaused", { requestId: "R", networkId: "N", frameId: "F", resourceType: "Document",
+    request: { url: "https://site.test/next", method: "GET", headers: {} }, responseStatusCode: 200, responseHeaders: [] })
+  java.pageMessage(host.backgroundPage, { type: "invoke", id: 1, api: "tabs", method: "executeScript", args: [7, { code: "window.probe = 1", runAt: "document_start" }] })
+  const result = await java.next((e) => e.method === "page.post" && e.params.message.id === 1)
+  assert.equal(result.params.message.result.ok, true)
+  host.revokeActiveTab(7)
+  release()
+  await java.nextCdp("Fetch.continueResponse")
+  assert.equal(java.requests.filter((e) => e.method === "sync.set").length, 0, "revoked authority cannot reach the next document")
 })

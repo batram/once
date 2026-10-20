@@ -410,7 +410,7 @@ public final class LiteTier2 {
     /** The document a subresource request comes from: the committed one, or the one in flight when the Referer names it. */
     static Document documentOf(Tab tab, String referer) {
         Document pending = tab.pending;
-        if (pending != null && pending.origin != null && referer != null && pending.origin.equals(SyncAnswers.origin(referer))) return pending;
+        if (pending != null && referer != null && pending.sameDocument(referer)) return pending;
         return tab.committed;
     }
 

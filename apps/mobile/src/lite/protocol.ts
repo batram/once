@@ -221,7 +221,7 @@ export interface CdpEventParams {
 
 export interface PageMessageParams {
   pageId: string
-  /** Java's id for the frame whose `JavaScriptReplyProxy` delivered it; `0` for the main frame. */
+  /** Java's monotonic document-context id; mainFrame identifies the main document separately. */
   frameId: number
   mainFrame: boolean
   url: string
@@ -386,6 +386,8 @@ export interface UnzipResult {
  * `blobAnswerPath`). Java serves each body once, in the order stored.
  */
 export interface SyncAnswerParams {
+  targetId: string
+  frameId: string
   host: string
   path: string
   /** The JSON text to serve, or null to forget the answers under the path. */

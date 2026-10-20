@@ -380,3 +380,27 @@ These are build or test outputs, ignored by Git; don't edit them:
 `packages/*/dist`, `apps/*-extension/dist`, `apps/electron/.webpack`,
 `apps/electron/out`, `apps/mobile/dist`, copied Capacitor web assets and native
 build directories, `test-results`, `web-ext-artifacts`.
+
+### Once Lite runtime performance probes
+
+`LiteRuntimePerformanceTest#cspBodyTransportBenchmark` alternates the former
+broker-body transfer algorithm and the native CDP path on the same local CSP
+fixtures, after warming both paths. It records three samples per path for
+64 KiB, 512 KiB and 2 MiB bodies. Use the `navigationMs` values from its
+`RESULTS` log; `ms` includes instrumentation overhead. The native path must
+send zero body characters through the broker channel. The same suite covers
+extension-page reload, renderer termination, and watchdog recovery.
+
+For a host-JVM DNR allocation/throughput probe, first build the Lite JVM tests
+(to resolve RE2/J), fetch the extension bundles, and set `JAVA_HOME` to the
+JDK used for the Android build. Then run:
+
+```sh
+node scripts/benchmark-lite-dnr.js
+```
+
+The optional first argument selects another checkout's Java sources for a
+comparison; the harness and ruleset files always come from this checkout.
+Results are JSON with five samples after warmup, for roughly 100-character
+and 32 KB URLs. Allocation uses the host JVM's thread allocation counter.
+These are microbenchmarks, not physical-device memory or battery measurements.

@@ -24,7 +24,6 @@ final class FetchWatchdog {
     static final long STALL_MS = 1500;
     static final long PING_TIMEOUT_MS = 3000;
     static final long CHECK_MS = 1000;
-    private static final int RELEASED_LIMIT = 1024;
 
     interface Host {
         long now();
@@ -33,15 +32,18 @@ final class FetchWatchdog {
         /** Asks the broker to answer; `answered` gets true when it did within the timeout. */
         void ping(long timeoutMs, Consumer<Boolean> answered);
         /** Continues the paused request unchanged. */
-        void release(String targetId, String requestId);
+        void release(String targetId, String requestId, boolean responseStage);
     }
 
     private final Host host;
     /** `targetId|requestId` → when it paused, oldest first. */
-    private final Map<String, Long> paused = new LinkedHashMap<>();
-    private final Map<String, Boolean> released = new LinkedHashMap<String, Boolean>(16, 0.75f, false) {
-        @Override protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) { return size() > RELEASED_LIMIT; }
-    };
+    private static final class Pause {
+        final long since, generation;
+        final boolean responseStage;
+        Pause(long since, long generation, boolean responseStage) { this.since = since; this.generation = generation; this.responseStage = responseStage; }
+    }
+    private final Map<String, Pause> paused = new LinkedHashMap<>();
+    private long nextGeneration;
     private boolean scheduled;
     private boolean pinging;
 
@@ -50,13 +52,18 @@ final class FetchWatchdog {
     private static String key(String targetId, String requestId) { return targetId + "|" + requestId; }
 
     /** A request paused and went to the broker. Any thread. */
-    void paused(String targetId, String requestId) {
+    long paused(String targetId, String requestId) { return paused(targetId, requestId, false); }
+
+    long paused(String targetId, String requestId, boolean responseStage) {
+        long generation;
         synchronized (this) {
-            paused.put(key(targetId, requestId), host.now());
-            if (scheduled) return;
+            generation = ++nextGeneration;
+            paused.put(key(targetId, requestId), new Pause(host.now(), generation, responseStage));
+            if (scheduled) return generation;
             scheduled = true;
         }
         host.schedule(this::check, CHECK_MS);
+        return generation;
     }
 
     /**
@@ -64,9 +71,10 @@ final class FetchWatchdog {
      * pause (continue, fail, fulfill). False when Java released the request
      * already: the command must not reach DevTools.
      */
-    synchronized boolean answered(String targetId, String requestId, boolean resolves) {
+    synchronized boolean answered(String targetId, String requestId, long generation, boolean resolves) {
         String key = key(targetId, requestId);
-        if (released.containsKey(key)) return false;
+        Pause pause = paused.get(key);
+        if (pause == null || pause.generation != generation) return false;
         if (resolves) paused.remove(key);
         return true;
     }
@@ -85,29 +93,28 @@ final class FetchWatchdog {
             scheduled = false;
             if (paused.isEmpty()) return;
             boolean stalled = false;
-            for (long since : paused.values()) if (now - since >= STALL_MS) { stalled = true; break; }
+            for (Pause pause : paused.values()) if (now - pause.since >= STALL_MS) { stalled = true; break; }
             if (!stalled || pinging) { reschedule(); return; }
             pinging = true;
         }
         host.ping(PING_TIMEOUT_MS, answered -> {
-            List<String> release = new ArrayList<>();
+            List<Runnable> release = new ArrayList<>();
             synchronized (this) {
                 pinging = false;
                 if (!answered) {
-                    for (Iterator<Map.Entry<String, Long>> entries = paused.entrySet().iterator(); entries.hasNext(); ) {
-                        Map.Entry<String, Long> entry = entries.next();
-                        if (now - entry.getValue() < STALL_MS) continue;
+                    for (Iterator<Map.Entry<String, Pause>> entries = paused.entrySet().iterator(); entries.hasNext(); ) {
+                        Map.Entry<String, Pause> entry = entries.next();
+                        if (now - entry.getValue().since < STALL_MS) continue;
                         entries.remove();
-                        released.put(entry.getKey(), true);
-                        release.add(entry.getKey());
+                        String key = entry.getKey();
+                        boolean responseStage = entry.getValue().responseStage;
+                        int separator = key.indexOf('|');
+                        release.add(() -> host.release(key.substring(0, separator), key.substring(separator + 1), responseStage));
                     }
                 }
                 if (!paused.isEmpty()) reschedule();
             }
-            for (String key : release) {
-                int separator = key.indexOf('|');
-                host.release(key.substring(0, separator), key.substring(separator + 1));
-            }
+            for (Runnable action : release) action.run();
         });
     }
 

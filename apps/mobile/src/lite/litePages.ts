@@ -36,7 +36,7 @@ interface OpenPage {
   pageId: string
   host: LiteExtensionHost
   kind: PageOpenParams["kind"]
-  frames: Map<number, { url: string }>
+  frames: Map<number, { url: string; mainFrame: boolean }>
   /** Set for frames inside a tab WebView. */
   tabId?: number
 }
@@ -65,6 +65,13 @@ export class LitePages {
     private readonly hostOf: (extensionHost: string) => LiteExtensionHost | undefined = () => undefined
   ) {
     channel.onEvent("page.message", (params) => this.message(params as PageMessageParams))
+    channel.onEvent("page.frameGone", (params) => {
+      const { pageId, frameId } = params as { pageId: string; frameId: number }
+      for (const page of [...this.pages.values(), ...this.tabPages.values()]) {
+        if (page.pageId !== pageId || !page.frames.delete(frameId)) continue
+        page.host.contexts.remove(pageContextId(pageId, frameId))
+      }
+    })
     channel.onEvent("page.loaded", (params) => this.loaded(params as PageLifecycleParams))
     channel.onEvent("page.closed", (params) => this.closed(params as PageLifecycleParams))
   }
@@ -140,7 +147,7 @@ export class LitePages {
       const entry = page.host.contexts.get(pageContextId(page.pageId, params.frameId))
       if (entry) return entry
     }
-    const frame = { url: extensionUrl }
+    const frame = { url: extensionUrl, mainFrame: params.mainFrame }
     page.frames.set(params.frameId, frame)
     return page.host.contexts.addPageFrame({
       pageId: page.pageId,
@@ -219,7 +226,8 @@ export class LitePages {
    */
   async readBlob(host: LiteExtensionHost, blobUrl: string): Promise<string | null> {
     const background = this.pagesOf(host).map((pageId) => this.pages.get(pageId)).find((page) => page?.kind === "background")
-    const entry = background && host.contexts.get(pageContextId(background.pageId, 0))
+    const mainFrameId = background && [...background.frames].find(([, frame]) => frame.mainFrame)?.[0]
+    const entry = background && mainFrameId !== undefined && host.contexts.get(pageContextId(background.pageId, mainFrameId))
     if (!entry) return null
     const [text] = await host.contexts.request({ entry, listenerIds: [] }, BLOB_API, "read", [{ url: blobUrl }], 10_000)
     return typeof text === "string" ? text : null

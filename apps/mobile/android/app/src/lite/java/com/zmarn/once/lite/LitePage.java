@@ -31,7 +31,7 @@ import org.json.JSONObject;
  * a popup, the options page or another page of the extension, at
  * `https://<host>.moz-extension.localhost/...`. The broker's page bootstrap
  * runs at document start for the extension's origin, each frame talks over
- * its own `onceLitePage` reply proxy (frame 0 is the main frame), and the
+ * its own `onceLitePage` reply proxy (document IDs are never reused), and the
  * page wears a Firefox desktop user agent, as uBlock Origin reads it.
  */
 public final class LitePage {
@@ -62,7 +62,7 @@ public final class LitePage {
     /** The activity JS dialogs open on; the view itself has the application context. */
     private final java.util.function.Supplier<android.app.Activity> activity;
     private final Map<JavaScriptReplyProxy, Integer> frames = new LinkedHashMap<>();
-    private int nextFrame = 1;
+    private int nextFrame;
     private String status = "Loading…";
     private boolean destroyed;
 
@@ -143,13 +143,17 @@ public final class LitePage {
     boolean isDestroyed() { return destroyed; }
 
     private void receive(String data, Uri sourceOrigin, boolean mainFrame, JavaScriptReplyProxy proxy) {
-        Integer frameId = frames.get(proxy);
-        if (frameId == null) {
-            frameId = mainFrame ? 0 : nextFrame++;
-            frames.put(proxy, frameId);
-        }
         JSONObject message;
         try { message = new JSONObject(data); } catch (Exception error) { return; }
+        Integer frameId = frames.get(proxy);
+        if ("frame-gone".equals(message.optString("type"))) {
+            if (frameId != null) { frames.remove(proxy); frameGone(channel, pageId, frameId); }
+            return;
+        }
+        if (frameId == null) {
+            frameId = nextFrame++;
+            frames.put(proxy, frameId);
+        }
         try {
             String frameUrl = mainFrame && view.getUrl() != null ? view.getUrl() : sourceOrigin + "/";
             channel.event("page.message", new JSONObject().put("pageId", pageId).put("frameId", frameId)
@@ -197,6 +201,8 @@ public final class LitePage {
             return id;
         }
 
+        synchronized Integer remove(JavaScriptReplyProxy proxy) { return frames.remove(proxy); }
+
         synchronized void post(int frameId, Object message) {
             for (Map.Entry<JavaScriptReplyProxy, Integer> frame : frames.entrySet()) {
                 if (frame.getValue() != frameId) continue;
@@ -218,13 +224,24 @@ public final class LitePage {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return;
         WebViewCompat.addWebMessageListener(view, CHANNEL, Collections.singleton("https://*" + PAGE_HOST_SUFFIX), (source, message, sourceOrigin, mainFrame, proxy) -> {
             if (message.getType() != WebMessageCompat.TYPE_STRING) return;
-            int frameId = frames.id(proxy);
             try {
+                JSONObject body = new JSONObject(message.getData());
+                if ("frame-gone".equals(body.optString("type"))) {
+                    Integer gone = frames.remove(proxy);
+                    if (gone != null) frameGone(channel, "tab:" + tabId, gone);
+                    return;
+                }
+                int frameId = frames.id(proxy);
                 channel.event("page.message", new JSONObject().put("pageId", "tab:" + tabId).put("frameId", frameId)
                     .put("mainFrame", mainFrame).put("url", mainFrame && view.getUrl() != null ? view.getUrl() : sourceOrigin + "/")
-                    .put("message", new JSONObject(message.getData())));
+                    .put("message", body));
             } catch (Exception ignored) { /* not a bootstrap message */ }
         });
+    }
+
+    private static void frameGone(BrokerChannel channel, String pageId, int frameId) {
+        try { channel.event("page.frameGone", new JSONObject().put("pageId", pageId).put("frameId", frameId)); }
+        catch (Exception ignored) { /* constant document */ }
     }
 
     public static boolean isExtensionUrl(String url) {
@@ -254,6 +271,8 @@ public final class LitePage {
             return !("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme));
         }
         @Override public void onPageStarted(WebView ignored, String started, Bitmap favicon) {
+            for (int frameId : frames.values()) frameGone(channel, pageId, frameId);
+            frames.clear();
             if (!LiteTargets.isMarkerUrl(started)) setStatus("Loading…");
         }
         @Override public void onPageFinished(WebView ignored, String finished) {
