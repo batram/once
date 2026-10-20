@@ -8,15 +8,37 @@
 // work often leaves unstaged edits in this checkout, and those must neither
 // block a commit nor hide a problem in what is actually committed.
 const { execFileSync } = require("child_process")
+const fs = require("fs")
 const path = require("path")
-const { fileViolations, isChecked } = require("./check-structure")
-const { semanticControlViolations, isScanned } = require("./check-semantic-controls")
 
 const root = path.resolve(__dirname, "..")
 const lintedScripts = /\.(js|mjs|cjs|ts|tsx|jsx)$/
 const lintedStyles = /^(apps|packages)\/.+\.css$/
 
 const git = (args, input) => execFileSync("git", args, { cwd: root, input, maxBuffer: 256 * 1024 * 1024 })
+
+// A linked worktree (`git worktree add`) has no node_modules of its own, so for
+// the length of the hook it borrows the main checkout's through a junction. The
+// link is removed again on exit: `git worktree remove` would otherwise delete
+// through it. A link a killed run left behind is taken over and removed too.
+function borrowNodeModules() {
+  const target = path.join(root, "node_modules")
+  const main = path.dirname(path.resolve(root, git(["rev-parse", "--git-common-dir"]).toString("utf8").trim()))
+  const source = path.join(main, "node_modules")
+  const existing = fs.lstatSync(target, { throwIfNoEntry: false })
+  if (existing) return existing.isSymbolicLink() && path.resolve(fs.readlinkSync(target)) === path.resolve(source) ? target : null
+  if (main === root || !fs.existsSync(source)) return null
+  fs.symlinkSync(source, target, "junction")
+  return target
+}
+const borrowed = borrowNodeModules()
+if (borrowed) {
+  process.on("exit", () => fs.unlinkSync(borrowed))
+  for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => process.exit(130))
+}
+
+const { fileViolations, isChecked } = require("./check-structure")
+const { semanticControlViolations, isScanned } = require("./check-semantic-controls")
 
 // Added, copied, modified and renamed paths; a deletion leaves nothing to lint.
 const staged = git(["diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"])
