@@ -114,6 +114,46 @@ public class LiteRuntimePerformanceTest {
         assertEquals(0, value.getJSONObject("removed").length());
     }
 
+    @Test
+    public void nativeAssetsPreservePublicAndPrivateResourcePermissions() throws Exception {
+        String origin = evaluateBroker("'https://'+[...onceLiteBroker.hosts.values()].find(h=>h.extension.name==='uBlock Origin').extension.host+'.moz-extension.localhost'");
+        evaluateBroker("window.__assetRequests=[];window.__assetRequest=onceLiteBroker.channel.request;"
+            + "onceLiteBroker.channel.request=function(method,p){if(method==='cdp.command'&&p.method==='Fetch.fulfillExtensionAsset'&&p.targetId===window.__assetTarget)"
+            + "__assetRequests.push({path:p.params.path,body:p.params.body});return __assetRequest.apply(this,arguments)};true");
+        AtomicReference<LiteTargets.Attachment> attachment = new AtomicReference<>();
+        int tabId = host.engine.nextTabId();
+        try {
+            host.ui(() -> {
+                host.tab = new WebView(host.activity);
+                host.tab.getSettings().setJavaScriptEnabled(true);
+                host.activity.addContentView(host.tab, new ViewGroup.LayoutParams(600, 600));
+                attachment.set(host.engine.targets().register(host.tab, "once-tab-" + java.util.UUID.randomUUID(), "tab", tabId, null, null, true));
+            });
+            host.reportTab(tabId, host.fixture.url("/page.html"), attachment.get());
+            CountDownLatch ready = new CountDownLatch(1);
+            attachment.get().whenReady(10000, ready::countDown);
+            assertTrue(ready.await(15, TimeUnit.SECONDS));
+            evaluateBroker("window.__assetTarget=" + JSONObject.quote(attachment.get().targetId()));
+            host.ui(() -> host.tab.loadUrl(host.fixture.url("/page.html")));
+            host.untilEvaluates("document.title", "\"filter probe\"", 30);
+            host.evaluate("window.__assetResult=null;Promise.all(['/web_accessible_resources/2x2.png','/js/background.js','/web_accessible_resources/once-missing.js']"
+                + ".map(async p=>{const r=await fetch(" + JSONObject.quote(origin) + "+p);return {status:r.status,mime:r.headers.get('content-type'),bytes:[...new Uint8Array(await r.arrayBuffer())].slice(0,8)}}))"
+                + ".then(v=>window.__assetResult=v).catch(e=>window.__assetResult={error:String(e)});true");
+            host.untilEvaluates("window.__assetResult!==null", "true", 20);
+            JSONArray result = new JSONArray(host.evaluate("window.__assetResult"));
+            assertEquals(200, result.getJSONObject(0).getInt("status"));
+            assertEquals("image/png", result.getJSONObject(0).getString("mime"));
+            assertEquals("[137,80,78,71,13,10,26,10]", result.getJSONObject(0).getJSONArray("bytes").toString());
+            assertEquals(404, result.getJSONObject(1).getInt("status"));
+            assertEquals(404, result.getJSONObject(2).getInt("status"));
+            assertEquals("true", evaluateBroker("__assetRequests.some(r=>r.path==='web_accessible_resources/2x2.png')&&"
+                + "!__assetRequests.some(r=>r.path==='js/background.js')&&__assetRequests.every(r=>r.body===undefined)"));
+        } finally {
+            evaluateBroker("onceLiteBroker.channel.request=window.__assetRequest;true");
+            if (attachment.get() != null) host.ui(() -> host.engine.targets().unregister(attachment.get()));
+        }
+    }
+
     private String evaluateBroker(String expression) throws Exception {
         com.zmarn.once.devtools.DevToolsClient client = com.zmarn.once.devtools.DevToolsClient.current();
         for (com.zmarn.once.devtools.DevToolsClient.Target target : client.targets()) {

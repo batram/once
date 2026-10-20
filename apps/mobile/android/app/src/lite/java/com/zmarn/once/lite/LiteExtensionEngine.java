@@ -145,7 +145,7 @@ public final class LiteExtensionEngine {
             : DevToolsClient.connect();
         tier2 = new LiteTier2(files, packageStamp(this.context));
         cookies = new LiteCookies(() -> devtools, this::brokerSession);
-        targets = new LiteTargets(() -> devtools, channel, cookies, () -> bridgeSources[0] == null && bridgeSources[1] == null ? null : bridgeSources);
+        targets = new LiteTargets(() -> devtools, channel, cookies, files, () -> bridgeSources[0] == null && bridgeSources[1] == null ? null : bridgeSources);
         targets.onDevToolsConnected();
         files.register(channel);
         tier2.register(channel);

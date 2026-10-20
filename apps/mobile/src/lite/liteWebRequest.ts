@@ -18,7 +18,7 @@ import {
   headersToWebExt,
   isOwnPage,
   permittedHosts,
-  serveExtensionRequest,
+  resolveExtensionRequest,
   sha256Hex
 } from "@once/webext-runtime"
 import { JavaChannel, RequestError } from "./javaChannel"
@@ -372,19 +372,29 @@ export class LiteWebRequest {
       (requester === null || pageHostOf(requester) === extensionHost)
     const grant = new OwnPageRequests()
     if (!fromOwnPage && !navigation && requester !== null && isOwnPage(host.extension, extensionUrlFromPageUrl(requester))) grant.grant(url)
-    const response = await serveExtensionRequest(url, (candidate) => this.hostFor(candidate)?.extension, {
+    const response = resolveExtensionRequest(url, (candidate) => this.hostFor(candidate)?.extension, {
       webAccessibleOnly: !fromOwnPage,
       ownPages: grant
     })
-    const body = new Uint8Array(await response.arrayBuffer())
-    let headers: HttpHeader[] = [...response.headers.entries()].map(([name, value]) => ({ name, value }))
-    // Chromium sees `https://<host>.moz-extension.localhost` and `moz-extension://<host>`
-    // as different origins, so an own page's reads need the grant Electron's session gives.
+    const generated = response instanceof Response
+    let headers: HttpHeader[] = Object.entries(generated ? Object.fromEntries(response.headers) : response.headers)
+      .map(([name, value]) => ({ name, value }))
+    // Preserve the own-page CORS grant and web-accessible response policy.
     if (fromOwnPage) headers = withCorsGrant(headers, pageOrigin(extensionHost))
     else headers.push({ name: "Access-Control-Allow-Origin", value: "*" })
-    await this.cdp(targetId, "Fetch.fulfillRequest", {
-      requestId: event.requestId, oncePause: event.oncePause, responseCode: response.status, responseHeaders: headers, body: toBase64(body)
-    })
+    if (generated) {
+      await this.cdp(targetId, "Fetch.fulfillRequest", {
+        requestId: event.requestId, oncePause: event.oncePause, responseCode: response.status,
+        responseHeaders: headers, body: toBase64(new Uint8Array(await response.arrayBuffer()))
+      })
+    } else {
+      // Permission and path decisions stay here; package bytes stay on the native
+      // CDP transport, including binary assets and files from installed packages.
+      await this.cdp(targetId, "Fetch.fulfillExtensionAsset", {
+        requestId: event.requestId, oncePause: event.oncePause, responseCode: 200,
+        responseHeaders: headers, directory: response.extension.directory, path: response.file
+      })
+    }
     this.forget(targetId, event.networkId ?? event.requestId)
   }
 

@@ -73,11 +73,19 @@ export function isOwnPage(extension: LoadedExtension, documentUrl: string | null
   return page !== null && page.host === extension.host && isWebAccessible(extension, page.path)
 }
 
-export async function serveExtensionRequest(
+/** A package file authorized by the same policy used by the protocol response path. */
+export interface ExtensionAsset {
+  extension: LoadedExtension
+  file: string
+  headers: Record<string, string>
+}
+
+/** Resolves permissions and generated responses without reading package bytes. */
+export function resolveExtensionRequest(
   url: string,
   lookup: ExtensionLookup,
   options: ExtensionProtocolOptions = {}
-): Promise<Response> {
+): Response | ExtensionAsset {
   const parts = parseExtensionUrl(url)
   if (!parts) return notFound("Not an extension URL")
   const extension = lookup(parts.host)
@@ -103,14 +111,25 @@ export async function serveExtensionRequest(
 
   const file = extensionFilePath(parts.path)
   if (!file) return notFound("Path is outside the extension")
-  const body = extension.files.read(file)
-  if (body === null) return notFound("No such extension file")
-  return new Response(body as BodyInit, {
+  return {
+    extension, file,
     headers: {
       "content-type": mimeTypeFor(file),
       "cache-control": "no-cache",
       // On every response: a worker takes its policy from its script's.
       "content-security-policy": extensionPagePolicy(extension)
     }
-  })
+  }
+}
+
+export async function serveExtensionRequest(
+  url: string,
+  lookup: ExtensionLookup,
+  options: ExtensionProtocolOptions = {}
+): Promise<Response> {
+  const result = resolveExtensionRequest(url, lookup, options)
+  if (result instanceof Response) return result
+  const body = result.extension.files.read(result.file)
+  if (body === null) return notFound("No such extension file")
+  return new Response(body as BodyInit, { headers: result.headers })
 }

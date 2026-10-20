@@ -1,0 +1,270 @@
+{
+  "measured": "2026-10-20",
+  "baseCommit": "d8bc2418",
+  "device": "Samsung SM-G780G, Android 13, WebView 155.0.8059.43",
+  "method": "Five process-cold launches before and five after; retained profile/caches; debug APK; app foreground and unlocked. First post-install launch included. Lock-screen attempts excluded. Separate diagnostic runs are not part of the benchmark.",
+  "baseline": {
+    "samples": [
+      {
+        "run": 1,
+        "extensionsReadyMs": 3991.6,
+        "configsMs": 3033.2,
+        "firstStoriesMs": 3392,
+        "allStoriesMs": 3457.3,
+        "ublockDomContentLoadedMs": 1504.4,
+        "uboStats": {
+          "allReadyAfter": "628 ms (selfie)",
+          "maxAssetCacheWait": "101 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 2,
+        "extensionsReadyMs": 4200.6,
+        "configsMs": 2624.7,
+        "firstStoriesMs": 3276.0,
+        "allStoriesMs": 3970.2,
+        "ublockDomContentLoadedMs": 1365.8,
+        "uboStats": {
+          "allReadyAfter": "563 ms (selfie)",
+          "maxAssetCacheWait": "89 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 3,
+        "extensionsReadyMs": 3391.0,
+        "configsMs": 2479.7,
+        "firstStoriesMs": 2857.6,
+        "allStoriesMs": 2922.3,
+        "ublockDomContentLoadedMs": 1180.7,
+        "uboStats": {
+          "allReadyAfter": "595 ms (selfie)",
+          "maxAssetCacheWait": "95 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 4,
+        "extensionsReadyMs": 3698.7,
+        "configsMs": 2194.7,
+        "firstStoriesMs": 2942.9,
+        "allStoriesMs": 3006.0,
+        "ublockDomContentLoadedMs": 1383.5,
+        "uboStats": {
+          "allReadyAfter": "431 ms (selfie)",
+          "maxAssetCacheWait": "99 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 5,
+        "extensionsReadyMs": 3582.9,
+        "configsMs": 2284.2,
+        "firstStoriesMs": 2938.0,
+        "allStoriesMs": 3003.7,
+        "ublockDomContentLoadedMs": 1247.7,
+        "uboStats": {
+          "allReadyAfter": "473 ms (selfie)",
+          "maxAssetCacheWait": "88 ms",
+          "cacheBackend": "indexedDB"
+        }
+      }
+    ],
+    "medianMs": {
+      "extensionsReadyMs": 3698.7,
+      "configsMs": 2479.7,
+      "firstStoriesMs": 2942.9,
+      "allStoriesMs": 3006.0,
+      "ublockDomContentLoadedMs": 1365.8
+    },
+    "rangeMs": {
+      "extensionsReadyMs": [
+        3391.0,
+        4200.6
+      ],
+      "configsMs": [
+        2194.7,
+        3033.2
+      ],
+      "firstStoriesMs": [
+        2857.6,
+        3392
+      ],
+      "allStoriesMs": [
+        2922.3,
+        3970.2
+      ],
+      "ublockDomContentLoadedMs": [
+        1180.7,
+        1504.4
+      ]
+    }
+  },
+  "after": {
+    "samples": [
+      {
+        "run": 1,
+        "extensionsReadyMs": 3906.3,
+        "configsMs": 2940.3,
+        "firstStoriesMs": 3328.6,
+        "allStoriesMs": 3937.5,
+        "ublockDomContentLoadedMs": 1033.4,
+        "uboStats": {
+          "allReadyAfter": "830 ms (selfie)",
+          "maxAssetCacheWait": "341 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 2,
+        "extensionsReadyMs": 3112.4,
+        "configsMs": 2279.1,
+        "firstStoriesMs": 2615.1,
+        "allStoriesMs": 2691.1,
+        "ublockDomContentLoadedMs": 958.4,
+        "uboStats": {
+          "allReadyAfter": "602 ms (selfie)",
+          "maxAssetCacheWait": "184 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 3,
+        "extensionsReadyMs": 3269.7,
+        "configsMs": 2508.7,
+        "firstStoriesMs": 2754.3,
+        "allStoriesMs": 2926.6,
+        "ublockDomContentLoadedMs": 885.2,
+        "uboStats": {
+          "allReadyAfter": "716 ms (selfie)",
+          "maxAssetCacheWait": "329 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 4,
+        "extensionsReadyMs": 3354.6,
+        "configsMs": 2236.5,
+        "firstStoriesMs": 2653.3,
+        "allStoriesMs": 2822.0,
+        "ublockDomContentLoadedMs": 877.3,
+        "uboStats": {
+          "allReadyAfter": "604 ms (selfie)",
+          "maxAssetCacheWait": "234 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 5,
+        "extensionsReadyMs": 3563.2,
+        "configsMs": 2152.3,
+        "firstStoriesMs": 2697.0,
+        "allStoriesMs": 2764.3,
+        "ublockDomContentLoadedMs": 1129.1,
+        "uboStats": {
+          "allReadyAfter": "540 ms (selfie)",
+          "maxAssetCacheWait": "88 ms",
+          "cacheBackend": "indexedDB"
+        }
+      }
+    ],
+    "medianMs": {
+      "extensionsReadyMs": 3354.6,
+      "configsMs": 2279.1,
+      "firstStoriesMs": 2697.0,
+      "allStoriesMs": 2822.0,
+      "ublockDomContentLoadedMs": 958.4
+    },
+    "rangeMs": {
+      "extensionsReadyMs": [
+        3112.4,
+        3906.3
+      ],
+      "configsMs": [
+        2152.3,
+        2940.3
+      ],
+      "firstStoriesMs": [
+        2615.1,
+        3328.6
+      ],
+      "allStoriesMs": [
+        2691.1,
+        3937.5
+      ],
+      "ublockDomContentLoadedMs": [
+        877.3,
+        1129.1
+      ]
+    }
+  },
+  "assetDiagnostics": [
+    {
+      "run": 1,
+      "observedUblockFileReads": 5,
+      "observedUblockFileReadMs": 20.3,
+      "nativeAssetCommands": 66,
+      "assetBodyCharsThroughBroker": 0,
+      "nativeAssetCommandMedianMs": 83.6
+    },
+    {
+      "run": 2,
+      "observedUblockFileReads": 5,
+      "observedUblockFileReadMs": 17.3,
+      "nativeAssetCommands": 66,
+      "assetBodyCharsThroughBroker": 0,
+      "nativeAssetCommandMedianMs": 133.9
+    },
+    {
+      "run": 3,
+      "observedUblockFileReads": 5,
+      "observedUblockFileReadMs": 17.1,
+      "nativeAssetCommands": 66,
+      "assetBodyCharsThroughBroker": 0,
+      "nativeAssetCommandMedianMs": 122.7
+    }
+  ],
+  "ublockPhaseDiagnostics": [
+    {
+      "run": 1,
+      "settingsAndPslMs": 185.8,
+      "snapshotRestoreMs": 290.6,
+      "networkSnapshotIdbRequestToSuccessMs": 220.8,
+      "networkSnapshotSuccessToEngineRestoredMs": 69.2,
+      "finalInitializationMs": 6.4,
+      "startupDataSequenceMs": 488.5
+    },
+    {
+      "run": 2,
+      "settingsAndPslMs": 377.7,
+      "snapshotRestoreMs": 350.2,
+      "networkSnapshotIdbRequestToSuccessMs": 276.9,
+      "networkSnapshotSuccessToEngineRestoredMs": 72.7,
+      "finalInitializationMs": 6.0,
+      "startupDataSequenceMs": 740.9
+    },
+    {
+      "run": 3,
+      "settingsAndPslMs": 347.1,
+      "snapshotRestoreMs": 119.9,
+      "networkSnapshotIdbRequestToSuccessMs": 59.8,
+      "networkSnapshotSuccessToEngineRestoredMs": 59.7,
+      "finalInitializationMs": 5.2,
+      "startupDataSequenceMs": 475.9
+    }
+  ],
+  "validation": {
+    "javascriptTestsPassed": 115,
+    "jvmTestsPassed": 47,
+    "samsungInstrumentationTestsPassed": 6,
+    "installedApkSha256": "dead602431294b1eadd6131c57ac17cfca0b23e636176e0c8e517f0d5e186ce5",
+    "localApkSha256": "dead602431294b1eadd6131c57ac17cfca0b23e636176e0c8e517f0d5e186ce5",
+    "finalNetworkFilters": 260221,
+    "finalCosmeticFilters": 44204,
+    "finalStories": 110,
+    "finalSourceConfigs": 5,
+    "nativeAssetPathActive": true,
+    "diagnosticOverridesRemoved": true
+  }
+}

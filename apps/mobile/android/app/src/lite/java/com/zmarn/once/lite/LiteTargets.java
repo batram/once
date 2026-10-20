@@ -117,6 +117,7 @@ public final class LiteTargets implements DevToolsClient.Listener {
     private final Supplier<DevToolsClient> devtools;
     private final BrokerChannel channel;
     private final LiteCookies cookies;
+    private final LiteFiles files;
     /** The bridge world and main helper sources, wrapped with the token; null until the bundles are read. */
     private final Supplier<String[]> bridgeSources;
     /**
@@ -126,6 +127,11 @@ public final class LiteTargets implements DevToolsClient.Listener {
      */
     private final ExecutorService worker = Executors.newCachedThreadPool(runnable -> {
         Thread thread = new Thread(runnable, "once-lite-targets");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final ExecutorService assetWorker = Executors.newFixedThreadPool(2, runnable -> {
+        Thread thread = new Thread(runnable, "once-lite-assets");
         thread.setDaemon(true);
         return thread;
     });
@@ -147,10 +153,11 @@ public final class LiteTargets implements DevToolsClient.Listener {
     /** Continues paused requests while the shared renderer cannot (a page's synchronous XHR, a JS dialog). */
     private final FetchWatchdog watchdog;
 
-    LiteTargets(Supplier<DevToolsClient> devtools, BrokerChannel channel, LiteCookies cookies, Supplier<String[]> bridgeSources) {
+    LiteTargets(Supplier<DevToolsClient> devtools, BrokerChannel channel, LiteCookies cookies, LiteFiles files, Supplier<String[]> bridgeSources) {
         this.devtools = devtools;
         this.channel = channel;
         this.cookies = cookies;
+        this.files = files;
         this.bridgeSources = bridgeSources;
         watchdog = new FetchWatchdog(new FetchWatchdog.Host() {
             @Override public long now() { return android.os.SystemClock.elapsedRealtime(); }
@@ -187,6 +194,10 @@ public final class LiteTargets implements DevToolsClient.Listener {
                 reply.reject("The request was released while the broker was blocked", "RELEASED");
                 return;
             }
+            if ("Fetch.fulfillExtensionAsset".equals(method)) {
+                fulfillExtensionAsset(attachment, command, reply);
+                return;
+            }
             if ("Fetch.fulfillWithBody".equals(method)) {
                 fulfillWithBody(attachment, command, reply);
                 return;
@@ -221,6 +232,28 @@ public final class LiteTargets implements DevToolsClient.Listener {
             java.util.concurrent.CompletableFuture.allOf(applied.toArray(new java.util.concurrent.CompletableFuture[0]))
                 .whenComplete((ignored, error) -> reply.resolve(null));
             main.post(() -> { for (Attachment attachment : byMarker.values()) if ("tab".equals(attachment.kind)) applyPageScripts(attachment); });
+        });
+    }
+
+    /** The trusted broker has authorized this exact request; read bytes off the UI thread. */
+    private void fulfillExtensionAsset(Attachment attachment, JSONObject command, BrokerChannel.Reply reply) throws Exception {
+        DevToolsClient.Target target = attachment.target;
+        String directory = command.getString("directory");
+        String path = command.getString("path");
+        assetWorker.execute(() -> {
+            try {
+                byte[] body = files.bytes(directory, path);
+                JSONObject response = ExtensionAssetResponse.create(command, body);
+                if (attachment.target != target || byTarget.get(target.targetId) != attachment) {
+                    reply.reject("The asset target was detached", "RELEASED");
+                    return;
+                }
+                devtools.get().send(target.sessionId, "Fetch.fulfillRequest", response).whenComplete((answer, error) -> {
+                    if (error != null) reply.reject(error.getMessage());
+                    else if (answer.has("error")) reply.reject(answer.optJSONObject("error").optString("message"));
+                    else reply.resolve(null);
+                });
+            } catch (Exception error) { reply.reject(error.getMessage()); }
         });
     }
 
@@ -624,5 +657,6 @@ public final class LiteTargets implements DevToolsClient.Listener {
         byTarget.clear();
         bySession.clear();
         worker.shutdown();
+        assetWorker.shutdown();
     }
 }

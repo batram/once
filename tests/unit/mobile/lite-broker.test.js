@@ -322,10 +322,14 @@ test("extension pages are served from the package through Fetch and an XPI insta
   assert.equal(page.params.params.responseCode, 200)
   assert.match(Buffer.from(page.params.params.body, "base64").toString(), /<script src="background\.js"><\/script>/)
   assert.ok(page.params.params.responseHeaders.some((h) => h.name === "content-security-policy"))
+  java.cdpEvent("P1", "Page.frameNavigated", { frame: { id: "F1", url: `${origin}/_generated_background_page.html` } })
   java.cdpEvent("P1", "Fetch.requestPaused", { requestId: "R2", frameId: "F1", resourceType: "Script",
     request: { url: `${origin}/background.js`, method: "GET", headers: {} } })
   const script = await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.params.requestId === "R2")
-  assert.equal(script.params.method, "Fetch.fulfillRequest")
+  assert.equal(script.params.method, "Fetch.fulfillExtensionAsset")
+  assert.equal(script.params.params.directory, fixture)
+  assert.equal(script.params.params.path, "background.js")
+  assert.equal(script.params.params.body, undefined, "the broker sends no asset bytes")
   // A tab may only load what is web accessible.
   java.event("tab.changed", { tabId: 7, generation: 1, targetId: "T1", url: "https://site.test/", title: "", active: true, index: 0, status: "complete", audible: false, muted: false })
   java.event("target.attached", { targetId: "T1", kind: "tab", tabId: 7, frameTree: { frame: { id: "F2", url: "https://site.test/" } } })
