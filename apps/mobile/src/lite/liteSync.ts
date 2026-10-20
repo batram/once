@@ -1,23 +1,36 @@
 // Answers to content worlds' synchronous requests, kept by Java. A world
-// asks for its extension's registered scripts (`/_once/dynamic`) and
-// Violentmonkey's content script for the blob the background prepared for
-// the document (`/_once/blob/<id>`) with synchronous XMLHttpRequests at
-// document start, which block the renderer main thread every WebView
-// shares; the broker, in that same renderer, could never answer. So the
-// broker hands Java the answers ahead of time (`sync.set`), and Java fulfils
-// those requests from memory at the Fetch request stage.
+// asks for what the broker prepared for its document (`dynamicAnswerPath`:
+// registered scripts, queued injections, Violentmonkey's cookie) and
+// Violentmonkey's content script for the blob the background prepared
+// (`blobAnswerPath`) with synchronous XMLHttpRequests at document start,
+// which block the renderer main thread every WebView shares; the broker, in
+// that same renderer, could never answer. So the broker hands Java the
+// answers for each document before it continues (`sync.set`), and Java
+// fulfils those requests from memory at the Fetch request stage, each once.
+//
+// The paths carry `syncKey(token, documentUrl)`: the worlds hold the token
+// and compute the key of their own document, pages do not. A page that
+// watches its own resource timing learns the key of its own document only,
+// whose answer its world has taken by then.
 
 import {
   HttpHeader,
   VIOLENTMONKEY_ID,
   WebRequestDetailsInput,
   buildWebRequestDetails,
-  mergeBlockingResponses
+  mergeBlockingResponses,
+  sha256Hex
 } from "@once/webext-runtime"
+import { MatchPatternSet } from "@once/core"
 import { JavaChannel } from "./javaChannel"
 import { LiteExtensionHost } from "./liteHosts"
 import { dynamicScripts } from "./liteWorlds"
-import { BLOB_PATH, DYNAMIC_PATH, SyncAnswerParams, WorldDynamicConfig, WorldScript, dynamicAnswerPath, pageOrigin } from "./protocol"
+import { SyncAnswerParams, WorldDynamicConfig, WorldScript, blobAnswerPath, dynamicAnswerPath, pageOrigin, syncDocumentUrl } from "./protocol"
+
+/** The key of a document's synchronous answers; `worldSyncKey` in the world bootstrap derives the same. */
+export function syncKey(token: string, documentUrl: string): string {
+  return sha256Hex(`${token}|sync|${syncDocumentUrl(documentUrl)}`).slice(0, 32)
+}
 
 interface QueuedInjection {
   host: LiteExtensionHost
@@ -26,43 +39,34 @@ interface QueuedInjection {
   script: WorldScript
 }
 
+interface RegisteredScripts {
+  scripts: { script: WorldScript; matches: MatchPatternSet; excludes: MatchPatternSet }[]
+}
+
 export class LiteSyncAnswers {
-  private readonly dirty = new Set<LiteExtensionHost>()
-  private flushing: Promise<void> | null = null
   /** `tabs.executeScript` calls aimed at a document still held at its response stage. */
   private queued: QueuedInjection[] = []
+  /** Each host's registered scripts as worlds take them, rebuilt after a change. */
+  private readonly registered = new WeakMap<LiteExtensionHost, RegisteredScripts>()
 
   constructor(
     private readonly channel: JavaChannel,
-    private readonly readBlob: (host: LiteExtensionHost, blobUrl: string) => Promise<string | null>
+    private readonly readBlob: (host: LiteExtensionHost, blobUrl: string) => Promise<string | null>,
+    private readonly token: () => string
   ) {}
 
   private set(host: string, path: string, body: string | null): Promise<void> {
     return this.channel.request("sync.set", { host, path, body } satisfies SyncAnswerParams).then(() => undefined)
   }
 
-  /** The host's registered scripts changed; Java gets the new answer at the next flush. */
+  /** The host's registered scripts changed; the next document takes the new set. */
   scriptsChanged(host: LiteExtensionHost): void {
-    this.dirty.add(host)
-  }
-
-  /** Sends every changed answer; a document waits for this before it continues. */
-  async flush(): Promise<void> {
-    if (this.flushing) await this.flushing
-    if (this.dirty.size === 0) return
-    const hosts = [...this.dirty]
-    this.dirty.clear()
-    this.flushing = Promise.all(hosts.map((host) =>
-      this.set(host.extension.host, DYNAMIC_PATH, JSON.stringify(dynamicScripts(host)))
-    )).then(() => undefined).catch((error) => this.channel.log("error", `Registered scripts were not handed to Java: ${String(error)}`))
-    await this.flushing
-    this.flushing = null
+    this.registered.delete(host)
   }
 
   forget(host: LiteExtensionHost): void {
-    this.dirty.delete(host)
+    this.registered.delete(host)
     this.queued = this.queued.filter((entry) => entry.host !== host)
-    void this.set(host.extension.host, DYNAMIC_PATH, null).catch(() => undefined)
   }
 
   /**
@@ -86,48 +90,64 @@ export class LiteSyncAnswers {
     return mine.map((entry) => entry.script)
   }
 
+  /** The host's registered scripts whose patterns match the document; the world still checks frames. */
+  private matching(host: LiteExtensionHost, url: string, isTop: boolean): WorldScript[] {
+    if (host.registeredScripts.size === 0) return []
+    let registered = this.registered.get(host)
+    if (!registered) {
+      registered = { scripts: dynamicScripts(host).scripts.map((script) => ({
+        script, matches: new MatchPatternSet(script.matches), excludes: new MatchPatternSet(script.excludeMatches)
+      })) }
+      this.registered.set(host, registered)
+    }
+    return registered.scripts
+      .filter(({ script, matches, excludes }) => (isTop || script.allFrames) && matches.matches(url) && !excludes.matches(url))
+      .map(({ script }) => script)
+  }
+
   /**
-   * Violentmonkey's synchronous injection: its `onHeadersReceived` listener
-   * adds `Set-Cookie: <host>=<blob id>` to a document whose scripts it
-   * prepared in a blob of its own origin. The blob is read through its
-   * background page now and handed to Java under the id, so the content
-   * script's request for it at document start is answered without the
-   * broker. Answers the headers, possibly with the cookie added late.
+   * Before a document continues: each extension's answer for it, when it has
+   * one. Violentmonkey's synchronous injection is part of it: its
+   * `onHeadersReceived` listener adds `Set-Cookie: <host>=<blob id>` to a
+   * document whose scripts it prepared in a blob of its own origin. The blob
+   * is read through its background page now and handed to Java under the
+   * document's key, so the content script's request for it at document start
+   * is answered without the broker. Answers the headers, possibly with the
+   * cookie added late.
    */
-  async prepareBlobs(hosts: Iterable<LiteExtensionHost>, headers: HttpHeader[], input?: WebRequestDetailsInput): Promise<HttpHeader[]> {
+  async prepareDocument(hosts: Iterable<LiteExtensionHost>, headers: HttpHeader[], input: WebRequestDetailsInput): Promise<HttpHeader[]> {
     const all = [...hosts]
     const violentmonkey = all.find((host) => host.extension.id === VIOLENTMONKEY_ID)
-    if (violentmonkey && input && !namesBlob(headers, violentmonkey.extension.host)) {
+    if (violentmonkey && !namesBlob(headers, violentmonkey.extension.host)) {
       headers = await this.retryHeaders(violentmonkey, input, headers)
     }
     const cookies = headers.filter((header) => header.name.toLowerCase() === "set-cookie").map((header) => header.value)
+    const isTop = input.frame.frameId === 0
+    const key = syncKey(this.token(), input.url)
     const work: Promise<void>[] = []
     for (const host of all) {
       const name = host.extension.host
-      const queued = input ? this.takeQueued(host, input.tabId, input.frame.frameId) : []
+      const scripts = [...this.matching(host, input.url, isTop), ...this.takeQueued(host, input.tabId, input.frame.frameId)]
       let cookie: string | undefined
       for (const value of cookies) {
         const match = new RegExp(`^\\s*${name}=([^;\\s]+)`).exec(value)
         if (match && match[1] !== "0") cookie = match[1]
       }
-      if (!cookie && queued.length === 0) continue
+      if (!cookie && scripts.length === 0) continue
       work.push((async () => {
         if (cookie) {
-          const text = await this.readBlob(host, `blob:${pageOrigin(name)}/${cookie}`)
+          const text = /^[\w-]+$/.test(cookie) ? await this.readBlob(host, `blob:${pageOrigin(name)}/${cookie}`) : null
           if (text === null) {
             this.channel.log("warn", `${host.extension.name} named a blob the broker could not read`)
             cookie = undefined
           } else {
-            await this.set(name, `${BLOB_PATH}${cookie}`, text)
+            await this.set(name, blobAnswerPath(key, cookie, input.url), text)
           }
         }
-        // The document's own answer: its queued injections, and the cookie naming the blob.
-        if (input) {
-          const base = dynamicScripts(host)
-          const config: WorldDynamicConfig = { host: name, scripts: [...base.scripts, ...queued] }
-          if (cookie) config.cookie = `${name}=${cookie}`
-          await this.set(name, dynamicAnswerPath(input.url), JSON.stringify(config))
-        }
+        if (!cookie && scripts.length === 0) return
+        const config: WorldDynamicConfig = { host: name, scripts }
+        if (cookie) config.cookie = `${name}=${cookie}`
+        await this.set(name, dynamicAnswerPath(key, input.url), JSON.stringify(config))
       })().catch((error) => this.channel.log("warn", `Document answer for ${host.extension.name} not prepared: ${String(error)}`)))
     }
     await Promise.all(work)
@@ -138,11 +158,14 @@ export class LiteSyncAnswers {
    * Violentmonkey prepares a document's injection from `onSendHeaders` and
    * names it from `onHeadersReceived` only once that preparation is done;
    * with a fast server the headers can beat it. Its listener is asked again,
-   * briefly, before the document goes on without the cookie.
+   * briefly, before the document goes on without the cookie: when it has
+   * scripts at all, since every document would otherwise wait ~100 ms.
    */
   private async retryHeaders(host: LiteExtensionHost, input: WebRequestDetailsInput, headers: HttpHeader[]): Promise<HttpHeader[]> {
     const targets = host.contexts.targets("webRequest", "onHeadersReceived")
     if (targets.length === 0) return headers
+    // Without a single script (Violentmonkey keeps each under `scr:<id>`) there is nothing it could prepare.
+    if (host.storage.someKey((key) => key.startsWith("scr:")) === false) return headers
     for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS))
       const details = buildWebRequestDetails({ ...input, responseHeaders: headersRecord(headers) })

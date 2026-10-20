@@ -25,8 +25,20 @@ final class LiteCookies {
     /** The broker page's session, which has the Network domain for URL-scoped reads. */
     private final Supplier<String> session;
     private BrokerChannel channel;
+    /** The jar as last compared; only the worker touches it. */
     private Map<String, JSONObject> known;
     private final Runnable diff = this::diffJar;
+    /**
+     * One thread for every DevTools call and jar comparison: comparisons run
+     * one after another (never two racing over `known`), and a burst of
+     * `set-cookie` responses queues at most one more.
+     */
+    private final java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "once-lite-cookies");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final java.util.concurrent.atomic.AtomicBoolean diffQueued = new java.util.concurrent.atomic.AtomicBoolean();
 
     LiteCookies(Supplier<DevToolsClient> devtools, Supplier<String> session) {
         this.devtools = devtools;
@@ -66,10 +78,10 @@ final class LiteCookies {
     private interface Work { Object run() throws Exception; }
 
     private void run(BrokerChannel.Reply reply, Work work) {
-        new Thread(() -> {
+        worker.execute(() -> {
             try { reply.resolve(work.run()); }
             catch (Exception error) { reply.reject(error.getMessage() == null ? error.toString() : error.getMessage()); }
-        }, "once-lite-cookies").start();
+        });
     }
 
     private JSONObject call(String sessionId, String method, JSONObject params) throws Exception {
@@ -120,7 +132,9 @@ final class LiteCookies {
     }
 
     private void diffJar() {
-        new Thread(() -> {
+        if (!diffQueued.compareAndSet(false, true)) return;
+        worker.execute(() -> {
+            diffQueued.set(false);
             try {
                 JSONArray cookies = all();
                 Map<String, JSONObject> current = new HashMap<>();
@@ -144,7 +158,7 @@ final class LiteCookies {
                         channel.event("cookies.changed", new JSONObject().put("removed", false).put("cookie", entry.getValue()).put("cause", "explicit"));
                 }
             } catch (Exception ignored) { /* no DevTools: no change events either */ }
-        }, "once-lite-cookies").start();
+        });
     }
 
     /** Takes the first snapshot once DevTools is up, so later diffs have a baseline. */

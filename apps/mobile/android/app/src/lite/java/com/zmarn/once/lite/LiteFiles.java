@@ -40,6 +40,9 @@ public final class LiteFiles {
     private static final Set<String> TEXT_TYPES = new HashSet<>(Arrays.asList("js", "mjs", "css", "json", "html", "htm", "txt", "xml", "svg", "map"));
     private static final Pattern TOKEN = Pattern.compile("[A-Za-z0-9_-]{1,80}");
     private static final long ARCHIVE_LIMIT = 33L * 1024 * 1024;
+    /** The shared validation's own limits (ExtensionPackage.ts), checked while unpacking so nothing past them is written. */
+    private static final long EXPANDED_LIMIT = 128L * 1024 * 1024;
+    private static final int ENTRY_LIMIT = 10000;
 
     private final Context context;
     final File storageRoot;
@@ -75,7 +78,19 @@ public final class LiteFiles {
         io.execute(() -> { delete(new File(new File(storageRoot, "packages"), ".staging")); delete(new File(storageRoot, ".chunks")); });
     }
 
-    void close() { io.shutdownNow(); }
+    void close() { forgetStreams(); io.shutdownNow(); }
+
+    /** The broker page restarted: chunked values and reads it left open are of no use to the new one. */
+    void forgetStreams() {
+        synchronized (incoming) {
+            for (FileOutputStream stream : incoming.values()) try { stream.close(); } catch (IOException ignored) { /* closing */ }
+            incoming.clear();
+        }
+        synchronized (outgoing) {
+            for (java.io.PushbackInputStream stream : outgoing.values()) try { stream.close(); } catch (IOException ignored) { /* closing */ }
+            outgoing.clear();
+        }
+    }
 
     void register(BrokerChannel channel) {
         // A store document is either one file, or (once patched) a directory
@@ -140,13 +155,12 @@ public final class LiteFiles {
                     if (file.isFile()) { ShallowJson.split(file, split); if (!file.delete()) throw new IOException("Could not replace " + file.getName()); }
                     else if (!split.mkdirs()) throw new IOException("Could not create " + split.getName());
                 }
-                if (remove != null) for (int index = 0; index < remove.length(); index++) {
-                    //noinspection ResultOfMethodCallIgnored
-                    ShallowJson.keyFile(split, remove.getString(index)).delete();
-                }
+                if (remove != null) for (int index = 0; index < remove.length(); index++) ShallowJson.deleteKey(split, remove.getString(index));
                 if (set != null) for (Iterator<String> keys = set.keys(); keys.hasNext(); ) {
                     String key = keys.next();
-                    placeValue(set.get(key), ShallowJson.keyFile(split, key));
+                    File target = ShallowJson.keyFile(split, key);
+                    placeValue(set.get(key), target);
+                    ShallowJson.recordKey(target, key);
                 }
                 if (Log.isLoggable("OnceLiteStore", Log.DEBUG)) Log.d("OnceLiteStore", "patch " + file.getName() + " set=" + (set == null ? 0 : set.length()) + " remove=" + (remove == null ? 0 : remove.length()));
                 reply.resolve(null);
@@ -219,10 +233,14 @@ public final class LiteFiles {
             File staging = new File(new File(new File(storageRoot, "packages"), ".staging"), token);
             if (!staging.isDirectory() && !staging.mkdirs()) throw new IOException("Could not create the staging directory");
             JSONArray entries = new JSONArray();
+            Set<String> names = new HashSet<>();
             long total = 0;
             try (ZipInputStream zip = new ZipInputStream(new java.io.ByteArrayInputStream(Base64.decode(archiveBase64, Base64.DEFAULT)))) {
                 for (ZipEntry entry = zip.getNextEntry(); entry != null; entry = zip.getNextEntry()) {
                     String name = entry.getName();
+                    if (entries.length() >= ENTRY_LIMIT) throw new IOException("The archive has too many files");
+                    String plain = name.endsWith("/") ? name.substring(0, name.length() - 1) : name;
+                    if (!names.add(plain.toLowerCase(java.util.Locale.ROOT))) throw new IOException("The archive names a file twice");
                     File target = child(staging, name.endsWith("/") ? name.substring(0, name.length() - 1) : name);
                     long size = 0;
                     if (entry.isDirectory()) {
@@ -234,7 +252,7 @@ public final class LiteFiles {
                             byte[] buffer = new byte[16384];
                             for (int read; (read = zip.read(buffer)) != -1; ) {
                                 total += read;
-                                if (total > ARCHIVE_LIMIT) throw new IOException("The archive is too large");
+                                if (total > EXPANDED_LIMIT) throw new IOException("The archive is too large");
                                 out.write(buffer, 0, read);
                                 size += read;
                             }
@@ -245,6 +263,8 @@ public final class LiteFiles {
             }
             return new JSONObject().put("entries", entries).toString();
         } catch (Exception error) {
+            // A refused archive leaves nothing staged behind.
+            if (token != null && TOKEN.matcher(token).matches()) delete(new File(new File(new File(storageRoot, "packages"), ".staging"), token));
             try { return new JSONObject().put("error", error.getMessage() == null ? error.toString() : error.getMessage()).toString(); }
             catch (Exception ignored) { return "{\"error\":\"unzip failed\"}"; }
         }

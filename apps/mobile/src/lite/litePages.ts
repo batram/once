@@ -49,6 +49,11 @@ export function pageDocumentStartSource(bundle: string, init: PageInit): string 
 
 export class LitePages {
   private readonly pages = new Map<string, OpenPage>()
+  /**
+   * Extension frames inside tabs, by `tab:<tabId>|<extension host>`: one tab
+   * can show several extensions' frames, each its own extension's page.
+   */
+  private readonly tabPages = new Map<string, OpenPage>()
   private nextPageId = 1
 
   constructor(
@@ -151,15 +156,28 @@ export class LitePages {
     const match = /^tab:(\d+)$/.exec(params.pageId)
     const extensionHost = pageHostOf(params.url)
     if (!match || extensionHost === null) return undefined
+    const key = `${params.pageId}|${extensionHost}`
+    const existing = this.tabPages.get(key)
+    if (existing) return existing
     const host = this.hostOf(extensionHost)
     if (!host) return undefined
     const page: OpenPage = { pageId: params.pageId, host, kind: "page", frames: new Map(), tabId: Number(match[1]) }
-    this.pages.set(params.pageId, page)
+    this.tabPages.set(key, page)
     return page
   }
 
+  /** The tab closed or its view was replaced: its extension frames are gone. */
+  forgetTab(tabId: number): void {
+    this.closed({ pageId: `tab:${tabId}` })
+  }
+
+  /** An extension unloaded: its frames in tabs go with it. */
+  forgetHost(host: LiteExtensionHost): void {
+    for (const [key, page] of [...this.tabPages]) if (page.host === host) this.tabPages.delete(key)
+  }
+
   private message(params: PageMessageParams): void {
-    const page = this.pages.get(params.pageId) ?? this.tabPage(params)
+    const page = params.pageId.startsWith("tab:") ? this.tabPage(params) : this.pages.get(params.pageId)
     if (!page) return
     let entry
     try {
@@ -214,6 +232,14 @@ export class LitePages {
   }
 
   private closed(params: PageLifecycleParams): void {
+    if (params.pageId.startsWith("tab:")) {
+      for (const [key, page] of [...this.tabPages]) {
+        if (page.pageId !== params.pageId) continue
+        this.tabPages.delete(key)
+        for (const frameId of page.frames.keys()) page.host.contexts.remove(pageContextId(page.pageId, frameId))
+      }
+      return
+    }
     const page = this.pages.get(params.pageId)
     if (!page) return
     this.pages.delete(params.pageId)

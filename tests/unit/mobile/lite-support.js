@@ -163,7 +163,7 @@ class FakeJava {
       if (!handler) throw new Error(`FakeJava has no ${envelope.method}`)
       response = { type: "response", id: envelope.id, result: await handler(envelope.params) ?? null }
     } catch (error) {
-      response = { type: "response", id: envelope.id, error: error.message }
+      response = { type: "response", id: envelope.id, error: error.message, ...(error.code ? { code: error.code } : {}) }
     }
     // Java answers from another thread; never synchronously.
     await new Promise((resolve) => setImmediate(resolve))

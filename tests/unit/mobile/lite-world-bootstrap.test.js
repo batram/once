@@ -8,11 +8,13 @@ const test = require("node:test")
 const { parseHTML } = require("linkedom")
 const { lite } = require("./lite-support")
 
-const { bootWorld, worldNonce, accessEventName, accessAttribute } = lite("worldBootstrap")
+const { bootWorld, worldNonce, worldSyncKey, accessEventName, accessAttribute } = lite("worldBootstrap")
 const { documentNonce } = lite("liteWebRequest")
 const { WORLD_BINDING, WORLD_DELIVER } = lite("protocol")
 
 const TOKEN = "fedcba9876543210fedcba9876543210"
+/** The main-world helper's channel: not the secret the nonce and the answer keys derive from. */
+const CHANNEL = "00112233445566778899aabbccddeeff"
 const HOST = "0123456789abcdef0123456789abcdef"
 
 async function withDom(url, run) {
@@ -49,6 +51,7 @@ function config(scripts) {
   return {
     init: { id: "fixture@once.test", host: HOST, kind: "content", manifest: { name: "Fixture" }, messages: {}, uiLanguage: "en" },
     token: TOKEN,
+    channel: CHANNEL,
     scripts
   }
 }
@@ -63,6 +66,8 @@ test("the world greets the broker, runs matching scripts and styles, and answers
   delete globalThis.__worldRan
   const world = boot(config([script({}), script({ matches: ["https://other.test/*"], js: [{ url: "x", code: "globalThis.__other = 1" }] })]), scope)
   assert.ok(world)
+  // Scripts in the world reach the broker through the API only; the binding is the world's own.
+  assert.equal(scope[WORLD_BINDING], undefined, "the binding is taken off the global")
   assert.deepEqual(sent[0], { host: HOST, type: "hello", url: "https://www.site.test/page", topUrl: "https://www.site.test/page", creatorUrl: "", matched: true })
   assert.equal(globalThis.__worldRan, 1, "document_start ran since documentElement exists")
   assert.equal(globalThis.__other, undefined)
@@ -115,11 +120,12 @@ test("the world derives the broker's nonce and falls back to main-world evaluati
 
 test("wrappedJSObject reads, probes and deletes main-world globals through the helper's channel", () => withDom("https://www.site.test/", ({ document, boot }) => {
   const mainGlobals = { sentinel: "ran", nested: { a: 1 } }
-  document.addEventListener(accessEventName(TOKEN), (event) => {
+  assert.notEqual(accessEventName(CHANNEL), accessEventName(TOKEN))
+  document.addEventListener(accessEventName(CHANNEL), (event) => {
     const { op, name } = JSON.parse(event.detail)
     const answer = op === "get" ? mainGlobals[name] : op === "has" ? name in mainGlobals : Reflect.deleteProperty(mainGlobals, name)
     const encoded = JSON.stringify(answer)
-    if (encoded !== undefined) document.documentElement.setAttribute(accessAttribute(TOKEN), encoded)
+    if (encoded !== undefined) document.documentElement.setAttribute(accessAttribute(CHANNEL), encoded)
   })
   const scope = globalThis
   boot(config([]))
@@ -130,7 +136,7 @@ test("wrappedJSObject reads, probes and deletes main-world globals through the h
   assert.equal(scope.wrappedJSObject.missing, undefined)
   delete scope.wrappedJSObject.sentinel
   assert.equal(scope.wrappedJSObject.sentinel, undefined)
-  assert.equal(document.documentElement.hasAttribute(accessAttribute(TOKEN)), false, "the answer is cleared")
+  assert.equal(document.documentElement.hasAttribute(accessAttribute(CHANNEL)), false, "the answer is cleared")
 }))
 
 test("blank frames match by their top URL only with match_about_blank and inherit the parent's nonce", () => withDom("about:blank", ({ window }) => {
@@ -157,15 +163,21 @@ test("registered scripts are asked for synchronously at boot and run like the ma
   scope.XMLHttpRequest = FakeXhr
   try {
     const world = boot(config([]))
-    assert.deepEqual(requests, [["GET", `https://${HOST}.moz-extension.localhost/_once/dynamic?u=${encodeURIComponent("https://www.site.test/page")}`, false]])
+    const key = worldSyncKey(TOKEN, "https://www.site.test/page")
+    assert.deepEqual(requests, [["GET", `https://${HOST}.moz-extension.localhost/_once/${key}/dynamic?u=${encodeURIComponent("https://www.site.test/page")}`, false]])
     assert.equal(globalThis.__dynamicRan, 1, "the registered script ran at document start")
     assert.ok(String(document.cookie).includes(`${HOST}=blob-1`), `the document got the cookie: ${document.cookie}`)
     addDynamicScripts({ host: "other", scripts: [script({ js: [{ url: "d3", code: "globalThis.__dynamicRan += 100" }], css: [] })] }, scope)
     assert.equal(globalThis.__dynamicRan, 1, "another extension's scripts are not this world's")
-    // A second boot in the same context is a no-op that hands back the same world.
+    // A second boot in the same context (a new DevTools session) hands back the same world,
+    // takes the binding installed again and greets the broker, which may have forgotten it.
+    const resent = []
+    globalThis[WORLD_BINDING] = (payload) => resent.push(JSON.parse(payload))
     const again = boot(config([script({})]))
     assert.equal(again, world)
     assert.equal(sent.filter((m) => m.type === "hello").length, 1)
+    assert.deepEqual(resent.map((m) => m.type), ["hello"])
+    assert.equal(globalThis[WORLD_BINDING], undefined)
     assert.equal(requests.length, 1)
   } finally {
     Reflect.deleteProperty(scope, "XMLHttpRequest")

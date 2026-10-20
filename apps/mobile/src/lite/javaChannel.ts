@@ -118,6 +118,9 @@ export class JavaChannel {
  * `timer.fired`); short ones stay in the page, where a second's alignment is
  * harmless. Returns the globals to their originals.
  */
+/** Where Java-backed timer ids start: beyond any id Blink hands a page in its lifetime. */
+export const NATIVE_TIMER_BASE = 0x40000000
+
 export function installNativeTimers(channel: JavaChannel, thresholdMs = 5_000): () => void {
   const scope = globalThis as unknown as {
     setTimeout: typeof setTimeout
@@ -127,8 +130,9 @@ export function installNativeTimers(channel: JavaChannel, thresholdMs = 5_000): 
   const originalClear = scope.clearTimeout
   const native = new Map<number, () => void>()
   let nextNative = 1
-  // Odd ids for native timers so they never collide with the page's own.
-  const nativeId = (): number => nextNative++ * 2 + 1
+  // Blink numbers the page's own timers from 1 up, odd and even alike; Java's
+  // start far above them, so clearing one never cancels the other.
+  const nativeId = (): number => NATIVE_TIMER_BASE + nextNative++
   channel.onEvent("timer.fired", (params) => {
     const { timerId } = params as TimerFiredParams
     const callback = native.get(timerId)

@@ -74,19 +74,42 @@ public final class LiteTier2 {
     /** Compiled static rulesets by directory and path; uBO Lite's never change while the app runs. */
     private final Map<String, DnrEvaluator.Compiled> statics = new ConcurrentHashMap<>();
     private final java.util.Set<String> cacheNames = ConcurrentHashMap.newKeySet();
+    private final Map<String, byte[]> packagedFiles = new ConcurrentHashMap<>();
     private final Map<WebView, Tab> tabs = new LinkedHashMap<>();
     private volatile DnrEvaluator evaluator = DnrEvaluator.EMPTY;
     private List<String> sources = Collections.emptyList();
     private volatile int skipped;
 
-    /** One reading tab: its scripts, and what its document's requests are judged against. */
-    private static final class Tab {
+    /**
+     * One reading tab: its scripts, and what its document's requests are
+     * judged against. That is the committed document; a navigation still in
+     * flight (or one that never commits: a 204, a download, `window.stop()`)
+     * counts only for requests whose Referer shows they come from it.
+     */
+    static final class Tab {
         final int tabId;
-        final List<ScriptHandler> scripts = new ArrayList<>();
-        volatile String documentUrl;
-        volatile Map<String, Integer> frameAllow = Collections.emptyMap();
+        /** Registered sources by their text, so a push re-registers only what changed. */
+        final Map<String, ScriptHandler> scripts = new LinkedHashMap<>();
+        volatile Document committed;
+        volatile Document pending;
 
         Tab(int tabId) { this.tabId = tabId; }
+    }
+
+    static final class Document {
+        final String url;
+        final String origin;
+        final Map<String, Integer> frameAllow;
+
+        Document(String url, Map<String, Integer> frameAllow) {
+            this.url = url;
+            this.origin = SyncAnswers.origin(url);
+            this.frameAllow = frameAllow.isEmpty() ? Collections.emptyMap() : new HashMap<>(frameAllow);
+        }
+
+        static String withoutFragment(String url) { int hash = url.indexOf('#'); return hash < 0 ? url : url.substring(0, hash); }
+
+        boolean sameDocument(String other) { return withoutFragment(url).equals(withoutFragment(other)); }
     }
 
     /** Names the compiled-rules cache of packaged rulesets: the APK they came from. */
@@ -103,8 +126,9 @@ public final class LiteTier2 {
         channel.onRequest("net.rules", (params, reply) -> {
             JSONArray groups = params.optJSONArray("groups");
             worker.execute(() -> {
+                // Throwable: a push too deep or too large must answer too, and keep the worker alive.
                 try { reply.resolve(applyRules(groups == null ? new JSONArray() : groups)); }
-                catch (Exception error) { Log.w(TAG, "Tier 2 rules were not applied", error); reply.reject(String.valueOf(error.getMessage())); }
+                catch (Throwable error) { Log.w(TAG, "Tier 2 rules were not applied", error); reply.reject(String.valueOf(error.getMessage())); }
             });
         });
         channel.onRequest("tier2.scripts", (params, reply) -> {
@@ -193,7 +217,7 @@ public final class LiteTier2 {
                 statics.put(key, read);
                 Log.i(TAG, "Tier 2 ruleset " + path + ": " + read.rules.size() + " rules from the cache in " + (System.nanoTime() - started) / 1000000 + " ms");
                 return read;
-            } catch (Exception error) {
+            } catch (Exception | OutOfMemoryError error) {
                 Log.w(TAG, "The compiled rules cache of " + path + " was unreadable; compiling again", error);
                 LiteFiles.delete(cacheFile);
             }
@@ -205,7 +229,7 @@ public final class LiteTier2 {
         DnrEvaluator.Compiled compiled;
         long started = System.nanoTime();
         try { compiled = DnrEvaluator.compileArray(new String(bytes, StandardCharsets.UTF_8)); }
-        catch (IllegalArgumentException error) { Log.w(TAG, "Ruleset " + path + " is not valid JSON: " + error.getMessage()); return null; }
+        catch (IllegalArgumentException | StackOverflowError error) { Log.w(TAG, "Ruleset " + path + " is not valid JSON: " + error.getMessage()); return null; }
         compiled.index();
         Log.i(TAG, "Tier 2 ruleset " + path + ": " + compiled.rules.size() + " rules in " + (System.nanoTime() - started) / 1000000 + " ms");
         statics.put(key, compiled);
@@ -220,7 +244,10 @@ public final class LiteTier2 {
             java.io.File[] old = cacheDirectory.listFiles((dir, name) -> name.endsWith(".tmp"));
             if (old != null) for (java.io.File file : old) LiteFiles.delete(file);
             java.io.File temp = new java.io.File(cacheDirectory, cacheFile.getName() + ".tmp");
-            try (java.io.OutputStream out = new java.io.FileOutputStream(temp)) { DnrRuleCache.write(compiled, out); }
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(temp)) {
+                DnrRuleCache.write(compiled, out);
+                out.getFD().sync();
+            }
             if (!temp.renameTo(cacheFile)) throw new IOException("Could not place " + cacheFile.getName());
         } catch (IOException error) {
             Log.w(TAG, "The compiled rules were not cached", error);
@@ -257,28 +284,38 @@ public final class LiteTier2 {
     public void removeTab(WebView view) {
         Tab tab;
         synchronized (tabs) { tab = tabs.remove(view); }
-        if (tab != null) for (ScriptHandler handler : tab.scripts) handler.remove();
+        if (tab != null) for (ScriptHandler handler : tab.scripts.values()) handler.remove();
     }
 
     private Tab tab(WebView view) {
         synchronized (tabs) { return tabs.get(view); }
     }
 
+    /**
+     * Brings the tab's registrations to the current sources: the ones still
+     * listed stay (uBO Lite's generic cosmetics run to hundreds of
+     * kilobytes), the others go, new ones are added in order.
+     */
     private void install(WebView view, Tab tab) {
-        for (ScriptHandler handler : tab.scripts) handler.remove();
-        tab.scripts.clear();
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.JS_INJECTION_IN_FRAME_AND_WORLD)) {
-            // An isolated world keeps the scripts' globals and GM values away from the page's own scripts.
-            JavaScriptExecutionWorld world = WebViewCompat.getExecutionWorld(view, WORLD);
-            for (String source : sources) {
-                try { tab.scripts.add(WebViewCompat.addJavaScriptOnEvent(view, source, WebViewCompat.INJECTION_EVENT_DOCUMENT_START, Collections.singleton("*"), world)); }
-                catch (RuntimeException error) { Log.w(TAG, "A Tier 2 page script was refused: " + error.getMessage()); }
-            }
-        } else if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-            for (String source : sources) {
-                try { tab.scripts.add(WebViewCompat.addDocumentStartJavaScript(view, source, Collections.singleton("*"))); }
-                catch (RuntimeException error) { Log.w(TAG, "A Tier 2 page script was refused: " + error.getMessage()); }
-            }
+        java.util.Set<String> wanted = new java.util.HashSet<>(sources);
+        for (java.util.Iterator<Map.Entry<String, ScriptHandler>> entries = tab.scripts.entrySet().iterator(); entries.hasNext(); ) {
+            Map.Entry<String, ScriptHandler> entry = entries.next();
+            if (wanted.contains(entry.getKey())) continue;
+            entry.getValue().remove();
+            entries.remove();
+        }
+        boolean isolated = WebViewFeature.isFeatureSupported(WebViewFeature.JS_INJECTION_IN_FRAME_AND_WORLD);
+        if (!isolated && !WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return;
+        // An isolated world keeps the scripts' globals away from the page's own scripts (GM values
+        // live in the origin's localStorage, which the page shares).
+        JavaScriptExecutionWorld world = isolated ? WebViewCompat.getExecutionWorld(view, WORLD) : null;
+        for (String source : sources) {
+            if (tab.scripts.containsKey(source)) continue;
+            try {
+                tab.scripts.put(source, isolated
+                    ? WebViewCompat.addJavaScriptOnEvent(view, source, WebViewCompat.INJECTION_EVENT_DOCUMENT_START, Collections.singleton("*"), world)
+                    : WebViewCompat.addDocumentStartJavaScript(view, source, Collections.singleton("*")));
+            } catch (RuntimeException error) { Log.w(TAG, "A Tier 2 page script was refused: " + error.getMessage()); }
         }
     }
 
@@ -314,11 +351,15 @@ public final class LiteTier2 {
         if (accept.startsWith("image/")) return "image";
         if (accept.startsWith("text/css")) return "stylesheet";
         if (header(headers, "Range") != null) return "media";
+        if (header(headers, "Ping-To") != null || "text/ping".equalsIgnoreCase(header(headers, "Content-Type"))) return "ping";
+        if ("XMLHttpRequest".equalsIgnoreCase(header(headers, "X-Requested-With"))) return "xmlhttprequest";
         String path = url;
         int end = path.length();
         for (char stop : new char[] { '?', '#' }) { int at = path.indexOf(stop); if (at >= 0) end = Math.min(end, at); }
         path = path.substring(0, end).toLowerCase(Locale.ROOT);
         String extension = path.lastIndexOf('.') > path.lastIndexOf('/') ? path.substring(path.lastIndexOf('.') + 1) : "";
+        // Loaders named without an extension (`/gtag/js?id=`, `/recaptcha/api.js` is covered above).
+        if (extension.isEmpty() && path.endsWith("/js")) return "script";
         switch (extension) {
             case "js": case "mjs": return "script";
             case "css": return "stylesheet";
@@ -348,13 +389,11 @@ public final class LiteTier2 {
         boolean mainFrame = request.isForMainFrame();
         String type = resourceType(mainFrame, request.getRequestHeaders(), url);
         if (LitePage.isExtensionUrl(url)) return mainFrame ? null : empty(403, "Forbidden");
-        DnrEvaluator.Request details = new DnrEvaluator.Request(url, type, request.getMethod(), mainFrame ? null : tab.documentUrl,
-            tab.tabId, mainFrame ? null : tab.frameAllow);
+        Document document = mainFrame ? null : documentOf(tab, header(request.getRequestHeaders(), "Referer"));
+        DnrEvaluator.Request details = new DnrEvaluator.Request(url, type, request.getMethod(), document == null ? null : document.url,
+            tab.tabId, document == null ? null : document.frameAllow);
         DnrEvaluator.Result result = evaluator.evaluate(details);
-        if (mainFrame) {
-            tab.documentUrl = url;
-            tab.frameAllow = result.allowAllRequests.isEmpty() ? Collections.emptyMap() : new HashMap<>(result.allowAllRequests);
-        }
+        if (mainFrame) tab.pending = new Document(url, result.allowAllRequests);
         DnrEvaluator.Decision decision = result.decision;
         switch (decision.outcome) {
             case BLOCK:
@@ -368,6 +407,40 @@ public final class LiteTier2 {
         }
     }
 
+    /** The document a subresource request comes from: the committed one, or the one in flight when the Referer names it. */
+    static Document documentOf(Tab tab, String referer) {
+        Document pending = tab.pending;
+        if (pending != null && pending.origin != null && referer != null && pending.origin.equals(SyncAnswers.origin(referer))) return pending;
+        return tab.committed;
+    }
+
+    /**
+     * The tab's main frame committed a document (`doUpdateVisitedHistory`,
+     * same-document changes included): its requests are judged against it
+     * from now on. A document restored from the back/forward cache made no
+     * request, so its allowAllRequests rules are evaluated here. Main thread.
+     */
+    public void committed(WebView view, String url) {
+        Tab tab = tab(view);
+        if (tab == null || url == null) return;
+        commit(tab, url, evaluator);
+    }
+
+    static void commit(Tab tab, String url, DnrEvaluator evaluator) {
+        Document pending = tab.pending;
+        tab.pending = null;
+        if (pending != null && pending.sameDocument(url)) { tab.committed = pending; return; }
+        Document current = tab.committed;
+        if (current != null && current.sameDocument(url)) return;
+        // A same-document change (pushState) keeps what the document matched when it loaded.
+        if (pending == null && current != null && current.origin != null && current.origin.equals(SyncAnswers.origin(url))) {
+            tab.committed = new Document(url, current.frameAllow);
+            return;
+        }
+        DnrEvaluator.Result result = evaluator.evaluate(new DnrEvaluator.Request(url, "main_frame", "GET", null, tab.tabId, null));
+        tab.committed = new Document(url, result.allowAllRequests);
+    }
+
     static WebResourceResponse empty(int status, String reason) {
         return new WebResourceResponse("text/plain", "utf-8", status, reason, Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
     }
@@ -378,7 +451,13 @@ public final class LiteTier2 {
         for (DnrEvaluator.Group group : evaluator.groups()) if (group.id.equals(decision.group)) owner = group;
         byte[] bytes = null;
         if (owner != null && owner.directory != null) {
-            try { bytes = files.bytes(owner.directory, decision.extensionPath.substring(1)); } catch (IOException ignored) { bytes = null; }
+            // The stand-ins (noop scripts, 1×1 images) are small and asked for on every page: kept once read.
+            String key = owner.directory + "\n" + decision.extensionPath;
+            bytes = packagedFiles.get(key);
+            if (bytes == null) {
+                try { bytes = files.bytes(owner.directory, decision.extensionPath.substring(1)); } catch (IOException ignored) { bytes = null; }
+                if (bytes != null && bytes.length <= 256 * 1024 && packagedFiles.size() < 256) packagedFiles.put(key, bytes);
+            }
         }
         if (bytes == null) return empty(403, "Forbidden");
         Map<String, String> headers = new HashMap<>();
@@ -390,42 +469,105 @@ public final class LiteTier2 {
     /**
      * WebView takes no 3xx from this callback: a top-level document is
      * navigated to the target instead, a subresource GET is fetched from it.
+     * The fetch is not the page's: it carries none of the page's headers but
+     * the harmless ones, the tab's cookies only when the target is the
+     * request's own origin and the page's own site, follows redirects itself
+     * only to http(s) URLs that are not on this device or its network, and
+     * hands the page no credentialed CORS grant or cookies of the target.
      */
     private WebResourceResponse redirect(WebView view, WebResourceRequest request, String target, boolean mainFrame) {
         if (target == null) return null;
+        if (!target.startsWith("https://") && !target.startsWith("http://") && !target.startsWith("ws")) return empty(403, "Forbidden");
         if (mainFrame) {
             main.post(() -> view.loadUrl(target));
             return empty(204, "No Content");
         }
         if (!"GET".equalsIgnoreCase(request.getMethod()) || target.startsWith("ws")) return empty(403, "Forbidden");
-        try { return proxied(target, request.getRequestHeaders()); }
-        catch (IOException error) { return empty(502, "Bad Gateway"); }
+        Tab tab = tab(view);
+        Document document = tab == null ? null : tab.committed;
+        String original = request.getUrl().toString();
+        try { return proxied(original, target, request.getRequestHeaders(), document == null ? null : document.url); }
+        catch (IOException | RuntimeException error) { return empty(502, "Bad Gateway"); }
     }
 
-    private static WebResourceResponse proxied(String target, Map<String, String> requestHeaders) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) new URL(target).openConnection();
-        connection.setInstanceFollowRedirects(true);
-        connection.setConnectTimeout(15000);
-        connection.setReadTimeout(30000);
-        if (requestHeaders != null) for (Map.Entry<String, String> entry : requestHeaders.entrySet()) {
-            if (entry.getKey() != null && !entry.getKey().equalsIgnoreCase("Accept-Encoding")) connection.setRequestProperty(entry.getKey(), entry.getValue());
+    private static final String[] FORWARDED_HEADERS = { "Accept", "Accept-Language", "User-Agent", "Referer" };
+    private static final int PROXY_REDIRECTS = 5;
+
+    static WebResourceResponse proxied(String original, String target, Map<String, String> requestHeaders, String documentUrl) throws IOException {
+        String originalOrigin = SyncAnswers.origin(original);
+        boolean privateAllowed = isPrivateHost(DnrEvaluator.hostOf(original));
+        String location = target;
+        for (int hop = 0; ; hop++) {
+            URL url = new URL(location);
+            String protocol = url.getProtocol().toLowerCase(Locale.ROOT);
+            if (!protocol.equals("https") && !protocol.equals("http")) throw new IOException("Not an http(s) target");
+            if (!privateAllowed && isPrivateHost(url.getHost())) throw new IOException("A local target");
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setInstanceFollowRedirects(false);
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(10000);
+            connection.setUseCaches(false);
+            for (String name : FORWARDED_HEADERS) {
+                String value = header(requestHeaders, name);
+                if (value != null) connection.setRequestProperty(name, value);
+            }
+            String targetOrigin = SyncAnswers.origin(location);
+            boolean firstParty = targetOrigin != null && targetOrigin.equals(originalOrigin) && documentUrl != null
+                && !DnrEvaluator.thirdParty(DnrEvaluator.hostOf(location), DnrEvaluator.hostOf(documentUrl));
+            if (firstParty) {
+                String cookies = CookieManager.getInstance().getCookie(location);
+                if (cookies != null) connection.setRequestProperty("Cookie", cookies);
+            }
+            int status = connection.getResponseCode();
+            if (status >= 300 && status < 400 && connection.getHeaderField("Location") != null) {
+                String next = new URL(url, connection.getHeaderField("Location")).toString();
+                connection.disconnect();
+                if (hop >= PROXY_REDIRECTS) throw new IOException("Too many redirects");
+                location = next;
+                continue;
+            }
+            return proxiedResponse(connection, status);
         }
-        String cookies = CookieManager.getInstance().getCookie(target);
-        if (cookies != null) connection.setRequestProperty("Cookie", cookies);
-        int status = connection.getResponseCode();
+    }
+
+    private static WebResourceResponse proxiedResponse(HttpURLConnection connection, int status) throws IOException {
+        // WebResourceResponse refuses 3xx, anything outside 100-599 and a non-ASCII reason.
+        if (status < 200 || status >= 300 && status < 400 || status > 599) { connection.disconnect(); return empty(502, "Bad Gateway"); }
         InputStream body = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
         Map<String, String> headers = new HashMap<>();
         for (Map.Entry<String, List<String>> entry : connection.getHeaderFields().entrySet()) {
-            if (entry.getKey() == null || entry.getValue().isEmpty()) continue;
-            headers.put(entry.getKey(), String.join(", ", entry.getValue()));
+            String name = entry.getKey();
+            if (name == null || entry.getValue().isEmpty()) continue;
+            String lower = name.toLowerCase(Locale.ROOT);
+            if (lower.equals("set-cookie") || lower.equals("set-cookie2") || lower.equals("access-control-allow-credentials")) continue;
+            String value = String.join(", ", entry.getValue());
+            if (lower.equals("access-control-allow-origin") && !value.trim().equals("*")) continue;
+            headers.put(name, value);
         }
         String contentType = connection.getContentType();
         String mime = contentType == null ? "application/octet-stream" : contentType.split(";")[0].trim();
         String charset = contentType != null && contentType.toLowerCase(Locale.ROOT).contains("charset=")
             ? contentType.substring(contentType.toLowerCase(Locale.ROOT).indexOf("charset=") + 8).trim() : "utf-8";
         String reason = connection.getResponseMessage();
-        return new WebResourceResponse(mime, charset, status, reason == null || reason.isEmpty() ? "OK" : reason, headers,
-            body == null ? new ByteArrayInputStream(new byte[0]) : body);
+        if (reason == null || reason.isEmpty() || !reason.matches("[\\x20-\\x7e]+")) reason = status >= 400 ? "Error" : "OK";
+        return new WebResourceResponse(mime, charset, status, reason, headers, body == null ? new ByteArrayInputStream(new byte[0]) : body);
+    }
+
+    /** Loopback, link-local, private and unique-local addresses, and names that resolve to them. */
+    static boolean isPrivateHost(String host) {
+        if (host == null || host.isEmpty()) return true;
+        String bare = host.startsWith("[") && host.endsWith("]") ? host.substring(1, host.length() - 1) : host;
+        if (bare.equalsIgnoreCase("localhost") || bare.toLowerCase(Locale.ROOT).endsWith(".localhost")) return true;
+        try {
+            for (java.net.InetAddress address : java.net.InetAddress.getAllByName(bare)) {
+                if (address.isLoopbackAddress() || address.isAnyLocalAddress() || address.isLinkLocalAddress() || address.isSiteLocalAddress()) return true;
+                byte[] raw = address.getAddress();
+                if (raw.length == 16 && (raw[0] & 0xfe) == 0xfc) return true;
+            }
+            return false;
+        } catch (java.net.UnknownHostException error) {
+            return false;
+        }
     }
 
     // ------------------------------------------------------------------

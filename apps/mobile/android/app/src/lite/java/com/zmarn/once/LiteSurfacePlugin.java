@@ -48,6 +48,8 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
     private LiteExtensionEngine extensions;
     private LiteExtensionPages pages;
     private static final long READY_TIMEOUT_MS = 30000;
+    /** Set once a page went on without the runtime; later pages do not wait for it either. */
+    private static boolean extensionsLate;
     private final LiteFinder finder = new LiteFinder();
     private ImageFetcher images;
 
@@ -171,7 +173,8 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
             return null;
         }
         @Override public int createTab(String url, boolean active) {
-            if (!ReadingAddress.embeddable(url)) { openExternal(url); return -1; }
+            // An extension cannot hand the user to another app without a tap of theirs.
+            if (!ReadingAddress.embeddable(url)) { Log.w(TAG, "An extension's tabs.create for a URL Once does not show was refused"); return -1; }
             LiteSurfacePlugin tab = newTab(java.util.UUID.randomUUID().toString(), java.util.UUID.randomUUID().toString());
             tab.ensureExtensions();
             // The shell hears of the tab as it does of a window, and finds it loading when it opens it.
@@ -693,11 +696,16 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
         getActivity().runOnUiThread(() -> {
             if (destroyed) { call.reject("The browser host was closed"); return; }
             ensureExtensions();
-            if (extensions.isStarted()) { settled(call, work); return; }
+            // A runtime that never started (its page keeps failing) does not keep every page from opening.
+            if (extensions.isStarted() || extensionsLate) { settled(call, work); return; }
             if (waiting.size() >= 16) { call.reject("Too many pending browser operations"); return; }
             long generation = surfaceGeneration;
             Runnable timeout = () -> {
-                if (waiting.remove(call) != null) call.reject("Browser extensions did not become ready in time. Try again.");
+                if (waiting.remove(call) == null) return;
+                Log.w(TAG, "Browser extensions did not start in time; pages open without them");
+                extensionsLate = true;
+                if (destroyed || generation != surfaceGeneration) { call.reject("The browser surface was closed"); return; }
+                settled(call, work);
             };
             waiting.put(call, timeout);
             handler.postDelayed(timeout, READY_TIMEOUT_MS);

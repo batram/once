@@ -73,11 +73,13 @@ class LitePackageStore implements ExtensionPackageStore {
   }
 }
 
+/** The package host, and the staging directories its unzips made, for removal once read. */
 export function litePackageHost(
   channel: JavaChannel,
   files: FilesInterface,
   storageRoot: string,
-  locale: () => string
+  locale: () => string,
+  stagings: Set<string> = new Set()
 ): ExtensionPackageHost {
   const packagesRoot = `${storageRoot}/packages`
   return {
@@ -93,7 +95,9 @@ export function litePackageHost(
       if (typeof files.unzip !== "function") throw new Error("Unpacking archives is not available")
       const token = crypto.randomUUID()
       const staging = `${packagesRoot}/.staging/${token}`
-      const result = JSON.parse(files.unzip(token, toBase64(archive))) as UnzipResult
+      stagings.add(staging)
+      const result = JSON.parse(files.unzip(token, toBase64(archive))) as UnzipResult & { error?: string }
+      if (result.error) throw new Error(result.error)
       return result.entries.map((entry): ArchiveEntry => ({
         name: entry.name,
         isDirectory: entry.isDirectory,
@@ -146,12 +150,20 @@ export interface LiteManagementOptions {
 
 export class LiteManagement {
   readonly manager: ExtensionManager
+  private readonly stagings = new Set<string>()
 
   constructor(private readonly options: LiteManagementOptions) {
     this.manager = new ExtensionManager({
       catalog: new LiteJsonStore(options.channel, `${options.storageRoot}/manager`),
-      packages: litePackageHost(options.channel, options.files, options.storageRoot, options.locale)
+      packages: litePackageHost(options.channel, options.files, options.storageRoot, options.locale, this.stagings)
     }, options.runtime)
+  }
+
+  /** The unpacked copies are written into the package by now (or refused): not kept until the next start. */
+  private async clearStaging(): Promise<void> {
+    const directories = [...this.stagings]
+    this.stagings.clear()
+    await Promise.all(directories.map((directory) => this.options.channel.request("files.remove", { directory }).catch(() => undefined)))
   }
 
   /** Bundled extensions first, in bundle order, then installed ones in install order. */
@@ -202,7 +214,12 @@ export class LiteManagement {
     if (!file && amoSourceKind(source) === null) {
       throw new RequestError("Use a Firefox Add-ons page URL, or choose an XPI file.", "INVALID_SOURCE")
     }
-    const candidate = await this.manager.preview(source, file)
+    let candidate
+    try {
+      candidate = await this.manager.preview(source, file)
+    } finally {
+      await this.clearStaging()
+    }
     const permissions = candidate.permissions.length
       ? candidate.permissions.map((permission) => `• ${permission}`)
       : ["• No additional permissions"]

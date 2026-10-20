@@ -50,7 +50,7 @@ final class LiteNavigation extends WebViewClient {
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             // The DevTools client tells this view's target from the others by it.
             WebViewCompat.addDocumentStartJavaScript(view,
-                "window.__onceLiteTab = " + org.json.JSONObject.quote(view.marker) + ";", Collections.singleton("*"));
+                "try { Object.defineProperty(window, \"__onceLiteTab\", { value: " + org.json.JSONObject.quote(view.marker) + ", writable: false, configurable: false }); } catch (error) {}", Collections.singleton("*"));
         }
     }
 
@@ -92,7 +92,12 @@ final class LiteNavigation extends WebViewClient {
     public WebResourceResponse shouldInterceptRequest(WebView ignored, WebResourceRequest request) {
         com.zmarn.once.lite.LiteExtensionEngine engine = com.zmarn.once.lite.LiteExtensionEngine.current();
         if (engine == null || !engine.tier2Active()) return null;
-        return engine.tier2().intercept(view, request);
+        try { return engine.tier2().intercept(view, request); }
+        catch (RuntimeException error) {
+            // A response WebView refuses must not take the app down; the request goes on unfiltered.
+            android.util.Log.w(LiteSurfaceHost.TAG, "Tier 2 could not judge a request", error);
+            return null;
+        }
     }
 
     @Override
@@ -107,6 +112,8 @@ final class LiteNavigation extends WebViewClient {
     public void doUpdateVisitedHistory(WebView ignored, String url, boolean isReload) {
         if (!current() || com.zmarn.once.lite.LiteTargets.isMarkerUrl(url)) return;
         committed = true;
+        com.zmarn.once.lite.LiteExtensionEngine engine = com.zmarn.once.lite.LiteExtensionEngine.current();
+        if (engine != null && engine.tier2Active()) engine.tier2().committed(view, url);
         h.pageCommitted(url);
     }
 

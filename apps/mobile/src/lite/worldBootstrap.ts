@@ -22,7 +22,7 @@ import {
 } from "@once/webext-runtime/preload"
 import { sha256Hex } from "@once/webext-runtime"
 import { MatchPatternSet } from "@once/core"
-import { BLOB_PATH, BrokerToWorldMessage, WORLD_BINDING, WORLD_DELIVER, WorldConfig, WorldDynamicConfig, WorldScript, WorldToBrokerMessage, dynamicAnswerPath, pageHostOf, pageOrigin, pageUrlFromExtensionUrl } from "./protocol"
+import { BrokerToWorldMessage, WORLD_BINDING, WORLD_DELIVER, WorldConfig, WorldDynamicConfig, WorldScript, WorldToBrokerMessage, blobAnswerPath, dynamicAnswerPath, pageHostOf, pageOrigin, pageUrlFromExtensionUrl, syncDocumentUrl } from "./protocol"
 
 type Scope = typeof globalThis & Record<string, unknown>
 
@@ -33,6 +33,10 @@ interface World {
   frame: { url: string; topUrl: string; isTop: boolean }
   scripts: PageScripts | null
   send(message: WorldToBrokerMessage): void
+  /** The `hello` that registers this context with the broker. */
+  greet(): void
+  /** A new DevTools session installed the binding again. */
+  rebind(binding: (payload: string) => void): void
   /** Undoes the prototype patches; for tests that boot several worlds in one document. */
   dispose(): void
 }
@@ -40,7 +44,7 @@ interface World {
 /** Where the booted world is kept on the global, so a second boot in the same context is a no-op. */
 const WORLD_KEY = "__onceLiteWorld"
 
-/** The event the main-world helper answers synchronously, scoped by the token. */
+/** The event the main-world helper answers synchronously, scoped by the channel token (no secret). */
 export function accessEventName(token: string): string {
   return `once-lite:${token}:access`
 }
@@ -58,6 +62,11 @@ export function worldNonce(token: string, href: string): string {
     canonical = url.href
   } catch { /* opaque */ }
   return sha256Hex(`${token}|${canonical}`).slice(0, 32)
+}
+
+/** The key of this document's synchronous answers; the same derivation as the broker's `syncKey`. */
+export function worldSyncKey(token: string, href: string): string {
+  return sha256Hex(`${token}|sync|${syncDocumentUrl(href)}`).slice(0, 32)
 }
 
 function blank(url: string): boolean {
@@ -382,41 +391,43 @@ function defineWrappedJSObject(scope: Scope, token: string): void {
 /**
  * A `blob:` URL of the extension's origin (Violentmonkey's synchronous
  * injection hands the content script one) cannot be read from the page's
- * origin; it is requested as `<page origin>/_once/blob/<id>`, which the
- * broker answers through the extension's background page. Both URL forms of
- * the origin are recognised.
+ * origin; it is requested as the document's blob answer
+ * (`blobAnswerPath`), which the broker prepared through the extension's
+ * background page. Both URL forms of the origin are recognised.
  */
-export function mapBlobUrl(host: string, url: string): string {
+export function mapBlobUrl(host: string, url: string, token: string, documentUrl: string): string {
   const origin = pageOrigin(host)
   for (const prefix of [`blob:${origin}/`, `blob:moz-extension://${host}/`]) {
-    if (url.startsWith(prefix)) return `${origin}${BLOB_PATH}${url.slice(prefix.length)}`
+    if (url.startsWith(prefix)) return `${origin}${blobAnswerPath(worldSyncKey(token, documentUrl), url.slice(prefix.length), documentUrl)}`
   }
   return url
 }
 
-function patchBlobRequests(scope: Scope, host: string): void {
+function patchBlobRequests(scope: Scope, host: string, token: string): void {
+  const map = (url: string): string => mapBlobUrl(host, url, token, location.href)
   const Xhr = scope.XMLHttpRequest as typeof XMLHttpRequest | undefined
   if (Xhr) {
     const open = Xhr.prototype.open
     Xhr.prototype.open = function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
-      return (open as (...args: unknown[]) => void).call(this, method, mapBlobUrl(host, String(url)), ...rest)
+      return (open as (...args: unknown[]) => void).call(this, method, map(String(url)), ...rest)
     } as typeof open
   }
   const originalFetch = scope.fetch as typeof fetch | undefined
   if (originalFetch) {
     scope.fetch = ((input: RequestInfo | URL, init?: RequestInit) =>
-      originalFetch.call(scope, typeof input === "string" ? mapBlobUrl(host, input) : input, init)) as typeof fetch
+      originalFetch.call(scope, typeof input === "string" ? map(input) : input, init)) as typeof fetch
   }
 }
 
 /**
- * The extension's scripts registered at run time, asked for synchronously
- * at document start so they run before the page's own scripts (uBlock's
- * scriptlets are registered during the document's held onResponseStarted).
- * The request never leaves the device: the broker answers it at the Fetch
- * request stage. Nothing, or an empty list, when it cannot be asked.
+ * What the broker prepared for this document (the extension's registered
+ * scripts that match it, queued injections, Violentmonkey's cookie), asked
+ * for synchronously at document start so it runs before the page's own
+ * scripts (uBlock's scriptlets are registered during the document's held
+ * onResponseStarted). The request never leaves the device: Java answers it
+ * at the Fetch request stage. Nothing when there is no answer.
  */
-export function fetchDynamicScripts(host: string, scope: Scope): WorldDynamicConfig | null {
+export function fetchDynamicScripts(host: string, scope: Scope, token: string): WorldDynamicConfig | null {
   const Xhr = scope.XMLHttpRequest as typeof XMLHttpRequest | undefined
   // Only documents with a URL to match: a blank one (the tab's marker page,
   // a frame yet to navigate) would block its renderer while the target is
@@ -424,7 +435,7 @@ export function fetchDynamicScripts(host: string, scope: Scope): WorldDynamicCon
   if (!Xhr || !/^https?:/.test(location.href)) return null
   try {
     const request = new Xhr()
-    request.open("GET", `${pageOrigin(host)}${dynamicAnswerPath(location.href)}`, false)
+    request.open("GET", `${pageOrigin(host)}${dynamicAnswerPath(worldSyncKey(token, location.href), location.href)}`, false)
     request.send()
     if (request.status !== 200) return null
     const config = JSON.parse(request.responseText) as WorldDynamicConfig
@@ -444,15 +455,35 @@ export function addDynamicScripts(config: WorldDynamicConfig, scope: Scope = glo
   schedule(world, world.scripts, selectScripts(config.scripts, world.frame))
 }
 
-export function bootWorld(config: WorldConfig, scope: Scope = globalThis as Scope): World | null {
-  const binding = scope[WORLD_BINDING] as ((payload: string) => void) | undefined
+/**
+ * The binding is taken off the global once captured: scripts in this world
+ * (other extensions' worlds have their own) reach the broker only through
+ * the world's API, and the broker decides the sender from the context.
+ */
+function takeBinding(scope: Scope): ((payload: string) => void) | null {
+  const binding = scope[WORLD_BINDING]
   if (typeof binding !== "function") return null
-  // Installed again on a live document: the first boot's listeners and ports stay.
-  if (scope[WORLD_KEY]) return scope[WORLD_KEY] as World
+  Reflect.deleteProperty(scope, WORLD_BINDING)
+  return binding as (payload: string) => void
+}
+
+export function bootWorld(config: WorldConfig, scope: Scope = globalThis as Scope): World | null {
+  const existing = scope[WORLD_KEY] as World | undefined
+  if (existing) {
+    // Installed again on a live document (a new DevTools session): the first
+    // boot's listeners and ports stay, and the broker, which may have
+    // forgotten the context, hears from it again.
+    const binding = takeBinding(scope)
+    if (binding) existing.rebind(binding)
+    existing.greet()
+    return existing
+  }
+  let binding = takeBinding(scope)
+  if (!binding) return null
   const host = config.init.host
   const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>()
   let nextId = 1
-  const send = (message: WorldToBrokerMessage): void => binding(JSON.stringify(message))
+  const send = (message: WorldToBrokerMessage): void => (binding as (payload: string) => void)(JSON.stringify(message))
   const frame = frameIdentity()
   const ownPage = pageHostOf(frame.url) === host
   const api = new PreloadApi({ ...config.init, kind: ownPage ? "page" : "content" }, ownPage ? EXTENSION_API_SURFACE : CONTENT_API_SURFACE, {
@@ -469,8 +500,14 @@ export function bootWorld(config: WorldConfig, scope: Scope = globalThis as Scop
     reply: (token, result) => send({ host, type: "reply", token, result }),
     listen: (change) => send({ host, type: "listen", change })
   })
-  const world: World = { config, api, styles: new Map(), frame, scripts: null, send, dispose: () => undefined }
-  scope[WORLD_KEY] = world
+  const selected = ownPage ? [] : selectScripts(config.scripts, frame)
+  const greet = (): void => send({ host, type: "hello", url: frame.url, topUrl: frame.topUrl, creatorUrl: frame.creatorUrl, matched: selected.length > 0 })
+  const world: World = {
+    config, api, styles: new Map(), frame, scripts: null, send, greet,
+    rebind: (next) => { binding = next },
+    dispose: () => { Reflect.deleteProperty(scope, WORLD_KEY) }
+  }
+  Object.defineProperty(scope, WORLD_KEY, { value: world, writable: false, configurable: true, enumerable: false })
   const scripts = new PageScripts(world)
   world.scripts = scripts
   scope[WORLD_DELIVER] = (json: string) => {
@@ -494,18 +531,17 @@ export function bootWorld(config: WorldConfig, scope: Scope = globalThis as Scop
   ;(browser.extension as Record<string, unknown>).getURL = getURL
   scope[BRIDGE_STAGING_KEY] = browser
   ;(0, eval)(ADOPT_BRIDGE_SOURCE)
-  const selected = ownPage ? [] : selectScripts(config.scripts, frame)
-  send({ host, type: "hello", url: frame.url, topUrl: frame.topUrl, creatorUrl: frame.creatorUrl, matched: selected.length > 0 })
+  greet()
   if (ownPage) return world
-  patchBlobRequests(scope, host)
-  defineWrappedJSObject(scope, config.token)
+  patchBlobRequests(scope, host, config.token)
+  defineWrappedJSObject(scope, config.channel)
   const undo = scripts.patchDocument()
   world.dispose = () => {
     undo()
     Reflect.deleteProperty(scope, WORLD_KEY)
   }
   schedule(world, scripts, selected)
-  const dynamic = fetchDynamicScripts(host, scope)
+  const dynamic = fetchDynamicScripts(host, scope, config.token)
   if (dynamic) addDynamicScripts(dynamic, scope)
   return world
 }

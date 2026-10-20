@@ -107,7 +107,16 @@ before the page's scripts run; `Runtime.addBinding` scoped to that world is
 the only channel out of it. That setting is process-wide and therefore stays
 on in release builds of Once Lite: Settings shows Allow Web Inspector as on
 and locked, and the exposure is the existing "USB debugging enabled" one,
-since only the same uid, shell and root may connect to the socket.
+since only the same uid, shell and root may connect to the socket. The
+residual risk is real: anything running as shell (a computer the user
+authorised for USB debugging, an app the user granted Shizuku) or as root
+can drive every WebView of the app, the Capacitor shell with its native
+plugins included, and read its cookies and storage. Debugging is not tied to
+whether any full extension is enabled, because Once's bridge world (PiP,
+media session, image text) needs the same connection in every tab, and the
+broker settles its tier once per page start; a release build in Tier 2,
+where nothing uses the socket, switches debugging off again unless the user
+turned the Web Inspector on.
 
 The runtime itself is `@once/webext-runtime`, the same host-neutral half
 Electron uses, loaded by the **broker** (`apps/mobile/src/lite`, built into
@@ -144,12 +153,26 @@ broker adds a per-document nonce, `sha256(token | url)`, to `script-src` at
 the response stage of every document request, the world stamps it on what it
 inserts, and a document with only a `<meta>` policy gets its scriptlets
 through main-world `Runtime.evaluate` instead, which the page's CSP does not
-govern. Once's own page features (source picker evaluation, image text, media
-snapshots, the PiP polyfill) run in a Once-owned world `once-bridge` over the
-`onceLiteBridge` binding, which Java answers with the Gecko-era handlers; this
-replaces the Gecko bridge extension and its native-messaging port, and the
-main-world helper the PiP polyfill needs talks to that world only through
-token-scoped events.
+govern. The token is a secret only the broker and the extension worlds
+hold; nothing in a page's main world derives from it. Once's own page
+features (source picker evaluation, image text, media snapshots, the PiP
+polyfill) run in a Once-owned world `once-bridge` over the `onceLiteBridge`
+binding, which Java answers with the Gecko-era handlers; this replaces the
+Gecko bridge extension and its native-messaging port. The main-world helper
+the PiP polyfill needs talks to that world through events scoped by a
+second token, which a page can learn, so the bridge world relays nothing
+from it but a PiP request (entering only with the page's user activation).
+Content worlds' synchronous requests (registered scripts, Violentmonkey's
+blobs) are answered by Java from what the broker prepared for that
+document, under a key derived from the secret and the document's URL; and
+because every WebView shares one renderer main thread, Java continues a
+paused request itself when the broker stops answering (a page's
+synchronous XMLHttpRequest or a JS dialog blocks it), rather than hold the
+whole app.
+
+Extensions' hosts are random per install, as Firefox's per-install UUIDs
+are, so a page cannot recognise an extension by a host every install shares;
+an extension with data from before keeps the host it had.
 
 Lite therefore has four trust zones: the Capacitor shell at
 `https://localhost/` (the Once UI and its plugins, as on GeckoView); reading
@@ -157,8 +180,10 @@ pages, which see no Once bridge and reach Java only through the bindings of
 the worlds installed over them; extension pages and worlds, which reach the
 broker over a frame-authenticated channel or a world-scoped binding and get
 `browser.*` built by the shared `PreloadApi` with the same allowlists as
-Electron; and the broker, which may ask Java for anything in the protocol but
-holds no file, socket or WebView of its own. Where the DevTools connection
+Electron; and the broker, at an origin of its own
+(`https://broker.once-lite.localhost/`, so it shares no storage with the
+shell), which may ask Java for anything in the protocol but holds no file,
+socket or WebView of its own. Where the DevTools connection
 cannot be made the surface still works in the plan's Tier 2: no full
 extension loads, the broker compiles uBlock Origin Lite's default rulesets
 and the synced lists into rules Java's own DNR evaluator applies from

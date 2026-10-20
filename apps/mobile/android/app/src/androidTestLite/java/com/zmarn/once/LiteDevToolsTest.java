@@ -229,11 +229,16 @@ public class LiteDevToolsTest {
     }
 
     private String evaluate(String code) throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<String> value = new AtomicReference<>();
-        ui(() -> view.evaluateJavascript(code, result -> { value.set(result); latch.countDown(); }));
-        assertTrue("evaluateJavascript answered", latch.await(10, TimeUnit.SECONDS));
-        return value.get();
+        // WebView 155 drops the callback of a script that reached the document a navigation was
+        // replacing (a new document gets a new frame host), so a script that never answers is sent
+        // again; the renderer is also shared with the app's extension runtime, busy at its first start.
+        for (int attempt = 0; attempt < 6; attempt++) {
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<String> value = new AtomicReference<>();
+            ui(() -> view.evaluateJavascript(code, result -> { value.set(result); latch.countDown(); }));
+            if (latch.await(10, TimeUnit.SECONDS)) return value.get();
+        }
+        throw new AssertionError("evaluateJavascript never answered " + code);
     }
 
     private void untilEvaluates(String code, String expected, int seconds) throws Exception {

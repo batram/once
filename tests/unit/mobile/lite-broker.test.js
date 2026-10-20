@@ -12,6 +12,7 @@ const { lite, fakeFiles, FakeJava, root } = require("./lite-support")
 const { LiteBroker } = lite("broker")
 const { worldNonce, selectScripts } = lite("worldBootstrap")
 const { WORLD_BINDING } = lite("protocol")
+const { syncKey } = lite("liteSync")
 
 const fixture = path.join(root, "tests/unit/mobile/fixtures/lite-extension")
 const FIXTURE_ID = "lite-fixture@once.test"
@@ -351,6 +352,7 @@ test("extension pages are served from the package through Fetch and an XPI insta
   assert.equal(entry.enabled, true)
   assert.equal(entry.bundled, false)
   assert.ok(hostOf(broker, "installed@once.test"), "loaded after the install")
+  assert.equal(Object.keys(java.files.memory).some((directory) => directory.includes("/.staging/")), false, "the unpacked copy is removed")
   const catalog = JSON.parse(java.stores.get("/storage/manager/installed.json"))
   assert.match(catalog["installed@once.test"].directory, /^\/storage\/packages\/[0-9a-f-]{36}$/)
   assert.equal(java.registrations.length, 2)
@@ -397,7 +399,9 @@ test("scripts registered during a document's held onResponseStarted are served t
   const answered = java.requests.filter((e) => e.method === "sync.set")
   assert.equal(answered.length, 1)
   assert.ok(java.requests.indexOf(answered[0]) < java.requests.indexOf(continued), "handed to Java before the document continued")
-  const body = JSON.parse(java.syncAnswers.get(`${host.extension.host}/_once/dynamic`))
+  // Under the document's key: only its own worlds can name it, and only scripts matching it are in it.
+  const key = syncKey(TOKEN, "https://site.test/page")
+  const body = JSON.parse(java.syncAnswers.get(`${host.extension.host}/_once/${key}/dynamic?u=${encodeURIComponent("https://site.test/page")}`))
   assert.equal(body.host, host.extension.host)
   assert.equal(body.scripts.length, 1)
   assert.equal(body.scripts[0].world, "MAIN")
@@ -443,13 +447,278 @@ test("a blob Violentmonkey names in a document's Set-Cookie is read through its 
   java.pageMessage(pageId, { type: "reply", token: read.params.message.message.token, result: ["{\"inject\":true}"] })
   const continued = await java.nextCdp("Fetch.continueResponse")
   assert.ok(continued.params.params.responseHeaders.some((h) => h.name === "Set-Cookie"))
-  assert.equal(java.syncAnswers.get(`${host.extension.host}/_once/blob/4b2c-uuid`), "{\"inject\":true}")
+  const key = syncKey(TOKEN, "https://site.test/page")
+  const query = `?u=${encodeURIComponent("https://site.test/page")}`
+  assert.equal(java.syncAnswers.get(`${host.extension.host}/_once/${key}/blob/4b2c-uuid${query}`), "{\"inject\":true}")
   // The document's own dynamic answer carries the cookie the content script reads the id from.
-  const perDocument = JSON.parse(java.syncAnswers.get(`${host.extension.host}/_once/dynamic?u=${encodeURIComponent("https://site.test/page")}`))
+  const perDocument = JSON.parse(java.syncAnswers.get(`${host.extension.host}/_once/${key}/dynamic${query}`))
   assert.equal(perDocument.cookie, `${host.extension.host}=4b2c-uuid`)
   assert.equal(perDocument.scripts.length, 1, "the queued injection joins the document's answer")
   assert.equal(perDocument.scripts[0].js[0].code, "window.vmContent = 1")
   assert.equal(perDocument.scripts[0].runAt, "document_start")
   const handed = java.requests.find((e) => e.method === "sync.set")
   assert.ok(java.requests.indexOf(handed) < java.requests.indexOf(continued), "handed to Java before the document continued")
+})
+
+test("a world speaks for the extension its context belongs to, with the URL DevTools reported for its frame", async () => {
+  const { java, broker } = await startBroker([
+    { id: FIXTURE_ID, directory: fixture, present: true },
+    { id: VIOLENTMONKEY_ID, directory: "/bundles/violentmonkey", present: true }
+  ])
+  const fixtureHost = hostOf(broker, FIXTURE_ID)
+  const vm = hostOf(broker, VIOLENTMONKEY_ID)
+  const vmPage = `https://${vm.extension.host}.moz-extension.localhost/options/index.html`
+  java.event("tab.changed", { tabId: 7, generation: 1, targetId: "T1", url: "https://site.test/", title: "", active: true, index: 0, status: "complete", audible: false, muted: false })
+  java.event("target.attached", { targetId: "T1", kind: "tab", tabId: 7, frameTree: { frame: { id: "F1", url: "https://site.test/" },
+    childFrames: [{ frame: { id: "F2", parentId: "F1", url: `https://${vm.extension.host}.moz-extension.localhost/web.html` } }] } })
+  java.cdpEvent("T1", "Runtime.executionContextCreated", { context: { id: 5, name: `once-ext:${fixtureHost.extension.host}`, auxData: { frameId: "F1", isDefault: false } } })
+  java.cdpEvent("T1", "Runtime.executionContextCreated", { context: { id: 6, name: `once-ext:${vm.extension.host}`, auxData: { frameId: "F1", isDefault: false } } })
+  java.cdpEvent("T1", "Runtime.executionContextCreated", { context: { id: 7, name: `once-ext:${vm.extension.host}`, auxData: { frameId: "F2", isDefault: false } } })
+  const hello = (contextId, host, url) => java.cdpEvent("T1", "Runtime.bindingCalled", { name: WORLD_BINDING, executionContextId: contextId,
+    payload: JSON.stringify({ host, type: "hello", url, topUrl: url, creatorUrl: "", matched: true }) })
+  // Code in Violentmonkey's world (a content-mode userscript) claims the fixture's identity: refused.
+  hello(6, fixtureHost.extension.host, "https://site.test/")
+  // A context that is no extension world at all is refused too.
+  hello(9, vm.extension.host, vmPage)
+  // Violentmonkey's world claims to be its own page: the frame is a web page, so it is a content script.
+  hello(6, vm.extension.host, vmPage)
+  // A frame really showing one of its pages is its page inside the tab.
+  hello(7, vm.extension.host, "https://site.test/forged")
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(fixtureHost.contexts.get("world:T1:6"), undefined)
+  assert.equal(vm.contexts.get("world:T1:9"), undefined)
+  const content = vm.contexts.get("world:T1:6")
+  assert.equal(content.kind, "content")
+  assert.equal(content.url(), "https://site.test/")
+  const page = vm.contexts.get("world:T1:7")
+  assert.equal(page.kind, "page")
+  assert.equal(page.url(), `https://${vm.extension.host}.moz-extension.localhost/web.html`)
+  // Calls naming another extension from a registered world go nowhere.
+  java.cdpEvent("T1", "Runtime.bindingCalled", { name: WORLD_BINDING, executionContextId: 6,
+    payload: JSON.stringify({ host: fixtureHost.extension.host, type: "invoke", id: 1, api: "storage.local", method: "get", args: [null] }) })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(java.cdp.filter((command) => command.method === "Runtime.evaluate" && command.params.contextId === 6).length, 0)
+})
+
+test("cookies.onChanged reaches only extensions with the cookies permission and access to the cookie's host", async () => {
+  memory["/bundles/narrow"] = { "manifest.json": manifestFor("narrow@once.test", "Narrow", { permissions: ["cookies", "https://a.test/*"] }), "background.js": "" }
+  memory["/bundles/wide"] = { "manifest.json": manifestFor("wide@once.test", "Wide", { permissions: ["cookies", "<all_urls>"] }), "background.js": "" }
+  const { java, broker } = await startBroker([
+    { id: "narrow@once.test", directory: "/bundles/narrow", present: true },
+    { id: "wide@once.test", directory: "/bundles/wide", present: true }
+  ])
+  const narrow = hostOf(broker, "narrow@once.test")
+  const wide = hostOf(broker, "wide@once.test")
+  for (const host of [narrow, wide]) {
+    java.pageMessage(host.backgroundPage, { type: "listen", change: { action: "add", api: "cookies", event: "onChanged", id: 1 } })
+  }
+  await new Promise((resolve) => setImmediate(resolve))
+  java.event("cookies.changed", { removed: false, cookie: { name: "session", value: "1", domain: "b.test", path: "/" }, cause: "explicit" })
+  const heard = await java.nextPageEvent(wide.backgroundPage, "cookies", "onChanged")
+  assert.equal(heard.params.message.message.args[0].cookie.domain, "b.test")
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(java.sent.some((envelope) => envelope.type === "request" && envelope.method === "page.post" && envelope.params.pageId === narrow.backgroundPage &&
+    envelope.params.message.message?.api === "cookies"), false, "a.test only: b.test's cookie stays unseen")
+})
+
+test("a stalled renderer: the broker answers Java's ping, continues requests of unknown targets and drops released ones quietly", async () => {
+  const { java, broker } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
+  void broker
+  assert.deepEqual(await java.request("broker.ping"), {})
+  java.cdpEvent("T9", "Fetch.requestPaused", { requestId: "R1", frameId: "F1", resourceType: "Image", request: { url: "https://cdn.test/a.png", method: "GET", headers: {} } })
+  const continued = await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.params.requestId === "R1")
+  assert.equal(continued.params.method, "Fetch.continueRequest")
+  // Java continued a request itself while the broker was blocked; the broker's late answer is refused.
+  java.event("target.attached", { targetId: "T1", kind: "tab", tabId: 7, frameTree: { frame: { id: "F1", url: "https://site.test/" } } })
+  java.cdpResult = (params) => {
+    if (params.params.requestId === "R2") throw Object.assign(new Error("The request was released while the broker was blocked"), { code: "RELEASED" })
+    return {}
+  }
+  java.cdpEvent("T1", "Fetch.requestPaused", { requestId: "R2", networkId: "N2", frameId: "F1", resourceType: "Image", request: { url: "https://cdn.test/b.png", method: "GET", headers: {} } })
+  await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.params.requestId === "R2")
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(java.cdp.filter((command) => command.params.requestId === "R2").length, 1, "not retried")
+  assert.equal(java.events.some((e) => e.event === "log" && /failed in the broker/.test(e.params.message)), false)
+})
+
+test("a document's answer holds only the registered scripts that match it", async () => {
+  const { java, broker } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
+  const host = hostOf(broker, FIXTURE_ID)
+  host.registerContentScript({ spec: { matches: ["https://site.test/*"], excludeMatches: [], js: [], css: [], allFrames: false, matchAboutBlank: false, runAt: "document_start" },
+    inlineJs: ["window.mine = 1"], inlineCss: [] })
+  java.event("target.attached", { targetId: "T1", kind: "tab", tabId: 7, frameTree: { frame: { id: "F1", url: "about:blank" } } })
+  const load = async (requestId, url) => {
+    java.cdpEvent("T1", "Fetch.requestPaused", { requestId, networkId: requestId, frameId: "F1", resourceType: "Document",
+      request: { url, method: "GET", headers: {} }, responseStatusCode: 200, responseHeaders: [{ name: "Content-Type", value: "text/html" }] })
+    await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.params.requestId === requestId &&
+      e.params.method !== "Fetch.getResponseBody")
+  }
+  await load("R1", "https://other.test/")
+  assert.equal([...java.syncAnswers.keys()].length, 0, "nothing for a document no script matches")
+  await load("R2", "https://site.test/a")
+  const [path] = [...java.syncAnswers.keys()]
+  assert.equal(path, `${host.extension.host}/_once/${syncKey(TOKEN, "https://site.test/a")}/dynamic?u=${encodeURIComponent("https://site.test/a")}`)
+  assert.equal(JSON.parse(java.syncAnswers.get(path)).scripts[0].js[0].code, "window.mine = 1")
+})
+
+test("a same-document navigation keeps the frame's world contexts and the main world they evaluate in", async () => {
+  const { java, broker } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
+  const host = hostOf(broker, FIXTURE_ID)
+  java.event("target.attached", { targetId: "T1", kind: "tab", tabId: 7, frameTree: { frame: { id: "F1", url: "https://site.test/" },
+    childFrames: [{ frame: { id: "F2", parentId: "F1", url: "https://site.test/frame" } }] } })
+  java.cdpEvent("T1", "Runtime.executionContextCreated", { context: { id: 3, name: "", auxData: { frameId: "F2", isDefault: true } } })
+  java.cdpEvent("T1", "Runtime.executionContextCreated", { context: { id: 5, name: `once-ext:${host.extension.host}`, auxData: { frameId: "F2", isDefault: false } } })
+  java.cdpEvent("T1", "Runtime.bindingCalled", { name: WORLD_BINDING, executionContextId: 5,
+    payload: JSON.stringify({ host: host.extension.host, type: "hello", url: "https://site.test/frame", topUrl: "", creatorUrl: "", matched: true }) })
+  await new Promise((resolve) => setImmediate(resolve))
+  java.cdpEvent("T1", "Page.navigatedWithinDocument", { frameId: "F2", url: "https://site.test/frame#step2" })
+  assert.deepEqual(broker.worldContexts("T1").map((world) => world.contextId), [5])
+  // Its later destruction still finds the entry: nothing leaks.
+  java.cdpEvent("T1", "Runtime.bindingCalled", { name: WORLD_BINDING, executionContextId: 5,
+    payload: JSON.stringify({ host: host.extension.host, type: "main-eval", code: "1" }) })
+  const evaluated = await java.nextCdp("Runtime.evaluate")
+  assert.equal(evaluated.params.params.contextId, 3, "in the subframe's main world, not the top frame's")
+  java.cdpEvent("T1", "Runtime.executionContextDestroyed", { executionContextId: 5 })
+  assert.equal(host.contexts.get("world:T1:5"), undefined)
+})
+
+test("an extension's own pages are decided per request: a navigation in a tab, a web frame in its page, no grant left behind", async () => {
+  const { java, broker } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
+  const host = hostOf(broker, FIXTURE_ID)
+  const origin = `https://${host.extension.host}.moz-extension.localhost`
+  const status = async (targetId, requestId, frameId, url, resourceType) => {
+    java.cdpEvent(targetId, "Fetch.requestPaused", { requestId, frameId, resourceType, request: { url, method: "GET", headers: {} } })
+    const answer = await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.params.requestId === requestId)
+    return answer.params.params.responseCode
+  }
+  // A tab showing the fixture's web-accessible picker in a frame (F2), and a web frame (F3) beside it.
+  java.event("target.attached", { targetId: "T1", kind: "tab", tabId: 7, frameTree: { frame: { id: "F1", url: "https://evil.test/" }, childFrames: [
+    { frame: { id: "F2", parentId: "F1", url: `${origin}/picker.html` } }, { frame: { id: "F3", parentId: "F1", url: "https://evil.test/x" } }
+  ] } })
+  assert.equal(await status("T1", "R1", "F2", `${origin}/background.js`, "Script"), 200, "the picker loads its extension's files")
+  assert.equal(await status("T1", "R2", "F3", `${origin}/background.js`, "Script"), 404, "a web frame does not, and no grant was left for it")
+  assert.equal(await status("T1", "R3", "F2", `${origin}/options.html`, "Document"), 404, "the page around the picker cannot navigate it to a private page")
+  assert.equal(await status("T1", "R4", "F2", `${origin}/picker.html`, "Document"), 200)
+  // The extension's options page WebView with a web frame in it.
+  java.event("target.attached", { targetId: "P1", kind: "page", pageId: host.backgroundPage, frameTree: { frame: { id: "G1", url: `${origin}/options.html` },
+    childFrames: [{ frame: { id: "G2", parentId: "G1", url: "https://web.test/" } }] } })
+  assert.equal(await status("P1", "R5", "G1", `${origin}/background.js`, "Script"), 200)
+  assert.equal(await status("P1", "R6", "G2", `${origin}/background.js`, "Script"), 404, "a web frame inside the extension's page")
+  assert.equal(await status("P1", "R7", "G1", `${origin}/popup.html`, "Document"), 200, "the page's own top frame")
+})
+
+test("contexts coming and going leave no removal listener behind", async () => {
+  const { broker } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
+  const host = hostOf(broker, FIXTURE_ID)
+  const listeners = () => host.contexts.removed.size
+  const before = listeners()
+  for (let index = 0; index < 500; index++) {
+    const entry = host.contexts.addWorld({ targetId: "T1", contextId: index, tabId: 7, frameId: 0, url: () => "https://site.test/", creatorUrl: () => "" })
+    host.contexts.remove(entry.id)
+    assert.equal(entry.isDestroyed(), true)
+    assert.equal(entry.url(), "")
+  }
+  assert.equal(listeners(), before)
+})
+
+test("extension frames inside a tab: each extension's own, answered through the tab, gone with its view", async () => {
+  const { java, broker } = await startBroker([
+    { id: FIXTURE_ID, directory: fixture, present: true },
+    { id: VIOLENTMONKEY_ID, directory: "/bundles/violentmonkey", present: true }
+  ])
+  const fixtureHost = hostOf(broker, FIXTURE_ID)
+  const vm = hostOf(broker, VIOLENTMONKEY_ID)
+  const frameMessage = (frameId, host, message) => java.event("page.message", { pageId: "tab:7", frameId, mainFrame: false,
+    url: `https://${host.extension.host}.moz-extension.localhost/`, message: { ...message, href: `https://${host.extension.host}.moz-extension.localhost/picker.html` } })
+  // A page framing the fixture's picker first does not keep Violentmonkey's frame out.
+  frameMessage(1, fixtureHost, { type: "listen", change: { action: "add", api: "runtime", event: "onMessage", id: 1 } })
+  frameMessage(2, vm, { type: "invoke", id: 5, api: "runtime", method: "getPlatformInfo", args: [] })
+  const answer = await java.next((e) => e.type === "request" && e.method === "page.post" && e.params.pageId === "tab:7" && e.params.message.type === "result")
+  assert.equal(answer.params.frameId, 2)
+  assert.equal(answer.params.message.result.ok, true)
+  assert.ok(fixtureHost.contexts.get("page:tab:7:1"))
+  assert.ok(vm.contexts.get("page:tab:7:2"))
+  assert.equal(java.events.some((e) => e.event === "log" && /Untrusted/.test(e.params.message)), false)
+  // The tab's view was replaced: both frames are gone.
+  java.event("page.closed", { pageId: "tab:7" })
+  assert.equal(fixtureHost.contexts.get("page:tab:7:1"), undefined)
+  assert.equal(vm.contexts.get("page:tab:7:2"), undefined)
+})
+
+test("documents wait for Violentmonkey's late cookie only when it has scripts to inject", async () => {
+  const { java, broker } = await startBroker([{ id: VIOLENTMONKEY_ID, directory: "/bundles/violentmonkey", present: true }])
+  const host = hostOf(broker, VIOLENTMONKEY_ID)
+  const pageId = host.backgroundPage
+  java.pageMessage(pageId, { type: "listen", change: { action: "add", api: "webRequest", event: "onHeadersReceived", id: 1,
+    spec: { filter: { urls: ["*://*/*"], types: ["main_frame", "sub_frame"] }, extraInfoSpec: ["blocking", "responseHeaders"] } } })
+  await host.storage.get(null)
+  java.event("target.attached", { targetId: "T1", kind: "tab", tabId: 7, frameTree: { frame: { id: "F1", url: "about:blank" } } })
+  let asked = 0
+  const answerAll = (async () => {
+    for (;;) {
+      const ask = await java.nextPageEvent(pageId, "webRequest", "onHeadersReceived").catch(() => null)
+      if (!ask) return
+      java.forget(ask)
+      asked += 1
+      java.pageMessage(pageId, { type: "reply", token: ask.params.message.message.token, result: [undefined] })
+    }
+  })()
+  const load = async (requestId) => {
+    java.cdpEvent("T1", "Fetch.requestPaused", { requestId, networkId: requestId, frameId: "F1", resourceType: "Document",
+      request: { url: "https://site.test/", method: "GET", headers: {} }, responseStatusCode: 200, responseHeaders: [{ name: "Content-Type", value: "text/html" }] })
+    await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.params.requestId === requestId, 5000)
+  }
+  await load("R1")
+  assert.equal(asked, 1, "no scripts: asked once, no retries")
+  await host.storage.set({ "scr:1": { config: { enabled: 1 } } })
+  await load("R2")
+  assert.equal(asked, 6, "with scripts: asked again while its preparation may still be running")
+  await answerAll
+})
+
+test("extension hosts are random per install, kept across starts, and an install from before keeps its host", async () => {
+  const { hostForExtensionId } = require("@once/webext-runtime")
+  const bundled = [{ id: FIXTURE_ID, directory: fixture, present: true }]
+  const start = async (files, stores) => {
+    const java = new FakeJava(files)
+    if (stores) java.stores = stores
+    const broker = new LiteBroker(java.port, files)
+    await java.request("lite.start", { bundled, locale: "en-US", arch: "arm64", token: TOKEN, storageRoot: "/storage" })
+    return { java, host: hostOf(broker, FIXTURE_ID).extension.host }
+  }
+  const files = fakeFiles({ ...memory })
+  const first = await start(files)
+  assert.match(first.host, /^[0-9a-f]{32}$/)
+  assert.notEqual(first.host, hostForExtensionId(FIXTURE_ID), "not the host every install would share")
+  assert.ok(first.java.registrations[0].worldName.endsWith(first.host))
+  const again = await start(files, first.java.stores)
+  assert.equal(again.host, first.host, "kept across starts")
+  // An install from before this change: its data lives under the derived host, which it keeps.
+  const upgraded = await start(fakeFiles({ ...memory, [`/storage/${hostForExtensionId(FIXTURE_ID)}`]: { "storage.json": "{}" } }))
+  assert.equal(upgraded.host, hostForExtensionId(FIXTURE_ID))
+})
+
+test("a detached target leaves no request records or ids behind", async () => {
+  const { java, broker } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
+  java.event("target.attached", { targetId: "T1", kind: "tab", tabId: 7, frameTree: { frame: { id: "F1", url: "https://site.test/" } } })
+  java.cdpEvent("T1", "Fetch.requestPaused", { requestId: "R1", networkId: "N1", frameId: "F1", resourceType: "Image", request: { url: "https://cdn.test/a.png", method: "GET", headers: {} } })
+  await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.params.requestId === "R1")
+  assert.equal(broker.webRequest.ids.size, 1)
+  java.event("target.detached", { targetId: "T1" })
+  assert.equal(broker.webRequest.ids.size, 0)
+  assert.equal(broker.webRequest.records.size, 0)
+})
+
+test("a world whose context Chromium reports before the frame's navigation is still the extension's", async () => {
+  const { java, broker } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
+  const host = hostOf(broker, FIXTURE_ID)
+  java.event("target.attached", { targetId: "T1", kind: "tab", tabId: 7, frameTree: { frame: { id: "F1", url: "about:blank" } } })
+  java.cdpEvent("T1", "Runtime.executionContextsCleared", {})
+  java.cdpEvent("T1", "Runtime.executionContextCreated", { context: { id: 8, name: `once-ext:${host.extension.host}`, auxData: { frameId: "F1", isDefault: false } } })
+  java.cdpEvent("T1", "Page.frameNavigated", { frame: { id: "F1", url: "https://site.test/" } })
+  java.cdpEvent("T1", "Runtime.bindingCalled", { name: WORLD_BINDING, executionContextId: 8,
+    payload: JSON.stringify({ host: host.extension.host, type: "hello", url: "https://site.test/", topUrl: "https://site.test/", creatorUrl: "", matched: true }) })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(host.contexts.get("world:T1:8")?.url(), "https://site.test/")
+  assert.deepEqual(broker.worldContexts("T1").map((world) => world.contextId), [8])
 })

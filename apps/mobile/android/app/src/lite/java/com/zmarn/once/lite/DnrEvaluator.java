@@ -50,13 +50,16 @@ public final class DnrEvaluator {
         for (int index = 0; index < METHODS.length; index++) METHOD_BITS.put(METHODS[index], 1 << index);
     }
     private static final int MAIN_FRAME = 1;
+    private static final Pattern NOT_RE2 = Pattern.compile("\\(\\?(?:[=!>]|<[=!])|(?<!\\\\)\\\\[1-9]");
+    /** A regexFilter sees this much of a URL at most: java.util.regex backtracks where RE2 would not. */
+    static final int REGEX_INPUT_LIMIT = 4096;
     private static final int ALL_TYPES = (1 << RESOURCE_TYPES.length) - 1;
 
     public enum Outcome { NONE, ALLOW, ALLOW_ALL_REQUESTS, BLOCK, UPGRADE_SCHEME, REDIRECT }
 
     private static final int ACTION_BLOCK = 0, ACTION_ALLOW = 1, ACTION_ALLOW_ALL = 2, ACTION_UPGRADE = 3, ACTION_REDIRECT = 4;
-    /** Larger wins a tie at the same priority. */
-    private static final int[] RANK = { 3, 4, 4, 2, 1 };
+    /** Larger wins a tie at the same priority: allow, allowAllRequests, block, upgradeScheme, redirect, as Chrome orders them. */
+    private static final int[] RANK = { 3, 5, 4, 2, 1 };
 
     /** One request as {@code shouldInterceptRequest} sees it. */
     public static final class Request {
@@ -130,7 +133,7 @@ public final class DnrEvaluator {
         int domainType; // 0 any, 1 first party, 2 third party
         String[] requestDomains, excludedRequestDomains, initiatorDomains, excludedInitiatorDomains;
         int[] tabIds, excludedTabIds;
-        UrlFilter filter;
+        DnrUrlFilter filter;
         Pattern regex;
         String redirectUrl, extensionPath, regexSubstitution;
         Map<String, Object> transform;
@@ -253,8 +256,10 @@ public final class DnrEvaluator {
         Object urlFilter = condition.get("urlFilter");
         Object regexFilter = condition.get("regexFilter");
         if (urlFilter instanceof String && regexFilter != null) throw new Unsupported("urlFilter and regexFilter are exclusive");
-        if (urlFilter instanceof String) rule.filter = new UrlFilter((String) urlFilter, caseSensitive);
+        if (urlFilter instanceof String) rule.filter = new DnrUrlFilter((String) urlFilter, caseSensitive);
         if (regexFilter instanceof String) {
+            // RE2's syntax only, as Chrome takes it: no lookaround, backreferences or atomic groups, which backtrack.
+            if (NOT_RE2.matcher((String) regexFilter).find()) throw new Unsupported("regexFilter uses syntax RE2 does not have");
             try {
                 rule.regex = Pattern.compile((String) regexFilter, caseSensitive ? 0 : Pattern.CASE_INSENSITIVE);
             } catch (PatternSyntaxException error) {
@@ -263,101 +268,6 @@ public final class DnrEvaluator {
         }
         if (rule.regexSubstitution != null && rule.regex == null) throw new Unsupported("regexSubstitution needs a regexFilter");
         return rule;
-    }
-
-    // --------------------------------------------------------------------
-    // urlFilter: `||` anchors at a domain boundary after the scheme, `|` at
-    // either end, `*` is anything, `^` a separator or the end of the URL.
-
-    static final class UrlFilter {
-        /** As the rule wrote it, for the compiled-rules cache. */
-        final String source;
-        final char[] pattern;
-        final boolean domainAnchor, startAnchor, endAnchor, caseSensitive;
-
-        UrlFilter(String source, boolean caseSensitive) {
-            this.source = source;
-            String rest = source;
-            boolean domain = false, start = false, end = false;
-            if (rest.startsWith("||")) { domain = true; rest = rest.substring(2); }
-            else if (rest.startsWith("|")) { start = true; rest = rest.substring(1); }
-            if (rest.endsWith("|")) { end = true; rest = rest.substring(0, rest.length() - 1); }
-            this.caseSensitive = caseSensitive;
-            pattern = (caseSensitive ? rest : rest.toLowerCase(Locale.ROOT)).toCharArray();
-            domainAnchor = domain;
-            startAnchor = start;
-            endAnchor = end;
-        }
-
-        /** The longest literal token the pattern bounds on both sides, or null. */
-        String token() {
-            String best = null;
-            int index = 0;
-            while (index < pattern.length) {
-                if (!isTokenChar(Character.toLowerCase(pattern[index]))) { index++; continue; }
-                int start = index;
-                while (index < pattern.length && isTokenChar(Character.toLowerCase(pattern[index]))) index++;
-                boolean left = start == 0 ? (domainAnchor || startAnchor) : pattern[start - 1] != '*';
-                boolean right = index == pattern.length ? endAnchor : pattern[index] != '*';
-                if (left && right && index - start >= 2 && (best == null || index - start > best.length())) {
-                    best = new String(pattern, start, index - start).toLowerCase(Locale.ROOT);
-                }
-            }
-            return best;
-        }
-
-        boolean matches(String url, String lowerUrl) {
-            String subject = caseSensitive ? url : lowerUrl;
-            int length = subject.length();
-            if (domainAnchor) {
-                int scheme = subject.indexOf("://");
-                if (scheme <= 0) return false;
-                int host = scheme + 3;
-                int hostEnd = host;
-                while (hostEnd < length && "/?#".indexOf(subject.charAt(hostEnd)) < 0) hostEnd++;
-                int at = subject.lastIndexOf('@', hostEnd - 1);
-                if (at >= host) host = at + 1;
-                if (matchAt(subject, 0, host)) return true;
-                for (int index = host; index < hostEnd; index++) {
-                    if (subject.charAt(index) == '.' && matchAt(subject, 0, index + 1)) return true;
-                }
-                return false;
-            }
-            if (startAnchor) return matchAt(subject, 0, 0);
-            if (pattern.length > 0 && pattern[0] != '*' && pattern[0] != '^') {
-                char first = pattern[0];
-                for (int index = subject.indexOf(first); index >= 0; index = subject.indexOf(first, index + 1)) {
-                    if (matchAt(subject, 0, index)) return true;
-                }
-                return false;
-            }
-            for (int index = 0; index <= length; index++) if (matchAt(subject, 0, index)) return true;
-            return false;
-        }
-
-        private boolean matchAt(String subject, int pi, int ui) {
-            int length = subject.length();
-            while (pi < pattern.length) {
-                char c = pattern[pi];
-                if (c == '*') {
-                    while (pi < pattern.length && pattern[pi] == '*') pi++;
-                    if (pi == pattern.length) return true;
-                    for (int index = ui; index <= length; index++) if (matchAt(subject, pi, index)) return true;
-                    return false;
-                }
-                if (c == '^') {
-                    if (ui == length) { pi++; continue; }
-                    if (!isSeparator(subject.charAt(ui))) return false;
-                    pi++;
-                    ui++;
-                    continue;
-                }
-                if (ui >= length || subject.charAt(ui) != c) return false;
-                pi++;
-                ui++;
-            }
-            return !endAnchor || ui == length;
-        }
     }
 
     static boolean isTokenChar(char c) {
@@ -407,6 +317,8 @@ public final class DnrEvaluator {
 
     /** The last two labels stand in for the registrable domain, as in @once/core. */
     static String site(String host) {
+        // An address is its own site.
+        if (host.startsWith("[") || host.matches("[0-9.]+")) return host;
         int last = host.lastIndexOf('.');
         if (last <= 0) return host;
         int previous = host.lastIndexOf('.', last - 1);
@@ -425,15 +337,19 @@ public final class DnrEvaluator {
     /** One rule list filed by token; built once per compiled list, so a group is cheap to rebuild. */
     static final class Index {
         private final Map<String, List<Rule>> byToken = new HashMap<>();
+        /** Rules whose literals a `*` bounds (`*%2ftrack%2f…`), by the first three characters of one. */
+        private final Map<String, List<Rule>> byTrigram = new HashMap<>();
         private final List<Rule> fallback = new ArrayList<>();
         final int size;
 
         Index(List<Rule> rules) {
             for (Rule rule : rules) {
                 String token = rule.filter == null ? null : rule.filter.token();
+                Map<String, List<Rule>> index = byToken;
+                if (token == null && rule.filter != null) { token = rule.filter.trigram(); index = byTrigram; }
                 if (token == null) { fallback.add(rule); continue; }
-                List<Rule> bucket = byToken.get(token);
-                if (bucket == null) byToken.put(token, bucket = new ArrayList<>(2));
+                List<Rule> bucket = index.get(token);
+                if (bucket == null) index.put(token, bucket = new ArrayList<>(2));
                 bucket.add(rule);
             }
             size = rules.size();
@@ -444,9 +360,24 @@ public final class DnrEvaluator {
                 List<Rule> bucket = byToken.get(token);
                 if (bucket != null) for (Rule rule : bucket) best = better(best, rule, request, lowerUrl, typeBit, requestHost, initiatorHost);
             }
+            if (!byTrigram.isEmpty()) for (String trigram : trigrams(lowerUrl)) {
+                List<Rule> bucket = byTrigram.get(trigram);
+                if (bucket != null) for (Rule rule : bucket) best = better(best, rule, request, lowerUrl, typeBit, requestHost, initiatorHost);
+            }
             for (Rule rule : fallback) best = better(best, rule, request, lowerUrl, typeBit, requestHost, initiatorHost);
             return best;
         }
+    }
+
+    /** Every three token characters in a row of a lower-cased URL. */
+    static Set<String> trigrams(String lowerUrl) {
+        Set<String> trigrams = new HashSet<>();
+        int run = 0;
+        for (int index = 0; index < lowerUrl.length(); index++) {
+            run = isTokenChar(lowerUrl.charAt(index)) ? run + 1 : 0;
+            if (run >= 3) trigrams.add(lowerUrl.substring(index - 2, index + 1));
+        }
+        return trigrams;
     }
 
     public static final class Group {
@@ -515,7 +446,18 @@ public final class DnrEvaluator {
         if (rule.initiatorDomains != null && (initiatorHost == null || !inDomains(initiatorHost, rule.initiatorDomains))) return false;
         if (rule.excludedInitiatorDomains != null && initiatorHost != null && inDomains(initiatorHost, rule.excludedInitiatorDomains)) return false;
         if (rule.filter != null && !rule.filter.matches(request.url, lowerUrl)) return false;
-        return rule.regex == null || rule.regex.matcher(request.url).find();
+        // An upgrade of a URL that is secure already, or a redirect to the URL itself, does not apply, as in Chrome.
+        if (rule.action == ACTION_UPGRADE && upgraded(request.url) == null) return false;
+        if (rule.regex != null && !rule.regex.matcher(regexInput(request.url)).find()) return false;
+        if (rule.action == ACTION_REDIRECT && rule.extensionPath == null) {
+            String target = redirectTarget(rule, request.url);
+            if (target == null || target.equals(request.url)) return false;
+        }
+        return true;
+    }
+
+    static String regexInput(String url) {
+        return url.length() > REGEX_INPUT_LIMIT ? url.substring(0, REGEX_INPUT_LIMIT) : url;
     }
 
     static String upgraded(String url) {
@@ -527,7 +469,7 @@ public final class DnrEvaluator {
     private static String redirectTarget(Rule rule, String url) {
         if (rule.redirectUrl != null) return rule.redirectUrl;
         if (rule.regexSubstitution != null) {
-            Matcher matcher = rule.regex.matcher(url);
+            Matcher matcher = rule.regex.matcher(regexInput(url));
             if (!matcher.find()) return null;
             StringBuilder out = new StringBuilder(url.substring(0, matcher.start()));
             String template = rule.regexSubstitution;
@@ -569,6 +511,15 @@ public final class DnrEvaluator {
         String port = "";
         int colon = authority.lastIndexOf(':');
         if (colon >= 0 && authority.indexOf(']') < colon) { host = authority.substring(0, colon); port = authority.substring(colon + 1); }
+        if (transform.get("username") instanceof String || transform.get("password") instanceof String) {
+            String existing = userinfo.isEmpty() ? "" : userinfo.substring(0, userinfo.length() - 1);
+            int colonAt = existing.indexOf(':');
+            String user = colonAt >= 0 ? existing.substring(0, colonAt) : existing;
+            String password = colonAt >= 0 ? existing.substring(colonAt + 1) : "";
+            if (transform.get("username") instanceof String) user = (String) transform.get("username");
+            if (transform.get("password") instanceof String) password = (String) transform.get("password");
+            userinfo = user.isEmpty() && password.isEmpty() ? "" : user + (password.isEmpty() ? "" : ":" + password) + "@";
+        }
         if (transform.get("scheme") instanceof String) scheme = (String) transform.get("scheme");
         if (transform.get("host") instanceof String) host = (String) transform.get("host");
         if (transform.get("port") instanceof String) port = (String) transform.get("port");

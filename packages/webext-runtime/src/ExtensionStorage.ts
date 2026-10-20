@@ -26,6 +26,10 @@ export class ExtensionStorage {
   private loading: Promise<Map<string, unknown>> | null = null
   private writeTimer: ReturnType<typeof setTimeout> | null = null
   private writing: Promise<void> = Promise.resolve()
+  /** Keys changed since the last write; a store that patches gets only these. */
+  private readonly dirty = new Set<string>()
+  /** Until the document on disk is known (read or written whole), writes go whole. */
+  private whole = true
 
   constructor(private readonly store: JsonStore, private readonly name: string) {}
 
@@ -35,7 +39,10 @@ export class ExtensionStorage {
       let entries: [string, unknown][] = []
       try {
         const parsed = await this.store.read(this.name)
-        if (isRecord(parsed)) entries = Object.entries(parsed)
+        if (isRecord(parsed)) {
+          entries = Object.entries(parsed)
+          this.whole = false
+        }
       } catch {
         // No store yet, or an unreadable one: start empty.
       }
@@ -43,6 +50,13 @@ export class ExtensionStorage {
       return this.items
     })()
     return this.loading
+  }
+
+  /** Whether a loaded document has a key the predicate accepts; undefined before it is loaded. */
+  someKey(predicate: (key: string) => boolean): boolean | undefined {
+    if (!this.items) return undefined
+    for (const key of this.items.keys()) if (predicate(key)) return true
+    return false
   }
 
   async get(keys: unknown): Promise<StorageItems> {
@@ -77,6 +91,7 @@ export class ExtensionStorage {
       if (JSON.stringify(items.get(key)) === JSON.stringify(value)) continue
       changes[key] = { oldValue: items.get(key), newValue: value }
       items.set(key, value)
+      this.dirty.add(key)
     }
     if (Object.keys(changes).length) { this.scheduleWrite(); this.changed() }
     return changes
@@ -90,6 +105,7 @@ export class ExtensionStorage {
       if (typeof key !== "string" || !items.has(key)) continue
       changes[key] = { oldValue: items.get(key) }
       items.delete(key)
+      this.dirty.add(key)
     }
     if (Object.keys(changes).length) { this.scheduleWrite(); this.changed() }
     return changes
@@ -98,7 +114,10 @@ export class ExtensionStorage {
   async clear(): Promise<StorageChanges> {
     const items = await this.load()
     const changes: StorageChanges = {}
-    for (const [key, value] of items) changes[key] = { oldValue: value }
+    for (const [key, value] of items) {
+      changes[key] = { oldValue: value }
+      this.dirty.add(key)
+    }
     items.clear()
     if (Object.keys(changes).length) { this.scheduleWrite(); this.changed() }
     return changes
@@ -125,8 +144,28 @@ export class ExtensionStorage {
     }
     const items = this.items
     if (!items) return this.writing
+    const patch = this.store.patch?.bind(this.store)
+    if (patch && !this.whole) {
+      if (this.dirty.size === 0) return this.writing
+      const set: Record<string, unknown> = {}
+      const remove: string[] = []
+      for (const key of this.dirty) {
+        if (items.has(key)) set[key] = items.get(key)
+        else remove.push(key)
+      }
+      this.dirty.clear()
+      this.writing = this.writing.then(() => patch(this.name, set, remove)).catch((error) => {
+        // The document on disk is unknown now: the next write goes whole.
+        this.whole = true
+        console.error("Extension storage write failed", this.name, error)
+      })
+      return this.writing
+    }
     const snapshot = Object.fromEntries(items)
+    this.dirty.clear()
+    this.whole = false
     this.writing = this.writing.then(() => this.store.write(this.name, snapshot)).catch((error) => {
+      this.whole = true
       console.error("Extension storage write failed", this.name, error)
     })
     return this.writing

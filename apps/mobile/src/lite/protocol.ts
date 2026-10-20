@@ -68,8 +68,18 @@ export interface StartParams {
   bundled: BundledExtensionParam[]
   locale: string
   arch: string
-  /** Shared by the world registrations and the bridge/main helper scripts Java installs. */
+  /**
+   * The broker's secret, held by the extension worlds too: document nonces
+   * and the keys of the synchronous answers derive from it. Never in a
+   * page's main world.
+   */
   token: string
+  /**
+   * The token of the event channel the main-world helper shares with Once's
+   * bridge world and the content worlds (`wrappedJSObject`). A page can
+   * watch that channel, so this is no secret.
+   */
+  channel?: string
   /** Where the manager and each extension keep their JSON documents. */
   storageRoot: string
   /** Whether Java holds a usable DevTools connection; false is Tier 2. */
@@ -371,13 +381,14 @@ export interface UnzipResult {
  * synchronous request at `https://<host>.moz-extension.localhost<path>`:
  * every WebView shares one renderer main thread, so a request that blocks
  * a tab can never be answered by the broker. The broker prepares these
- * before a document continues (`/_once/dynamic`: the extension's registered
- * scripts; `/_once/blob/<id>`: a blob Violentmonkey made for the document).
+ * before a document continues, one per document and extension, under a
+ * path only that document's worlds can name (`dynamicAnswerPath`,
+ * `blobAnswerPath`). Java serves each body once, in the order stored.
  */
 export interface SyncAnswerParams {
   host: string
   path: string
-  /** The JSON text to serve, or null to forget the answer. */
+  /** The JSON text to serve, or null to forget the answers under the path. */
   body: string | null
 }
 
@@ -401,17 +412,28 @@ export type PageToBrokerMessage = (
 
 /** Internal event the broker sends an extension page: read one of its blob URLs. */
 export const BLOB_API = "__liteBlob"
-/** Where a content world's request for the extension's `blob:` URL is routed. */
-export const BLOB_PATH = "/_once/blob/"
-/**
- * Where a content world asks, synchronously at document start, for the
- * extension's registered scripts: `?u=<document URL without fragment>`. Java
- * answers a per-document entry (full URL, served once) before the host's.
- */
-export const DYNAMIC_PATH = "/_once/dynamic"
+/** Every synchronous answer lives under this path of the extension's origin; Java answers it, never the broker. */
+export const SYNC_PATH = "/_once/"
 
-export function dynamicAnswerPath(documentUrl: string): string {
-  return `${DYNAMIC_PATH}?u=${encodeURIComponent(documentUrl.split("#")[0])}`
+/** A document's URL as the synchronous answers name it: no fragment. */
+export function syncDocumentUrl(documentUrl: string): string {
+  return documentUrl.split("#")[0]
+}
+
+/**
+ * Where a content world asks, synchronously at document start, for what the
+ * broker prepared for its document: the extension's registered scripts that
+ * match it, `executeScript` calls queued for it, Violentmonkey's cookie.
+ * `key` is `syncKey(token, url)`, which only the broker and the worlds can
+ * compute, so a page can name the answer for no other document than its own.
+ */
+export function dynamicAnswerPath(key: string, documentUrl: string): string {
+  return `${SYNC_PATH}${key}/dynamic?u=${encodeURIComponent(syncDocumentUrl(documentUrl))}`
+}
+
+/** Where a content world's request for the extension's `blob:` URL is routed (see `mapBlobUrl`). */
+export function blobAnswerPath(key: string, blobId: string, documentUrl: string): string {
+  return `${SYNC_PATH}${key}/blob/${blobId}?u=${encodeURIComponent(syncDocumentUrl(documentUrl))}`
 }
 
 export type BrokerToPageMessage =
@@ -439,19 +461,23 @@ export type BrokerToWorldMessage =
 /** The static configuration a world bootstrap is compiled with. */
 export interface WorldConfig {
   init: ExtensionContextInit
+  /** `StartParams.token`: the nonce and the keys of the world's synchronous requests. */
   token: string
+  /** `StartParams.channel`: the main-world helper's event channel. */
+  channel: string
   /** The manifest's content scripts, matched inside the world. */
   scripts: WorldScript[]
 }
 
 /**
- * Scripts registered at run time (`contentScripts.register`, `scripting`).
- * A world asks for them with a synchronous request to
- * `<page origin>/_once/dynamic?u=<frame url>` at document start, which the
- * broker answers at the Fetch request stage, so uBlock's scriptlets
- * (registered during the document's held `onResponseStarted`) run before
- * the page's own scripts. A DevTools command on the target would deadlock
- * while its navigation is paused, so nothing is installed that way.
+ * Scripts registered at run time (`contentScripts.register`, `scripting`)
+ * that match the document. A world asks for them with a synchronous
+ * request to `<extension origin>` + `dynamicAnswerPath` at document start,
+ * which Java answers from what the broker prepared at the document's
+ * response stage, so uBlock's scriptlets (registered during the document's
+ * held `onResponseStarted`) run before the page's own scripts. A DevTools
+ * command on the target would deadlock while its navigation is paused, so
+ * nothing is installed that way.
  */
 export interface WorldDynamicConfig {
   host: string

@@ -92,7 +92,7 @@ public final class LitePage {
         settings.setSupportMultipleWindows(false);
         settings.setUserAgentString(FIREFOX_UA);
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-            WebViewCompat.addDocumentStartJavaScript(view, "window.__onceLiteTab = " + JSONObject.quote(marker) + ";", Collections.singleton("*"));
+            WebViewCompat.addDocumentStartJavaScript(view, "try { Object.defineProperty(window, \"__onceLiteTab\", { value: " + JSONObject.quote(marker) + ", writable: false, configurable: false }); } catch (error) {}", Collections.singleton("*"));
             WebViewCompat.addDocumentStartJavaScript(view, documentStartSource, Collections.singleton(origin));
         }
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
@@ -182,16 +182,43 @@ public final class LitePage {
     }
 
     /**
+     * The extension frames of one tab (uBlock's element picker inside a
+     * page), across the WebViews the tab has had: numbered from one counter,
+     * so a replaced view never reuses an id, and reachable by `page.post`
+     * with `pageId: "tab:<tabId>"`.
+     */
+    public static final class TabFrames {
+        private final Map<JavaScriptReplyProxy, Integer> frames = new LinkedHashMap<>();
+        private int next = 1;
+
+        synchronized int id(JavaScriptReplyProxy proxy) {
+            Integer id = frames.get(proxy);
+            if (id == null) frames.put(proxy, id = next++);
+            return id;
+        }
+
+        synchronized void post(int frameId, Object message) {
+            for (Map.Entry<JavaScriptReplyProxy, Integer> frame : frames.entrySet()) {
+                if (frame.getValue() != frameId) continue;
+                try { frame.getKey().postMessage(message.toString()); }
+                catch (RuntimeException error) { Log.d(TAG, "Extension frame in a tab went away", error); }
+                return;
+            }
+        }
+
+        /** The tab's view went away with its frames. */
+        synchronized void clear() { frames.clear(); }
+    }
+
+    /**
      * The page channel on a tab WebView, for extension frames inside pages
      * (uBlock's element picker): their messages carry `pageId: "tab:<tabId>"`.
      */
-    public static void listenInTab(WebView view, BrokerChannel channel, int tabId) {
+    static void listenInTab(WebView view, BrokerChannel channel, int tabId, TabFrames frames) {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return;
-        Map<JavaScriptReplyProxy, Integer> frames = new LinkedHashMap<>();
         WebViewCompat.addWebMessageListener(view, CHANNEL, Collections.singleton("https://*" + PAGE_HOST_SUFFIX), (source, message, sourceOrigin, mainFrame, proxy) -> {
             if (message.getType() != WebMessageCompat.TYPE_STRING) return;
-            Integer frameId = frames.get(proxy);
-            if (frameId == null) frames.put(proxy, frameId = mainFrame ? 0 : frames.size() + 1);
+            int frameId = frames.id(proxy);
             try {
                 channel.event("page.message", new JSONObject().put("pageId", "tab:" + tabId).put("frameId", frameId)
                     .put("mainFrame", mainFrame).put("url", mainFrame && view.getUrl() != null ? view.getUrl() : sourceOrigin + "/")
@@ -273,7 +300,7 @@ public final class LitePage {
             String level = message.messageLevel() == ConsoleMessage.MessageLevel.ERROR ? "error"
                 : message.messageLevel() == ConsoleMessage.MessageLevel.WARNING ? "warning" : "log";
             if (!"log".equals(level)) Log.println(message.messageLevel() == ConsoleMessage.MessageLevel.ERROR ? Log.ERROR : Log.WARN, "OnceLitePage",
-                "[" + name + "] " + message.message() + " (" + message.sourceId() + ":" + message.lineNumber() + ")");
+                BrokerChannel.forLog("[" + name + "] " + message.message() + " (" + message.sourceId() + ":" + message.lineNumber() + ")"));
             try { channel.event("page.console", new JSONObject().put("pageId", pageId).put("level", level).put("message", message.message())); }
             catch (Exception ignored) { /* a constant document */ }
             return true;

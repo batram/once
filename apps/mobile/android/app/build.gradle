@@ -176,6 +176,8 @@ dependencies {
     // Bundled Latin model: on-device, no Play services or model download.
     implementation "com.google.mlkit:text-recognition:$mlkitTextRecognitionVersion"
     testImplementation "junit:junit:$junitVersion"
+    // The real org.json for JVM tests of code that uses Android's copy (ShallowJson).
+    testImplementation "org.json:json:20250517"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')

@@ -142,10 +142,13 @@ export function userscriptSource(key: string, entry: Tier2UserscriptEntry): stri
   const { script, body } = read
   // The body is spliced in as code (the page's policy may refuse eval); a
   // syntax error then fails this source alone, since Java registers each
-  // separately. The line break keeps a trailing line comment closed.
-  const run = `function (__onceGm) {\nconst { ${GM_NAMES.join(", ")} } = __onceGm;\n${body}\n}`
+  // separately. The line break keeps a trailing line comment closed. The
+  // GM API arrives through the closure, not as an argument: the script
+  // stays sloppy as written, and a page function it calls could read its
+  // caller's arguments.
+  const run = `function () {\nconst { ${GM_NAMES.join(", ")} } = __onceGm;\n__onceGm = null;\n${body}\n}`
   const runtime = `window[${JSON.stringify(key)}]`
-  return `(function () {\nif (!${runtime}) return;\n${runtime}.userscript(${JSON.stringify(script)}, ${run});\n})();`
+  return `(function () {\nif (!${runtime}) return;\nlet __onceGm = null;\n${runtime}.userscript(${JSON.stringify(script)}, (gm) => { __onceGm = gm; }, ${run});\n})();`
 }
 
 /**
@@ -218,6 +221,10 @@ export class LiteTier2 {
   private userscripts: Tier2UserscriptEntry[] = []
   private session: DnrRule[] = []
   private pushing: Promise<unknown> = Promise.resolve()
+  /** The newest `applySettings`; an older one finishing late leaves its result unused. */
+  private settingsRevision = 0
+  /** uBO Lite's generic cosmetics: its enabled rulesets never change while the broker runs. */
+  private uboliteCosmetics: string | null | undefined
   private bundledEntries: Promise<CatalogEntry[]> | null = null
   /** What Java compiled at the last push (diagnostics, tests). */
   lastCounts: Record<string, number> = {}
@@ -322,6 +329,7 @@ export class LiteTier2 {
 
   /** Fetches and converts the synced lists, takes the userscripts, and puts both in force. */
   async applySettings(settings: ExtensionSettings): Promise<void> {
+    const revision = ++this.settingsRevision
     const parsed: ParsedFilterList[] = []
     await Promise.all(settings.filterLists.lists.filter((entry) => entry.enabled !== false).map(async (entry) => {
       try {
@@ -332,6 +340,8 @@ export class LiteTier2 {
         this.options.channel.log("warn", `Filter list ${entry.url} was not applied: ${String(error)}`)
       }
     }))
+    // A newer application started while the lists were fetched: its state is the one to put in force.
+    if (revision !== this.settingsRevision) return
     const converted = filterListRules(parsed)
     this.listRules = converted.rules
     this.listSelectors = converted.selectors
@@ -382,8 +392,8 @@ export class LiteTier2 {
     const cosmetics = cosmeticSource(this.listSelectors)
     if (cosmetics) sources.push(cosmetics)
     if (this.ubolite) {
-      const ubolite = uboliteCosmeticSource(this.options.files, this.ubolite.directory, this.ubolite.rulesets)
-      if (ubolite) sources.push(ubolite)
+      if (this.uboliteCosmetics === undefined) this.uboliteCosmetics = uboliteCosmeticSource(this.options.files, this.ubolite.directory, this.ubolite.rulesets)
+      if (this.uboliteCosmetics) sources.push(this.uboliteCosmetics)
     }
     if (this.userscripts.some((entry) => entry.enabled !== false)) sources.push(...userscriptSources(this.options.bundle(), this.userscripts))
     return sources

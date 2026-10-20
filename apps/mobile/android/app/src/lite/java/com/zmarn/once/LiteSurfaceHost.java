@@ -252,7 +252,7 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         view.setOnLongClickListener(ignored -> LiteContextMenu.longPressed(this, view));
         LiteExtensionEngine engine = engine();
         if (liteTabId == 0) liteTabId = engine.nextTabId();
-        com.zmarn.once.lite.LitePage.listenInTab(view, engine.channel, liteTabId);
+        engine.listenInTab(view, liteTabId);
         attachment = engine.targets().register(view, view.marker, "tab", liteTabId, null, bridge, !adoptingWindow());
         // Tier 2's page scripts (cosmetics, userscripts) follow the tab; none are pushed with DevTools.
         engine.tier2().addTab(view, liteTabId);
@@ -297,6 +297,7 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         old.stopLoading();
         if (attachment != null) engine().targets().unregister(attachment);
         engine().tier2().removeTab(old);
+        if (liteTabId != 0) engine().tabViewReleased(liteTabId);
         attachment = null;
         bridge.reset();
         healthSentAt = 0;

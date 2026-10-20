@@ -22,6 +22,26 @@ export interface ParsedFilterList {
   skipped: number
 }
 
+/**
+ * A generic selector the subset takes: no procedural or combinator syntax
+ * (`+`, `:`), and nothing that could leave its rule in the style sheet
+ * (`{`, `}`, `;`, `@`, a backslash or a comment) or swallow the rules after
+ * it (an unclosed bracket, parenthesis or quote). Same as `onceFilterRules`.
+ */
+export function safeSelector(selector: string): boolean {
+  if (!selector.trim() || /[+:{};@\\]|\/\*|\*\//.test(selector)) return false
+  const closing: string[] = []
+  let quote = ""
+  for (const char of selector) {
+    if (quote) { if (char === quote) quote = ""; continue }
+    if (char === "\"" || char === "'") quote = char
+    else if (char === "[") closing.push("]")
+    else if (char === "(") closing.push(")")
+    else if (char === "]" || char === ")") { if (closing.pop() !== char) return false }
+  }
+  return !quote && closing.length === 0
+}
+
 /** Same acceptance as `onceFilterRules.parse`. */
 export function parseFilterList(text: string): ParsedFilterList {
   const blocked: string[] = []
@@ -32,7 +52,7 @@ export function parseFilterList(text: string): ParsedFilterList {
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim()
     if (!line || line.startsWith("!") || line.startsWith("[")) continue
-    if (line.startsWith("##") && line.slice(2).trim() && !/[+:]/.test(line.slice(2))) {
+    if (line.startsWith("##") && safeSelector(line.slice(2))) {
       selectors.push(line.slice(2))
       continue
     }

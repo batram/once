@@ -27,6 +27,11 @@ export interface JsonStore {
   read(name: string): Promise<unknown>
   /** Replaces the document so that a reader sees the old or the new one, never a torn one. */
   write(name: string, value: unknown): Promise<void>
+  /**
+   * Optional: sets and removes top-level keys of an object document already
+   * on disk, so a large document is not written whole for one changed key.
+   */
+  patch?(name: string, set: Record<string, unknown>, remove: string[]): Promise<void>
 }
 
 /** A cookie as `browser.cookies` describes one. */

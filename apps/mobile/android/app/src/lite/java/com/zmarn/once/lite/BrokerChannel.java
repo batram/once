@@ -22,6 +22,19 @@ import org.json.JSONObject;
  */
 public final class BrokerChannel {
     static final String TAG = "OnceLite";
+    /** Set by the engine: whether the build is debuggable, so logs may name full URLs. */
+    static volatile boolean verboseLogs;
+    private static final java.util.regex.Pattern URL_REST = java.util.regex.Pattern.compile("(\\b[a-z][a-z0-9+.-]*://[^/\\s\"'?#]+)[^\\s\"')]*");
+
+    /**
+     * Text bound for logcat, which a USB debugger or a bug report can read: a
+     * release build keeps URLs to their origin, so what the user reads and the
+     * requests pages make stay out of the log.
+     */
+    public static String forLog(String text) {
+        if (text == null || verboseLogs) return text;
+        return URL_REST.matcher(text).replaceAll("$1/…");
+    }
 
     /** Answers a request from the broker, now or later; exactly once. */
     public interface Reply {
@@ -60,6 +73,7 @@ public final class BrokerChannel {
     /** The broker page went away: nothing awaits an answer any more. */
     void disconnect(String reason) {
         proxy = null;
+        generation++;
         queued.clear();
         for (CompletableFuture<JSONObject> future : new ArrayList<>(pending.values())) {
             future.completeExceptionally(new IllegalStateException(reason));
@@ -114,11 +128,46 @@ public final class BrokerChannel {
     /** Messages beyond this many characters are logged by their head: the broker should not send them. */
     private static final int LARGE_MESSAGE_CHARS = 4 * 1024 * 1024;
 
-    /** A message from the broker page; on the main thread. */
+    /** Messages beyond this many characters are parsed off the main thread. */
+    private static final int PARSE_OFF_MAIN_CHARS = 64 * 1024;
+    private final java.util.concurrent.ExecutorService parser = java.util.concurrent.Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "once-lite-channel");
+        thread.setDaemon(true);
+        return thread;
+    });
+    /** Messages handed to the parser and not handled yet; while any are, later ones queue behind them. */
+    private int parsing;
+    /** Changes when the page goes away, so messages of the old page parsed late are dropped. */
+    private int generation;
+
+    /**
+     * A message from the broker page; on the main thread. A large one (a
+     * fulfilled document body, a store value) is parsed on the parser
+     * thread, and messages after it wait their turn, so order holds.
+     */
     void receive(String text) {
+        if (text.length() < PARSE_OFF_MAIN_CHARS && parsing == 0) {
+            handle(parse(text));
+            return;
+        }
+        parsing++;
+        int page = generation;
+        parser.execute(() -> {
+            JSONObject envelope = parse(text);
+            main.post(() -> {
+                parsing--;
+                if (page == generation) handle(envelope);
+            });
+        });
+    }
+
+    private static JSONObject parse(String text) {
         if (text.length() > LARGE_MESSAGE_CHARS) Log.w(TAG, "Large broker message (" + text.length() / (1024 * 1024) + " MB): " + text.substring(0, Math.min(160, text.length())));
-        JSONObject envelope;
-        try { envelope = new JSONObject(text); } catch (JSONException error) { Log.w(TAG, "Unparseable broker message"); return; }
+        try { return new JSONObject(text); } catch (JSONException error) { Log.w(TAG, "Unparseable broker message"); return null; }
+    }
+
+    private void handle(JSONObject envelope) {
+        if (envelope == null) return;
         String type = envelope.optString("type");
         if ("response".equals(type)) settle(envelope);
         else if ("request".equals(type)) answer(envelope);

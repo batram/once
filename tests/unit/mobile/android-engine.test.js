@@ -99,7 +99,10 @@ test("the Lite runtime's Java half follows the broker protocol", () => {
   assert.match(engine, /UBLOCK_ID = "uBlock0@raymondhill\.net"/)
   assert.match(engine, /VIOLENTMONKEY_ID = "\{aecec67f-0d10-4fa7-b7c7-609a2db280cf\}"/)
   assert.match(engine, /\{ UBLOCK_ID, "asset:extensions\/ublock-origin" \}, \{ VIOLENTMONKEY_ID, "asset:extensions\/violentmonkey" \}/)
-  assert.match(engine, /\.put\("devtools", devtools\.available\(\)\)/)
+  // The tier is decided at the first start and kept for the process.
+  assert.match(engine, /if \(decidedTier2 == null\) decidedTier2 = !devtools\.available\(\)/)
+  assert.match(engine, /\.put\("devtools", useDevtools\)/)
+  assert.match(engine, /\.put\("channel", channelToken\)/)
   assert.match(engine, /DEVTOOLS_UNAVAILABLE = "Extensions limited: DevTools unavailable"/)
   for (const method of ["ui.confirm", "ui.pickFile", "page.open", "page.close", "page.post", "page.resize", "tab.create", "tab.update", "tab.remove", "tab.reload"]) {
     assert.match(engine, new RegExp(`onRequest\\("${method.replace(".", "\\.")}"`), method)

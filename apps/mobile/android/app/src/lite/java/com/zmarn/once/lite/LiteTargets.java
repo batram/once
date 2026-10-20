@@ -119,7 +119,12 @@ public final class LiteTargets implements DevToolsClient.Listener {
     private final LiteCookies cookies;
     /** The bridge world and main helper sources, wrapped with the token; null until the bundles are read. */
     private final Supplier<String[]> bridgeSources;
-    private final ExecutorService worker = Executors.newSingleThreadExecutor(runnable -> {
+    /**
+     * Blocking DevTools calls, one task per target: a slow target (a renderer
+     * busy with a heavy page) must not hold another tab's binding past its
+     * load timeout. Each attachment's own work is serialised by its monitor.
+     */
+    private final ExecutorService worker = Executors.newCachedThreadPool(runnable -> {
         Thread thread = new Thread(runnable, "once-lite-targets");
         thread.setDaemon(true);
         return thread;
@@ -132,23 +137,49 @@ public final class LiteTargets implements DevToolsClient.Listener {
     private volatile JSONArray registrations = new JSONArray();
     /**
      * Answers served from memory to content worlds' synchronous requests
-     * (`sync.set`): `https://<host>.moz-extension.localhost<path>` → JSON
-     * text. Every WebView shares one renderer main thread, so a request that
-     * blocks a tab can never be answered by the broker; it prepares these
-     * before the document continues.
+     * (`sync.set`). Every WebView shares one renderer main thread, so a
+     * request that blocks a tab can never be answered by the broker; it
+     * prepares these before the document continues.
      */
-    private final Map<String, String> syncAnswers = new ConcurrentHashMap<>();
+    private final SyncAnswers syncAnswers = new SyncAnswers();
     private volatile JSONArray pageRegistrations = new JSONArray();
+    /** Continues paused requests while the shared renderer cannot (a page's synchronous XHR, a JS dialog). */
+    private final FetchWatchdog watchdog;
 
     LiteTargets(Supplier<DevToolsClient> devtools, BrokerChannel channel, LiteCookies cookies, Supplier<String[]> bridgeSources) {
         this.devtools = devtools;
         this.channel = channel;
         this.cookies = cookies;
         this.bridgeSources = bridgeSources;
+        watchdog = new FetchWatchdog(new FetchWatchdog.Host() {
+            @Override public long now() { return android.os.SystemClock.elapsedRealtime(); }
+            @Override public void schedule(Runnable task, long delayMs) { main.postDelayed(task, delayMs); }
+            @Override public void ping(long timeoutMs, java.util.function.Consumer<Boolean> answered) {
+                java.util.concurrent.atomic.AtomicBoolean done = new java.util.concurrent.atomic.AtomicBoolean();
+                Runnable late = () -> { if (done.compareAndSet(false, true)) answered.accept(false); };
+                main.postDelayed(late, timeoutMs);
+                channel.request("broker.ping", null).whenComplete((result, error) -> main.post(() -> {
+                    main.removeCallbacks(late);
+                    if (done.compareAndSet(false, true)) answered.accept(error == null);
+                }));
+            }
+            @Override public void release(String targetId, String requestId) {
+                Attachment attachment = byTarget.get(targetId);
+                Log.w(TAG, "The broker did not answer a paused request in time (its renderer is blocked); continuing it");
+                try { if (attachment != null) attachment.send("Fetch.continueRequest", new JSONObject().put("requestId", requestId)); }
+                catch (Exception ignored) { /* a constant document */ }
+            }
+        });
         channel.onRequest("cdp.command", (params, reply) -> {
             Attachment attachment = byTarget.get(params.optString("targetId"));
             if (attachment == null || attachment.target == null) { reply.reject("Unknown target " + params.optString("targetId")); return; }
             JSONObject command = params.optJSONObject("params");
+            String method = params.getString("method");
+            if (method.startsWith("Fetch.") && command != null && command.has("requestId")
+                && !watchdog.answered(params.optString("targetId"), command.optString("requestId"), !"Fetch.getResponseBody".equals(method))) {
+                reply.reject("The request was released while the broker was blocked", "RELEASED");
+                return;
+            }
             if (Log.isLoggable("OnceLiteFetch", Log.DEBUG) && params.getString("method").startsWith("Fetch.") && command != null) {
                 String text = command.toString();
                 Log.d("OnceLiteFetch", params.getString("method") + " " + text.substring(0, Math.min(200, text.length())));
@@ -162,9 +193,8 @@ public final class LiteTargets implements DevToolsClient.Listener {
             });
         });
         channel.onRequest("sync.set", (params, reply) -> {
-            String key = "https://" + params.optString("host") + LitePage.PAGE_HOST_SUFFIX + params.optString("path");
-            if (params.isNull("body")) syncAnswers.remove(key); else syncAnswers.put(key, params.optString("body"));
-            if (syncAnswers.size() > 256) syncAnswers.clear();
+            String url = "https://" + params.optString("host") + LitePage.PAGE_HOST_SUFFIX + params.optString("path");
+            syncAnswers.set(url, params.isNull("body") ? null : params.optString("body"));
             reply.resolve(null);
         });
         channel.onRequest("worlds.set", (params, reply) -> {
@@ -172,15 +202,30 @@ public final class LiteTargets implements DevToolsClient.Listener {
             registrations = next == null ? new JSONArray() : next;
             JSONArray pages = params.optJSONArray("pages");
             pageRegistrations = pages == null ? new JSONArray() : pages;
-            worker.execute(() -> {
-                for (Attachment attachment : byTarget.values()) if ("tab".equals(attachment.kind)) applyWorlds(attachment, false);
-                reply.resolve(null);
-            });
+            List<java.util.concurrent.CompletableFuture<Void>> applied = new ArrayList<>();
+            for (Attachment attachment : byTarget.values()) {
+                if ("tab".equals(attachment.kind)) applied.add(java.util.concurrent.CompletableFuture.runAsync(() -> applyWorlds(attachment, false), worker));
+            }
+            java.util.concurrent.CompletableFuture.allOf(applied.toArray(new java.util.concurrent.CompletableFuture[0]))
+                .whenComplete((ignored, error) -> reply.resolve(null));
             main.post(() -> { for (Attachment attachment : byMarker.values()) if ("tab".equals(attachment.kind)) applyPageScripts(attachment); });
         });
     }
 
-    boolean available() { DevToolsClient client = devtools.get(); return client != null && client.available(); }
+    /** Set in Tier 2: targets are left alone, so nothing pauses requests Java enforces itself. */
+    private volatile boolean passive;
+
+    boolean available() { DevToolsClient client = devtools.get(); return !passive && client != null && client.available(); }
+
+    void setPassive(boolean passive) {
+        this.passive = passive;
+        if (!passive) return;
+        for (Attachment attachment : new ArrayList<>(byTarget.values())) {
+            if (attachment.target == null || "broker".equals(attachment.kind)) continue;
+            attachment.send("Fetch.disable", null);
+            detached(attachment.target.targetId);
+        }
+    }
 
     public static boolean isMarkerUrl(String url) { return url != null && url.startsWith(MARKER_PREFIX); }
 
@@ -208,10 +253,13 @@ public final class LiteTargets implements DevToolsClient.Listener {
 
     /** Takes the world and bridge scripts off a target this engine installed them on, so a later engine starts clean. */
     private void removeInstalled(Attachment attachment, DevToolsClient.Target target) {
-        List<String> identifiers = new ArrayList<>(attachment.bridgeScripts);
-        for (String[] world : attachment.worlds.values()) identifiers.add(world[0]);
-        attachment.bridgeScripts.clear();
-        attachment.worlds.clear();
+        List<String> identifiers;
+        synchronized (attachment) {
+            identifiers = new ArrayList<>(attachment.bridgeScripts);
+            for (String[] world : attachment.worlds.values()) identifiers.add(world[0]);
+            attachment.bridgeScripts.clear();
+            attachment.worlds.clear();
+        }
         if (identifiers.isEmpty()) return;
         worker.execute(() -> {
             for (String identifier : identifiers) {
@@ -226,10 +274,20 @@ public final class LiteTargets implements DevToolsClient.Listener {
         if (client != null) client.addListener(this);
     }
 
-    /** The connection dropped: every attachment starts over when its target is attached again. */
-    void onDevToolsLost() {
-        for (Attachment attachment : new ArrayList<>(byTarget.values())) detached(attachment.target == null ? "" : attachment.target.targetId);
+    /**
+     * The connection dropped: every attachment starts over when its target is
+     * attached again (auto-attach brings them back with new sessions), its
+     * worlds and bridge re-installed in the live document, where they greet
+     * the broker again rather than boot twice.
+     */
+    @Override
+    public void onDisconnected() {
+        for (Attachment attachment : new ArrayList<>(byTarget.values())) {
+            DevToolsClient.Target target = attachment.target;
+            if (target != null) detached(target.targetId);
+        }
         byTarget.clear();
+        probing.clear();
     }
 
     @Override
@@ -272,7 +330,14 @@ public final class LiteTargets implements DevToolsClient.Listener {
             else if ("Runtime.executionContextsCleared".equals(method)) attachment.bridge.contextsCleared();
         }
         if (!FORWARDED.contains(method)) return;
-        if ("Fetch.requestPaused".equals(method) && answerSynchronously(attachment, params)) return;
+        // The broker reads requestWillBeSent for redirects only; the rest (with initiator stacks) stays here.
+        if ("Network.requestWillBeSent".equals(method) && !params.has("redirectResponse")) return;
+        if ("Fetch.requestPaused".equals(method)) {
+            if (answerSynchronously(attachment, params)) return;
+            // An extension's own URL only the broker can serve (from its package): continuing it would send it to the network.
+            JSONObject paused = params.optJSONObject("request");
+            if (paused == null || !LitePage.isExtensionUrl(paused.optString("url"))) watchdog.paused(attachment.target.targetId, params.optString("requestId"));
+        }
         if ("Fetch.requestPaused".equals(method) && Log.isLoggable("OnceLiteFetch", Log.DEBUG)) {
             JSONObject request = params.optJSONObject("request");
             Log.d("OnceLiteFetch", "paused " + (request == null ? "" : request.optString("url")) + " " + params.optString("resourceType")
@@ -281,32 +346,42 @@ public final class LiteTargets implements DevToolsClient.Listener {
         forward(attachment, method, params);
     }
 
-    /** A world's synchronous request for a prepared answer, fulfilled here; true when it was one. */
+    /**
+     * A world's synchronous request for a prepared answer, fulfilled here;
+     * true when it was one. Only the document named in `u` may read it, so a
+     * request from another origin is refused without taking the answer.
+     */
     private boolean answerSynchronously(Attachment attachment, JSONObject params) {
         JSONObject request = params.optJSONObject("request");
         String url = request == null ? "" : request.optString("url");
-        int query = url.indexOf('?');
-        String key = query < 0 ? url : url.substring(0, query);
-        if (!key.contains(LitePage.PAGE_HOST_SUFFIX + "/_once/") || params.has("responseStatusCode") || params.has("responseErrorReason")) return false;
-        // An answer for this document (full URL, served once) before the host's.
-        String body = syncAnswers.remove(url);
-        if (body == null) body = syncAnswers.get(key);
-        if (body != null && key.contains("/_once/blob/")) syncAnswers.remove(key);
+        if (!SyncAnswers.isSyncRequest(url) || params.has("responseStatusCode") || params.has("responseErrorReason")) return false;
+        String origin = SyncAnswers.allowedOrigin(url, header(request.optJSONObject("headers"), "Origin"));
+        String body = origin == null ? null : syncAnswers.take(url);
         try {
             JSONObject command = new JSONObject().put("requestId", params.optString("requestId"));
+            JSONArray headers = new JSONArray().put(new JSONObject().put("name", "Cache-Control").put("value", "no-store"));
+            if (origin != null) headers.put(new JSONObject().put("name", "Access-Control-Allow-Origin").put("value", origin));
             if (body == null) {
-                command.put("responseCode", 404).put("responseHeaders", new JSONArray().put(new JSONObject().put("name", "Access-Control-Allow-Origin").put("value", "*")));
+                command.put("responseCode", 404).put("responseHeaders", headers);
             } else {
-                command.put("responseCode", 200).put("responseHeaders", new JSONArray()
-                    .put(new JSONObject().put("name", "Content-Type").put("value", "application/json; charset=utf-8"))
-                    .put(new JSONObject().put("name", "Cache-Control").put("value", "no-store"))
-                    .put(new JSONObject().put("name", "Access-Control-Allow-Origin").put("value", "*")))
+                headers.put(new JSONObject().put("name", "Content-Type").put("value", "application/json; charset=utf-8"));
+                command.put("responseCode", 200).put("responseHeaders", headers)
                     .put("body", android.util.Base64.encodeToString(body.getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP));
             }
             attachment.send("Fetch.fulfillRequest", command);
-            if (Log.isLoggable("OnceLiteFetch", Log.DEBUG)) Log.d("OnceLiteFetch", "answered " + key + (body == null ? " (none)" : " " + body.length() + " chars"));
-        } catch (Exception error) { Log.w(TAG, "Could not answer " + key, error); }
+            if (Log.isLoggable("OnceLiteFetch", Log.DEBUG)) Log.d("OnceLiteFetch", "answered a synchronous request" + (body == null ? " (none)" : " " + body.length() + " chars"));
+        } catch (Exception error) { Log.w(TAG, "Could not answer a synchronous request", error); }
         return true;
+    }
+
+    /** A request header by name, whatever its case. */
+    static String header(JSONObject headers, String name) {
+        if (headers == null) return null;
+        for (java.util.Iterator<String> keys = headers.keys(); keys.hasNext(); ) {
+            String key = keys.next();
+            if (key.equalsIgnoreCase(name)) return headers.optString(key);
+        }
+        return null;
     }
 
     private void forward(Attachment attachment, String method, JSONObject params) {
@@ -320,7 +395,7 @@ public final class LiteTargets implements DevToolsClient.Listener {
 
     /** A page target whose marker is known, by its URL fragment, else by asking the document. */
     private void consider(DevToolsClient.Target target) {
-        if (!"page".equals(target.type) || byTarget.containsKey(target.targetId)) return;
+        if (passive || !"page".equals(target.type) || byTarget.containsKey(target.targetId)) return;
         String url = target.url == null ? "" : target.url;
         int hash = url.indexOf('#');
         if (hash >= 0) {
@@ -343,10 +418,12 @@ public final class LiteTargets implements DevToolsClient.Listener {
         if (byTarget.putIfAbsent(target.targetId, attachment) != null) return;
         if (attachment.target != null && !attachment.target.targetId.equals(target.targetId)) detached(attachment.target.targetId);
         attachment.target = target;
-        attachment.worlds.clear();
-        attachment.bindings.clear();
+        synchronized (attachment) {
+            attachment.worlds.clear();
+            attachment.bindings.clear();
+        }
         queued.put(target.targetId, new ArrayList<>());
-        worker.execute(() -> {
+        worker.execute(() -> { synchronized (attachment) {
             JSONObject frameTree = null;
             boolean enabled = false;
             if (!"broker".equals(attachment.kind)) {
@@ -354,7 +431,9 @@ public final class LiteTargets implements DevToolsClient.Listener {
                     DevToolsClient client = devtools.get();
                     client.call(target.sessionId, "Page.enable", null, COMMAND_TIMEOUT_MS);
                     client.call(target.sessionId, "Runtime.enable", null, COMMAND_TIMEOUT_MS);
-                    client.call(target.sessionId, "Network.enable", null, COMMAND_TIMEOUT_MS);
+                    // Bodies are read through Fetch; Network keeps little of them in the renderer.
+                    client.call(target.sessionId, "Network.enable", new JSONObject().put("maxTotalBufferSize", 1024 * 1024)
+                        .put("maxResourceBufferSize", 256 * 1024), COMMAND_TIMEOUT_MS);
                     client.call(target.sessionId, "Fetch.enable", new JSONObject().put("handleAuthRequests", false).put("patterns", new JSONArray()
                         .put(new JSONObject().put("urlPattern", "*").put("requestStage", "Request"))
                         .put(new JSONObject().put("urlPattern", "*").put("requestStage", "Response"))), COMMAND_TIMEOUT_MS);
@@ -386,12 +465,13 @@ public final class LiteTargets implements DevToolsClient.Listener {
             Log.i(TAG, "target " + target.targetId + " bound to " + attachment.kind + (attachment.pageId == null ? "" : " " + attachment.pageId)
                 + (attachment.tabId >= 0 ? " tab " + attachment.tabId : "") + " worlds=" + attachment.worlds.size());
             attachment.becameReady();
-        });
+        } });
     }
 
     private void detached(String targetId) {
         Attachment attachment = byTarget.remove(targetId);
         queued.remove(targetId);
+        watchdog.forgetTarget(targetId);
         if (attachment == null) return;
         if (attachment.target != null && attachment.target.targetId.equals(targetId)) { attachment.target = null; attachment.ready = false; }
         if (attachment.bridge != null) attachment.bridge.contextsCleared();
@@ -420,6 +500,10 @@ public final class LiteTargets implements DevToolsClient.Listener {
      * world twice.
      */
     private void applyWorlds(Attachment attachment, boolean fresh) {
+        synchronized (attachment) { applyWorldsLocked(attachment, fresh); }
+    }
+
+    private void applyWorldsLocked(Attachment attachment, boolean fresh) {
         DevToolsClient.Target target = attachment.target;
         if (target == null) return;
         DevToolsClient client = devtools.get();

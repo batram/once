@@ -15,8 +15,11 @@ import java.util.function.Consumer;
  * 6 MB ruleset is never held as one object tree.
  */
 public final class MiniJson {
+    /** Nesting deeper than any rule has is refused, not recursed into until the stack runs out. */
+    static final int MAX_DEPTH = 64;
     private final String text;
     private int at;
+    private int depth;
 
     private MiniJson(String text) { this.text = text; }
 
@@ -76,8 +79,12 @@ public final class MiniJson {
     private Object value() {
         char c = peek();
         switch (c) {
-            case '{': return object();
-            case '[': return array();
+            case '{': case '[': {
+                if (++depth > MAX_DEPTH) throw error("nested too deeply");
+                Object nested = c == '{' ? object() : array();
+                depth--;
+                return nested;
+            }
             case '"': return string();
             case 't': literal("true"); return Boolean.TRUE;
             case 'f': literal("false"); return Boolean.FALSE;

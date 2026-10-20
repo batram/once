@@ -17,15 +17,21 @@ import java.util.regex.Pattern;
  * on every Tier 2 start (JSON compiling takes seconds on a phone, reading
  * this a fraction of that). Strings are written once in a table and shared
  * by index, which also lets the rules share the instances when read back.
+ * A CRC-32 trails the file and every count and index is checked on reading,
+ * so a damaged file is refused (and compiled again) rather than trusted.
  */
 final class DnrRuleCache {
     private static final int MAGIC = 0x4f6e6332; // "Onc2"
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
+    /** Bounds a damaged file cannot get past: it is refused, never allocated. */
+    private static final int MAX_COUNT = 4_000_000, MAX_LIST = 1_000_000, MAX_STRING = 64 * 1024 * 1024;
 
     private DnrRuleCache() {}
 
     static void write(DnrEvaluator.Compiled compiled, OutputStream target) throws IOException {
-        DataOutputStream out = new DataOutputStream(new java.io.BufferedOutputStream(target, 1 << 16));
+        java.util.zip.CRC32 crc = new java.util.zip.CRC32();
+        DataOutputStream raw = new DataOutputStream(new java.io.BufferedOutputStream(target, 1 << 16));
+        DataOutputStream out = new DataOutputStream(new java.util.zip.CheckedOutputStream(raw, crc));
         Map<String, Integer> table = new HashMap<>();
         List<String> strings = new ArrayList<>();
         for (DnrEvaluator.Rule rule : compiled.rules) for (String value : strings(rule)) {
@@ -61,26 +67,32 @@ final class DnrRuleCache {
             writeString(out, table, rule.transform == null ? null : json(rule.transform));
         }
         out.flush();
+        raw.writeLong(crc.getValue());
+        raw.flush();
     }
 
     @SuppressWarnings("unchecked")
     static DnrEvaluator.Compiled read(InputStream source) throws IOException {
-        DataInputStream in = new DataInputStream(new java.io.BufferedInputStream(source, 1 << 16));
+        java.util.zip.CRC32 crc = new java.util.zip.CRC32();
+        DataInputStream raw = new DataInputStream(new java.io.BufferedInputStream(source, 1 << 16));
+        DataInputStream in = new DataInputStream(new java.util.zip.CheckedInputStream(raw, crc));
         if (in.readInt() != MAGIC || in.readInt() != VERSION) throw new IOException("Not a compiled rules file of this version");
         DnrEvaluator.Compiled compiled = new DnrEvaluator.Compiled();
         compiled.skipped = in.readInt();
-        String[] strings = new String[in.readInt()];
+        String[] strings = new String[count(in.readInt(), MAX_COUNT)];
         for (int index = 0; index < strings.length; index++) strings[index] = readLong(in);
-        int count = in.readInt();
+        int count = count(in.readInt(), MAX_COUNT);
         for (int index = 0; index < count; index++) {
             DnrEvaluator.Rule rule = new DnrEvaluator.Rule();
             rule.id = in.readInt();
             rule.priority = in.readInt();
             rule.action = in.readByte();
+            if (rule.action < 0 || rule.action > 4) throw new IOException("Damaged rule action");
             rule.types = in.readInt();
             rule.methods = in.readInt();
             rule.anyMethod = in.readBoolean();
             rule.domainType = in.readByte();
+            if (rule.domainType < 0 || rule.domainType > 2) throw new IOException("Damaged rule domain type");
             rule.requestDomains = readStrings(in, strings);
             rule.excludedRequestDomains = readStrings(in, strings);
             rule.initiatorDomains = readStrings(in, strings);
@@ -89,18 +101,35 @@ final class DnrRuleCache {
             rule.excludedTabIds = readInts(in);
             String filter = readString(in, strings);
             boolean caseSensitive = in.readBoolean();
-            if (filter != null) rule.filter = new DnrEvaluator.UrlFilter(filter, caseSensitive);
+            if (filter != null) rule.filter = new DnrUrlFilter(filter, caseSensitive);
             String regex = readString(in, strings);
             int flags = in.readInt();
-            if (regex != null) rule.regex = Pattern.compile(regex, flags);
+            if (regex != null) {
+                try { rule.regex = Pattern.compile(regex, flags & Pattern.CASE_INSENSITIVE); }
+                catch (RuntimeException error) { throw new IOException("Damaged rule regex", error); }
+            }
             rule.redirectUrl = readString(in, strings);
             rule.extensionPath = readString(in, strings);
             rule.regexSubstitution = readString(in, strings);
             String transform = readString(in, strings);
-            if (transform != null) rule.transform = (Map<String, Object>) MiniJson.parse(transform);
+            if (transform != null) {
+                try { rule.transform = (Map<String, Object>) MiniJson.parse(transform); }
+                catch (RuntimeException error) { throw new IOException("Damaged rule transform", error); }
+            }
+            if (rule.action == 4 && rule.redirectUrl == null && rule.extensionPath == null && rule.regexSubstitution == null && rule.transform == null) {
+                throw new IOException("Damaged redirect rule");
+            }
+            if (rule.regexSubstitution != null && rule.regex == null) throw new IOException("Damaged regex substitution");
             compiled.rules.add(rule);
         }
+        long expected = crc.getValue();
+        if (raw.readLong() != expected) throw new IOException("The compiled rules file is damaged");
         return compiled;
+    }
+
+    private static int count(int value, int limit) throws IOException {
+        if (value < 0 || value > limit) throw new IOException("Damaged count " + value);
+        return value;
     }
 
     private static List<String> strings(DnrEvaluator.Rule rule) {
@@ -125,7 +154,7 @@ final class DnrRuleCache {
     }
 
     private static String readLong(DataInputStream in) throws IOException {
-        byte[] bytes = new byte[in.readInt()];
+        byte[] bytes = new byte[count(in.readInt(), MAX_STRING)];
         in.readFully(bytes);
         return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
     }
@@ -136,6 +165,7 @@ final class DnrRuleCache {
 
     private static String readString(DataInputStream in, String[] strings) throws IOException {
         int index = in.readInt();
+        if (index < -1 || index >= strings.length) throw new IOException("Damaged string index");
         return index < 0 ? null : strings[index];
     }
 
@@ -148,8 +178,12 @@ final class DnrRuleCache {
     private static String[] readStrings(DataInputStream in, String[] strings) throws IOException {
         int length = in.readInt();
         if (length < 0) return null;
-        String[] values = new String[length];
-        for (int index = 0; index < length; index++) values[index] = strings[in.readInt()];
+        String[] values = new String[count(length, MAX_LIST)];
+        for (int index = 0; index < length; index++) {
+            int at = in.readInt();
+            if (at < 0 || at >= strings.length) throw new IOException("Damaged string index");
+            values[index] = strings[at];
+        }
         return values;
     }
 
@@ -162,7 +196,7 @@ final class DnrRuleCache {
     private static int[] readInts(DataInputStream in) throws IOException {
         int length = in.readInt();
         if (length < 0) return null;
-        int[] values = new int[length];
+        int[] values = new int[count(length, MAX_LIST)];
         for (int index = 0; index < length; index++) values[index] = in.readInt();
         return values;
     }

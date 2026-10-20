@@ -4,7 +4,10 @@
 // message names (PageScriptCalls, ReadingPip, BackgroundMedia,
 // ImageTextOverlays reuse their handlers). Java wraps the bundle as
 // `(function (ONCE_LITE_TOKEN) { ... })(token)` so the main-world helper
-// and this world share the event channel's token.
+// and this world share the event channel's token. That token is no secret
+// (the helper's events run through the page's own prototypes), so nothing
+// from the main world is relayed to Java but a PiP request, and entering
+// PiP still needs the user activation this world sees as the page does.
 //
 // `{id, code}` evaluations run in this world (the page's DOM, not its
 // scripts) and answer `{id, value}` with `value` JSON-encoded as the WebView
@@ -105,18 +108,48 @@ function encode(value: unknown): string {
   }
 }
 
+/** Where an installed bridge keeps its state, so a second install (a new DevTools session) only reconnects. */
+const INSTALLED_KEY = "__onceLiteBridgeInstalled"
+
+/** What a PiP request from the main world may carry to Java; anything else is dropped. */
+export function pipRequestFromMain(detail: unknown, state: { activated: boolean; inPictureInPicture: boolean }): Record<string, unknown> | null {
+  let message: Record<string, unknown>
+  try { message = JSON.parse(String(detail)) } catch { return null }
+  if (!message || typeof message !== "object" || message.type !== "pip-request" || typeof message.id !== "number") return null
+  if (message.action === "exit") return { type: "pip-request", id: message.id, action: "exit" }
+  if (message.action !== "enter" || !(state.activated || state.inPictureInPicture)) return null
+  const number = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) ? value : 0)
+  const rect = (message.rect ?? {}) as Record<string, unknown>
+  return {
+    type: "pip-request", id: message.id, action: "enter", width: number(message.width), height: number(message.height),
+    rect: { x: number(rect.x), y: number(rect.y), width: number(rect.width), height: number(rect.height),
+      viewportWidth: number(rect.viewportWidth), viewportHeight: number(rect.viewportHeight) }
+  }
+}
+
 export function installBridgeWorld(scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>): void {
   if (window !== window.top) return
-  const binding = scope[BRIDGE_BINDING] as ((payload: string) => void) | undefined
-  if (typeof binding !== "function") return
+  const found = scope[BRIDGE_BINDING] as ((payload: string) => void) | undefined
+  const installed = scope[INSTALLED_KEY] as { rebind(binding: (payload: string) => void): void } | undefined
+  if (installed) {
+    if (typeof found === "function") installed.rebind(found)
+    return
+  }
+  if (typeof found !== "function") return
+  let binding = found
   const post = (message: unknown): void => binding(JSON.stringify(message))
   let restored = false
   let media = installMediaBridge(post)
-  // The PiP polyfill lives in the main world; its requests and the app's
-  // answers pass through here unchanged.
+  let inPictureInPicture = false
+  Object.defineProperty(scope, INSTALLED_KEY, {
+    value: { rebind: (next: (payload: string) => void) => { binding = next; post({ type: "health", id: 0, url: location.href, readyState: document.readyState, restored, context: null }) } },
+    configurable: true, enumerable: false, writable: false
+  })
+  // The PiP polyfill lives in the main world; only its requests come back.
   document.addEventListener(FROM_MAIN, (event) => {
-    const detail = (event as CustomEvent<string>).detail
-    try { post(JSON.parse(detail)) } catch { /* not ours */ }
+    const activation = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation
+    const request = pipRequestFromMain((event as CustomEvent<string>).detail, { activated: activation?.isActive === true, inPictureInPicture })
+    if (request) post(request)
   })
   ;(scope as Record<string, unknown>).__onceImageTextPush = (payload: unknown) => post({ type: "image-text", payload: String(payload) })
   let lastTap: { image: Element; at: number; x: number; y: number } | null = null
@@ -144,6 +177,7 @@ export function installBridgeWorld(scope: Record<string, unknown> = globalThis a
       return
     }
     if (typeof message.type === "string" && message.type.startsWith("pip-")) {
+      if (message.type === "pip-state") inPictureInPicture = message.enabled === true
       document.dispatchEvent(new CustomEvent(TO_MAIN, { detail: json }))
       return
     }

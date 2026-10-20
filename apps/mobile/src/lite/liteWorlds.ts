@@ -45,7 +45,7 @@ function entries(host: LiteExtensionHost, scripts: Iterable<ContentScript>): Wor
   return out
 }
 
-export function worldConfig(host: LiteExtensionHost, locale: string, token: string): WorldConfig {
+export function worldConfig(host: LiteExtensionHost, locale: string, token: string, channel = ""): WorldConfig {
   const extension: LoadedExtension = host.extension
   const scripts = entries(host, manifestContentScripts(extension.manifest.contentScripts))
   return {
@@ -58,6 +58,7 @@ export function worldConfig(host: LiteExtensionHost, locale: string, token: stri
       uiLanguage: locale
     },
     token,
+    channel,
     scripts
   }
 }
@@ -70,11 +71,11 @@ export function worldSource(bundle: string, config: WorldConfig): string {
   return `${bundle}\n;${WORLD_BOOT}(${json});`
 }
 
-export function worldRegistration(bundle: string, host: LiteExtensionHost, locale: string, token: string): WorldRegistration {
+export function worldRegistration(bundle: string, host: LiteExtensionHost, locale: string, token: string, channel = ""): WorldRegistration {
   return {
     id: worldNameFor(host.extension.host),
     worldName: worldNameFor(host.extension.host),
-    source: worldSource(bundle, worldConfig(host, locale, token)),
+    source: worldSource(bundle, worldConfig(host, locale, token, channel)),
     binding: WORLD_BINDING
   }
 }
@@ -98,7 +99,8 @@ export class LiteWorlds {
     private readonly locale: () => string,
     private readonly token: () => string,
     /** The page bootstrap source for one of a host's pages shown inside a tab. */
-    private readonly pageSource: (host: LiteExtensionHost) => string = () => ""
+    private readonly pageSource: (host: LiteExtensionHost) => string = () => "",
+    private readonly channelToken: () => string = () => ""
   ) {}
 
   registrations(): WorldRegistration[] {
@@ -132,7 +134,7 @@ export class LiteWorlds {
     for (const host of hosts) {
       let registration = this.statics.get(host)
       if (!registration) {
-        registration = worldRegistration(bundle, host, this.locale(), this.token())
+        registration = worldRegistration(bundle, host, this.locale(), this.token(), this.channelToken())
         this.statics.set(host, registration)
       }
       map.set(host, registration)

@@ -251,6 +251,136 @@ public class LiteExtensionEngineTest {
 
     }
 
+    /**
+     * A page's synchronous XMLHttpRequest blocks the renderer main thread
+     * every WebView shares, the broker's too, so the broker cannot answer the
+     * paused request it waits for: Java continues it (FetchWatchdog) and the
+     * runtime goes on.
+     */
+    @Test
+    public void aSynchronousRequestInATabDoesNotFreezeTheRuntime() throws Exception {
+        assertTrue("DevTools must be available on the emulator", engine.devtoolsAvailable());
+        AtomicReference<LiteTargets.Attachment> attachment = new AtomicReference<>();
+        int tabId = engine.nextTabId();
+        ui(() -> {
+            tab = new WebView(activity);
+            tab.getSettings().setJavaScriptEnabled(true);
+            activity.addContentView(tab, new ViewGroup.LayoutParams(600, 600));
+            attachment.set(engine.targets().register(tab, "once-tab-" + java.util.UUID.randomUUID(), "tab", tabId, null, null, true));
+        });
+        String pageUrl = fixture.url("/sync.html");
+        reportTab(tabId, pageUrl, attachment.get());
+        CountDownLatch loading = new CountDownLatch(1);
+        attachment.get().whenReady(10000, () -> { tab.loadUrl(pageUrl); loading.countDown(); });
+        assertTrue(loading.await(15, TimeUnit.SECONDS));
+        long started = System.nanoTime();
+        untilEvaluates("document.title", "\"sync:ok\"", 40);
+        results.put("syncRequestMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+        // The broker answers again once the renderer is free.
+        JSONArray extensions = await(engine.command(new JSONObject().put("action", "list"))).getJSONArray("extensions");
+        assertEquals(2, extensions.length());
+        ui(() -> engine.targets().unregister(attachment.get()));
+    }
+
+    /**
+     * A dropped DevTools connection: the tab's target is bound again on the
+     * new connection, Once's bridge world answers again and the extensions'
+     * worlds in the live document are known to the broker again.
+     */
+    @Test
+    public void aDroppedDevToolsConnectionRebindsTheTabs() throws Exception {
+        assertTrue("DevTools must be available on the emulator", engine.devtoolsAvailable());
+        LiteBridge bridge = new LiteBridge(new android.os.Handler(android.os.Looper.getMainLooper()), new LiteBridge.Listener() {
+            @Override public void documentChanged(Object token) {}
+            @Override public void documentGone(Object token) {}
+            @Override public void message(JSONObject message, Object token) {}
+        });
+        AtomicReference<LiteTargets.Attachment> attachment = new AtomicReference<>();
+        int tabId = engine.nextTabId();
+        ui(() -> {
+            // A reading tab's view, with the marker script its target is found by again after the drop.
+            LiteWebView view = new LiteWebView(activity);
+            LiteNavigation.configure(view, false);
+            tab = view;
+            activity.addContentView(tab, new ViewGroup.LayoutParams(600, 600));
+            attachment.set(engine.targets().register(tab, ((LiteWebView) tab).marker, "tab", tabId, null, bridge, true));
+            bridge.attach(attachment.get());
+        });
+        String pageUrl = fixture.url("/page.html");
+        reportTab(tabId, pageUrl, attachment.get());
+        CountDownLatch loading = new CountDownLatch(1);
+        attachment.get().whenReady(10000, () -> { tab.loadUrl(pageUrl); loading.countDown(); });
+        assertTrue(loading.await(15, TimeUnit.SECONDS));
+        untilEvaluates("document.title", "\"filter probe\"", 20);
+        until("the bridge must connect", bridge::isConnected, 15);
+        untilOffMain("the extension worlds must greet the broker", () -> worldCount(attachment.get().targetId()) > 0, 20);
+        String before = attachment.get().targetId();
+
+        com.zmarn.once.devtools.DevToolsClient.current().dropConnection();
+        until("the connection must drop", () -> !attachment.get().isReady(), 10);
+        until("the tab must be bound again", () -> attachment.get().isReady(), 30);
+        assertEquals("the same page target", before, attachment.get().targetId());
+        untilOffMain("the extension worlds must greet the broker again", () -> worldCount(attachment.get().targetId()) > 0, 20);
+        CompletableFuture<String> answered = new CompletableFuture<>();
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
+        while (!answered.isDone() && System.nanoTime() < end) {
+            CompletableFuture<String> attempt = new CompletableFuture<>();
+            ui(() -> bridge.evaluate("document.title", new LiteBridge.Reply() {
+                @Override public void resolve(String value) { attempt.complete(value); }
+                @Override public void reject(String message) { attempt.complete(null); }
+            }));
+            String value = attempt.get(15, TimeUnit.SECONDS);
+            if (value != null) answered.complete(value); else Thread.sleep(500);
+        }
+        assertEquals("\"filter probe\"", answered.getNow(null));
+        ui(() -> engine.targets().unregister(attachment.get()));
+    }
+
+    /** uBlock Origin's host on this install (random per install, see liteHostNames.ts), through the broker. */
+    private String ublockHost() {
+        try {
+            com.zmarn.once.devtools.DevToolsClient client = com.zmarn.once.devtools.DevToolsClient.current();
+            for (com.zmarn.once.devtools.DevToolsClient.Target target : client.targets()) {
+                if (target.url == null || !(target.url.contains("/lite-runtime.html") || target.url.contains("#once-broker-"))) continue;
+                JSONObject result = client.call(target.sessionId, "Runtime.evaluate", new JSONObject().put("returnByValue", true).put("expression",
+                    "(window.onceLiteBroker.hostsLoaded().find(h => h.extension.id === " + JSONObject.quote(UBLOCK_ID) + ") || {extension: {host: 'none'}}).extension.host"), 5000);
+                return result.getJSONObject("result").optString("value", "none");
+            }
+        } catch (Exception ignored) { /* diagnostics only */ }
+        return "none";
+    }
+
+    /** `until` for conditions that make DevTools calls, which must not block the main thread WebView's DevTools needs. */
+    private void untilOffMain(String message, BooleanSupplier condition, int seconds) throws Exception {
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
+        do { if (condition.getAsBoolean()) return; Thread.sleep(200); } while (System.nanoTime() < end);
+        fail(message);
+    }
+
+    /** How many extension world contexts the broker knows in the target. */
+    private int worldCount(String targetId) {
+        try {
+            com.zmarn.once.devtools.DevToolsClient client = com.zmarn.once.devtools.DevToolsClient.current();
+            String brokerSession = null;
+            for (com.zmarn.once.devtools.DevToolsClient.Target target : client.targets()) {
+                if (target.url != null && (target.url.contains("/lite-runtime.html") || target.url.contains("#once-broker-"))) brokerSession = target.sessionId;
+            }
+            if (brokerSession == null || targetId == null) {
+                StringBuilder seen = new StringBuilder();
+                for (com.zmarn.once.devtools.DevToolsClient.Target target : client.targets()) seen.append(target.type).append(' ').append(target.url).append("; ");
+                Log.i(TAG, "no broker session (target " + targetId + "): " + seen);
+                return 0;
+            }
+            JSONObject known = client.call(brokerSession, "Runtime.evaluate", new JSONObject().put("returnByValue", true)
+                .put("expression", "JSON.stringify(window.onceLiteBroker.worldContexts(" + JSONObject.quote(targetId) + "))"), 5000);
+            JSONArray worlds = new JSONArray(known.getJSONObject("result").optString("value", "[]"));
+            int count = 0;
+            for (int index = 0; index < worlds.length(); index++) if (worlds.getJSONObject(index).optString("name").startsWith("once-ext:")) count++;
+            if (count == 0) Log.i(TAG, "worlds of " + targetId + ": " + worlds);
+            return count;
+        } catch (Exception error) { Log.i(TAG, "worlds unknown: " + error); return 0; }
+    }
+
     /** What the extension worlds of the tab hold (diagnostics only): the live contexts, asked by name. */
     private String worldState(String targetId) {
         try {
@@ -262,7 +392,7 @@ public class LiteExtensionEngineTest {
             // (Runtime.disable + enable) would drop the bindings the worlds talk through.
             String brokerSession = null;
             for (com.zmarn.once.devtools.DevToolsClient.Target target : client.targets()) {
-                if (target.url != null && target.url.startsWith("https://localhost/lite-runtime")) brokerSession = target.sessionId;
+                if (target.url != null && (target.url.contains("/lite-runtime.html") || target.url.contains("#once-broker-"))) brokerSession = target.sessionId;
             }
             if (brokerSession == null) return "no broker session";
             JSONObject known = client.call(brokerSession, "Runtime.evaluate", new JSONObject().put("returnByValue", true)
@@ -275,7 +405,7 @@ public class LiteExtensionEngineTest {
             }
             JSONObject report = new JSONObject().put("contexts", new JSONObject(contexts));
             for (java.util.Map.Entry<String, Integer> context : contexts.entrySet()) {
-                if (!context.getKey().startsWith("once-ext:fef00e74")) continue;
+                if (!context.getKey().startsWith("once-ext:" + ublockHost())) continue;
                 JSONObject result = client.call(session, "Runtime.evaluate", new JSONObject().put("contextId", context.getValue()).put("returnByValue", true).put("expression",
                     "JSON.stringify({vapi: typeof vAPI, filterer: typeof vAPI !== 'undefined' && !!vAPI.domFilterer, styles: [...document.querySelectorAll('style')].map(s => s.textContent.slice(0, 160)), "
                     + "sheets: vAPI.userStylesheet && vAPI.userStylesheet.added ? [...vAPI.userStylesheet.added].map(c => c.slice(0, 160)) : null, "
@@ -293,7 +423,7 @@ public class LiteExtensionEngineTest {
     private String filterRecord() {
         try {
             return new String(com.zmarn.once.lite.LiteFiles.readAll(new java.io.File(activity.getFilesDir(),
-                "lite-extensions/fef00e74558bf81db66cba7cdfbfccea/once-filter-lists.json")), StandardCharsets.UTF_8);
+                "lite-extensions/" + ublockHost() + "/once-filter-lists.json")), StandardCharsets.UTF_8);
         } catch (Exception error) { return "missing: " + error.getMessage(); }
     }
 
@@ -302,7 +432,7 @@ public class LiteExtensionEngineTest {
         try {
             com.zmarn.once.devtools.DevToolsClient client = com.zmarn.once.devtools.DevToolsClient.current();
             for (com.zmarn.once.devtools.DevToolsClient.Target target : client.targets()) {
-                if (target.url == null || !target.url.contains("fef00e74") || !target.url.contains("background")) continue;
+                if (target.url == null || !target.url.contains(ublockHost()) || !target.url.contains("background")) continue;
                 JSONObject result = client.call(target.sessionId, "Runtime.evaluate", new JSONObject().put("returnByValue", true).put("expression",
                     "JSON.stringify({ready: typeof µBlock !== 'undefined' && µBlock.readyToFilter, loading: µBlock.loadingFilterLists, "
                     + "selected: µBlock.selectedFilterLists, imported: µBlock.userSettings && µBlock.userSettings.importedLists, "
@@ -337,11 +467,15 @@ public class LiteExtensionEngineTest {
     private String evaluate(String code) throws Exception { return evaluateIn(tab, code); }
 
     private String evaluateIn(WebView view, String code) throws Exception {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<String> value = new AtomicReference<>();
-        ui(() -> view.evaluateJavascript(code, result -> { value.set(result); latch.countDown(); }));
-        assertTrue("evaluateJavascript answered", latch.await(10, TimeUnit.SECONDS));
-        return value.get();
+        // Longer than a page's synchronous request holds the shared renderer before Java releases
+        // it; sent again when WebView drops the callback of a document a navigation replaced.
+        for (int attempt = 0; attempt < 3; attempt++) {
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<String> value = new AtomicReference<>();
+            ui(() -> view.evaluateJavascript(code, result -> { value.set(result); latch.countDown(); }));
+            if (latch.await(15, TimeUnit.SECONDS)) return value.get();
+        }
+        throw new AssertionError("evaluateJavascript never answered " + code);
     }
 
     private void untilEvaluates(String code, String expected, int seconds) throws Exception {
@@ -399,6 +533,10 @@ public class LiteExtensionEngineTest {
                     body = ("<!doctype html><title>filter probe</title>"
                         + "<img id='i' src='/blocked.png' onload=\"this.dataset.r='load'\" onerror=\"this.dataset.r='error'\">"
                         + "<div class='once-hide'>hidden by the list</div><p>visible</p>").getBytes(StandardCharsets.UTF_8);
+                } else if (path.equals("/sync.html")) {
+                    body = ("<!doctype html><title>sync</title><script>var request = new XMLHttpRequest();"
+                        + "request.open('GET', '/ok', false); request.send(); document.title = 'sync:' + request.responseText;</script>")
+                        .getBytes(StandardCharsets.UTF_8);
                 } else if (path.startsWith("/list.txt")) {
                     listRequests.incrementAndGet();
                     type = "text/plain";

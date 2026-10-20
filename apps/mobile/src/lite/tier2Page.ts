@@ -16,9 +16,14 @@
 //
 // GM shim limits (as on iOS): values live in the page origin's
 // `localStorage` under `once.userscript.<id>.`, so pages of that origin can
-// read them; `GM_xmlhttpRequest` is `fetch` and same-origin only;
-// `unsafeWindow` is the page's `window`; `@require`, `@resource`, menus and
-// tabs are not available.
+// read and change them, isolated world or not; `GM_xmlhttpRequest` is
+// `fetch` and same-origin only; `unsafeWindow` is the `window` the script
+// runs in (the isolated world's where Java registers the sources there);
+// `@require`, `@resource`, menus and tabs are not available. The runtime
+// keeps the `fetch`, `Storage` and `JSON` it found at document start, so a
+// page patching them later neither sees nor forges the scripts' values and
+// requests, and a script's GM API reaches it through its source's closure,
+// never as an argument a page function could read from `caller`.
 
 import { UserscriptMatcher, UserscriptMetadata, UserscriptRunAt } from "@once/core"
 
@@ -64,18 +69,53 @@ export interface Tier2PageConfig {
 }
 
 export interface Tier2Runtime {
-  userscript(script: Tier2ScriptInfo, run: (gm: GmApi) => void): void
+  /** `give` hands the script its GM API just before `run` runs it. */
+  userscript(script: Tier2ScriptInfo, give: (gm: GmApi) => void, run: () => void): void
 }
 
 declare const ONCE_TIER2: Tier2PageConfig | undefined
 
 const PREFIX = "once.userscript."
 
-function storage(): Storage | null {
-  try {
-    return window.localStorage
-  } catch {
-    return null
+/** What the GM shim uses, as the document had them when the runtime started (before any page script). */
+const pristine = {
+  fetch: typeof fetch === "function" ? fetch : undefined,
+  parse: JSON.parse,
+  stringify: JSON.stringify,
+  storage: (() => {
+    try { return typeof localStorage === "object" ? localStorage : null } catch { return null }
+  })(),
+  ...storageMethods()
+}
+
+/** `Storage.prototype`'s methods, or the store's own where there is no such class. */
+function storageMethods(): { getItem?: Storage["getItem"]; setItem?: Storage["setItem"]; removeItem?: Storage["removeItem"]; key?: Storage["key"]; length?: () => number } {
+  let store: Storage | null = null
+  try { store = typeof localStorage === "object" ? localStorage : null } catch { /* refused */ }
+  const source = typeof Storage === "function" ? Storage.prototype : store
+  if (!source) return {}
+  const length = Object.getOwnPropertyDescriptor(source, "length")?.get
+  return { getItem: source.getItem, setItem: source.setItem, removeItem: source.removeItem, key: source.key, length }
+}
+
+interface StorageLike {
+  getItem(key: string): string | null
+  setItem(key: string, value: string): void
+  removeItem(key: string): void
+  key(index: number): string | null
+  readonly length: number
+}
+
+function storage(): StorageLike | null {
+  const store = pristine.storage
+  if (!store || !pristine.getItem || !pristine.setItem || !pristine.removeItem || !pristine.key || !pristine.length) return null
+  const { getItem, setItem, removeItem, key, length } = pristine
+  return {
+    getItem: (name) => Reflect.apply(getItem, store, [name]) as string | null,
+    setItem: (name, value) => { Reflect.apply(setItem, store, [name, value]) },
+    removeItem: (name) => { Reflect.apply(removeItem, store, [name]) },
+    key: (index) => Reflect.apply(key, store, [index]) as string | null,
+    get length() { return Reflect.apply(length, store, []) as number }
   }
 }
 
@@ -93,14 +133,14 @@ export function gmApi(script: Tier2ScriptInfo): GmApi {
     const stored = storage()?.getItem(prefix + key) ?? null
     if (stored === null) return fallback
     try {
-      return JSON.parse(stored)
+      return pristine.parse(stored)
     } catch {
       return fallback
     }
   }
   const setValue = (key: string, value: unknown): void => {
     try {
-      storage()?.setItem(prefix + key, JSON.stringify(value))
+      storage()?.setItem(prefix + key, pristine.stringify(value))
     } catch {
       // Quota or a refused origin: the value is not kept, as when a page clears it.
     }
@@ -130,16 +170,22 @@ export function gmApi(script: Tier2ScriptInfo): GmApi {
       fail(new Error("GM_xmlhttpRequest is same-origin only in Once Lite's limited mode"))
       return { abort: () => controller.abort() }
     }
-    fetch(target.href, { method: details.method ?? "GET", headers: details.headers, body: details.data, signal: controller.signal, credentials: "include" })
-      .then(async (response) => {
+    if (!pristine.fetch) {
+      fail(new Error("fetch is not available"))
+      return { abort: () => controller.abort() }
+    }
+    Reflect.apply(pristine.fetch, window, [target.href, { method: details.method ?? "GET", headers: details.headers, body: details.data, signal: controller.signal, credentials: "include" }])
+      .then(async (response: Response) => {
         const text = details.responseType === "blob" || details.responseType === "arraybuffer" ? "" : await response.clone().text()
         const body = details.responseType === "blob" ? await response.blob()
           : details.responseType === "arraybuffer" ? await response.arrayBuffer()
-            : details.responseType === "json" ? JSON.parse(text) : text
+            : details.responseType === "json" ? pristine.parse(text) : text
         const headers = [...response.headers.entries()].map(([name, value]) => `${name}: ${value}`).join("\r\n")
-        details.onload?.({ status: response.status, statusText: response.statusText, responseText: text, response: body,
-          responseHeaders: headers, finalUrl: response.url, readyState: 4 })
-      }, fail)
+        return { status: response.status, statusText: response.statusText, responseText: text, response: body,
+          responseHeaders: headers, finalUrl: response.url, readyState: 4 }
+      })
+      // A body that does not parse as asked fails the request; a throwing onload is the script's own.
+      .then((response: unknown) => { try { details.onload?.(response) } catch (error) { console.error(error) } }, fail)
     return { abort: () => controller.abort() }
   }
   const info = { script: { name: script.name, namespace: script.namespace, version: script.version }, scriptHandler: "Once", version: "1" }
@@ -193,7 +239,7 @@ export function schedule(runAt: UserscriptRunAt, run: () => void): void {
 }
 
 /** Matches and schedules one userscript in this document. */
-export function runUserscript(script: Tier2ScriptInfo, run: (gm: GmApi) => void): void {
+export function runUserscript(script: Tier2ScriptInfo, give: (gm: GmApi) => void, run: () => void): void {
   let topFrame = true
   try {
     topFrame = window.top === window
@@ -203,7 +249,8 @@ export function runUserscript(script: Tier2ScriptInfo, run: (gm: GmApi) => void)
   if (!scriptMatches(script, location.href, topFrame)) return
   schedule(script.runAt, () => {
     try {
-      run(gmApi(script))
+      give(gmApi(script))
+      run()
     } catch (error) {
       console.error(`Once userscript ${script.name} failed`, error)
     }

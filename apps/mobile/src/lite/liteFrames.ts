@@ -45,11 +45,16 @@ export class TargetFrames {
   navigated(frameId: string, parentFrameId: string | null | undefined, url: string): void {
     const existing = this.frames.get(frameId)
     this.upsert(frameId, parentFrameId ?? existing?.parentId ?? null, url)
-    // A navigation replaces the frame's documents and their contexts.
-    for (const [contextId, world] of [...this.worlds]) {
-      if (world.frameId === frameId) this.worlds.delete(contextId)
-    }
-    if (existing) existing.mainContextId = null
+    // The old document's contexts go with `Runtime.executionContextDestroyed`
+    // (or `…Cleared`); the new document's may already have been reported, as
+    // Chromium can create them before it reports the navigation, so none are
+    // dropped here.
+  }
+
+  /** A same-document navigation (`pushState`, a fragment): the URL changes, the document and its contexts stay. */
+  navigatedWithinDocument(frameId: string, url: string): void {
+    const frame = this.frames.get(frameId)
+    if (frame && url) frame.url = url
   }
 
   detached(frameId: string): void {
@@ -129,6 +134,17 @@ export class TargetFrames {
 
   url(frameId: string): string {
     return this.frames.get(frameId)?.url ?? ""
+  }
+
+  /** The frame's parent; null for the top frame or a frame the broker never met. */
+  parentOf(frameId: string): string | null {
+    return this.frames.get(frameId)?.parentId ?? null
+  }
+
+  /** The frame's own URL when it is not blank, else what it inherits its origin from. */
+  creatorUrlOf(frameId: string): string {
+    const url = this.frames.get(frameId)?.url ?? ""
+    return url && !isBlankFrameUrl(url) && url !== "about:srcdoc" ? url : this.creatorUrl(frameId)
   }
 
   /** The nearest non-blank ancestor URL: what a blank frame inherits its origin from. */

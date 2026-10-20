@@ -28,30 +28,31 @@ export interface PageFrameContextOptions {
 }
 
 export class LiteExtensionContexts extends ExtensionContexts {
+  /** Entries taken out (their transport must stop), marked by one listener for all of them. */
+  private readonly gone = new WeakSet<ContextEntry>()
+
   constructor(private readonly channel: JavaChannel) {
     super()
+    this.onRemoved((entry) => this.gone.add(entry))
   }
 
   /** One frame of an extension page WebView; the main frame is frame 0. */
   addPageFrame(options: PageFrameContextOptions): ContextEntry {
-    let destroyed = false
-    const entry = this.addEntry({
+    const destroyed = (): boolean => this.gone.has(entry)
+    const entry: ContextEntry = this.addEntry({
       id: pageContextId(options.pageId, options.frameId),
       kind: options.kind,
       tabId: options.tabId ?? -1,
       frameId: options.frameId,
       listeners: new Map(),
-      url: () => (destroyed ? "" : options.url()),
-      isDestroyed: () => destroyed,
+      url: () => (destroyed() ? "" : options.url()),
+      isDestroyed: destroyed,
       send: (message) => {
-        if (destroyed) return
+        if (destroyed()) return
         this.channel.request("page.post", {
           pageId: options.pageId, frameId: options.frameId, message: { type: "event", message }
         } satisfies PagePostParams).catch(() => undefined)
       }
-    })
-    this.onRemoved((removed) => {
-      if (removed === entry) destroyed = true
     })
     return entry
   }
@@ -69,23 +70,20 @@ export class LiteExtensionContexts extends ExtensionContexts {
     url(): string
     creatorUrl(): string
   }): ContextEntry {
-    let destroyed = false
-    const entry = this.addEntry({
+    const destroyed = (): boolean => this.gone.has(entry)
+    const entry: ContextEntry = this.addEntry({
       id: worldContextId(options.targetId, options.contextId),
       kind: options.kind ?? "content",
       tabId: options.tabId,
       frameId: options.frameId,
       listeners: new Map(),
-      url: () => (destroyed ? "" : options.url()),
-      creatorUrl: () => (destroyed ? "" : options.creatorUrl()),
-      isDestroyed: () => destroyed,
+      url: () => (destroyed() ? "" : options.url()),
+      creatorUrl: () => (destroyed() ? "" : options.creatorUrl()),
+      isDestroyed: destroyed,
       send: (message) => {
-        if (destroyed) return
+        if (destroyed()) return
         deliverToWorld(this.channel, options.targetId, options.contextId, { type: "event", message })
       }
-    })
-    this.onRemoved((removed) => {
-      if (removed === entry) destroyed = true
     })
     return entry
   }

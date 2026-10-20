@@ -3,14 +3,17 @@
 // (which registers the world as one of the extension's contexts), API calls,
 // listener changes, replies to events, and scriptlets the page's `<meta>`
 // policy refused, which the broker runs in the frame's main world through
-// `Runtime.evaluate` in its default context.
+// `Runtime.evaluate` in its default context. Every extension's world has
+// the same binding, so a message names nothing by itself: the extension is
+// the one whose world (`once-ext:<host>`) the calling context belongs to,
+// and a world's URL and kind come from the frame the broker tracks.
 
 import { ApiHandler, applyListenerChange, invokeApi, settleInvoke, surfaceFor } from "@once/webext-runtime"
 import { JavaChannel } from "./javaChannel"
 import { deliverToWorld, worldContextId } from "./liteContexts"
 import { TargetFrames } from "./liteFrames"
 import { LiteExtensionHost } from "./liteHosts"
-import { CdpCommandParams, TargetKind, WORLD_BINDING, WorldToBrokerMessage, pageHostOf } from "./protocol"
+import { CdpCommandParams, TargetKind, WORLD_BINDING, WORLD_PREFIX, WorldToBrokerMessage, pageHostOf } from "./protocol"
 
 export interface WorldTarget {
   targetId: string
@@ -42,11 +45,14 @@ export class LiteWorldMessages {
       return
     }
     const target = this.options.target(targetId)
-    const host = typeof message?.host === "string" ? this.options.hostOf(message.host) : undefined
-    if (!target || !host) return
+    if (!target) return
     const contextId = event.executionContextId
+    const world = target.frames.world(contextId)
+    const host = world?.name.startsWith(WORLD_PREFIX) ? this.options.hostOf(world.name.slice(WORLD_PREFIX.length)) : undefined
+    // Another extension's world (or code running in it) claiming this host is refused.
+    if (!world || !host || message?.host !== host.extension.host) return
     if (message.type === "hello") {
-      this.hello(target, host, contextId, message)
+      this.hello(target, host, contextId, world.frameId)
       return
     }
     const entry = host.contexts.get(worldContextId(targetId, contextId))
@@ -68,19 +74,14 @@ export class LiteWorldMessages {
     }
   }
 
-  private hello(
-    target: WorldTarget,
-    host: LiteExtensionHost,
-    contextId: number,
-    message: Extract<WorldToBrokerMessage, { type: "hello" }>
-  ): void {
+  private hello(target: WorldTarget, host: LiteExtensionHost, contextId: number, frame: string): void {
     const id = worldContextId(target.targetId, contextId)
     // A bootstrap that ran again in the same context (a re-installed
     // registration) must not replace the entry: its ports and listeners live on.
     if (host.contexts.get(id)) return
-    const world = target.frames.world(contextId)
-    const frameId = world ? target.frames.webextFrameId(world.frameId) : 0
-    const url = message.url
+    // The frame's document as DevTools reported it, never what the world says.
+    const url = target.frames.url(frame) || "about:blank"
+    const creatorUrl = target.frames.creatorUrl(frame)
     // A frame showing one of the extension's own web-accessible pages is the
     // extension's page inside the tab, not a content-script host.
     const ownPage = pageHostOf(url) === host.extension.host
@@ -88,10 +89,10 @@ export class LiteWorldMessages {
       targetId: target.targetId,
       contextId,
       tabId: target.tabId,
-      frameId,
+      frameId: target.frames.webextFrameId(frame),
       kind: ownPage ? "page" : "content",
       url: () => url,
-      creatorUrl: () => message.creatorUrl
+      creatorUrl: () => creatorUrl
     })
     this.owners.set(entry.id, host)
   }

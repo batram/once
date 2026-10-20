@@ -1,10 +1,11 @@
 // `JsonStore` over Java: one JSON document per name under
-// `<files>/lite-extensions/<directory>/<name>`. A document that is a plain
-// object is written as a patch of the keys that changed since the last write
-// (`store.patch`, merged by Java on disk); anything else, and the first write
-// of a document, goes whole (`store.write`, replaced atomically). uBlock's
-// `storage.json` runs to tens of megabytes and is written dozens of times
-// during a list reload, so whole writes would flood the channel.
+// `<files>/lite-extensions/<directory>/<name>`. Extension storage writes the
+// keys that changed (`store.patch`, merged by Java on disk; `ExtensionStorage`
+// tracks them, so nothing here serialises or keeps the whole document);
+// everything else, and a document's first write, goes whole (`store.write`,
+// replaced atomically). uBlock's `storage.json` runs to tens of megabytes
+// and is written dozens of times during a list reload, so whole writes
+// would flood the channel.
 
 import { JsonStore } from "@once/webext-runtime"
 import { JavaChannel } from "./javaChannel"
@@ -16,31 +17,7 @@ export const CHUNK_THRESHOLD = 256 * 1024
 const CHUNK_CHARS = 512 * 1024
 const READ_CHUNK_BYTES = 1024 * 1024
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-/** The keys whose JSON text differs, and the keys that went away. */
-export function diffDocuments(
-  previous: Readonly<Record<string, string>>,
-  next: Readonly<Record<string, unknown>>
-): { set: Record<string, string>; remove: string[]; encoded: Record<string, string> } {
-  const set: Record<string, string> = {}
-  const encoded: Record<string, string> = {}
-  for (const [key, value] of Object.entries(next)) {
-    if (value === undefined) continue
-    const text = JSON.stringify(value)
-    encoded[key] = text
-    if (previous[key] !== text) set[key] = text
-  }
-  const remove = Object.keys(previous).filter((key) => !(key in encoded))
-  return { set, remove, encoded }
-}
-
 export class LiteJsonStore implements JsonStore {
-  /** Per document: the JSON text of each key as last written or read. */
-  private readonly known = new Map<string, Record<string, string>>()
-
   constructor(
     private readonly channel: JavaChannel,
     private readonly directory: string,
@@ -54,33 +31,23 @@ export class LiteJsonStore implements JsonStore {
     let text = result.json
     if (result.chunked) text = this.readChunks(result.chunked)
     if (text === null) return undefined
-    const value = JSON.parse(text)
-    if (isRecord(value)) this.known.set(name, diffDocuments({}, value).encoded)
-    return value
+    return JSON.parse(text)
   }
 
   async write(name: string, value: unknown): Promise<void> {
-    const previous = this.known.get(name)
-    if (!isRecord(value) || !previous) {
-      await this.channel.request("store.write", {
-        directory: this.directory, name, json: this.outgoing(JSON.stringify(value))
-      } satisfies StoreWriteParams)
-      if (isRecord(value)) this.known.set(name, diffDocuments({}, value).encoded)
-      else this.known.delete(name)
-      return
-    }
-    const { set, remove, encoded } = diffDocuments(previous, value)
-    this.known.set(name, encoded)
-    if (Object.keys(set).length === 0 && remove.length === 0) return
+    await this.channel.request("store.write", {
+      directory: this.directory, name, json: this.outgoing(JSON.stringify(value))
+    } satisfies StoreWriteParams)
+  }
+
+  /** Only the changed keys (`ExtensionStorage` knows them), each value serialised once. */
+  async patch(name: string, set: Record<string, unknown>, remove: string[]): Promise<void> {
     const values: Record<string, StoreValue> = {}
-    for (const [key, text] of Object.entries(set)) values[key] = this.outgoing(text)
-    try {
-      await this.channel.request("store.patch", { directory: this.directory, name, set: values, remove } satisfies StorePatchParams)
-    } catch (error) {
-      // The document on disk is unknown now; the next write goes whole.
-      this.known.delete(name)
-      throw error
+    for (const [key, value] of Object.entries(set)) {
+      if (value !== undefined) values[key] = this.outgoing(JSON.stringify(value))
     }
+    if (Object.keys(values).length === 0 && remove.length === 0) return
+    await this.channel.request("store.patch", { directory: this.directory, name, set: values, remove } satisfies StorePatchParams)
   }
 
   /** A large value goes through `writeChunk` first; the message then names the token. */

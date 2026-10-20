@@ -80,9 +80,22 @@ public final class LiteExtensionEngine {
     private final BrokerView broker;
     private final DevToolsClient devtools;
     private final LiteTargets.Attachment brokerAttachment;
+    /**
+     * The broker's secret: document nonces and the keys of the synchronous
+     * answers derive from it. Only the broker and the extension worlds hold
+     * it; no page's main world ever does.
+     */
     public final String token;
+    /**
+     * The event channel between Once's bridge world, the content worlds and
+     * the main-world helper. A page can watch the helper's events, so this
+     * is no secret: the bridge world relays nothing from it but PiP requests.
+     */
+    private final String channelToken;
     private final String[] bridgeSources = new String[2];
     private final Map<String, LitePage> pages = new LinkedHashMap<>();
+    /** Extension frames inside reading tabs, by tab id. */
+    private final Map<Integer, LitePage.TabFrames> tabFrames = new HashMap<>();
     private final Map<Long, Runnable> timers = new HashMap<>();
     private final AtomicInteger tabIds = new AtomicInteger();
     private final Map<Integer, String> reportedTabs = new HashMap<>();
@@ -104,6 +117,13 @@ public final class LiteExtensionEngine {
     private boolean violentmonkeyConnected;
     /** Whether the running broker started without DevTools (Tier 2); settled at `lite.start`. */
     private volatile boolean tier2Mode;
+    /**
+     * The tier, decided at the first `lite.start` and kept for the process: a
+     * DevTools connection that comes up late does not start Tier 1's
+     * interception beside Tier 2, and one that drops while the broker
+     * restarts does not leave a Tier 1 session in Tier 2.
+     */
+    private Boolean decidedTier2;
 
     /** The process's engine, created on first use (main thread). */
     public static synchronized LiteExtensionEngine get(Context context) {
@@ -115,7 +135,9 @@ public final class LiteExtensionEngine {
 
     private LiteExtensionEngine(Context context) {
         this.context = context.getApplicationContext();
+        BrokerChannel.verboseLogs = (this.context.getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
         token = newToken();
+        channelToken = newToken();
         files = new LiteFiles(this.context);
         hidden = new FrameLayout(this.context);
         devtools = devtoolsForcedOff(this.context)
@@ -183,7 +205,7 @@ public final class LiteExtensionEngine {
         if (bridge == null || pip == null) Log.w(TAG, "Bridge bundles missing from the web assets; page features are limited");
     }
 
-    private String wrap(String bundle) { return "(function (ONCE_LITE_TOKEN) {\n" + bundle + "\n})(" + JSONObject.quote(token) + ");"; }
+    private String wrap(String bundle) { return "(function (ONCE_LITE_TOKEN) {\n" + bundle + "\n})(" + JSONObject.quote(channelToken) + ");"; }
 
     /** The broker page's DevTools session, for commands the browser target does not take (`Network.*`). */
     private String brokerSession() {
@@ -234,7 +256,7 @@ public final class LiteExtensionEngine {
         channel.onEvent("violentmonkey.dashboardChanged", params -> { if (listener != null) listener.violentmonkeyDashboardChanged(); });
         channel.onEvent("log", params -> {
             String level = params.optString("level");
-            Log.println("error".equals(level) ? Log.ERROR : "warn".equals(level) ? Log.WARN : Log.INFO, "OnceLiteBroker", params.optString("message"));
+            Log.println("error".equals(level) ? Log.ERROR : "warn".equals(level) ? Log.WARN : Log.INFO, "OnceLiteBroker", BrokerChannel.forLog(params.optString("message")));
         });
         channel.onEvent("timer.set", params -> {
             long id = params.optLong("timerId");
@@ -260,8 +282,14 @@ public final class LiteExtensionEngine {
             reply.resolve(null);
         });
         channel.onRequest("page.post", (params, reply) -> {
-            LitePage page = pages.get(params.optString("pageId"));
+            String pageId = params.optString("pageId");
+            LitePage page = pages.get(pageId);
             if (page != null) page.post(params.optInt("frameId"), params.opt("message"));
+            else if (pageId.startsWith("tab:")) {
+                LitePage.TabFrames frames;
+                try { frames = tabFrames.get(Integer.parseInt(pageId.substring(4))); } catch (NumberFormatException error) { frames = null; }
+                if (frames != null) frames.post(params.optInt("frameId"), params.opt("message"));
+            }
             reply.resolve(null);
         });
         channel.onRequest("page.resize", (params, reply) -> {
@@ -297,6 +325,7 @@ public final class LiteExtensionEngine {
     /** The broker page is up: `lite.start` once DevTools has settled, bounded. */
     private void onHello() {
         started = false;
+        files.forgetStreams();
         long deadline = System.currentTimeMillis() + DEVTOOLS_WAIT_MS;
         Runnable[] poll = new Runnable[1];
         poll[0] = () -> {
@@ -308,6 +337,8 @@ public final class LiteExtensionEngine {
 
     private void start() {
         violentmonkeyConnected = false;
+        if (decidedTier2 == null) decidedTier2 = !devtools.available();
+        boolean useDevtools = !decidedTier2;
         JSONObject params = new JSONObject();
         try {
             JSONArray bundled = new JSONArray();
@@ -315,12 +346,21 @@ public final class LiteExtensionEngine {
                 bundled.put(new JSONObject().put("id", bundle[0]).put("directory", bundle[1]).put("present", files.assetExists(bundle[1], "manifest.json")));
             }
             params.put("bundled", bundled).put("locale", Locale.getDefault().toLanguageTag()).put("arch", arch())
-                .put("token", token).put("storageRoot", files.storageRoot.getAbsolutePath()).put("devtools", devtools.available())
+                .put("token", token).put("channel", channelToken).put("storageRoot", files.storageRoot.getAbsolutePath()).put("devtools", useDevtools)
                 .put("ubolite", new JSONObject().put("id", UBOLITE_ID).put("directory", UBOLITE_DIRECTORY)
                     .put("present", files.assetExists(UBOLITE_DIRECTORY, "manifest.json")));
         } catch (Exception error) { Log.e(TAG, "Could not describe the start", error); return; }
-        tier2Mode = !devtools.available();
-        Log.i(TAG, "starting the broker (devtools=" + devtools.available() + ")");
+        tier2Mode = !useDevtools;
+        // Nothing uses the DevTools socket in Tier 2 (the bridge world needs Tier 1's targets too):
+        // a release build closes it again, so nothing on the device can attach to the app's pages.
+        // (Unless the user turned the Web Inspector on in the error log: WebInspectorPlugin's own preference.)
+        if (tier2Mode && (context.getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0
+            && !context.getSharedPreferences("once_web_inspector", Context.MODE_PRIVATE).getBoolean("enabled", false)) {
+            android.webkit.WebView.setWebContentsDebuggingEnabled(false);
+        }
+        // Tier 2 enforces in Java alone: no target is bound or intercepted, even if DevTools connects later.
+        targets.setPassive(tier2Mode);
+        Log.i(TAG, "starting the broker (devtools=" + useDevtools + ")");
         channel.request("lite.start", params).whenComplete((result, error) -> main.post(() -> {
             if (error != null) { Log.e(TAG, "The broker did not start: " + error.getMessage()); releaseStartWaiters(); return; }
             started = true;
@@ -441,7 +481,23 @@ public final class LiteExtensionEngine {
         channel.event("tab.changed", state);
     }
 
+    /** The page channel for extension frames on a tab's (new) WebView; main thread. */
+    public void listenInTab(android.webkit.WebView view, int tabId) {
+        LitePage.TabFrames frames = tabFrames.get(tabId);
+        if (frames == null) tabFrames.put(tabId, frames = new LitePage.TabFrames());
+        LitePage.listenInTab(view, channel, tabId, frames);
+    }
+
+    /** The tab's WebView was replaced or closed: its extension frames are gone. */
+    public void tabViewReleased(int tabId) {
+        LitePage.TabFrames frames = tabFrames.get(tabId);
+        if (frames == null) return;
+        frames.clear();
+        try { channel.event("page.closed", new JSONObject().put("pageId", "tab:" + tabId)); } catch (Exception ignored) { /* a constant document */ }
+    }
+
     public void tabRemoved(int tabId) {
+        tabFrames.remove(tabId);
         if (reportedTabs.remove(tabId) == null) return;
         try { channel.event("tab.removed", new JSONObject().put("tabId", tabId)); } catch (Exception ignored) { /* a constant document */ }
     }

@@ -63,22 +63,24 @@ final class WebSocket {
 
     private synchronized void send(int opcode, byte[] payload) throws IOException {
         if (closed) throw new IOException("WebSocket closed");
-        ByteArrayOutputStream frame = new ByteArrayOutputStream(payload.length + 14);
-        frame.write(0x80 | opcode);
         int length = payload.length;
-        if (length < 126) frame.write(0x80 | length);
-        else if (length < 65536) { frame.write(0x80 | 126); frame.write(length >>> 8); frame.write(length); }
+        // The header, then the payload masked in place: no further copy of a large message.
+        byte[] header = new byte[14];
+        int at = 0;
+        header[at++] = (byte) (0x80 | opcode);
+        if (length < 126) header[at++] = (byte) (0x80 | length);
+        else if (length < 65536) { header[at++] = (byte) (0x80 | 126); header[at++] = (byte) (length >>> 8); header[at++] = (byte) length; }
         else {
-            frame.write(0x80 | 127);
-            for (int shift = 56; shift >= 0; shift -= 8) frame.write((int) (((long) length >>> shift) & 0xFF));
+            header[at++] = (byte) (0x80 | 127);
+            for (int shift = 56; shift >= 0; shift -= 8) header[at++] = (byte) (((long) length >>> shift) & 0xFF);
         }
         byte[] mask = new byte[4];
         random.nextBytes(mask);
-        frame.write(mask);
-        byte[] masked = new byte[length];
-        for (int index = 0; index < length; index++) masked[index] = (byte) (payload[index] ^ mask[index & 3]);
-        frame.write(masked);
-        out.write(frame.toByteArray());
+        System.arraycopy(mask, 0, header, at, 4);
+        at += 4;
+        for (int index = 0; index < length; index++) payload[index] ^= mask[index & 3];
+        out.write(header, 0, at);
+        out.write(payload);
         out.flush();
     }
 
@@ -127,6 +129,8 @@ final class WebSocket {
         if (closed) return;
         closed = true;
         try { synchronized (this) { send(CLOSE, new byte[0]); } } catch (IOException ignored) { /* already gone */ }
+        // Closing a LocalSocket does not wake a thread blocked reading it; shutting its input down does.
+        try { socket.shutdownInput(); } catch (IOException ignored) { /* already gone */ }
         try { socket.close(); } catch (IOException ignored) { /* already gone */ }
     }
 }

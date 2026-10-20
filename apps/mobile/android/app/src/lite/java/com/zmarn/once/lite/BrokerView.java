@@ -22,14 +22,18 @@ import java.util.Collections;
 import java.util.UUID;
 
 /**
- * The hidden WebView the broker runs in: `https://localhost/lite-runtime.html`
- * served from the web assets, in a 1×1 container kept visible so Blink does
- * not throttle its timers. Its `onceLite` channel and `onceLiteFiles`
+ * The hidden WebView the broker runs in:
+ * `https://broker.once-lite.localhost/lite-runtime.html` served from the web
+ * assets, an origin of its own rather than the Capacitor shell's
+ * `https://localhost` (whose storage and BroadcastChannels it would share),
+ * in a 1×1 container kept visible so Blink does not throttle its timers. Its `onceLite` channel and `onceLiteFiles`
  * interface are installed before the page loads. A lost renderer reloads the
  * page; the broker then says hello again and Java restarts it.
  */
 final class BrokerView {
-    static final String RUNTIME_URL = "https://localhost/lite-runtime.html";
+    static final String HOST = "broker.once-lite.localhost";
+    static final String ORIGIN = "https://" + HOST;
+    static final String RUNTIME_URL = ORIGIN + "/lite-runtime.html";
     static final String CHANNEL = "onceLite";
     static final String FILES = "onceLiteFiles";
     private static final String TAG = BrokerChannel.TAG;
@@ -56,14 +60,14 @@ final class BrokerView {
         settings.setMediaPlaybackRequiresUserGesture(false);
         view.addJavascriptInterface(files, FILES);
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
-            WebViewCompat.addWebMessageListener(view, CHANNEL, Collections.singleton("https://localhost"), (source, message, origin, mainFrame, proxy) -> {
+            WebViewCompat.addWebMessageListener(view, CHANNEL, Collections.singleton(ORIGIN), (source, message, origin, mainFrame, proxy) -> {
                 if (!mainFrame || message.getType() != WebMessageCompat.TYPE_STRING) return;
                 if (!channel.isConnected()) channel.connect(proxy);
                 channel.receive(message.getData());
             });
         }
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-            WebViewCompat.addDocumentStartJavaScript(view, "window.__onceLiteTab = " + org.json.JSONObject.quote(marker) + ";", Collections.singleton("*"));
+            WebViewCompat.addDocumentStartJavaScript(view, "try { Object.defineProperty(window, \"__onceLiteTab\", { value: " + org.json.JSONObject.quote(marker) + ", writable: false, configurable: false }); } catch (error) {}", Collections.singleton("*"));
         }
         view.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView ignored, WebResourceRequest request) {
@@ -71,7 +75,7 @@ final class BrokerView {
             }
             @Override public boolean shouldOverrideUrlLoading(WebView ignored, WebResourceRequest request) { return true; }
             @Override public void onPageStarted(WebView ignored, String url, android.graphics.Bitmap favicon) {
-                if (url != null && url.startsWith("https://localhost/")) channel.disconnect("The broker page restarted");
+                if (url != null && url.startsWith(ORIGIN + "/")) channel.disconnect("The broker page restarted");
             }
             @Override public boolean onRenderProcessGone(WebView ignored, RenderProcessGoneDetail detail) {
                 Log.w(TAG, "Broker renderer gone (crash=" + detail.didCrash() + "); reloading the runtime");
@@ -85,7 +89,9 @@ final class BrokerView {
             @Override public boolean onConsoleMessage(ConsoleMessage message) {
                 int level = message.messageLevel() == ConsoleMessage.MessageLevel.ERROR ? Log.ERROR
                     : message.messageLevel() == ConsoleMessage.MessageLevel.WARNING ? Log.WARN : Log.DEBUG;
-                Log.println(level, "OnceLiteBroker", message.message() + " (" + message.lineNumber() + ")");
+                // A release build logs the broker's warnings and errors only, URLs cut to their origin.
+                if (level == Log.DEBUG && !BrokerChannel.verboseLogs) return true;
+                Log.println(level, "OnceLiteBroker", BrokerChannel.forLog(message.message()) + " (" + message.lineNumber() + ")");
                 return true;
             }
         });
@@ -117,7 +123,7 @@ final class BrokerView {
 
     private WebResourceResponse serveAsset(WebResourceRequest request) {
         android.net.Uri uri = request.getUrl();
-        if (!"https".equals(uri.getScheme()) || !"localhost".equals(uri.getHost())) return blocked();
+        if (!"https".equals(uri.getScheme()) || !HOST.equals(uri.getHost())) return blocked();
         String path = uri.getPath() == null || uri.getPath().equals("/") ? "/index.html" : uri.getPath();
         byte[] bytes = files.asset("public" + path);
         if (bytes == null) {

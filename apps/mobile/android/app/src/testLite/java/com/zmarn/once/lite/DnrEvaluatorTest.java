@@ -195,10 +195,10 @@ public class DnrEvaluatorTest {
 
     @Test
     public void tokensIndexTheRulesAPatternBounds() {
-        assertEquals("example", new DnrEvaluator.UrlFilter("||ads.example^", false).token());
-        assertEquals("pagead2", new DnrEvaluator.UrlFilter("||pagead2.*/x", false).token());
-        assertNull(new DnrEvaluator.UrlFilter("*ad*", false).token());
-        assertEquals("banner", new DnrEvaluator.UrlFilter("/banner^", false).token());
+        assertEquals("example", new DnrUrlFilter("||ads.example^", false).token());
+        assertEquals("pagead2", new DnrUrlFilter("||pagead2.*/x", false).token());
+        assertNull(new DnrUrlFilter("*ad*", false).token());
+        assertEquals("banner", new DnrUrlFilter("/banner^", false).token());
         assertTrue(DnrEvaluator.tokens("https://ads.example/banner.png?id=1").containsAll(Arrays.asList("https", "ads", "example", "banner", "png", "id")));
     }
 
@@ -270,5 +270,38 @@ public class DnrEvaluatorTest {
         long perRequestMicros = (System.nanoTime() - start) / 1000 / 1000;
         System.out.println("uBO Lite defaults: " + total + " rules, " + perRequestMicros + " µs per request");
         assertTrue("a request took " + perRequestMicros + " µs", perRequestMicros < 2000);
+        // A page can make a URL as long as it likes: matching it stays linear (it took 77 s at 32 KB with backtracking).
+        for (String fill : new String[] { "a", "&k=v", "%2f" }) {
+            StringBuilder url = new StringBuilder("https://evil.example/?");
+            while (url.length() < 32000) url.append(fill);
+            for (String type : new String[] { "image", "script", "xmlhttprequest" }) {
+                long started = System.nanoTime();
+                decide(rules, url.toString(), type, "https://evil.example/");
+                long millis = (System.nanoTime() - started) / 1000000;
+                assertTrue(type + " with a 32 KB URL of " + fill + " took " + millis + " ms", millis < 500);
+            }
+        }
+        // The rules filed by a `*`-bounded literal still match.
+        assertEquals(DnrEvaluator.Outcome.BLOCK, decide(rules, "https://mail.example/x%2ftrack%2fopen.php%3fid%3d1", "image", "https://mail.example/").outcome);
+    }
+
+    /** `*` matches anything, segments in order, `^` a separator or the end; linear in the URL's length. */
+    @Test
+    public void wildcardsMatchWithoutBacktracking() {
+        DnrEvaluator rules = evaluator("[" + block(1, "*%2ftrack%2fopen.php%3f*") + "," + block(2, "||ads.example^*banner*.gif|")
+            + "," + block(3, "|https://*/pixel^") + "," + block(4, "a*b*c") + "]");
+        assertEquals(Integer.valueOf(1), decide(rules, "https://m.example/r?u=%2Ftrack%2Fopen.php%3Fx", "image", "https://m.example/").ruleId);
+        assertEquals(Integer.valueOf(2), decide(rules, "https://cdn.ads.example/x/banner-1.gif", "image", "https://site.example/").ruleId);
+        assertEquals(DnrEvaluator.Outcome.NONE, decide(rules, "https://cdn.ads.example/x/banner-1.gif?x", "image", "https://site.example/").outcome);
+        assertEquals(Integer.valueOf(3), decide(rules, "https://t.example/pixel", "image", "https://site.example/").ruleId);
+        assertEquals(Integer.valueOf(3), decide(rules, "https://t.example/pixel?x=1", "image", "https://site.example/").ruleId);
+        assertEquals(DnrEvaluator.Outcome.NONE, decide(rules, "https://t.example/pixels", "image", "https://site.example/").outcome);
+        assertEquals(Integer.valueOf(4), decide(rules, "https://x.example/zzazzbzzc", "image", null).ruleId);
+        assertEquals(DnrEvaluator.Outcome.NONE, decide(rules, "https://x.example/zzczzbzza", "image", null).outcome);
+        StringBuilder url = new StringBuilder("https://x.example/?");
+        while (url.length() < 64000) url.append('a');
+        long started = System.nanoTime();
+        assertEquals(DnrEvaluator.Outcome.NONE, decide(rules, url.toString(), "image", null).outcome);
+        assertTrue("linear", (System.nanoTime() - started) / 1000000 < 200);
     }
 }

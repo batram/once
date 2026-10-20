@@ -5,7 +5,9 @@
 // Picture-in-Picture polyfill over Once's native presentation (the Gecko
 // `pictureInPicture.js` without xray wrappers), the YouTube outer-size shim
 // from `media.js`, and the answerer for content worlds' `wrappedJSObject`.
-// It talks to the bridge world only through token-scoped CustomEvents.
+// It talks to the bridge world only through token-scoped CustomEvents; the
+// page can see those (they go through its own prototypes), so the token is
+// no secret and holds nothing back the page could not do itself.
 
 declare const ONCE_LITE_TOKEN: string | undefined
 
@@ -14,6 +16,7 @@ const TO_MAIN = `once-lite:${token}:to-main`
 const FROM_MAIN = `once-lite:${token}:from-main`
 const ACCESS = `once-lite:${token}:access`
 const ACCESS_ATTRIBUTE = `data-once-lite-${token.slice(0, 16)}`
+const HELPER_KEY = "__onceLiteMainHelper"
 
 function post(message: unknown): void {
   document.dispatchEvent(new CustomEvent(FROM_MAIN, { detail: JSON.stringify(message) }))
@@ -283,6 +286,10 @@ function installYoutubeShim(): (pictureInPicture: boolean) => void {
 
 export function installMainHelper(): void {
   if (window !== window.top) return
+  // A new DevTools session installs the helper again in a live document.
+  const scope = globalThis as unknown as Record<string, unknown>
+  if (scope[HELPER_KEY] === token) return
+  try { Object.defineProperty(scope, HELPER_KEY, { value: token, configurable: true, enumerable: false, writable: false }) } catch { return }
   installAccess()
   const youtube = installYoutubeShim()
   const polyfill = typeof HTMLVideoElement.prototype.requestPictureInPicture === "function" ? null : new PictureInPicturePolyfill()

@@ -36,7 +36,11 @@ public final class DevToolsClient {
     private static volatile DevToolsClient current;
 
     /** A protocol event: {@code sessionId} is null for browser-level events. */
-    public interface Listener { void onEvent(String sessionId, String method, JSONObject params); }
+    public interface Listener {
+        void onEvent(String sessionId, String method, JSONObject params);
+        /** The connection dropped: every session is gone; targets attach again once it is back. */
+        default void onDisconnected() {}
+    }
 
     /** A target the browser attached for us, with its last known info. */
     public static final class Target {
@@ -151,7 +155,14 @@ public final class DevToolsClient {
 
     /** {@link #send} with the answer awaited; a protocol error becomes an exception naming it. */
     public JSONObject call(String sessionId, String method, JSONObject params, long timeoutMs) throws Exception {
-        JSONObject reply = send(sessionId, method, params).get(timeoutMs, TimeUnit.MILLISECONDS);
+        CompletableFuture<JSONObject> future = send(sessionId, method, params);
+        JSONObject reply;
+        try { reply = future.get(timeoutMs, TimeUnit.MILLISECONDS); }
+        catch (java.util.concurrent.TimeoutException timeout) {
+            // A command that never answers must not stay pending for the rest of the connection.
+            pending.values().remove(future);
+            throw timeout;
+        }
         if (reply.has("error")) throw new IOException(method + " failed: " + reply.getJSONObject("error").optString("message"));
         return reply.optJSONObject("result") == null ? new JSONObject() : reply.getJSONObject("result");
     }
@@ -180,6 +191,12 @@ public final class DevToolsClient {
             Thread.sleep(50);
         }
         throw new java.util.concurrent.TimeoutException("No DevTools target carries " + marker);
+    }
+
+    /** Drops the socket as a lost connection would (instrumentation tests); the client reconnects. */
+    public void dropConnection() {
+        WebSocket out = socket;
+        if (out != null) out.close();
     }
 
     public void close() {
@@ -220,7 +237,11 @@ public final class DevToolsClient {
                 if (!was.isDone()) was.completeExceptionally(error);
                 for (CompletableFuture<JSONObject> future : pending.values()) future.completeExceptionally(error);
                 pending.clear();
+                boolean hadTargets = !targets.isEmpty();
                 targets.clear();
+                if (hadTargets && !closed) for (Listener listener : listeners) {
+                    try { listener.onDisconnected(); } catch (RuntimeException failure) { Log.w(TAG, "DevTools listener failed on disconnect", failure); }
+                }
                 if (closed) return;
                 ready = new CompletableFuture<>();
                 try { Thread.sleep(backoff); } catch (InterruptedException interrupted) { return; }
@@ -307,7 +328,7 @@ public final class DevToolsClient {
             case "Target.attachedToTarget": {
                 Target target = new Target(info.optString("targetId"), params.optString("sessionId"), info);
                 targets.put(target.targetId, target);
-                Log.d(TAG, "attached " + target.type + " target " + target.targetId + " " + target.url);
+                if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, "attached " + target.type + " target " + target.targetId + " " + target.url);
                 if ("page".equals(target.type) && fetchSupported == null) probeFetch(target);
                 break;
             }

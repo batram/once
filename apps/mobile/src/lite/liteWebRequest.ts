@@ -21,7 +21,7 @@ import {
   serveExtensionRequest,
   sha256Hex
 } from "@once/webext-runtime"
-import { JavaChannel } from "./javaChannel"
+import { JavaChannel, RequestError } from "./javaChannel"
 import { TargetFrames } from "./liteFrames"
 import { LiteExtensionHost } from "./liteHosts"
 import { CdpCommandParams, electronResourceType, extensionUrlFromPageUrl, pageHostOf, pageOrigin, TargetKind } from "./protocol"
@@ -63,7 +63,6 @@ interface RequestRecord {
 export interface LiteWebRequestOptions {
   channel: JavaChannel
   router: WebRequestRouter
-  ownPages: OwnPageRequests
   hosts(): Iterable<LiteExtensionHost>
   target(targetId: string): RequestTarget | undefined
   /** The secret the document nonces derive from; the world bootstraps hold the same one. */
@@ -111,24 +110,44 @@ export function addNonceToPolicy(policy: string, nonce: string): string {
   return directives.join("; ")
 }
 
+/**
+ * The policies the grants apply to: the enforced one, and the report-only
+ * one, which would otherwise report every scriptlet and synchronous request
+ * of the extensions to the site.
+ */
+function isPolicyHeader(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower === "content-security-policy" || lower === "content-security-policy-report-only"
+}
+
 export function withDocumentNonce(headers: HttpHeader[], nonce: string): HttpHeader[] {
-  return headers.map((header) => header.name.toLowerCase() === "content-security-policy"
+  return headers.map((header) => isPolicyHeader(header.name)
     ? { name: header.name, value: addNonceToPolicy(header.value, nonce) }
     : header)
 }
 
-/** `connect-src` (or the `default-src` it falls back to) with the extension origins allowed. */
+/**
+ * `connect-src` with the extension origins allowed. A policy that leaves
+ * connections to `default-src` gets a `connect-src` of its own with the
+ * same sources plus the origins, so its scripts, frames and images stay as
+ * narrow as they were.
+ */
 export function withConnectGrant(headers: HttpHeader[], origins: string[]): HttpHeader[] {
   if (origins.length === 0) return headers
   return headers.map((header) => {
-    if (header.name.toLowerCase() !== "content-security-policy") return header
+    if (!isPolicyHeader(header.name)) return header
     const directives = header.value.split(";").map((part) => part.trim()).filter(Boolean)
     const names = directives.map((directive) => directive.split(/\s+/)[0].toLowerCase())
     let index = names.indexOf("connect-src")
-    if (index < 0) index = names.indexOf("default-src")
-    if (index < 0) return header
+    if (index < 0) {
+      const fallback = names.indexOf("default-src")
+      if (fallback < 0) return header
+      const sources = directives[fallback].split(/\s+/).slice(1).filter((source) => !/^'(?:nonce|sha256|sha384|sha512)-/.test(source))
+      directives.push(["connect-src", ...sources].join(" "))
+      index = directives.length - 1
+    }
     const addition = origins.filter((origin) => !directives[index].includes(origin)).join(" ")
-    if (!addition) return header
+    if (!addition) return { name: header.name, value: directives.join("; ") }
     directives[index] = `${directives[index].replace(/\s*'none'/, "")} ${addition}`
     return { name: header.name, value: directives.join("; ") }
   })
@@ -189,6 +208,8 @@ export class LiteWebRequest {
         await this.requestStage(targetId, target, event)
       }
     } catch (error) {
+      // Java went on with it while the shared renderer was blocked (FetchWatchdog).
+      if (error instanceof RequestError && error.code === "RELEASED") return
       this.options.channel.log("error", `Request ${event.request.url} failed in the broker: ${String(error)}`)
       await this.cdp(targetId, "Fetch.continueRequest", { requestId: event.requestId }).catch(() => undefined)
     }
@@ -236,6 +257,7 @@ export class LiteWebRequest {
 
   forgetTarget(targetId: string): void {
     for (const key of [...this.records.keys()]) if (key.startsWith(`${targetId}:`)) this.records.delete(key)
+    for (const key of [...this.ids.keys()]) if (key.startsWith(`${targetId}:`)) this.ids.delete(key)
   }
 
   private forget(targetId: string, networkId: string): void {
@@ -322,16 +344,27 @@ export class LiteWebRequest {
   ): Promise<void> {
     const url = extensionUrlFromPageUrl(event.request.url)
     const host = this.hostFor(extensionHost)
-    // The router sees it first so `requestFrom` can grant an own-page frame's loads.
     const decision = host ? await this.options.router.beforeRequest({ ...input, url }) : {}
     if (!host || decision.cancel) {
       await this.cdp(targetId, "Fetch.fulfillRequest", { requestId: event.requestId, responseCode: 404, responseHeaders: [] })
       return
     }
-    const fromOwnPage = target.kind === "page" && target.pageHost === extensionHost
+    // Decided per request from the document that makes it: for a navigation
+    // the frame's parent (its current document may be anything the parent
+    // put there), else the requesting frame. In the extension's own page
+    // WebView its own documents get everything; a web frame there, or a tab,
+    // only what is web accessible, plus, for the extension's web-accessible
+    // page inside a tab (uBlock's picker), the files that page loads. A
+    // navigation in a tab never gets more than what is web accessible.
+    const navigation = event.resourceType === "Document"
+    const requester = requestingDocument(target.frames, event.frameId, navigation)
+    const fromOwnPage = target.kind === "page" && target.pageHost === extensionHost &&
+      (requester === null || pageHostOf(requester) === extensionHost)
+    const grant = new OwnPageRequests()
+    if (!fromOwnPage && !navigation && requester !== null && isOwnPage(host.extension, extensionUrlFromPageUrl(requester))) grant.grant(url)
     const response = await serveExtensionRequest(url, (candidate) => this.hostFor(candidate)?.extension, {
       webAccessibleOnly: !fromOwnPage,
-      ownPages: this.options.ownPages
+      ownPages: grant
     })
     const body = new Uint8Array(await response.arrayBuffer())
     let headers: HttpHeader[] = [...response.headers.entries()].map(([name, value]) => ({ name, value }))
@@ -456,16 +489,15 @@ function pageUrlOf(url: string): string {
   return `${pageOrigin(host)}${parsed.pathname}${parsed.search}${parsed.hash}`
 }
 
-/** Grants an own-page frame's loads of the rest of its extension, as Electron's runtime does. */
-export function ownPageGrant(hosts: () => Iterable<LiteExtensionHost>, ownPages: OwnPageRequests) {
-  return (url: string, documentUrl: string | null): void => {
-    const extensionHost = pageHostOf(url)
-    if (extensionHost === null) return
-    for (const host of hosts()) {
-      if (host.extension.host !== extensionHost) continue
-      const document = documentUrl === null ? null : extensionUrlFromPageUrl(documentUrl)
-      if (isOwnPage(host.extension, document)) ownPages.grant(extensionUrlFromPageUrl(url))
-    }
-  }
+/**
+ * The document a request comes from: the requesting frame's (a blank frame's
+ * creator's), or for a navigation its parent's; null for a top-frame
+ * navigation, which only Java starts in an extension page's WebView.
+ */
+export function requestingDocument(frames: TargetFrames, frameId: string, navigation: boolean): string | null {
+  const frame = navigation ? frames.parentOf(frameId) : frameId
+  if (frame === null) return null
+  const url = frames.url(frame)
+  return url === "" || url === "about:blank" || url === "about:srcdoc" ? frames.creatorUrlOf(frame) : url
 }
 

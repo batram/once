@@ -76,7 +76,7 @@ async function startTier2({ ubolite = true } = {}) {
 }
 
 /** Runs page sources in a minimal document, as `addDocumentStartJavaScript` would at document start. */
-function runInDocument(sources, href = "http://10.0.2.2:8080/fixtures/article.html") {
+function runInDocument(sources, href = "http://10.0.2.2:8080/fixtures/article.html", prelude = "") {
   const styles = []
   const listeners = {}
   const store = new Map()
@@ -97,12 +97,13 @@ function runInDocument(sources, href = "http://10.0.2.2:8080/fixtures/article.ht
     removeItem: (key) => store.delete(key)
   }
   const url = new URL(href)
-  const context = { document, localStorage, location: { href, origin: url.origin, hostname: url.hostname }, console, URL, setTimeout, clearTimeout }
+  const context = { document, localStorage, location: { href, origin: url.origin, hostname: url.hostname }, console, URL, setTimeout, clearTimeout, AbortController }
   context.window = context
   context.top = context
   context.self = context
   context.requestAnimationFrame = (callback) => setTimeout(callback, 0)
   vm.createContext(context)
+  if (prelude) vm.runInContext(prelude, context)
   for (const source of sources) vm.runInContext(source, context)
   return { document, styles, store, listeners, window: context }
 }
@@ -116,7 +117,9 @@ test("the portable subset matches the GeckoView bridge parser", () => {
     LIST_TEXT,
     "! comment\n[Adblock Plus]\n||tracker.example^\n/regex/\n##.ad\n##div:has(.x)\nexample.com##.scoped",
     "||a.example^\n@@||b.example^$document",
-    "||a.example^\n##.hide\nexample.com#@#.hide"
+    "||a.example^\n##.hide\nexample.com#@#.hide",
+    // Selectors that would leave their rule or swallow the next ones are refused by both.
+    "##.x{\n##@import url(//evil.example/x.css);x\n##.a /* \n##[href=\"x\n##div[a=\"]\"]\n##.ok\n##.b)\n##\\66 oo"
   ]
   for (const text of samples) {
     const gecko = context.onceFilterRules.parse(text)
@@ -126,6 +129,7 @@ test("the portable subset matches the GeckoView bridge parser", () => {
     assert.deepEqual(ported.selectors, [...gecko.selectors], text)
     assert.equal(ported.skipped, gecko.skipped, text)
   }
+  assert.deepEqual(parseFilterList(samples.at(-1)).selectors, ['div[a="]"]', ".ok"])
 })
 
 test("filter lists become DNR block and allow rules plus generic selectors", () => {
@@ -291,4 +295,48 @@ test("Lite fetches the uBO Lite bundle iOS pins, and ships its Tier 2 files", ()
     assert.ok(gradle.includes(`ublock-origin-lite/${file}`), file)
     assert.ok(fs.existsSync(path.join(UBOLITE_DIR, file)), file)
   }
+})
+
+test("a userscript's GM API stays out of the page's reach: no caller arguments, pristine storage and JSON", async () => {
+  const { java } = await startTier2({ ubolite: false })
+  const body = [
+    "GM_setValue('secret', 41);",
+    "document.documentElement.dataset.callerArgs = String(window.spy());",
+    "GM_xmlhttpRequest({ url: '/data.json', responseType: 'json', onload: () => { document.documentElement.dataset.loaded = '1' },",
+    "  onerror: () => { document.documentElement.dataset.failed = '1' } });"
+  ].join("\n")
+  await java.request("settings.apply", {
+    filterLists: { version: 1, lists: [] },
+    userscripts: { version: 1, scripts: [{ id: "guarded", name: "Guarded", enabled: true, body, matches: ["<all_urls>"], includes: [], excludes: [], runAt: "document-start", noFrames: false }] }
+  })
+  // The page: a function that looks at who called it, and a JSON.stringify patched later (after the runtime started).
+  const prelude = [
+    "window.spy = function spy() { const caller = spy.caller; return caller ? caller.arguments.length : -1 };",
+    "window.fetch = () => Promise.resolve({ clone: () => ({ text: () => Promise.resolve('not json') }), headers: new Map(), status: 200 });"
+  ].join("\n")
+  const sources = java.scripts.at(-1)
+  const page = runInDocument([sources[0], "JSON.stringify = () => { window.leaked = true; return '\"forged\"' }", ...sources.slice(1)], undefined, prelude)
+  assert.equal(page.document.documentElement.dataset.callerArgs, "0", "the GM API is no argument a page function can read")
+  assert.equal(page.window.leaked, undefined, "the page's later JSON.stringify never sees a value")
+  assert.equal(page.store.get("once.userscript.guarded.secret"), "41")
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(page.document.documentElement.dataset.failed, "1", "a body that is not JSON fails the request through onerror")
+  assert.equal(page.document.documentElement.dataset.loaded, undefined)
+})
+
+test("an older settings application finishing after a newer one does not replace its state", async () => {
+  const { java } = await startTier2({ ubolite: false })
+  let releaseSlow
+  const slow = new Promise((resolve) => { releaseSlow = resolve })
+  java.handlers["tier2.fetchList"] = async ({ url }) => {
+    if (url.endsWith("slow.txt")) { await slow; return { status: 200, text: "||slow.example^" } }
+    return { status: 200, text: "||fast.example^" }
+  }
+  const older = java.request("settings.apply", { filterLists: { version: 1, lists: [{ url: "http://10.0.2.2:8080/slow.txt", enabled: true }] }, userscripts: { version: 1, scripts: [] } })
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  await java.request("settings.apply", { filterLists: { version: 1, lists: [{ url: "http://10.0.2.2:8080/fast.txt", enabled: true }] }, userscripts: { version: 1, scripts: [] } })
+  releaseSlow()
+  await older
+  const lists = java.netRules.at(-1).find((group) => group.id === "once-lists")
+  assert.deepEqual(lists.rules.map((rule) => rule.condition.urlFilter), ["||fast.example^"])
 })

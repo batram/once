@@ -11,13 +11,29 @@ globalThis.onceFilterRules = (() => {
     return new RegExp(prefix + escape(value).replace(/\\\*/g, ".*")
       .replace(/\\\^/g, "(?:[^A-Za-z0-9_.%-]|$)") + (end ? "$" : ""), "i")
   }
+  // A generic selector that cannot leave its rule or swallow the next ones
+  // (no braces, semicolons, at-rules, escapes, comments, unclosed brackets
+  // or quotes), and no procedural syntax. Same as liteFilterLists.safeSelector.
+  function safeSelector(selector) {
+    if (!selector.trim() || /[+:{};@\\]|\/\*|\*\//.test(selector)) return false
+    const closing = []
+    let quote = ""
+    for (const char of selector) {
+      if (quote) { if (char === quote) quote = ""; continue }
+      if (char === "\"" || char === "'") quote = char
+      else if (char === "[") closing.push("]")
+      else if (char === "(") closing.push(")")
+      else if (char === "]" || char === ")") { if (closing.pop() !== char) return false }
+    }
+    return !quote && closing.length === 0
+  }
   function parse(text) {
     const blocked = [], allowed = [], selectors = []
     let skipped = 0, unsafeException = false
     for (const raw of text.split(/\r?\n/)) {
       const line = raw.trim()
       if (!line || line.startsWith("!") || line.startsWith("[")) continue
-      if (line.startsWith("##") && line.slice(2).trim() && !/[+:]/.test(line.slice(2))) {
+      if (line.startsWith("##") && safeSelector(line.slice(2))) {
         selectors.push(line.slice(2)); continue
       }
       const exception = line.startsWith("@@")

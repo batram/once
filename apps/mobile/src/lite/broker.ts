@@ -8,10 +8,10 @@ import {
   ApiHandler,
   DnrEnforcer,
   LoadedExtension,
-  OwnPageRequests,
   RuntimePlatform,
   UBLOCK_ORIGIN_ID,
   WebRequestRouter,
+  broadcastCookieChange,
   createApiHandlers,
   extensionUrl,
   loadExtension,
@@ -21,12 +21,13 @@ import { JavaChannel, MessagePort } from "./javaChannel"
 import { FilesInterface, LiteFileReader, readBundle } from "./liteFiles"
 import { TargetFrames } from "./liteFrames"
 import { LiteExtensionHost } from "./liteHosts"
+import { LiteHostNames } from "./liteHostNames"
 import { LiteManagement } from "./liteManagement"
 import { LitePages } from "./litePages"
 import { LiteTabs } from "./liteTabs"
 import { LiteWorlds } from "./liteWorlds"
 import { LiteSyncAnswers } from "./liteSync"
-import { LiteWebRequest, RequestTarget, ownPageGrant } from "./liteWebRequest"
+import { LiteWebRequest, RequestTarget } from "./liteWebRequest"
 import { LiteViolentmonkey } from "./liteViolentmonkey"
 import { liteCookieStore } from "./liteCookies"
 import { LiteJsonStore } from "./liteStorage"
@@ -60,7 +61,6 @@ export class LiteBroker {
   private readonly hosts = new Map<string, LiteExtensionHost>()
   private readonly targets = new Map<string, Target>()
   private readonly handlers: Record<string, ApiHandler>
-  private readonly ownPages = new OwnPageRequests()
   private readonly dnr = new DnrEnforcer(() => [...this.hosts.values()].map((host) => host.dnr))
   private readonly router: WebRequestRouter
   private readonly webRequest: LiteWebRequest
@@ -73,6 +73,7 @@ export class LiteBroker {
   private readonly cookies
   private readonly settings
   private management: LiteManagement | null = null
+  private hostNames: LiteHostNames | null = null
   /** Set when `lite.start` said DevTools is unavailable: no extension loads, Java enforces what this compiles. */
   private tier2: LiteTier2 | null = null
   private start: StartParams | null = null
@@ -87,23 +88,18 @@ export class LiteBroker {
     this.cookies = liteCookieStore(this.channel)
     this.router = new WebRequestRouter({
       sources: () => [...this.hosts.values()],
-      declarative: this.dnr,
-      requestFrom: ownPageGrant(() => this.hosts.values(), this.ownPages)
+      declarative: this.dnr
     })
     this.violentmonkey = new LiteViolentmonkey(this.channel)
-    this.sync = new LiteSyncAnswers(this.channel, (host, blobUrl) => this.pages.readBlob(host, blobUrl))
+    this.sync = new LiteSyncAnswers(this.channel, (host, blobUrl) => this.pages.readBlob(host, blobUrl), () => this.start?.token ?? "")
     this.webRequest = new LiteWebRequest({
       channel: this.channel,
       router: this.router,
-      ownPages: this.ownPages,
       hosts: () => this.hosts.values(),
       target: (targetId) => this.requestTarget(targetId),
       token: () => this.start?.token ?? "",
       documentsReleased: () => Promise.all([this.violentmonkey.documentsReleased(), this.listsReady]).then(() => undefined),
-      prepareDocument: async (headers, input) => {
-        await this.sync.flush()
-        return this.sync.prepareBlobs(this.hosts.values(), headers, input)
-      }
+      prepareDocument: (headers, input) => this.sync.prepareDocument(this.hosts.values(), headers, input)
     })
     this.tabs = new LiteTabs({
       channel: this.channel,
@@ -121,7 +117,8 @@ export class LiteBroker {
       () => this.hosts.values(),
       () => this.platform.locale(),
       () => this.start?.token ?? "",
-      (host) => this.pages.tabPageSource(host)
+      (host) => this.pages.tabPageSource(host),
+      () => this.start?.channel ?? ""
     )
     this.worldMessages = new LiteWorldMessages({
       channel: this.channel,
@@ -131,11 +128,8 @@ export class LiteBroker {
     })
     this.settings = createLiteSettingsCoordinator(() => this.hosts.values(), () => this.channel.event("extensions.changed"))
     this.settings.onAdopted((adopted) => this.channel.event("settings.adopted", adopted))
-    this.cookies.onChanged((change) => {
-      for (const host of this.hosts.values()) {
-        if (host.extension.manifest.permissions.has("cookies")) host.contexts.emit("cookies", "onChanged", [change])
-      }
-    })
+    // Host permissions apply as on Electron: an extension hears only about cookies it may read.
+    this.cookies.onChanged((change) => broadcastCookieChange(this.hosts.values(), change))
     this.registerHandlers()
     this.deferHeldInjections()
   }
@@ -194,6 +188,8 @@ export class LiteBroker {
 
   private registerHandlers(): void {
     this.channel.onRequest("lite.start", (params) => this.handleStart(params as StartParams))
+    // Java's sign-of-life check while requests wait on the broker (its renderer is shared).
+    this.channel.onRequest("broker.ping", () => ({}))
     this.channel.onRequest("extension.command", (params) => {
       const command = params as ExtensionCommandParams
       return this.tier2 ? this.tier2.command(command.action, command.id) : this.requireManagement().command(command)
@@ -223,6 +219,7 @@ export class LiteBroker {
     if (this.start) throw new Error("The broker already started")
     this.start = params
     this.platform = { locale: () => params.locale, os: "android", arch: params.arch }
+    this.hostNames = new LiteHostNames(this.channel, params.storageRoot)
     this.management = new LiteManagement({
       channel: this.channel,
       files: this.files,
@@ -257,7 +254,9 @@ export class LiteBroker {
   }
 
   async load(directory: string, expectedId?: string): Promise<LoadedExtension> {
-    const extension = await loadExtension(directory, new LiteFileReader(this.files, directory), this.platform.locale())
+    const loaded = await loadExtension(directory, new LiteFileReader(this.files, directory), this.platform.locale())
+    // This install's own host for the extension, not the one its id derives everywhere.
+    const extension: LoadedExtension = this.hostNames ? { ...loaded, host: await this.hostNames.hostFor(loaded.id) } : loaded
     if (expectedId !== undefined && extension.id !== expectedId) {
       throw new Error(`${directory} is ${extension.id}, not the listed ${expectedId}`)
     }
@@ -310,6 +309,7 @@ export class LiteBroker {
     this.hosts.delete(extensionHost)
     this.settings.forget(host)
     this.sync.forget(host)
+    this.pages.forgetHost(host)
     for (const pageId of this.pages.pagesOf(host)) await this.pages.close(pageId).catch(() => undefined)
     await host.dispose()
     this.violentmonkey.hostChanged(this.hosts.values())
@@ -359,6 +359,7 @@ export class LiteBroker {
 
   private tabRemoved(tabId: number): void {
     this.dnr.forgetTab(tabId)
+    this.pages.forgetTab(tabId)
     for (const host of this.hosts.values()) host.forgetTab(tabId)
   }
 
@@ -392,7 +393,11 @@ export class LiteBroker {
 
   private cdpEvent({ targetId, method, params }: CdpEventParams): void {
     const target = this.targets.get(targetId)
-    if (!target) return
+    if (!target) {
+      // A request of a target the broker no longer knows must not wait forever.
+      if (method === "Fetch.requestPaused") void this.webRequest.requestPaused(targetId, params as never)
+      return
+    }
     const record = (params ?? {}) as Record<string, unknown>
     switch (method) {
       case "Fetch.requestPaused":
@@ -436,7 +441,7 @@ export class LiteBroker {
       }
     } else if (method === "Page.navigatedWithinDocument") {
       const frameId = String(record.frameId)
-      frames.navigated(frameId, undefined, String(record.url))
+      frames.navigatedWithinDocument(frameId, String(record.url))
       if (target.kind === "tab") {
         const facts = frames.facts(frameId)
         this.tabs.frameNavigated(target.tabId, String(record.url), facts.frameId, facts.parentFrameId, true)

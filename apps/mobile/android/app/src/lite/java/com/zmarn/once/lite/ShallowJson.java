@@ -23,13 +23,54 @@ import java.util.Base64;
 final class ShallowJson {
     private ShallowJson() {}
 
-    /** The file a key lives in: URL-safe base64 of its UTF-8, so any key is a file name. */
+    /** File names stay below the 255 bytes file systems take; base64 grows a key by a third. */
+    private static final int NAME_LIMIT = 200;
+    /** A long key's name: `~` (never in base64url) and its SHA-256; the key itself is beside it in `<name>.key`. */
+    private static final String HASHED = "~";
+    private static final String KEY_SUFFIX = ".key";
+
+    /** The file a key lives in: URL-safe base64 of its UTF-8, so any key is a file name, or its hash when that is too long. */
     static File keyFile(File directory, String key) {
-        return new File(directory, Base64.getUrlEncoder().withoutPadding().encodeToString(key.getBytes(StandardCharsets.UTF_8)));
+        String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(key.getBytes(StandardCharsets.UTF_8));
+        return new File(directory, encoded.length() <= NAME_LIMIT ? encoded : HASHED + sha256(key));
     }
 
-    static String keyOf(File file) {
+    /** Where a long key's text is kept; null for a key spelled in its file name. */
+    static File keyNameFile(File valueFile) {
+        return valueFile.getName().startsWith(HASHED) ? new File(valueFile.getParentFile(), valueFile.getName() + KEY_SUFFIX) : null;
+    }
+
+    /** Places the key's text beside its value when the file name cannot carry it. */
+    static void recordKey(File valueFile, String key) throws IOException {
+        File name = keyNameFile(valueFile);
+        if (name != null) writeAtomically(name, key);
+    }
+
+    /** Removes a key's value and, for a long key, its name. */
+    static void deleteKey(File directory, String key) {
+        File value = keyFile(directory, key);
+        //noinspection ResultOfMethodCallIgnored
+        value.delete();
+        File name = keyNameFile(value);
+        //noinspection ResultOfMethodCallIgnored
+        if (name != null) name.delete();
+    }
+
+    static String keyOf(File file) throws IOException {
+        File name = keyNameFile(file);
+        if (name != null) return new String(java.nio.file.Files.readAllBytes(name.toPath()), StandardCharsets.UTF_8);
         return new String(Base64.getUrlDecoder().decode(file.getName()), StandardCharsets.UTF_8);
+    }
+
+    private static String sha256(String text) {
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : digest) hex.append(String.format(java.util.Locale.ROOT, "%02x", b));
+            return hex.toString();
+        } catch (java.security.NoSuchAlgorithmException error) {
+            throw new IllegalStateException(error);
+        }
     }
 
     /** Streams `{"key": value, ...}` from the directory's files into `out`. */
@@ -38,7 +79,7 @@ final class ShallowJson {
         out.write('{');
         boolean first = true;
         if (files != null) for (File file : files) {
-            if (!file.isFile() || file.getName().endsWith(".tmp")) continue;
+            if (!file.isFile() || file.getName().endsWith(".tmp") || file.getName().endsWith(KEY_SUFFIX)) continue;
             if (!first) out.write(',');
             first = false;
             out.write(org.json.JSONObject.quote(keyOf(file)));
@@ -64,6 +105,7 @@ final class ShallowJson {
                 scanner.peekSkippingSpace();
                 File target = keyFile(directory, key);
                 try (Writer out = new OutputStreamWriter(new FileOutputStream(target), StandardCharsets.UTF_8)) { scanner.copyValue(out); }
+                recordKey(target, key);
                 int next = scanner.peekSkippingSpace();
                 if (next == '}') return;
                 if (next != ',') throw new IOException("Malformed store document");
