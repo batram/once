@@ -128,15 +128,31 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
   })
   // Listing starts Gecko, so the row learns its count from the overview's own
   // list call and from change events, never from an eager query at bind.
-  void api.onChanged(() => {
-    if (!active() || current !== "overview") {
-      void api.command({ action: "list" }).then(report).catch(() => undefined)
-      return
-    }
-    if (busy) refreshNeeded = true
-    else void show("overview")
-  }).catch(error => { status.textContent = String(error) })
+  watchExtensionChanges(api, async () => {
+    if (!active() || current !== "overview") report(await api.command({ action: "list" }))
+    else if (busy) refreshNeeded = true
+    else await show("overview")
+  }, error => { if (active()) status.textContent = String(error) })
   if (active()) void show("overview")
+}
+
+/** Debounce icon/action bursts, retaining changes that arrive during a query. */
+function watchExtensionChanges(api: MobileBrowserExtensions, refresh: () => Promise<void>, failed: (error: unknown) => void): void {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let refreshing = false
+  let changed = false
+  const run = async () => {
+    refreshing = true
+    try {
+      do { changed = false; await refresh() } while (changed)
+    } catch (error) { failed(error) }
+    finally { refreshing = false }
+  }
+  void api.onChanged(() => {
+    if (refreshing) { changed = true; return }
+    clearTimeout(timer)
+    timer = setTimeout(() => { void run() }, 100)
+  }).catch(failed)
 }
 
 function renderRemoval(page: HTMLElement, api: MobileBrowserExtensions, extension: MobileBrowserExtension,

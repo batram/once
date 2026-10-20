@@ -50,7 +50,15 @@ export async function bindMobileExtensionSettings(
   })
   // Violentmonkey starts with the browsing engine, after the shell, and
   // restarts when it is turned back on; each start gets the current scripts.
-  violentmonkey?.onConnected(() => { void applyExtensionSettings() })
+  violentmonkey?.onConnected(() => {
+    // Keep the initial filter hand-off in the readiness chain. A VM restart
+    // needs current scripts, but must not refetch or re-register filter lists.
+    pending = pending.then(async () => {
+      const revision = settingsRevision
+      const userscripts = await client.getUserscripts()
+      if (revision === settingsRevision) await handToViolentmonkey(userscripts, revision)
+    }).catch(error => console.error("Failed to reconnect mobile userscripts", error))
+  })
   // Only Violentmonkey has anything new; the filter lists stay as they are.
   violentmonkey?.onDashboardChanged(() => {
     const revision = settingsRevision

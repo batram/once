@@ -287,12 +287,12 @@ test("applyExtensionSettings hands the lists to uBlock's dashboard port and the 
   java.forget(options)
   java.pageMessage(vmPage, { type: "reply", token: options.params.message.message.token, result: [null] })
   await java.next((e) => e.type === "event" && e.event === "violentmonkey.connected")
-  const exported = java.request("violentmonkey.send", { cmd: "ExportZip", data: { values: false } })
+  const exported = java.request("violentmonkey.send", { cmd: "OnceReadSnapshot" })
   const command = await java.nextPageEvent(vmPage, "runtime", "onMessage")
   assert.deepEqual(command.params.message.message.args[0], { cmd: "ExportZip", data: { values: false } })
   assert.match(command.params.message.message.args[1].url, /^moz-extension:\/\/.*\/_once\/settings$/)
   java.pageMessage(vmPage, { type: "reply", token: command.params.message.message.token, result: [{ items: [] }] })
-  assert.deepEqual(await exported, { value: { items: [] } })
+  assert.deepEqual(await exported, { value: { records: { a: { id: 1 } }, scripts: { items: [] } } })
   await assert.rejects(java.request("violentmonkey.send", { cmd: "InjectionFeedback" }), /not available/)
 
   // The hand-off holds tab documents until settled.

@@ -21,16 +21,33 @@
   let port = null
   let inFlight = 0
   let changeTimer = null
+  const epoch = `${Date.now()}-${Math.random()}`
+  let revision = 0
+  let snapshotKnown = false
+  const invalidate = () => { revision++; snapshotKnown = false }
+  const token = () => `${epoch}:${revision}`
 
   async function run({ cmd, data }) {
+    if (cmd === "OnceReadSnapshot") {
+      if (snapshotKnown && data?.token === token()) return { unchanged: true, token: token() }
+      const before = revision
+      const [records, scripts] = await Promise.all([
+        browser.storage.local.get(RECORDS_KEY),
+        globalThis.handleCommandMessage({ cmd: "ExportZip", data: { values: false } })
+      ])
+      snapshotKnown = before === revision
+      return { records: records[RECORDS_KEY] ?? null, scripts, token: snapshotKnown ? token() : null }
+    }
     if (cmd === "OnceReadRecords") return (await browser.storage.local.get(RECORDS_KEY))[RECORDS_KEY] ?? null
     if (cmd === "OnceWriteRecords") {
+      invalidate()
       await browser.storage.local.set({ [RECORDS_KEY]: data })
       return null
     }
     if (!COMMANDS.has(cmd)) throw new Error(`Not a command Once hands to Violentmonkey: ${cmd}`)
     // Exported by Violentmonkey's background for its popup; it waits for the
     // background's own start-up before answering.
+    if (!["ExportZip", "GetScriptCode"].includes(cmd)) invalidate()
     return globalThis.handleCommandMessage({ cmd, data })
   }
 
@@ -41,11 +58,12 @@
     port = connected
     connected.onMessage.addListener(message => {
       if (typeof message?.id !== "number") return
-      inFlight++
+      const writing = ["OnceWriteRecords", "ParseScript", "UpdateScriptInfo", "MarkRemoved", "RemoveScripts"].includes(message.cmd)
+      if (writing) inFlight++
       run(message).then(
         value => connected.postMessage({ id: message.id, value: value ?? null }),
         error => connected.postMessage({ id: message.id, error: String(error?.message ?? error) })
-      ).finally(() => inFlight--)
+      ).finally(() => { if (writing) inFlight-- })
     })
     connected.onDisconnect.addListener(() => {
       if (port === connected) port = null
@@ -67,7 +85,10 @@
   // announced so the app reconciles at once, as Electron does by watching the
   // same storage. Writes made while the app's own commands run are its own.
   browser.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local" || inFlight > 0 || !Object.keys(changes).some(key => SCRIPT_KEYS.test(key))) return
+    if (area !== "local") return
+    const scriptsChanged = Object.keys(changes).some(key => SCRIPT_KEYS.test(key))
+    if (scriptsChanged || RECORDS_KEY in changes) invalidate()
+    if (inFlight > 0 || !scriptsChanged) return
     clearTimeout(changeTimer)
     changeTimer = setTimeout(() => port?.postMessage({ type: "dashboard-changed" }), 500)
   })

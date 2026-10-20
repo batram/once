@@ -145,7 +145,7 @@ final class GeckoExtensionManager implements WebExtension.ActionDelegate, WebExt
         if (operation != null) { call.reject("An extension operation is already in progress"); return; }
         operation = call;
         declined = false;
-        engine.ready().then(ignored -> engine.runtime.getWebExtensionController().list()).accept(installed -> {
+        engine.catalog().accept(installed -> {
             if (disposed) return;
             adopt(installed);
             try { execute(call, action); }

@@ -54,12 +54,33 @@ export function createViolentmonkeyHandOff(): ViolentmonkeyHandOff | null {
   // two interleaved plans would each read the other's writes as dashboard edits.
   let queue: Promise<unknown> = Promise.resolve()
   let latest = 0
+  let verified: { document: string; token: string } | undefined
   const run = async (document: UserscriptsDocument): Promise<UserscriptsDocument | undefined> => {
     // The records live in Violentmonkey's own storage, so they are lost with
     // its scripts or not at all: a missing script is always a deletion.
-    let records: unknown
+    const signature = JSON.stringify(document)
+    let snapshot: { records?: unknown; scripts?: unknown; unchanged?: boolean; token?: string }
+    const previous = verified
+    verified = undefined
     try {
-      records = await send("OnceReadRecords")
+      try {
+        snapshot = await send("OnceReadSnapshot", { token: previous?.document === signature ? previous.token : undefined }) as typeof snapshot
+      } catch (error) {
+        // An already-running background may still carry the previous relay
+        // while the shell updates. Only an explicit unsupported command falls
+        // back; transport/storage failures must not become empty snapshots.
+        if (!String(error).includes("Not a command Once hands to Violentmonkey: OnceReadSnapshot")) throw error
+        const [records, scripts] = await Promise.all([send("OnceReadRecords"), send("ExportZip", { values: false })])
+        snapshot = { records, scripts }
+      }
+      if (snapshot?.unchanged === true && previous?.document === signature && snapshot.token === previous.token) {
+        verified = previous
+        await plugin.settled()
+        return undefined
+      }
+      if (!snapshot || typeof snapshot !== "object" || !("scripts" in snapshot)) {
+        throw new Error("Violentmonkey did not provide its reconciliation snapshot")
+      }
     } catch (error) {
       if ((error as { code?: string }).code === "NOT_RUNNING") return undefined
       throw error
@@ -68,9 +89,26 @@ export function createViolentmonkeyHandOff(): ViolentmonkeyHandOff | null {
       // A page opening while scripts change would load before Violentmonkey
       // has them and run `@run-at document-start` scripts late, or not at all.
       await plugin.handingOff()
-      const applied = readRecords(records)
-      const result = await handUserscriptsToViolentmonkey(send, document, applied, sha256, true)
-      await send("OnceWriteRecords", result.applied)
+      const applied = readRecords(snapshot.records)
+      // ExportZip and the records travelled together. Reuse that exact script
+      // snapshot for planning, rather than exporting all source text again.
+      let mutated = false
+      const snapshotSend = (cmd: string, data?: unknown): Promise<unknown> => {
+        if (cmd === "ExportZip") return Promise.resolve(snapshot.scripts)
+        if (cmd !== "GetScriptCode") mutated = true
+        return send(cmd, data)
+      }
+      const result = await handUserscriptsToViolentmonkey(snapshotSend, document, applied, sha256, true)
+      const unchanged = Object.keys(applied).length === Object.keys(result.applied).length &&
+        Object.entries(result.applied).every(([key, value]) => {
+          const before = applied[key]
+          return before && before.id === value.id && before.source === value.source &&
+            before.code === value.code && before.enabled === value.enabled
+        })
+      if (!unchanged) await send("OnceWriteRecords", result.applied)
+      if (unchanged && !mutated && !result.adopted && typeof snapshot.token === "string") {
+        verified = { document: signature, token: snapshot.token }
+      }
       return result.adopted
     } finally {
       // A failed hand-off is reported, not retried; pages open regardless.

@@ -45,15 +45,16 @@ function harness(command, active = true, platform = "android") {
     }
   }
   Function("exports", "require", "document", "MutationObserver", "Node", compiled)(exports, require, document, Observer, window.Node)
+  let changed
   const openedUrls = []
-  exports.bindMobileBrowserExtensionSettings({ command, platform, onChanged: async () => () => {} }, url => openedUrls.push(url))
+  exports.bindMobileBrowserExtensionSettings({ command, platform, onChanged: async handler => { changed = handler; return () => {} } }, url => openedUrls.push(url))
   const click = text => {
     const button = [...document.querySelectorAll("button")].find(button => button.textContent === text || button.getAttribute("aria-label") === text)
     assert.ok(button, `button ${text} exists`)
     button.click()
     return settle()
   }
-  return { document, click, reports, openedUrls, navigation }
+  return { document, click, reports, openedUrls, navigation, changed: () => changed() }
 }
 
 test("Firefox Add-ons catalog opens in the mobile reading view", async () => {
@@ -177,4 +178,31 @@ test("mobile extension subpages and install drafts share Back and Forward histor
   ui.navigation.navigate("forward")
   await settle()
   assert.ok([...ui.document.querySelectorAll("button")].some(button => button.textContent === "Remove extension and data"))
+})
+
+
+test("hidden catalog notifications are coalesced and a later change refreshes again", async () => {
+  let queries = 0
+  const ui = harness(async () => { queries++; return { extensions: [] } }, false)
+  for (let i = 0; i < 8; i++) ui.changed()
+  await new Promise(resolve => setTimeout(resolve, 140))
+  assert.equal(queries, 1)
+  ui.changed()
+  await new Promise(resolve => setTimeout(resolve, 140))
+  assert.equal(queries, 2)
+})
+
+test("catalog changes during a slow refresh cause one trailing refresh", async () => {
+  const replies = []
+  const ui = harness(() => new Promise(resolve => replies.push(resolve)), false)
+  ui.changed()
+  await new Promise(resolve => setTimeout(resolve, 140))
+  assert.equal(replies.length, 1)
+  for (let i = 0; i < 8; i++) ui.changed()
+  replies[0]({ extensions: [] })
+  await settle()
+  assert.equal(replies.length, 2)
+  replies[1]({ extensions: [] })
+  await settle()
+  assert.equal(replies.length, 2)
 })

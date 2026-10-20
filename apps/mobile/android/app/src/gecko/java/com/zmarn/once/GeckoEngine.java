@@ -19,6 +19,7 @@ final class GeckoEngine {
     final GeckoRuntime runtime;
     private final Context context;
     private GeckoResult<List<WebExtension>> ready;
+    private boolean prepared;
 
     static synchronized GeckoEngine get(Context context) {
         if (instance == null) instance = new GeckoEngine(context.getApplicationContext());
@@ -84,8 +85,13 @@ final class GeckoEngine {
                 "resource://android/assets/" + bundle[0] + "/", bundle[1]));
         }
         ready = GeckoResult.allOf(installs).then(ignored -> runtime.getWebExtensionController().list());
-        ready.accept(ViolentmonkeyRelayPlugin::attach, error -> ready = null);
+        ready.accept(installed -> { prepared = true; ViolentmonkeyRelayPlugin.attach(installed); }, error -> ready = null);
         return ready;
+    }
+
+    /** Share the startup catalog; later queries observe installs and toggles. */
+    GeckoResult<List<WebExtension>> catalog() {
+        return prepared ? runtime.getWebExtensionController().list() : ready();
     }
 
     static boolean bundled(String id) {

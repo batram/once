@@ -78,3 +78,29 @@ test("a stale surface acknowledgement cannot reinstall older userscripts", async
   await binding
   assert.deepEqual(versions, [2])
 })
+
+test("VM connection waits for initial filters but does not apply them again", async () => {
+  let connected, releaseFilters
+  let filterReads = 0, filterApplies = 0, scripts = 0
+  let ready = false
+  const binding = exportsObject.bindMobileExtensionSettings({
+    getFilterLists: async () => { filterReads++; return { lists: [] } },
+    getUserscripts: async () => ({ scripts: [] }), subscribe() {}
+  }, { applyExtensionSettings: () => { filterApplies++; return new Promise(resolve => { releaseFilters = resolve }) } }, {
+    apply: async () => { scripts++ }, onConnected: handler => { connected = handler }, onDashboardChanged() {}
+  }).then(() => { ready = true })
+  await settle()
+  connected()
+  await settle()
+  assert.equal(ready, false)
+  assert.equal(scripts, 0)
+  releaseFilters()
+  await binding
+  assert.equal(filterReads, 1)
+  assert.equal(filterApplies, 1)
+  assert.equal(scripts, 2)
+  connected()
+  await settle()
+  assert.equal(filterApplies, 1)
+  assert.equal(scripts, 3)
+})

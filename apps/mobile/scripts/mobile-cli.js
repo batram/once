@@ -268,6 +268,9 @@ function writeWebStamp(channel) {
 }
 
 function sync(platform, channel) {
+  // Both deploy and package must refresh adaptations when a relay changes.
+  // Cached upstream bundles are verified locally before any download is needed.
+  if (platform === "android") run(process.execPath, [path.join(root, "scripts", "fetch-extensions.js"), ...(engine === "lite" ? ["--ubolite"] : [])])
   buildWeb(channel)
   cap(["sync", platform], platformEnvironment(platform, channel))
   if (platform === "ios") {
@@ -475,11 +478,6 @@ else if (command === "run") {
   }
   sync(platform, channel)
   if (platform === "android") {
-    // The built-in extension bundles are not in the repository; they are
-    // fetched against pinned hashes before the APK that carries them is built
-    // (both engines: GeckoView takes the adapted copies, Once Lite the upstream
-    // ones and uBlock Origin Lite's rulesets for its Tier 2).
-    run(process.execPath, [path.join(root, "scripts", "fetch-extensions.js"), ...(engine === "lite" ? ["--ubolite"] : [])])
     const android = androidEnvironment(channel)
     run(android.command, [
       "-classpath",

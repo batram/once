@@ -1,0 +1,910 @@
+{
+  "date": "2026-10-20",
+  "baselineCommit": "fd929045",
+  "device": "Samsung SM-G780G / Android 13 / GeckoView 155.0.20260903215306",
+  "method": "Process-cold, retained existing profile; foreground unlocked. Normal comparison excludes tracing, profiler, post-install warmup and failed stale-relay trial. Sequential samples, not randomized A/B. Thermal status 1 observed after benchmark series.",
+  "before": [
+    {
+      "run": "current-1",
+      "firstStoriesMs": 1962.5999512672424,
+      "configsMs": 2006.4999513626099,
+      "nativeCalls": 62,
+      "iteratorNextCalls": 11
+    },
+    {
+      "run": "current-2",
+      "firstStoriesMs": 1954.5999510288239,
+      "configsMs": 1999.4999511241913,
+      "nativeCalls": 62,
+      "iteratorNextCalls": 11
+    },
+    {
+      "run": "current-3",
+      "firstStoriesMs": 2031.10009765625,
+      "configsMs": 2072.60009765625,
+      "nativeCalls": 62,
+      "iteratorNextCalls": 11
+    },
+    {
+      "run": "current-4",
+      "firstStoriesMs": 1933.0000486373901,
+      "configsMs": 1979.4000487327576,
+      "nativeCalls": 62,
+      "iteratorNextCalls": 11
+    },
+    {
+      "run": "current-5",
+      "firstStoriesMs": 1918.9000489711761,
+      "configsMs": 1962.2000489234924,
+      "nativeCalls": 62,
+      "iteratorNextCalls": 11
+    }
+  ],
+  "after": [
+    {
+      "run": "final-1",
+      "firstStoriesMs": 2064.7999024391174,
+      "configsMs": 2109.9999022483826,
+      "nativeCalls": 56,
+      "iteratorNextCalls": 5
+    },
+    {
+      "run": "final-2",
+      "firstStoriesMs": 2156.100000143051,
+      "configsMs": 2205.600000143051,
+      "nativeCalls": 56,
+      "iteratorNextCalls": 5
+    },
+    {
+      "run": "final-3",
+      "firstStoriesMs": 1973.0999023914337,
+      "configsMs": 2018.0999023914337,
+      "nativeCalls": 56,
+      "iteratorNextCalls": 5
+    },
+    {
+      "run": "final-4",
+      "firstStoriesMs": 1975.0999512672424,
+      "configsMs": 2017.4999511241913,
+      "nativeCalls": 56,
+      "iteratorNextCalls": 5
+    },
+    {
+      "run": "final-5",
+      "firstStoriesMs": 1942.4000976085663,
+      "configsMs": 1986.7000975608826,
+      "nativeCalls": 56,
+      "iteratorNextCalls": 5
+    }
+  ],
+  "beforeOpen": [
+    {
+      "run": "current-open-1",
+      "openMs": 1830,
+      "pageReportMs": 2575,
+      "catalogRequests": 8,
+      "catalogRejections": 6,
+      "filterReapplications": 1,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadRecords",
+          "startMs": 1583.8999998569489,
+          "durationMs": 88.5
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1672.3999998569489,
+          "durationMs": 12.600000143051147
+        },
+        {
+          "method": "ExportZip",
+          "startMs": 1685.5,
+          "durationMs": 80.69999980926514
+        },
+        {
+          "method": "OnceWriteRecords",
+          "startMs": 1768.6999998092651,
+          "durationMs": 40.10000014305115
+        },
+        {
+          "method": "settled",
+          "startMs": 1808.8999998569489,
+          "durationMs": 21.799999952316284
+        }
+      ]
+    },
+    {
+      "run": "current-open-2",
+      "openMs": 1742.6999998092651,
+      "pageReportMs": 2440,
+      "catalogRequests": 8,
+      "catalogRejections": 6,
+      "filterReapplications": 1,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadRecords",
+          "startMs": 1393.5999999046326,
+          "durationMs": 142.20000004768372
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1535.8999998569489,
+          "durationMs": 2.1000001430511475
+        },
+        {
+          "method": "ExportZip",
+          "startMs": 1538.5,
+          "durationMs": 165.29999995231628
+        },
+        {
+          "method": "OnceWriteRecords",
+          "startMs": 1706.5,
+          "durationMs": 13.699999809265137
+        },
+        {
+          "method": "settled",
+          "startMs": 1720.1999998092651,
+          "durationMs": 22.90000009536743
+        }
+      ]
+    },
+    {
+      "run": "current-open-3",
+      "openMs": 1400.5999999046326,
+      "pageReportMs": 2020,
+      "catalogRequests": 8,
+      "catalogRejections": 6,
+      "filterReapplications": 1,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadRecords",
+          "startMs": 1081.5,
+          "durationMs": 108.70000004768372
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1190.2999999523163,
+          "durationMs": 1.7000000476837158
+        },
+        {
+          "method": "ExportZip",
+          "startMs": 1192.5,
+          "durationMs": 173.09999990463257
+        },
+        {
+          "method": "OnceWriteRecords",
+          "startMs": 1368.0999999046326,
+          "durationMs": 10.600000143051147
+        },
+        {
+          "method": "settled",
+          "startMs": 1378.7000000476837,
+          "durationMs": 22.299999952316284
+        }
+      ]
+    },
+    {
+      "run": "current-open-4",
+      "openMs": 1480.6000001430511,
+      "pageReportMs": 2157,
+      "catalogRequests": 8,
+      "catalogRejections": 6,
+      "filterReapplications": 1,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadRecords",
+          "startMs": 1050.7000000476837,
+          "durationMs": 236.59999990463257
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1287.2999999523163,
+          "durationMs": 1.7000000476837158
+        },
+        {
+          "method": "ExportZip",
+          "startMs": 1289.6000001430511,
+          "durationMs": 138.39999985694885
+        },
+        {
+          "method": "OnceWriteRecords",
+          "startMs": 1430.9000000953674,
+          "durationMs": 25.899999856948853
+        },
+        {
+          "method": "settled",
+          "startMs": 1456.7999999523163,
+          "durationMs": 24.200000047683716
+        }
+      ]
+    }
+  ],
+  "afterOpen": [
+    {
+      "run": "final-open-1",
+      "openMs": 1229.7999999523163,
+      "pageReportMs": 1820,
+      "catalogRequests": 2,
+      "catalogRejections": 0,
+      "filterReapplications": 0,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadSnapshot",
+          "startMs": 982.2999999523163,
+          "durationMs": 223.09999990463257
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1205.3999998569489,
+          "durationMs": 2.200000047683716
+        },
+        {
+          "method": "settled",
+          "startMs": 1210.1999998092651,
+          "durationMs": 19.700000047683716
+        }
+      ]
+    },
+    {
+      "run": "final-open-2",
+      "openMs": 1501.0999999046326,
+      "pageReportMs": 2162,
+      "catalogRequests": 1,
+      "catalogRejections": 0,
+      "filterReapplications": 0,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadSnapshot",
+          "startMs": 1141,
+          "durationMs": 328
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1469,
+          "durationMs": 2.700000047683716
+        },
+        {
+          "method": "settled",
+          "startMs": 1474.2000000476837,
+          "durationMs": 27.40000009536743
+        }
+      ]
+    },
+    {
+      "run": "final-open-3",
+      "openMs": 1683.5,
+      "pageReportMs": 2477,
+      "catalogRequests": 1,
+      "catalogRejections": 0,
+      "filterReapplications": 0,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadSnapshot",
+          "startMs": 1271.7999999523163,
+          "durationMs": 378.30000019073486
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1650.1000001430511,
+          "durationMs": 5.3999998569488525
+        },
+        {
+          "method": "settled",
+          "startMs": 1661.1000001430511,
+          "durationMs": 22.699999809265137
+        }
+      ]
+    },
+    {
+      "run": "final-open-4",
+      "openMs": 1749.3999998569489,
+      "pageReportMs": 2400,
+      "catalogRequests": 1,
+      "catalogRejections": 0,
+      "filterReapplications": 0,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadSnapshot",
+          "startMs": 1412,
+          "durationMs": 312.09999990463257
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1724.2999999523163,
+          "durationMs": 2.799999952316284
+        },
+        {
+          "method": "settled",
+          "startMs": 1729.7999999523163,
+          "durationMs": 20
+        }
+      ]
+    },
+    {
+      "run": "final-open-5",
+      "openMs": 1682.7000000476837,
+      "pageReportMs": 2459,
+      "catalogRequests": 2,
+      "catalogRejections": 0,
+      "filterReapplications": 0,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadSnapshot",
+          "startMs": 1292.4000000953674,
+          "durationMs": 362.2000000476837
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1654.6000001430511,
+          "durationMs": 2
+        },
+        {
+          "method": "settled",
+          "startMs": 1659.7000000476837,
+          "durationMs": 23.200000047683716
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "before": {
+      "stories": {
+        "medianMs": 1954.5999510288239,
+        "minMs": 1918.9000489711761,
+        "maxMs": 2031.10009765625
+      },
+      "configs": {
+        "medianMs": 1999.4999511241913,
+        "minMs": 1962.2000489234924,
+        "maxMs": 2072.60009765625
+      },
+      "open": {
+        "medianMs": 1611.6499999761581,
+        "minMs": 1400.5999999046326,
+        "maxMs": 1830
+      },
+      "pageReport": {
+        "medianMs": 2298.5,
+        "minMs": 2020,
+        "maxMs": 2575
+      }
+    },
+    "after": {
+      "stories": {
+        "medianMs": 1975.0999512672424,
+        "minMs": 1942.4000976085663,
+        "maxMs": 2156.100000143051
+      },
+      "configs": {
+        "medianMs": 2018.0999023914337,
+        "minMs": 1986.7000975608826,
+        "maxMs": 2205.600000143051
+      },
+      "open": {
+        "medianMs": 1682.7000000476837,
+        "minMs": 1229.7999999523163,
+        "maxMs": 1749.3999998569489
+      },
+      "pageReport": {
+        "medianMs": 2400,
+        "minMs": 1820,
+        "maxMs": 2477
+      }
+    }
+  },
+  "nativeValidation": {
+    "ranges": {
+      "firstPage": true,
+      "snapshot": true,
+      "reverse": true,
+      "limit": true,
+      "keysOnly": true,
+      "largeValueBytes": 3600000
+    },
+    "atomicity": {
+      "rollback": true,
+      "snapshot": true
+    },
+    "conformance": {
+      "ok": true,
+      "elapsedMs": 5345,
+      "documents": 272,
+      "attachmentBytes": 3600000
+    }
+  },
+  "nativeDiagnostic": [
+    {
+      "operation": "readPointer",
+      "queueMs": 3.854114,
+      "executeMs": 8.985365
+    },
+    {
+      "operation": "open",
+      "queueMs": 0.115885,
+      "executeMs": 61.660313
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.103177,
+      "executeMs": 5.771667
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.409739,
+      "executeMs": 1.959167
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 1.13651,
+      "executeMs": 1.218542
+    },
+    {
+      "operation": "batch",
+      "queueMs": 0.450156,
+      "executeMs": 2.206823
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.111146,
+      "executeMs": 1.137083
+    },
+    {
+      "operation": "close",
+      "queueMs": 0.134062,
+      "executeMs": 34.878854
+    },
+    {
+      "operation": "open",
+      "queueMs": 0.136667,
+      "executeMs": 6.727865
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.15198,
+      "executeMs": 0.82401
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.090313,
+      "executeMs": 0.726822
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.092864,
+      "executeMs": 0.798021
+    },
+    {
+      "operation": "batch",
+      "queueMs": 0.119895,
+      "executeMs": 0.901511
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.100886,
+      "executeMs": 11.441562
+    },
+    {
+      "operation": "iteratorOpen",
+      "queueMs": 10.593021,
+      "executeMs": 6.872031
+    },
+    {
+      "operation": "iteratorOpen",
+      "queueMs": 16.562656,
+      "executeMs": 3.736042
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.092291,
+      "executeMs": 9.584688
+    },
+    {
+      "operation": "iteratorOpen",
+      "queueMs": 8.62625,
+      "executeMs": 3.274531
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 10.965312,
+      "executeMs": 11.667865
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 21.633438,
+      "executeMs": 9.039479
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 10.895782,
+      "executeMs": 25.339843
+    },
+    {
+      "operation": "iteratorNext",
+      "queueMs": 16.056979,
+      "executeMs": 0.533802
+    },
+    {
+      "operation": "iteratorNext",
+      "queueMs": 15.455625,
+      "executeMs": 0.316407
+    },
+    {
+      "operation": "iteratorNext",
+      "queueMs": 0.074636,
+      "executeMs": 0.528906
+    },
+    {
+      "operation": "iteratorEnd",
+      "queueMs": 0.056875,
+      "executeMs": 0.41401
+    },
+    {
+      "operation": "iteratorEnd",
+      "queueMs": 0.017032,
+      "executeMs": 0.268229
+    },
+    {
+      "operation": "iteratorOpen",
+      "queueMs": 0.065,
+      "executeMs": 1.813385
+    },
+    {
+      "operation": "iteratorEnd",
+      "queueMs": 0.977239,
+      "executeMs": 0.400417
+    },
+    {
+      "operation": "iteratorOpen",
+      "queueMs": 0.822344,
+      "executeMs": 2.197969
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.046667,
+      "executeMs": 8.598125
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 6.795052,
+      "executeMs": 11.216303
+    },
+    {
+      "operation": "iteratorNext",
+      "queueMs": 6.737344,
+      "executeMs": 1.193333
+    },
+    {
+      "operation": "iteratorNext",
+      "queueMs": 0.135104,
+      "executeMs": 0.529531
+    },
+    {
+      "operation": "iteratorEnd",
+      "queueMs": 0.465052,
+      "executeMs": 0.554427
+    },
+    {
+      "operation": "iteratorEnd",
+      "queueMs": 0.082396,
+      "executeMs": 0.646302
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.716041,
+      "executeMs": 0.884271
+    },
+    {
+      "operation": "batch",
+      "queueMs": 0.054531,
+      "executeMs": 7.170938
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.081823,
+      "executeMs": 23.085
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.089948,
+      "executeMs": 26.862708
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.068021,
+      "executeMs": 2.718958
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.160989,
+      "executeMs": 1.332136
+    },
+    {
+      "operation": "iteratorOpen",
+      "queueMs": 0.065521,
+      "executeMs": 41.875573
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.087969,
+      "executeMs": 79.575781
+    },
+    {
+      "operation": "iteratorEnd",
+      "queueMs": 0.104375,
+      "executeMs": 0.662396
+    },
+    {
+      "operation": "getMany",
+      "queueMs": 0.22,
+      "executeMs": 0.626145
+    }
+  ],
+  "geckoProfile": {
+    "fromMs": 15484.962890625,
+    "toMs": 16720.962890625,
+    "totalSamples": 235,
+    "topJSInclusive": [
+      {
+        "name": "init (chrome://geckoview/content/geckoview.js:55:7)[64]",
+        "samples": 48
+      },
+      {
+        "name": "startup (chrome://geckoview/content/geckoview.js:460:17)[64]",
+        "samples": 48
+      },
+      {
+        "name": "construct (chrome://global/content/elements/browser-custom-element.mjs:1067:12)[178]",
+        "samples": 48
+      },
+      {
+        "name": "connectedCallback (chrome://global/content/elements/browser-custom-element.mjs:401:20)[178]",
+        "samples": 48
+      },
+      {
+        "name": "get loadContext (chrome://global/content/elements/browser-custom-element.mjs:482:18)[178]",
+        "samples": 45
+      },
+      {
+        "name": "redefine (resource://gre/modules/Schemas.sys.mjs:191:18)[247]",
+        "samples": 12
+      },
+      {
+        "name": "exportLazyProperty/<.get< (resource://gre/modules/Schemas.sys.mjs:214:37)[247]",
+        "samples": 12
+      },
+      {
+        "name": "getDescriptor (resource://gre/modules/Schemas.sys.mjs:1116:16)[247]",
+        "samples": 10
+      },
+      {
+        "name": "injectInto/< (resource://gre/modules/Schemas.sys.mjs:3576:38)[247]",
+        "samples": 10
+      },
+      {
+        "name": "getDescriptor (resource://gre/modules/Schemas.sys.mjs:909:16)[247]",
+        "samples": 9
+      },
+      {
+        "name": "Violentmonkey/background/index.js:1:1068[9]",
+        "samples": 8
+      },
+      {
+        "name": "indexSitesFixesConfig (Dark Reader/background/index.js:1494:35)[297]",
+        "samples": 8
+      },
+      {
+        "name": "createBrowserElement (resource://gre/modules/ExtensionParent.sys.mjs:1592:29)[65]",
+        "samples": 7
+      },
+      {
+        "name": "observe (resource://gre/modules/GeckoViewStartup.sys.mjs:161:10)[3]",
+        "samples": 6
+      },
+      {
+        "name": "onEvent (resource://gre/modules/GeckoViewWebExtension.sys.mjs:1185:16)[72]",
+        "samples": 6
+      },
+      {
+        "name": "handleDynamicThemeFixes (Dark Reader/background/index.js:4134:39)[297]",
+        "samples": 6
+      },
+      {
+        "name": "loadDynamicThemeFixes (Dark Reader/background/index.js:4064:43)[297]",
+        "samples": 6
+      },
+      {
+        "name": "startup (resource://gre/modules/AddonManager.sys.mjs:644:10)[157]",
+        "samples": 5
+      },
+      {
+        "name": "startup (resource://gre/modules/AddonManager.sys.mjs:3775:10)[157]",
+        "samples": 5
+      },
+      {
+        "name": "observe (resource://gre/modules/amManager.sys.mjs:55:10)[242]",
+        "samples": 5
+      },
+      {
+        "name": "startup (resource://gre/modules/Extension.sys.mjs:4121:16)[110]",
+        "samples": 5
+      },
+      {
+        "name": "onEnable (resource://gre/modules/GeckoViewRemoteDebugger.sys.mjs:50:11)[199]",
+        "samples": 5
+      },
+      {
+        "name": "observe (resource://gre/modules/GeckoViewRemoteDebugger.sys.mjs:32:10)[199]",
+        "samples": 5
+      },
+      {
+        "name": "addLazyPrefObserver/</< (resource://gre/modules/GeckoViewUtils.sys.mjs:224:26)[93]",
+        "samples": 5
+      },
+      {
+        "name": "addLazyPrefObserver/< (resource://gre/modules/GeckoViewUtils.sys.mjs:219:7)[93]",
+        "samples": 5
+      }
+    ],
+    "topJSLeaf": [
+      {
+        "name": "get loadContext (chrome://global/content/elements/browser-custom-element.mjs:482:18)[178]",
+        "samples": 45
+      },
+      {
+        "name": "createBrowserElement (resource://gre/modules/ExtensionParent.sys.mjs:1592:29)[65]",
+        "samples": 4
+      },
+      {
+        "name": "getResourceURI (resource://gre/modules/addons/XPIDatabase.sys.mjs:1536:17)[146]",
+        "samples": 3
+      },
+      {
+        "name": "construct (chrome://global/content/elements/browser-custom-element.mjs:1067:12)[178]",
+        "samples": 3
+      },
+      {
+        "name": "Violentmonkey/background/index.js:1:1068[9]",
+        "samples": 3
+      },
+      {
+        "name": "get (resource://gre/modules/ExtensionUtils.sys.mjs:84:6)[76]",
+        "samples": 2
+      },
+      {
+        "name": "dispatch (resource://gre/modules/Messaging.sys.mjs:47:11)[34]",
+        "samples": 2
+      },
+      {
+        "name": "exportLazyProperty (resource://gre/modules/Schemas.sys.mjs:188:28)[247]",
+        "samples": 2
+      },
+      {
+        "name": "b (uBlock Origin/lib/csstree/css-tree.js:7:253)[55]",
+        "samples": 2
+      },
+      {
+        "name": "wrapRequest/< (resource://gre/modules/IndexedDB.sys.mjs:21:22)[21]",
+        "samples": 2
+      },
+      {
+        "name": "preparePattern< (Dark Reader/background/index.js:386:42)[297]",
+        "samples": 2
+      },
+      {
+        "name": "processSiteFixesConfigBlock (Dark Reader/background/index.js:1445:41)[297]",
+        "samples": 2
+      },
+      {
+        "name": "parseArray (Dark Reader/background/index.js:1075:24)[297]",
+        "samples": 2
+      },
+      {
+        "name": "wrapMethods/cls.prototype[method] (resource://gre/modules/IndexedDB.sys.mjs:92:38)[21]",
+        "samples": 2
+      },
+      {
+        "name": "observe (resource://gre/modules/GeckoViewStartup.sys.mjs:161:10)[3]",
+        "samples": 1
+      },
+      {
+        "name": "ChromeUtils::ImportESModule resource://gre/modules/ExtensionProcessScript.sys.mjs",
+        "samples": 1
+      },
+      {
+        "name": "startup (resource://gre/modules/AddonManager.sys.mjs:644:10)[157]",
+        "samples": 1
+      },
+      {
+        "name": "_addState (resource://gre/modules/addons/XPIProvider.sys.mjs:828:12)[139]",
+        "samples": 1
+      },
+      {
+        "name": "loadBootstrapScope (resource://gre/modules/addons/XPIProvider.sys.mjs:2116:21)[139]",
+        "samples": 1
+      },
+      {
+        "name": "lazyInit/scripts< (resource://gre/modules/ExtensionParent.sys.mjs:159:24)[65]",
+        "samples": 1
+      },
+      {
+        "name": "ChromeUtils::ImportESModule resource://devtools/shared/loader/Loader.sys.mjs",
+        "samples": 1
+      },
+      {
+        "name": "mozJSSubScriptLoader::DoLoadSubScriptWithOptions resource://devtools/shared/DevToolsUtils.js",
+        "samples": 1
+      },
+      {
+        "name": "getRequirements (resource://devtools/shared/loader/base-loader.sys.mjs:408:27)[253]",
+        "samples": 1
+      },
+      {
+        "name": "mozJSSubScriptLoader::DoLoadSubScriptWithOptions resource://devtools/server/actors/worker/service-worker-registration-list.js",
+        "samples": 1
+      },
+      {
+        "name": "mozJSSubScriptLoader::DoLoadSubScriptWithOptions resource://devtools/shared/security/socket.js",
+        "samples": 1
+      }
+    ]
+  },
+  "excluded": [
+    "improved-diagnostic-open: stale packaged relay rejected new snapshot API; deploy and compatibility handling fixed",
+    "final-warmup / final-warmup-open: post-install restart",
+    "gecko-profile-open: 2ms stack-walking profiler significantly perturbed startup",
+    "gecko-light-open: 5ms JS-only diagnostic, not normal benchmark sample"
+  ],
+  "liveTokenCheck": {
+    "scriptCount": 5,
+    "tokenSupported": true,
+    "unchanged": true,
+    "fastReadMs": 4.8
+  },
+  "uiValidation": {
+    "viewport": {
+      "width": 360,
+      "height": 800
+    },
+    "rows": [
+      {
+        "label": "Manage uBlock Origin",
+        "x": 12,
+        "width": 336,
+        "height": 128.28646850585938
+      },
+      {
+        "label": "Manage Violentmonkey",
+        "x": 12,
+        "width": 336,
+        "height": 128.28646850585938
+      },
+      {
+        "label": "Manage SponsorBlock for YouTube - Skip Sponsorships",
+        "x": 12,
+        "width": 336,
+        "height": 168.88021850585938
+      },
+      {
+        "label": "Manage Dark Reader",
+        "x": 12,
+        "width": 336,
+        "height": 148.58334350585938
+      }
+    ],
+    "status": "",
+    "overflow": false,
+    "detail": {
+      "title": "uBlock Origin",
+      "hasDisable": true,
+      "status": ""
+    },
+    "dark": {
+      "dark": true,
+      "background": "rgb(40, 42, 54)",
+      "rows": 4,
+      "overflow": false,
+      "status": ""
+    }
+  },
+  "installedApkSha256": "9a211556b50588bd309934f9ffaa6c65746d51b4c6f20cf9c656df59d9071bcb"
+}

@@ -37,9 +37,16 @@ export interface NativeExtensions {
 export function createMobileBrowserExtensions(): MobileBrowserExtensions | null {
   const platform = Capacitor.getPlatform()
   if (platform !== "android" && platform !== "ios") return null
+  let listing: ReturnType<MobileBrowserExtensions["command"]> | undefined
   return {
     platform,
-    command: options => NativeInAppBrowser.extensionCommand(options),
+    command(options) {
+      if (options.action !== "list") return NativeInAppBrowser.extensionCommand(options)
+      if (!listing) {
+        listing = NativeInAppBrowser.extensionCommand(options).finally(() => { listing = undefined })
+      }
+      return listing
+    },
     async onChanged(listener) {
       const subscription = await NativeInAppBrowser.addListener("extensionsChanged", listener)
       return () => { void subscription.remove() }

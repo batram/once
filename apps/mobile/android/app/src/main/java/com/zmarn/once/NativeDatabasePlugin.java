@@ -41,13 +41,21 @@ public class NativeDatabasePlugin extends Plugin {
 
     @PluginMethod
     public void execute(PluginCall call) {
+        long queued = android.os.SystemClock.elapsedRealtimeNanos();
         worker.execute(() -> {
+            long started = android.os.SystemClock.elapsedRealtimeNanos();
             try {
                 call.resolve(dispatch(call.getData()));
             } catch (Exception failure) {
                 // Neither document bodies nor credentials belong in the error log.
                 call.reject("Native database operation failed: " + failure.getClass().getSimpleName()
                         + (failure instanceof IllegalStateException ? " (" + failure.getMessage() + ")" : ""), failure);
+            } finally {
+                if (android.util.Log.isLoggable("OnceDatabasePerf", android.util.Log.DEBUG)) {
+                    android.util.Log.d("OnceDatabasePerf", call.getData().optString("operation")
+                        + " queueMs=" + (started - queued) / 1_000_000.0
+                        + " executeMs=" + (android.os.SystemClock.elapsedRealtimeNanos() - started) / 1_000_000.0);
+                }
             }
         });
     }
@@ -212,6 +220,7 @@ public class NativeDatabasePlugin extends Plugin {
                 // Pin the WAL snapshot now. Later pages cannot see concurrent writes.
                 sql(snapshot.db, "SELECT k FROM kv LIMIT 1");
                 String id = UUID.randomUUID().toString();
+                if (request.optBoolean("initialPage")) readPage(snapshot, result);
                 snapshots.put(id, snapshot);
                 result.put("iterator", id);
             } catch (Exception failure) {
@@ -221,38 +230,42 @@ public class NativeDatabasePlugin extends Plugin {
         } else if (operation.equals("iteratorNext")) {
             Snapshot snapshot = snapshots.get(request.getString("iterator"));
             if (snapshot == null || !snapshot.name.equals(name)) throw new IllegalStateException("Unknown snapshot");
-            ArrayList<String> parameters = new ArrayList<>(snapshot.parameters);
-            String where = snapshot.where;
-            if (snapshot.last != null) {
-                where += snapshot.reverse ? " AND k<?" : " AND k>?";
-                parameters.add(snapshot.last);
-            }
-            int limit = (int) (snapshot.remaining < 0 ? 128 : Math.min(128, snapshot.remaining));
-            JSONArray rows = new JSONArray();
-            int bytes = 0;
-            try (SQLiteStatement cursor = snapshot.db.prepare("SELECT k FROM kv WHERE " + where
-                    + " ORDER BY k " + (snapshot.reverse ? "DESC" : "ASC") + " LIMIT " + limit)) {
-                for (int index = 0; index < parameters.size(); index++) cursor.bindText(index + 1, parameters.get(index));
-                while (cursor.step()) {
-                    JSONObject row = new JSONObject();
-                    snapshot.last = cursor.getText(0);
-                    row.put("key", snapshot.last);
-                    if (snapshot.values) {
-                        String value = readValue(snapshot.db, snapshot.last);
-                        bytes += value.length();
-                        row.put("value", value);
-                    }
-                    rows.put(row);
-                    if (snapshot.remaining > 0) snapshot.remaining--;
-                    if (bytes >= 1024 * 1024) break;
-                }
-            }
-            result.put("rows", rows);
-            result.put("done", rows.length() == 0 || snapshot.remaining == 0);
+            readPage(snapshot, result);
         } else if (operation.equals("iteratorEnd")) {
             endSnapshot(request.getString("iterator"));
         } else throw new IllegalArgumentException("Unknown operation");
         return result;
+    }
+
+    private void readPage(Snapshot snapshot, JSObject result) throws Exception {
+        ArrayList<String> parameters = new ArrayList<>(snapshot.parameters);
+        String where = snapshot.where;
+        if (snapshot.last != null) {
+            where += snapshot.reverse ? " AND k<?" : " AND k>?";
+            parameters.add(snapshot.last);
+        }
+        int limit = (int) (snapshot.remaining < 0 ? 128 : Math.min(128, snapshot.remaining));
+        JSONArray rows = new JSONArray();
+        int bytes = 0;
+        try (SQLiteStatement cursor = snapshot.db.prepare("SELECT k" + (snapshot.values ? ",v" : "") + " FROM kv WHERE " + where
+                + " ORDER BY k " + (snapshot.reverse ? "DESC" : "ASC") + " LIMIT " + limit)) {
+            for (int index = 0; index < parameters.size(); index++) cursor.bindText(index + 1, parameters.get(index));
+            while (cursor.step()) {
+                JSONObject row = new JSONObject();
+                snapshot.last = cursor.getText(0);
+                row.put("key", snapshot.last);
+                if (snapshot.values) {
+                    String value = Base64.encodeToString(cursor.getBlob(1), Base64.NO_WRAP);
+                    bytes += value.length();
+                    row.put("value", value);
+                }
+                rows.put(row);
+                if (snapshot.remaining > 0) snapshot.remaining--;
+                if (bytes >= 1024 * 1024) break;
+            }
+        }
+        result.put("rows", rows);
+        result.put("done", rows.length() == 0 || snapshot.remaining == 0);
     }
 
     private void endSnapshot(String id) {

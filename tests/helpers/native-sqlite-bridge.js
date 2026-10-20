@@ -49,7 +49,7 @@ function sqliteBridge(directory) {
           .map(row => ({ key: row.k, value: Buffer.from(row.v).toString("base64") }))
         const iterator = crypto.randomUUID()
         iterators.set(iterator, rows)
-        return { iterator }
+        return request.initialPage ? { iterator, rows: rows.splice(0, 128), done: rows.length === 0 } : { iterator }
       } else if (operation === "iteratorNext") {
         const remaining = iterators.get(request.iterator)
         return { rows: remaining.splice(0, 128), done: remaining.length === 0 }

@@ -1,0 +1,434 @@
+{
+  "date": "2026-10-20",
+  "commit": "fd929045",
+  "device": "Samsung SM-G780G / Android 13",
+  "engine": "GeckoView 155.0.20260903215306",
+  "profile": {
+    "configs": 31,
+    "userscripts": 5,
+    "supplementalFilterLists": 0,
+    "extensions": [
+      "Once surface bridge",
+      "uBlock Origin",
+      "Violentmonkey",
+      "Dark Reader",
+      "SponsorBlock"
+    ]
+  },
+  "baseline": [
+    {
+      "run": "installed-1",
+      "documentMs": 719.300048828125,
+      "platformStartMs": 1199.9000487327576,
+      "appStartMs": 1521.800048828125,
+      "firstStoriesMs": 2771.2000489234924,
+      "configsMs": 2811.4000487327576,
+      "firstStoryCount": 17,
+      "configCount": 31,
+      "nativeCallsBeforeFirstStories": 129,
+      "shellSettingsReadyMs": null
+    },
+    {
+      "run": "installed-2",
+      "documentMs": 575.10009765625,
+      "platformStartMs": 980.7000977993011,
+      "appStartMs": 1142.7000977993011,
+      "firstStoriesMs": 2137.9000976085663,
+      "configsMs": 2183.0000977516174,
+      "firstStoryCount": 17,
+      "configCount": 31,
+      "nativeCallsBeforeFirstStories": 111,
+      "shellSettingsReadyMs": null
+    },
+    {
+      "run": "installed-3",
+      "documentMs": 517.10009765625,
+      "platformStartMs": 972.5000977516174,
+      "appStartMs": 1122.2000977993011,
+      "firstStoriesMs": 2088.700097799301,
+      "configsMs": 2138.5000977516174,
+      "firstStoryCount": 17,
+      "configCount": 31,
+      "nativeCallsBeforeFirstStories": 112,
+      "shellSettingsReadyMs": null
+    },
+    {
+      "run": "installed-4",
+      "documentMs": 566.800048828125,
+      "platformStartMs": 984.9000489711761,
+      "appStartMs": 1146.2000489234924,
+      "firstStoriesMs": 2040.9000489711761,
+      "configsMs": 2088.800048828125,
+      "firstStoryCount": 17,
+      "configCount": 31,
+      "nativeCallsBeforeFirstStories": 112,
+      "shellSettingsReadyMs": null
+    },
+    {
+      "run": "installed-5",
+      "documentMs": 615.5,
+      "platformStartMs": 1028.7000000476837,
+      "appStartMs": 1181.5,
+      "firstStoriesMs": 2170,
+      "configsMs": 2217.100000143051,
+      "firstStoryCount": 17,
+      "configCount": 31,
+      "nativeCallsBeforeFirstStories": 112,
+      "shellSettingsReadyMs": null
+    }
+  ],
+  "current": [
+    {
+      "run": "current-1",
+      "documentMs": 592.699951171875,
+      "platformStartMs": 1004.2999513149261,
+      "appStartMs": 1147.199951171875,
+      "firstStoriesMs": 1962.5999512672424,
+      "configsMs": 2006.4999513626099,
+      "firstStoryCount": 17,
+      "configCount": 31,
+      "nativeCallsBeforeFirstStories": 62,
+      "shellSettingsReadyMs": 2395.799951314926
+    },
+    {
+      "run": "current-2",
+      "documentMs": 616.199951171875,
+      "platformStartMs": 1030.2999510765076,
+      "appStartMs": 1164.9999511241913,
+      "firstStoriesMs": 1954.5999510288239,
+      "configsMs": 1999.4999511241913,
+      "firstStoryCount": 17,
+      "configCount": 31,
+      "nativeCallsBeforeFirstStories": 62,
+      "shellSettingsReadyMs": 2392.599951028824
+    },
+    {
+      "run": "current-3",
+      "documentMs": 618.10009765625,
+      "platformStartMs": 1046.3000977039337,
+      "appStartMs": 1181.5000977516174,
+      "firstStoriesMs": 2031.10009765625,
+      "configsMs": 2072.60009765625,
+      "firstStoryCount": 17,
+      "configCount": 31,
+      "nativeCallsBeforeFirstStories": 62,
+      "shellSettingsReadyMs": 2456.10009765625
+    },
+    {
+      "run": "current-4",
+      "documentMs": 598.800048828125,
+      "platformStartMs": 1010.800048828125,
+      "appStartMs": 1142.800048828125,
+      "firstStoriesMs": 1933.0000486373901,
+      "configsMs": 1979.4000487327576,
+      "firstStoryCount": 17,
+      "configCount": 31,
+      "nativeCallsBeforeFirstStories": 62,
+      "shellSettingsReadyMs": 2372.800048828125
+    },
+    {
+      "run": "current-5",
+      "documentMs": 574.300048828125,
+      "platformStartMs": 981.300048828125,
+      "appStartMs": 1136.2000489234924,
+      "firstStoriesMs": 1918.9000489711761,
+      "configsMs": 1962.2000489234924,
+      "firstStoryCount": 17,
+      "configCount": 31,
+      "nativeCallsBeforeFirstStories": 62,
+      "shellSettingsReadyMs": 2346.800048828125
+    }
+  ],
+  "baselineOpens": [
+    {
+      "run": "installed-open-1",
+      "openMs": 2186.0999999046326,
+      "localPageReportMs": 3079,
+      "pageLoadMs": 664,
+      "pageRequestStartMs": 513,
+      "catalogRequests": 0,
+      "catalogRejections": 0,
+      "userscriptCalls": []
+    },
+    {
+      "run": "installed-open-2",
+      "openMs": 1594.3999998569489,
+      "localPageReportMs": 2173,
+      "pageLoadMs": 521,
+      "pageRequestStartMs": 391,
+      "catalogRequests": 0,
+      "catalogRejections": 0,
+      "userscriptCalls": []
+    },
+    {
+      "run": "installed-open-3",
+      "openMs": 1406.7000000476837,
+      "localPageReportMs": 2095,
+      "pageLoadMs": 625,
+      "pageRequestStartMs": 477,
+      "catalogRequests": 0,
+      "catalogRejections": 0,
+      "userscriptCalls": []
+    }
+  ],
+  "currentOpens": [
+    {
+      "run": "current-open-1",
+      "openMs": 1830,
+      "localPageReportMs": 2575,
+      "pageLoadMs": 635,
+      "pageRequestStartMs": 473,
+      "catalogRequests": 8,
+      "catalogRejections": 6,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadRecords",
+          "startMs": 1583.8999998569489,
+          "durationMs": 88.5
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1672.3999998569489,
+          "durationMs": 12.600000143051147
+        },
+        {
+          "method": "ExportZip",
+          "startMs": 1685.5,
+          "durationMs": 80.69999980926514
+        },
+        {
+          "method": "OnceWriteRecords",
+          "startMs": 1768.6999998092651,
+          "durationMs": 40.10000014305115
+        },
+        {
+          "method": "settled",
+          "startMs": 1808.8999998569489,
+          "durationMs": 21.799999952316284
+        }
+      ]
+    },
+    {
+      "run": "current-open-2",
+      "openMs": 1742.6999998092651,
+      "localPageReportMs": 2440,
+      "pageLoadMs": 617,
+      "pageRequestStartMs": 457,
+      "catalogRequests": 8,
+      "catalogRejections": 6,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadRecords",
+          "startMs": 1393.5999999046326,
+          "durationMs": 142.20000004768372
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1535.8999998569489,
+          "durationMs": 2.1000001430511475
+        },
+        {
+          "method": "ExportZip",
+          "startMs": 1538.5,
+          "durationMs": 165.29999995231628
+        },
+        {
+          "method": "OnceWriteRecords",
+          "startMs": 1706.5,
+          "durationMs": 13.699999809265137
+        },
+        {
+          "method": "settled",
+          "startMs": 1720.1999998092651,
+          "durationMs": 22.90000009536743
+        }
+      ]
+    },
+    {
+      "run": "current-open-3",
+      "openMs": 1400.5999999046326,
+      "localPageReportMs": 2020,
+      "pageLoadMs": 553,
+      "pageRequestStartMs": 414,
+      "catalogRequests": 8,
+      "catalogRejections": 6,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadRecords",
+          "startMs": 1081.5,
+          "durationMs": 108.70000004768372
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1190.2999999523163,
+          "durationMs": 1.7000000476837158
+        },
+        {
+          "method": "ExportZip",
+          "startMs": 1192.5,
+          "durationMs": 173.09999990463257
+        },
+        {
+          "method": "OnceWriteRecords",
+          "startMs": 1368.0999999046326,
+          "durationMs": 10.600000143051147
+        },
+        {
+          "method": "settled",
+          "startMs": 1378.7000000476837,
+          "durationMs": 22.299999952316284
+        }
+      ]
+    },
+    {
+      "run": "current-open-4",
+      "openMs": 1480.6000001430511,
+      "localPageReportMs": 2157,
+      "pageLoadMs": 616,
+      "pageRequestStartMs": 491,
+      "catalogRequests": 8,
+      "catalogRejections": 6,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadRecords",
+          "startMs": 1050.7000000476837,
+          "durationMs": 236.59999990463257
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1287.2999999523163,
+          "durationMs": 1.7000000476837158
+        },
+        {
+          "method": "ExportZip",
+          "startMs": 1289.6000001430511,
+          "durationMs": 138.39999985694885
+        },
+        {
+          "method": "OnceWriteRecords",
+          "startMs": 1430.9000000953674,
+          "durationMs": 25.899999856948853
+        },
+        {
+          "method": "settled",
+          "startMs": 1456.7999999523163,
+          "durationMs": 24.200000047683716
+        }
+      ]
+    }
+  ],
+  "warmOpens": [
+    {
+      "run": "current-warm-1",
+      "openMs": 23.399999856948853,
+      "localPageReportMs": 226,
+      "pageLoadMs": 115,
+      "pageRequestStartMs": 21,
+      "catalogRequests": 8,
+      "catalogRejections": 6,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadRecords",
+          "startMs": 1050.7000000476837,
+          "durationMs": 236.59999990463257
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1287.2999999523163,
+          "durationMs": 1.7000000476837158
+        },
+        {
+          "method": "ExportZip",
+          "startMs": 1289.6000001430511,
+          "durationMs": 138.39999985694885
+        },
+        {
+          "method": "OnceWriteRecords",
+          "startMs": 1430.9000000953674,
+          "durationMs": 25.899999856948853
+        },
+        {
+          "method": "settled",
+          "startMs": 1456.7999999523163,
+          "durationMs": 24.200000047683716
+        }
+      ]
+    },
+    {
+      "run": "current-warm-2",
+      "openMs": 12,
+      "localPageReportMs": 206,
+      "pageLoadMs": 105,
+      "pageRequestStartMs": 16,
+      "catalogRequests": 8,
+      "catalogRejections": 6,
+      "userscriptCalls": [
+        {
+          "method": "OnceReadRecords",
+          "startMs": 1050.7000000476837,
+          "durationMs": 236.59999990463257
+        },
+        {
+          "method": "handingOff",
+          "startMs": 1287.2999999523163,
+          "durationMs": 1.7000000476837158
+        },
+        {
+          "method": "ExportZip",
+          "startMs": 1289.6000001430511,
+          "durationMs": 138.39999985694885
+        },
+        {
+          "method": "OnceWriteRecords",
+          "startMs": 1430.9000000953674,
+          "durationMs": 25.899999856948853
+        },
+        {
+          "method": "settled",
+          "startMs": 1456.7999999523163,
+          "durationMs": 24.200000047683716
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "baselineFirstStories": {
+      "medianMs": 2137.9000976085663,
+      "minMs": 2040.9000489711761,
+      "maxMs": 2771.2000489234924
+    },
+    "currentFirstStories": {
+      "medianMs": 1954.5999510288239,
+      "minMs": 1918.9000489711761,
+      "maxMs": 2031.10009765625
+    },
+    "baselineConfigs": {
+      "medianMs": 2183.0000977516174,
+      "minMs": 2088.800048828125,
+      "maxMs": 2811.4000487327576
+    },
+    "currentConfigs": {
+      "medianMs": 1999.4999511241913,
+      "minMs": 1962.2000489234924,
+      "maxMs": 2072.60009765625
+    },
+    "currentOpen": {
+      "medianMs": 1611.6499999761581,
+      "minMs": 1400.5999999046326,
+      "maxMs": 1830
+    },
+    "currentPageReport": {
+      "medianMs": 2298.5,
+      "minMs": 2020,
+      "maxMs": 2575
+    }
+  },
+  "notes": [
+    "Process-cold, profile/cache retained; unlocked foreground device; CDP shell observation.",
+    "Older installed build updated Oct 18; current production-channel debug APK built from fd929045. Sequential comparison, not randomized A/B; live feeds and sync remain enabled.",
+    "Current shell extensions-ready mark means settings hand-off finished or engine not running; not Gecko/uBlock background readiness.",
+    "Local fixture report includes ADB reverse and report transport; use Navigation Timing for document load.",
+    "Native asynchronous call durations include queues and callback latency; overlapping calls must not be summed.",
+    "No new runtime optimization implemented in this investigation."
+  ]
+}

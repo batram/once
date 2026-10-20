@@ -604,7 +604,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost implements Rea
             };
             waiting.put(call, timeout);
             handler.postDelayed(timeout, 30000);
-            engine.ready().then(ignored -> engine.runtime.getWebExtensionController().list()).accept(installed -> {
+            engine.catalog().accept(installed -> {
                 if (!waiting.containsKey(call)) return;
                 if (destroyed || generation != surfaceGeneration) { finishWaiting(call); call.reject("The browser surface was closed"); return; }
                 try {

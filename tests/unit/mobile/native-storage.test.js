@@ -111,3 +111,30 @@ test("a failed point-read batch rejects every snapshot", async () => {
   await Promise.all([first, second].map(iterator => assert.rejects(invoke(iterator, "next"), /read failed/)))
   await invoke(db, "close")
 })
+
+test("range first pages retain snapshot order across writes and subsequent pages", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "once-native-range-"))
+  const bridge = sqliteBridge(directory)
+  const operations = []
+  const db = rawDatabase({ execute: request => { operations.push(request.operation); return bridge.execute(request) } })
+  try {
+    await invoke(db, "open")
+    await invoke(db, "batch", Array.from({ length: 260 }, (_, i) => ({ type: "put", key: String(i).padStart(3, "0"), value: `old-${i}` })))
+    operations.length = 0
+    const iterator = db.iterator({ reverse: true, limit: 250, keyAsBuffer: false, valueAsBuffer: false })
+    await invoke(db, "put", "259", "new")
+    const first = await invoke(iterator, "next")
+    assert.deepEqual(first, ["259", "old-259"])
+    assert.equal(operations.includes("iteratorNext"), false, "first page arrives with the open")
+    const rows = [first]
+    for (;;) { const row = await invoke(iterator, "next"); if (!row.length) break; rows.push(row) }
+    assert.equal(rows.length, 250)
+    assert.deepEqual(rows.at(-1), ["010", "old-10"])
+    assert.equal(operations.filter(x => x === "iteratorNext").length, 1)
+    await invoke(iterator, "end")
+    assert.equal((await invoke(db, "get", "259", { asBuffer: false }))[0], "new")
+  } finally {
+    await invoke(db, "close")
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})

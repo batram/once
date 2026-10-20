@@ -138,7 +138,7 @@ test("the relay does not announce writes made by the app's own commands", async 
     relay.storageChanged(["scr:1"])
     return handle(message)
   } })
-  await relay.send("ExportZip", { values: false })
+  await relay.send("ParseScript", { code: source("Own", "run()") })
   assert.equal(relay.timers.length, 0)
 })
 
@@ -202,4 +202,55 @@ test("Android packages the adapted Violentmonkey and relays to it from a plugin 
   assert.match(gradle, /addGeneratedSourceDirectory\(onceExtensionAssets/)
   assert.match(relay, /ENV_TYPE_EXTENSION/)
   assert.match(relay, /setMessageDelegate\(RELAY, NATIVE_APP\)/)
+})
+
+test("combined relay snapshot preserves dashboard edits, toggles and deletions", async () => {
+  const violentmonkey = fakeViolentmonkey()
+  const relay = startRelay(violentmonkey, { onceUserscripts: { known: { id: 1 } } })
+  await relay.send("ParseScript", { code: source("First", "old()") })
+  const first = await relay.send("OnceReadSnapshot")
+  assert.equal(first.records.known.id, 1)
+  assert.equal(first.scripts.items.length, 1)
+  violentmonkey.scripts.get(1).code = source("First", "edited()")
+  violentmonkey.scripts.get(1).enabled = false
+  const edited = await relay.send("OnceReadSnapshot")
+  assert.match(edited.scripts.items[0].code, /edited\(\)/)
+  assert.equal(edited.scripts.items[0].script.config.enabled, 0)
+  violentmonkey.scripts.delete(1)
+  assert.equal((await relay.send("OnceReadSnapshot")).scripts.items.length, 0)
+})
+
+test("snapshot tokens skip unchanged exports and invalidate on edits, writes and restart", async () => {
+  const vm = fakeViolentmonkey()
+  let exports = 0
+  const relay = startRelay({ handleCommandMessage: message => {
+    if (message.cmd === "ExportZip") exports++
+    return vm.handleCommandMessage(message)
+  } })
+  const first = await relay.send("OnceReadSnapshot")
+  assert.equal(typeof first.token, "string")
+  assert.equal((await relay.send("OnceReadSnapshot", { token: first.token })).unchanged, true)
+  assert.equal(exports, 1)
+  relay.storageChanged(["code:1"])
+  const edited = await relay.send("OnceReadSnapshot", { token: first.token })
+  assert.notEqual(edited.token, first.token)
+  assert.equal(exports, 2)
+  await relay.send("OnceWriteRecords", {})
+  assert.equal((await relay.send("OnceReadSnapshot", { token: edited.token })).unchanged, undefined)
+  const restarted = startRelay(vm, relay.storage)
+  assert.equal((await restarted.send("OnceReadSnapshot", { token: edited.token })).unchanged, undefined)
+})
+
+
+test("a dashboard edit during a snapshot read invalidates its token and is announced", async () => {
+  const vm = fakeViolentmonkey()
+  const relay = startRelay({ handleCommandMessage: async message => {
+    if (message.cmd === "ExportZip") relay.storageChanged(["code:1"])
+    return vm.handleCommandMessage(message)
+  } })
+  const snapshot = await relay.send("OnceReadSnapshot")
+  assert.equal(snapshot.token, null)
+  assert.equal(relay.timers.length, 1)
+  relay.timers.shift()()
+  assert.equal(relay.ports[0].events[0].type, "dashboard-changed")
 })

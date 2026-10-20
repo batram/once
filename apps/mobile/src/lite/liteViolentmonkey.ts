@@ -73,6 +73,13 @@ export class LiteViolentmonkey {
     const host = this.host
     if (!host) throw new RequestError("Violentmonkey is not running", "NOT_RUNNING")
     if (typeof params?.cmd !== "string") throw new Error("cmd is required")
+    if (params.cmd === "OnceReadSnapshot") {
+      const [records, scripts] = await Promise.all([
+        this.send({ cmd: "OnceReadRecords" }),
+        this.send({ cmd: "ExportZip", data: { values: false } })
+      ])
+      return { value: { records: records.value, scripts: scripts.value } }
+    }
     if (params.cmd === "OnceReadRecords") {
       const value = await host.store.read(RECORDS).catch(() => undefined)
       return { value: value ?? {} }

@@ -157,3 +157,11 @@ test("invalid custom install ADB paths fail before invoking any build or device 
     assert.equal(calls.length, 0)
   }
 })
+
+test("deployment refreshes adapted extension assets before building the native APK", () => {
+  const calls = deploy()
+  const refresh = calls.findIndex(call => call.args.some(arg => String(arg).endsWith("fetch-extensions.js")))
+  const build = calls.findIndex(call => call.args.includes("assembleGeckoProductionDebug"))
+  assert.ok(refresh >= 0 && refresh < build, "deploy must not package a stale native relay")
+  assert.equal(calls.filter(call => call.args.some(arg => String(arg).endsWith("fetch-extensions.js"))).length, 1)
+})

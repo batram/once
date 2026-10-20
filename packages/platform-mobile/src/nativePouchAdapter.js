@@ -137,13 +137,13 @@ class NativeIterator extends AbstractIterator {
     this.options = options
     this.rows = []
     this.done = false
-    const range = { reverse: options.reverse, limit: options.limit, values: options.values }
+    const range = { initialPage: true, reverse: options.reverse, limit: options.limit, values: options.values }
     for (const bound of ["gt", "gte", "lt", "lte"]) {
       if (options[bound] !== undefined) range[bound] = hex(options[bound])
     }
     // Open eagerly: iteration observes a snapshot from its creation, not its first next().
     this.opened = db.request("iteratorOpen", range).then(opened => {
-      if (opened.rows) { this.rows = opened.rows; this.done = true }
+      if (opened.rows) { this.rows = opened.rows; this.done = opened.done; this.prefetched = opened.iterator === null }
       return opened
     })
     this.opened.catch(() => {})
@@ -155,7 +155,11 @@ class NativeIterator extends AbstractIterator {
       if (!this.rows.length && !this.done) {
         const page = await this.db.request("iteratorNext", { iterator })
         this.rows = page.rows
+        this.prefetched = false
         this.done = page.done
+      }
+      if (this.rows.length && !this.prefetched) {
+        this.prefetched = true
         // PouchDB 9 follows each sequence row with a metadata read, and each
         // allDocs metadata row with a winning-body read. Fetch one bounded page
         // together rather than crossing the native bridge once per document.
