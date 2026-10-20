@@ -114,6 +114,12 @@ function mirrorNodeModules(worktree) {
     if (!/^(apps|packages)\/[^/]+\/node_modules\/$/.test(nested)) continue
     link(path.resolve(root, nested), path.resolve(worktree, nested))
   }
+  // The fetched extension bundles are ignored, yet unit tests read them.
+  const extensions = path.join(root, "vendor", "extensions")
+  if (fs.existsSync(extensions)) {
+    fs.mkdirSync(path.join(worktree, "vendor"), { recursive: true })
+    link(extensions, path.join(worktree, "vendor", "extensions"))
+  }
 }
 
 // Takes the mirror down again, link by link: nothing ever deletes through a
@@ -140,6 +146,7 @@ function unmirrorNodeModules(worktree) {
     if (!fs.existsSync(dir)) continue
     for (const name of fs.readdirSync(dir)) unlinkIfLink(path.join(dir, name, "node_modules"))
   }
+  unlinkIfLink(path.join(worktree, "vendor", "extensions"))
 }
 
 function isWorkspaceLink(file) {
