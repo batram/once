@@ -19,6 +19,8 @@ export default tseslint.config(
       ".tmp/",
       // local benchmark scratch (OCR engine runs), never committed
       "benchmarks/",
+      // Indra OCR prototype bundle with vendored onnxruntime builds
+      "apps/electron/indra-proto/",
       // design references dropped in as-is; not repo source
       "docs/**/*.js",
       "docs/**/*.jsx",
