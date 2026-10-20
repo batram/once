@@ -252,8 +252,11 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     await inPage(app, "scrollTo(0,0)")
     await inPage(app, "scrollBy(0,80)")
     await expect.poll(async () => (await geometry(app)).words[0].top).toBeCloseTo(initial.words[0].top - 80, 0)
-    await inPage(app, "scrollTo(0,document.body.scrollHeight)")
-    await expect.poll(async () => (await geometry(app)).hidden).toBe(true)
+    // Again until it holds, as above: a late scroll from the stopped find can undo it.
+    await expect.poll(async () => {
+      await inPage(app, "scrollTo(0,document.scrollingElement.scrollHeight)")
+      return (await geometry(app)).hidden
+    }).toBe(true)
     // A root with its own overflow (as some blogs set) scrolls the viewport, not a
     // clipping box: an image below the fold stays selectable.
     await inPage(app, `(() => {
