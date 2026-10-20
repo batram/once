@@ -11,7 +11,7 @@ import static org.junit.Assert.*;
 @RunWith(AndroidJUnit4.class)
 public class GeckoStartupTest {
     @Test public void firstPageAndWarmSwitches() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.shellReady(); t.selectRoot();
         GeckoTestSupport.Call settings = new GeckoTestSupport.Call(new com.getcapacitor.JSObject()
             .put("filterLists", new com.getcapacitor.JSObject().put("lists", new org.json.JSONArray()))
             .put("userscripts", new com.getcapacitor.JSObject().put("scripts", new org.json.JSONArray())));
@@ -23,7 +23,7 @@ public class GeckoStartupTest {
                 else t.navigate(fixture.url("/startup-" + run));
                 long accepted = SystemClock.elapsedRealtime();
                 if (run == 0) t.ui(() -> assertEquals("The first requested URL must wait for applied settings, not their timeout",
-                    t.field("settingsRevision"), t.field("appliedSettingsRevision")));
+                    GeckoTestSupport.field(t.field("settings"), "settingsRevision"), GeckoTestSupport.field(t.field("settings"), "appliedSettingsRevision")));
                 t.ready("startup-" + run);
                 long bridgeReady = SystemClock.elapsedRealtime();
                 t.until("Navigation must paint and complete", () -> (boolean)t.field("painted")
@@ -35,7 +35,7 @@ public class GeckoStartupTest {
     }
 
     @Test public void paintResetInvalidatesOldReadiness() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.shellReady(); t.selectRoot();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             t.open(fixture.url("/paint-reset")); t.ready("paint-reset");
             t.until("Initial page paints", () -> (boolean)t.field("painted"), 15);

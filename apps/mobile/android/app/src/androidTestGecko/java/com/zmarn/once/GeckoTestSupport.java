@@ -29,6 +29,17 @@ final class GeckoTestSupport {
             () -> activity.hasWindowFocus() && activity.getWindow().getDecorView().getWidth() > 0, 15);
         plugin = (InAppBrowserSurfacePlugin) activity.getBridge().getPlugin("InAppBrowserSurface").getInstance();
     }
+    void shellReady() throws Exception {
+        java.util.concurrent.atomic.AtomicBoolean ready = new java.util.concurrent.atomic.AtomicBoolean();
+        until("The shell must finish its initial settings publication", () -> {
+            activity.getBridge().getWebView().evaluateJavascript("document.body.dataset.onceReady === 'true' && performance.getEntriesByName('once:extensions-ready').length > 0", value -> ready.set("true".equals(value)));
+            return ready.get();
+        }, 30);
+    }
+    void selectRoot() throws Exception {
+        Call select = new Call(new JSObject());
+        ui(() -> plugin.selectTab(select)); select.await();
+    }
     private void shell(String command) {
         try (InputStream output = new android.os.ParcelFileDescriptor.AutoCloseInputStream(
                 instrumentation.getUiAutomation().executeShellCommand(command))) {
@@ -104,6 +115,9 @@ final class GeckoTestSupport {
         final ServerSocket server = new ServerSocket(0);
         final ExecutorService workers = Executors.newCachedThreadPool();
         volatile boolean stall = true;
+        final java.util.List<String> requests = new java.util.concurrent.CopyOnWriteArrayList<>();
+        final CountDownLatch filterRequested = new CountDownLatch(1);
+        final CountDownLatch releaseFilter = new CountDownLatch(1);
         Fixture() throws IOException {
             workers.submit(() -> { while (!server.isClosed()) {
                 try { Socket socket = server.accept(); workers.submit(() -> serve(socket)); }
@@ -117,6 +131,15 @@ final class GeckoTestSupport {
                 String request = reader.readLine();
                 String line; while ((line = reader.readLine()) != null && !line.isEmpty()) {}
                 String path = request.split(" ")[1];
+                requests.add(path);
+                if (path.equals("/held-filter")) {
+                    filterRequested.countDown();
+                    if (!releaseFilter.await(20, TimeUnit.SECONDS)) return;
+                    byte[] filter = "! Once test filter\n||never-match.once.invalid^\n".getBytes(StandardCharsets.UTF_8);
+                    connection.getOutputStream().write(("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + filter.length + "\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+                    connection.getOutputStream().write(filter);
+                    return;
+                }
                 if (path.equals("/redirect")) {
                     connection.getOutputStream().write("HTTP/1.1 302 Found\r\nLocation: /redirected\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
                     // /redirected is the destination, not another redirect.

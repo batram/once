@@ -1,0 +1,546 @@
+{
+  "date": "2026-10-20",
+  "baselineCommit": "c7cb29b1",
+  "device": "Samsung SM-G780G, Android 13, GeckoView 155.0.20260903215306",
+  "method": "Process-cold, profile retained; foreground unlocked; 15-second shell observation then local HTTP fixture over ADB reverse. Sequential before/after, not randomized A/B. Post-install warmups and diagnostic/fault tests excluded.",
+  "before": [
+    {
+      "shell": {
+        "run": "parallel-before-1",
+        "firstStoriesMs": 1993.9000487327576,
+        "configsMs": 2046.1000487804413
+      },
+      "browser": {
+        "run": "parallel-before-open-1",
+        "acceptedMs": 1582.5,
+        "error": null,
+        "pageReportMs": 2396,
+        "phaseMs": {
+          "libraries": 41,
+          "running": 226,
+          "blank": 726,
+          "bridgeDelegate": 346,
+          "firstPort": 970,
+          "page": 1594,
+          "pageReady": 2349
+        },
+        "catalogRequests": 1,
+        "userscriptCalls": [
+          {
+            "method": "OnceReadSnapshot",
+            "startMs": 1051.3999998569489,
+            "durationMs": 504.7000000476837
+          },
+          {
+            "method": "handingOff",
+            "startMs": 1556.1999998092651,
+            "durationMs": 2.4000000953674316
+          },
+          {
+            "method": "settled",
+            "startMs": 1561.7999999523163,
+            "durationMs": 21
+          }
+        ]
+      }
+    },
+    {
+      "shell": {
+        "run": "parallel-before-2",
+        "firstStoriesMs": 2012.7999024391174,
+        "configsMs": 2057.89990234375
+      },
+      "browser": {
+        "run": "parallel-before-open-2",
+        "acceptedMs": 1467,
+        "error": null,
+        "pageReportMs": 2145,
+        "phaseMs": {
+          "libraries": 36,
+          "running": 213,
+          "blank": 742,
+          "bridgeDelegate": 335,
+          "firstPort": 955,
+          "page": 1471,
+          "pageReady": 2091
+        },
+        "catalogRequests": 1,
+        "userscriptCalls": [
+          {
+            "method": "OnceReadSnapshot",
+            "startMs": 1096,
+            "durationMs": 340.2999999523163
+          },
+          {
+            "method": "handingOff",
+            "startMs": 1436.3999998569489,
+            "durationMs": 3.299999952316284
+          },
+          {
+            "method": "settled",
+            "startMs": 1445,
+            "durationMs": 22.299999952316284
+          }
+        ]
+      }
+    },
+    {
+      "shell": {
+        "run": "parallel-before-3",
+        "firstStoriesMs": 1858.0000977516174,
+        "configsMs": 1906.9000978469849
+      },
+      "browser": {
+        "run": "parallel-before-open-3",
+        "acceptedMs": 1397.4000000953674,
+        "error": null,
+        "pageReportMs": 2090,
+        "phaseMs": {
+          "libraries": 40,
+          "running": 214,
+          "blank": 694,
+          "bridgeDelegate": 340,
+          "firstPort": 876,
+          "page": 1412,
+          "pageReady": 2021
+        },
+        "catalogRequests": 1,
+        "userscriptCalls": [
+          {
+            "method": "OnceReadSnapshot",
+            "startMs": 1037.7999999523163,
+            "durationMs": 331.7999999523163
+          },
+          {
+            "method": "handingOff",
+            "startMs": 1369.5999999046326,
+            "durationMs": 2
+          },
+          {
+            "method": "settled",
+            "startMs": 1374.3999998569489,
+            "durationMs": 23.90000009536743
+          }
+        ]
+      }
+    }
+  ],
+  "after": [
+    {
+      "shell": {
+        "run": "parallel-fixed-1",
+        "firstStoriesMs": 1956.9000000953674,
+        "configsMs": 2009.2000000476837
+      },
+      "browser": {
+        "run": "parallel-fixed-open-1",
+        "acceptedMs": 1526.5,
+        "error": null,
+        "pageReportMs": 2176,
+        "phaseMs": {
+          "libraries": 38,
+          "running": 318,
+          "blank": 688,
+          "bridgeDelegate": 1187,
+          "firstPort": 1079,
+          "page": 1537,
+          "pageReady": 2130
+        },
+        "catalogRequests": 1,
+        "userscriptCalls": [
+          {
+            "method": "OnceReadSnapshot",
+            "startMs": 1227.3999998569489,
+            "durationMs": 263.5
+          },
+          {
+            "method": "handingOff",
+            "startMs": 1490.8999998569489,
+            "durationMs": 1.7999999523162842
+          },
+          {
+            "method": "settled",
+            "startMs": 1495.6999998092651,
+            "durationMs": 31.600000143051147
+          }
+        ]
+      }
+    },
+    {
+      "shell": {
+        "run": "parallel-fixed-2",
+        "firstStoriesMs": 1893.0000488758087,
+        "configsMs": 1940.300048828125
+      },
+      "browser": {
+        "run": "parallel-fixed-open-2",
+        "acceptedMs": 1518.5,
+        "error": null,
+        "pageReportMs": 2065,
+        "phaseMs": {
+          "libraries": 38,
+          "running": 279,
+          "blank": 669,
+          "bridgeDelegate": 1221,
+          "firstPort": 1053,
+          "page": 1539,
+          "pageReady": 2008
+        },
+        "catalogRequests": 1,
+        "userscriptCalls": [
+          {
+            "method": "OnceReadSnapshot",
+            "startMs": 1267.2000000476837,
+            "durationMs": 225.19999980926514
+          },
+          {
+            "method": "handingOff",
+            "startMs": 1492.3999998569489,
+            "durationMs": 1.9000000953674316
+          },
+          {
+            "method": "settled",
+            "startMs": 1497.2000000476837,
+            "durationMs": 21.799999952316284
+          }
+        ]
+      }
+    },
+    {
+      "shell": {
+        "run": "parallel-fixed-3",
+        "firstStoriesMs": 1932.0999023914337,
+        "configsMs": 1977.2999024391174
+      },
+      "browser": {
+        "run": "parallel-fixed-open-3",
+        "acceptedMs": 1593.8999998569489,
+        "error": null,
+        "pageReportMs": 2283,
+        "phaseMs": {
+          "libraries": 45,
+          "running": 290,
+          "blank": 677,
+          "bridgeDelegate": 1223,
+          "firstPort": 1016,
+          "page": 1602,
+          "pageReady": 2239
+        },
+        "catalogRequests": 1,
+        "userscriptCalls": [
+          {
+            "method": "OnceReadSnapshot",
+            "startMs": 1269.4000000953674,
+            "durationMs": 295.5
+          },
+          {
+            "method": "handingOff",
+            "startMs": 1565,
+            "durationMs": 2
+          },
+          {
+            "method": "settled",
+            "startMs": 1569.9000000953674,
+            "durationMs": 24.59999990463257
+          }
+        ]
+      }
+    },
+    {
+      "shell": {
+        "run": "parallel-fixed-4",
+        "firstStoriesMs": 1906.9000487327576,
+        "configsMs": 1951.5000488758087
+      },
+      "browser": {
+        "run": "parallel-fixed-open-4",
+        "acceptedMs": 1518.7000000476837,
+        "error": null,
+        "pageReportMs": 2188,
+        "phaseMs": {
+          "libraries": 61,
+          "running": 301,
+          "blank": 690,
+          "bridgeDelegate": 1188,
+          "firstPort": 1053,
+          "page": 1526,
+          "pageReady": 2131
+        },
+        "catalogRequests": 1,
+        "userscriptCalls": [
+          {
+            "method": "OnceReadSnapshot",
+            "startMs": 1235.7999999523163,
+            "durationMs": 257.2000000476837
+          },
+          {
+            "method": "handingOff",
+            "startMs": 1493,
+            "durationMs": 2.799999952316284
+          },
+          {
+            "method": "settled",
+            "startMs": 1499.2999999523163,
+            "durationMs": 19.90000009536743
+          }
+        ]
+      }
+    },
+    {
+      "shell": {
+        "run": "parallel-fixed-5",
+        "firstStoriesMs": 1810.1000487804413,
+        "configsMs": 1855.2000486850739
+      },
+      "browser": {
+        "run": "parallel-fixed-open-5",
+        "acceptedMs": 1524.7000000476837,
+        "error": null,
+        "pageReportMs": 2229,
+        "phaseMs": {
+          "libraries": 35,
+          "running": 305,
+          "blank": 676,
+          "bridgeDelegate": 1205,
+          "firstPort": 1023,
+          "page": 1526,
+          "pageReady": 2164
+        },
+        "catalogRequests": 1,
+        "userscriptCalls": [
+          {
+            "method": "OnceReadSnapshot",
+            "startMs": 1251.6000001430511,
+            "durationMs": 245.39999985694885
+          },
+          {
+            "method": "handingOff",
+            "startMs": 1497,
+            "durationMs": 2.299999952316284
+          },
+          {
+            "method": "settled",
+            "startMs": 1502.5,
+            "durationMs": 22.799999952316284
+          }
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "before": {
+      "stories": {
+        "medianMs": 1993.9000487327576,
+        "minMs": 1858.0000977516174,
+        "maxMs": 2012.7999024391174
+      },
+      "configs": {
+        "medianMs": 2046.1000487804413,
+        "minMs": 1906.9000978469849,
+        "maxMs": 2057.89990234375
+      },
+      "accepted": {
+        "medianMs": 1467,
+        "minMs": 1397.4000000953674,
+        "maxMs": 1582.5
+      },
+      "pageReport": {
+        "medianMs": 2145,
+        "minMs": 2090,
+        "maxMs": 2396
+      },
+      "phaseMs": {
+        "libraries": {
+          "medianMs": 40,
+          "minMs": 36,
+          "maxMs": 41
+        },
+        "running": {
+          "medianMs": 214,
+          "minMs": 213,
+          "maxMs": 226
+        },
+        "blank": {
+          "medianMs": 726,
+          "minMs": 694,
+          "maxMs": 742
+        },
+        "bridgeDelegate": {
+          "medianMs": 340,
+          "minMs": 335,
+          "maxMs": 346
+        },
+        "firstPort": {
+          "medianMs": 955,
+          "minMs": 876,
+          "maxMs": 970
+        },
+        "page": {
+          "medianMs": 1471,
+          "minMs": 1412,
+          "maxMs": 1594
+        },
+        "pageReady": {
+          "medianMs": 2091,
+          "minMs": 2021,
+          "maxMs": 2349
+        }
+      }
+    },
+    "after": {
+      "stories": {
+        "medianMs": 1906.9000487327576,
+        "minMs": 1810.1000487804413,
+        "maxMs": 1956.9000000953674
+      },
+      "configs": {
+        "medianMs": 1951.5000488758087,
+        "minMs": 1855.2000486850739,
+        "maxMs": 2009.2000000476837
+      },
+      "accepted": {
+        "medianMs": 1524.7000000476837,
+        "minMs": 1518.5,
+        "maxMs": 1593.8999998569489
+      },
+      "pageReport": {
+        "medianMs": 2188,
+        "minMs": 2065,
+        "maxMs": 2283
+      },
+      "phaseMs": {
+        "libraries": {
+          "medianMs": 38,
+          "minMs": 35,
+          "maxMs": 61
+        },
+        "running": {
+          "medianMs": 301,
+          "minMs": 279,
+          "maxMs": 318
+        },
+        "blank": {
+          "medianMs": 677,
+          "minMs": 669,
+          "maxMs": 690
+        },
+        "bridgeDelegate": {
+          "medianMs": 1205,
+          "minMs": 1187,
+          "maxMs": 1223
+        },
+        "firstPort": {
+          "medianMs": 1053,
+          "minMs": 1016,
+          "maxMs": 1079
+        },
+        "page": {
+          "medianMs": 1537,
+          "minMs": 1526,
+          "maxMs": 1602
+        },
+        "pageReady": {
+          "medianMs": 2131,
+          "minMs": 2008,
+          "maxMs": 2239
+        }
+      }
+    }
+  },
+  "preFixFailure": {
+    "run": "parallel-idle-cache-open",
+    "error": "Error: Browser extensions did not become ready in time. Try again.",
+    "elapsed": 30096.5,
+    "cause": "Android trimMemory released the hidden bootstrap while catalog work was pending. Fixed by protecting pending startup sessions and reopening a closed bootstrap before navigation."
+  },
+  "validation": {
+    "mobileUnitTests": 330,
+    "nativeScenarios": [
+      "blank session before held catalog, hidden surface, settings/userscript barriers",
+      "memory trim/eviction protection while pending; normal eviction after readiness",
+      "cancel and supersede pending startup",
+      "catalog failure and retry",
+      "closed/killed bootstrap replacement",
+      "first page, warm navigation and paint reset",
+      "retained tabs, independent history and closed-generation rejection"
+    ],
+    "nativeMethodsPassed": 7
+  },
+  "productionPressureCheck": {
+    "level": "RUNNING_CRITICAL",
+    "acceptedMs": 2306.600000143051,
+    "error": null,
+    "pageReportMs": 3047
+  },
+  "installedApkSha256": "63642651f5fa2e37feabcd18fa640208af5a7283f7629bc13a36d85c2d92800f",
+  "baselineApkSha256": "9a211556b50588bd309934f9ffaa6c65746d51b4c6f20cf9c656df59d9071bcb",
+  "finalState": {
+    "stage": "ready",
+    "configs": 31,
+    "extensions": [
+      {
+        "name": "uBlock Origin",
+        "enabled": true
+      },
+      {
+        "name": "Violentmonkey",
+        "enabled": true
+      },
+      {
+        "name": "SponsorBlock for YouTube - Skip Sponsorships",
+        "enabled": true
+      },
+      {
+        "name": "Dark Reader",
+        "enabled": true
+      }
+    ]
+  },
+  "benchmarkApkSha256": "a532c3fe74254bd9f6a2e38b01717ab7abf353336a25918323174a2d5192d17b",
+  "finalIntegration": {
+    "upstreamBase": "26e785dd",
+    "nativeStartupFilesUnchanged": true,
+    "diagnosticsExcludedFromBeforeAfter": true
+  },
+  "uboDiagnostics": [
+    {
+      "run": "parallel-rebased-smoke-open",
+      "acceptedMs": 1749.7000000476837,
+      "pageReportMs": 2369,
+      "uboReadyAfterT0Ms": 867,
+      "uboReadyAfterDocumentMs": 1070,
+      "cacheBackend": "indexedDB",
+      "maxAssetCacheWaitMs": 264,
+      "selfieInvalid": false,
+      "uboReadyAfterPageOriginMs": 409,
+      "requestStartAfterPageOriginMs": 418,
+      "requestAfterUboReadyMs": 9
+    },
+    {
+      "run": "parallel-ubo-open-1",
+      "acceptedMs": 1236.5,
+      "pageReportMs": 1805,
+      "uboReadyAfterT0Ms": 755,
+      "uboReadyAfterDocumentMs": 942,
+      "cacheBackend": "indexedDB",
+      "maxAssetCacheWaitMs": 242,
+      "selfieInvalid": false,
+      "uboReadyAfterPageOriginMs": 356,
+      "requestStartAfterPageOriginMs": 366,
+      "requestAfterUboReadyMs": 10
+    },
+    {
+      "run": "parallel-ubo-open-2",
+      "acceptedMs": 1220.5,
+      "pageReportMs": 1828,
+      "uboReadyAfterT0Ms": 716,
+      "uboReadyAfterDocumentMs": 929,
+      "cacheBackend": "indexedDB",
+      "maxAssetCacheWaitMs": 274,
+      "selfieInvalid": false,
+      "uboReadyAfterPageOriginMs": 400,
+      "requestStartAfterPageOriginMs": 412,
+      "requestAfterUboReadyMs": 12
+    }
+  ]
+}

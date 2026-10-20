@@ -180,7 +180,9 @@ abstract class ReadingSurfaceHost extends Plugin implements TabRecency.Tab {
     @Override public boolean isLive() { return session != null; }
 
     @Override public boolean releaseHiddenSession() {
-        if (session == null || visible && resumed || backgroundMedia.keepsPlaying()) return false;
+        // The blank startup session has no visible surface yet, but is doing
+        // required work: reclaiming it can prevent background ports connecting.
+        if (session == null || !waiting.isEmpty() || visible && resumed || backgroundMedia.keepsPlaying()) return false;
         hiddenState = sessionState;
         releaseReadingSession();
         killedWhileHidden = true;
@@ -284,12 +286,19 @@ abstract class ReadingSurfaceHost extends Plugin implements TabRecency.Tab {
         parent.addView(refreshSurface, shellIndex + 1, new ViewGroup.LayoutParams(1, 1));
     }
 
+    /** Recover a bootstrap session closed while its extension catalog was pending. */
+    protected final void ensureReadingSession() {
+        if (session == null) createReadingSession();
+        else if (!session.isOpen()) reopenSession();
+    }
+
     protected void createReadingSession() { createReadingSession(true); }
 
     protected void createReadingSession(boolean open) {
         GeckoSession created = new GeckoSession();
         GeckoSessionSupport.applyDesktopSite(created, desktopSite.isEnabled());
         session = created;
+        killedWhileHidden = false;
         sessionState = null;
         backgroundMedia.playingChanged = playing -> notifyListeners("mediaStateChanged", new JSObject().put("playing", playing));
         backgroundMedia.presentationChanged = video::update;
@@ -349,6 +358,13 @@ abstract class ReadingSurfaceHost extends Plugin implements TabRecency.Tab {
     protected void repairDisplay() { display.repair(); }
     protected void traceLoad(String stage) { display.trace(stage); }
     protected void requestHealthCheck() { display.requestHealthCheck(); }
+
+    protected final boolean finishWaiting(PluginCall call) {
+        Runnable pending = waiting.remove(call);
+        if (pending == null) return false;
+        handler.removeCallbacks(pending);
+        return true;
+    }
 
     protected void destroySurface() {
         video.reset();
