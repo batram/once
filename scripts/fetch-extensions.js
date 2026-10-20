@@ -36,6 +36,21 @@ const BUNDLES = [
   }
 ]
 
+// Once Lite's Tier 2 (no DevTools) enforces uBlock Origin Lite's rulesets
+// itself, so Lite builds (`--ubolite`, passed by apps/mobile/scripts/mobile-cli.js)
+// also need the uBO Lite bundle iOS ships: the same Safari build, pinned to the
+// same version and hash as scripts/fetch-ios-extensions.js (a unit test keeps
+// the two pins equal), since it carries the declarativeNetRequest rulesets
+// and the generic cosmetic tables. Electron packages vendor/extensions whole,
+// so it is fetched for Lite only.
+const UBOLITE = {
+  name: "ublock-origin-lite",
+  version: "2026.930.1227",
+  url: "https://github.com/uBlockOrigin/uBOL-home/releases/download/2026.930.1227/uBOLite_2026.930.1227.safari.zip",
+  sha256: "bd280a82b74e38049fa0644e42c1d9a668516cd00e4bac26bf6991263746b9cb",
+  manifestVersion: 3
+}
+
 function stampPath(bundle) {
   return path.join(vendorRoot, bundle.name, ".once-bundle.json")
 }
@@ -66,7 +81,12 @@ async function fetchBundle(bundle) {
   new AdmZip(archive).extractAllTo(target, true)
   const manifest = JSON.parse(fs.readFileSync(path.join(target, "manifest.json"), "utf8"))
   const id = manifest.browser_specific_settings?.gecko?.id ?? manifest.applications?.gecko?.id
-  if (id !== bundle.id) throw new Error(`${bundle.name}: manifest id ${id} is not ${bundle.id}`)
+  if (bundle.manifestVersion !== undefined) {
+    // uBO Lite's Safari build names no Gecko id; its version and manifest version identify it.
+    if (manifest.version !== bundle.version || manifest.manifest_version !== bundle.manifestVersion) {
+      throw new Error(`${bundle.name}: unexpected manifest ${manifest.version} (MV${manifest.manifest_version})`)
+    }
+  } else if (id !== bundle.id) throw new Error(`${bundle.name}: manifest id ${id} is not ${bundle.id}`)
   fs.writeFileSync(stampPath(bundle), JSON.stringify({
     id: bundle.id, version: manifest.version, sha256: bundle.sha256, url: bundle.url
   }, null, 2))
@@ -76,6 +96,7 @@ async function fetchBundle(bundle) {
 async function main() {
   fs.mkdirSync(vendorRoot, { recursive: true })
   for (const bundle of BUNDLES) await fetchBundle(bundle)
+  if (process.argv.includes("--ubolite")) await fetchBundle(UBOLITE)
   // Android hands userscripts to its own copy of Violentmonkey, which carries
   // the relay the app talks to.
   const violentmonkey = BUNDLES.find((bundle) => bundle.name === "violentmonkey")

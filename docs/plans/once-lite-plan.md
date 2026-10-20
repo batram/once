@@ -164,9 +164,10 @@ synced filter lists through `shouldInterceptRequest` (type inferred from
 `Sec-Fetch-Dest`/`Accept`), cosmetic CSS and userscripts through
 `addJavaScriptOnEvent` in an isolated world where the WebView supports it,
 else `addDocumentStartJavaScript` (page world, closure-scoped GM shim as on
-iOS), and uBlock Origin Lite's declarative rules evaluated by the
-broker's DNR matcher from the interception callback. Full extensions are not
-loaded in Tier 2.
+iOS), and uBlock Origin Lite's declarative rules, compiled by the broker and
+evaluated by Java's port of the DNR matcher in the interception callback (a
+broker round trip per request would block on the renderer the tab shares
+with the broker). Full extensions are not loaded in Tier 2.
 
 ## Identity and build
 
@@ -215,4 +216,26 @@ loaded in Tier 2.
   GM API, popup and options pages, synced lists, AMO install opt-in),
   `EXTENSION_COMPATIBILITY.md`, `ARCHITECTURE.md`, `DEVELOPMENT.md`,
   `RELEASING.md`, CI job.
-- **M4** Tier 2 fallback and its tests.
+- **M4** (done 2026-10-20) Tier 2 fallback and its tests. The broker
+  starts without DevTools, loads no extension and compiles the rules and
+  page scripts Java applies on its own (`liteTier2.ts`, the
+  `net.rules`/`tier2.scripts`/`tier2.fetchList`/`net.sessionRules` messages
+  of the protocol doc): uBlock Origin Lite's default rulesets (about 112k
+  rules from the vendored Safari build, which carries them, so no Chromium
+  build is pinned), its session rules and the synced lists in the portable
+  subset, evaluated by a Java port of the DNR matcher with a token index
+  (`DnrEvaluator.java`, about 40 µs a request on the JVM) from
+  `shouldInterceptRequest`; the lists' and uBO Lite's generic cosmetics and
+  the synced userscripts with the iOS GM shim through
+  `addDocumentStartJavaScript` (`tier2Page.ts`). Findings: WebView refuses
+  3xx responses from `shouldInterceptRequest`, so redirects to URLs
+  navigate or are fetched by Java; compiling the 112k rules from JSON takes
+  5 to 11 s in the debuggable build on the emulator, so the compiled rules
+  are cached per install (0.4 s to read back); the shell hands userscripts
+  to the native side already parsed. Forced with `adb shell setprop
+  debug.once.lite.devtools off` (debuggable builds); covered by
+  `tests/unit/mobile/lite-tier2.test.js`, `DnrEvaluatorTest` (JUnit),
+  `LiteTier2Test` and the Lite smoke in Tier 2
+  (`test:mobile:e2e:android:lite:tier2:local`). Left out: header rules,
+  scriptlets, site-specific cosmetics, uBO Lite's optional rulesets,
+  dashboard and strict-block page, extension pages, worker requests.

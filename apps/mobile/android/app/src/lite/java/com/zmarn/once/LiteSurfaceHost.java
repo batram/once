@@ -254,6 +254,8 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         if (liteTabId == 0) liteTabId = engine.nextTabId();
         com.zmarn.once.lite.LitePage.listenInTab(view, engine.channel, liteTabId);
         attachment = engine.targets().register(view, view.marker, "tab", liteTabId, null, bridge, !adoptingWindow());
+        // Tier 2's page scripts (cosmetics, userscripts) follow the tab; none are pushed with DevTools.
+        engine.tier2().addTab(view, liteTabId);
         bridge.attach(attachment);
         // Below the recovery view and the load status, which stay on top of the page.
         surfaceContent.addView(view, 0, new FrameLayout.LayoutParams(-1, -1));
@@ -265,6 +267,7 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
     protected void load(String url) {
         LiteWebView view = surface;
         if (view == null) return;
+        if (LiteExtensionPages.isExtensionUrl(url) && engine().tier2Active()) { extensionPageRefused(url); return; }
         attachment.whenReady(TARGET_TIMEOUT_MS, () -> { if (surface == view) view.loadUrl(url); });
     }
 
@@ -293,6 +296,7 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         old.setWebChromeClient(null);
         old.stopLoading();
         if (attachment != null) engine().targets().unregister(attachment);
+        engine().tier2().removeTab(old);
         attachment = null;
         bridge.reset();
         healthSentAt = 0;
@@ -562,6 +566,13 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
     }
 
     protected void failed(String url, int code, String message) { failed(url, code, message, null); }
+
+    /** Tier 2 serves no extension pages: the navigation fails with the reason. */
+    protected void extensionPageRefused(String url) {
+        String message = "Extension pages are unavailable: " + com.zmarn.once.lite.LiteExtensionEngine.DEVTOOLS_UNAVAILABLE;
+        failed(url, android.webkit.WebViewClient.ERROR_UNSUPPORTED_SCHEME, message);
+        showRecovery(message + ".");
+    }
 
     protected void failed(String url, int code, String message, String externalUrl) {
         navigationDeadline = 0;

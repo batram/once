@@ -5,6 +5,13 @@ Lite extension runtime (`docs/plans/once-lite-plan.md`). It drives the
 WebView-based Android app through Appium, like the smoke suite, and is selected
 by `ONCE_MOBILE_LITE_EXTENSIONS=1` in `wdio.shared.conf.js`.
 
+It covers Tier 1 (DevTools available) only: its phases drive uBlock Origin's
+and Violentmonkey's own pages, popups and dashboards, which Tier 2 does not
+load. Tier 2 is covered by `LiteTier2Test` (instrumentation) and the smoke
+suite run with DevTools switched off,
+`npm run test:mobile:e2e:android:lite:tier2:local` (see
+`docs/DEVELOPMENT.md`).
+
 ## Running it
 
 Against the running emulator (`emulator-5554`; the runner packages the Lite dev

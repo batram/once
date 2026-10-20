@@ -70,6 +70,10 @@ final class LiteNavigation extends WebViewClient {
     public boolean shouldOverrideUrlLoading(WebView ignored, WebResourceRequest request) {
         if (!current()) return true;
         String url = request.getUrl().toString();
+        if (LiteExtensionPages.isExtensionUrl(url) && h.engine().tier2Active()) {
+            if (request.isForMainFrame()) h.extensionPageRefused(url);
+            return true;
+        }
         if (ReadingAddress.surface(url) || LiteExtensionPages.isExtensionUrl(url)) return false;
         // A frame may not leave for another app at all.
         if (!request.isForMainFrame()) return true;
@@ -78,6 +82,17 @@ final class LiteNavigation extends WebViewClient {
         if (request.hasGesture() && !request.isRedirect()) h.openExternal(url);
         else if (!h.navigationCompleted) h.offerExternal(url);
         return true;
+    }
+
+    /**
+     * Tier 2 (no DevTools): the rules the broker compiled, judged by Java
+     * (LiteTier2). With DevTools the Fetch domain sees every request instead.
+     */
+    @Override
+    public WebResourceResponse shouldInterceptRequest(WebView ignored, WebResourceRequest request) {
+        com.zmarn.once.lite.LiteExtensionEngine engine = com.zmarn.once.lite.LiteExtensionEngine.current();
+        if (engine == null || !engine.tier2Active()) return null;
+        return engine.tier2().intercept(view, request);
     }
 
     @Override

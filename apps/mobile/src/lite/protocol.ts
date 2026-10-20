@@ -74,6 +74,59 @@ export interface StartParams {
   storageRoot: string
   /** Whether Java holds a usable DevTools connection; false is Tier 2. */
   devtools?: boolean
+  /** uBlock Origin Lite's bundle (Tier 2 only; its id is `UBOLITE_ID`). */
+  ubolite?: BundledExtensionParam
+}
+
+// ---------------------------------------------------------------------------
+// Tier 2 (no DevTools): Java evaluates the rules and installs the page
+// scripts itself; the broker compiles both from the synced documents.
+
+/** The catalogue id of the bundled uBlock Origin Lite (its Safari manifest carries none). */
+export const UBOLITE_ID = "uBOLite@raymondhill.net"
+export const TIER2_DISABLED_REASON = "Extensions limited: DevTools unavailable"
+
+/**
+ * One extension's rules for Java's evaluator. Groups decide independently
+ * and a block from any group wins, as one extension's allow rule does not
+ * lift another's block in Chrome. Static rulesets are named by path and read
+ * by Java from `directory` (uBO Lite's run to 100k rules; they never cross
+ * the channel).
+ */
+export interface NetRuleGroup {
+  id: string
+  /** `onceLiteFiles.read`'s directory for `rulesets` and `redirect.extensionPath`. */
+  directory?: string
+  /** Package-relative JSON files, each an array of DNR rules. */
+  rulesets?: string[]
+  /** Inline rules (dynamic, session, converted lists). */
+  rules: unknown[]
+}
+
+export interface NetRulesParams {
+  groups: NetRuleGroup[]
+}
+
+export interface NetRulesResult {
+  /** Rules Java compiled per group, static and inline. */
+  counts: Record<string, number>
+  /** Rules Java could not compile (an unsupported regex, say). */
+  skipped?: number
+}
+
+export interface Tier2ScriptsParams {
+  /** Page-world sources, each registered on its own with `addDocumentStartJavaScript`. */
+  sources: string[]
+}
+
+export interface Tier2FetchListResult {
+  status: number
+  text?: string
+}
+
+export interface SessionRulesParams {
+  addRules?: unknown
+  removeRuleIds?: unknown
 }
 
 export interface StartResult {

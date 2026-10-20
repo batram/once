@@ -13,6 +13,12 @@ const engineFlag = process.argv.indexOf("--engine")
 let engine
 try { engine = mobileEngine(engineFlag >= 0 ? process.argv[engineFlag + 1] : process.env.ONCE_MOBILE_ENGINE) }
 catch (error) { console.error(`mobile-e2e: ${error.message}`); process.exit(1) }
+// --tier2 runs Once Lite with DevTools switched off (Tier 2 of
+// docs/plans/once-lite-plan.md): the debug build reads the property when its
+// extension runtime starts; it is cleared again however the run ends.
+const tier2 = process.argv.includes("--tier2")
+const TIER2_PROPERTY = "debug.once.lite.devtools"
+if (tier2 && engine !== "lite") { console.error("mobile-e2e: --tier2 needs --engine lite"); process.exit(1) }
 
 function fail(message) {
   console.error(`mobile-e2e: ${message}`)
@@ -119,7 +125,14 @@ runNpm(["run", "mobile", "--", "package", "android", "--channel", "dev", "--e2e"
   ...env,
   ONCE_ANDROID_PACKAGE_ABIS: abi
 })
+if (tier2) {
+  run(adb, ["-s", serial, "shell", "setprop", TIER2_PROPERTY, "off"], { env, timeout: 10_000 })
+  process.on("exit", () => {
+    spawnSync(adb, ["-s", serial, "shell", "setprop", TIER2_PROPERTY, "''"], { env, stdio: "ignore", timeout: 10_000 })
+  })
+  console.log(`mobile-e2e: Once Lite runs in Tier 2 (${TIER2_PROPERTY}=off) for this run`)
+}
 runNpm([
   "run",
   visual ? "inspect:mobile:android:run" : "test:mobile:e2e:android"
-], env)
+], tier2 ? { ...env, ONCE_LITE_TIER2: "1" } : env)

@@ -118,6 +118,18 @@ abstract class OnceLiteExtensionAssets extends DefaultTask {
             spec.from(vendorExtensions) {
                 it.into('extensions')
                 it.include('ublock-origin/**', 'violentmonkey/**')
+                // Tier 2 (no DevTools) enforces uBlock Origin Lite's default
+                // rulesets and generic cosmetics itself (LiteTier2); only those
+                // files ship. Keep the list in step with the manifest's
+                // enabled rule_resources when the bundle is updated.
+                it.include('ublock-origin-lite/manifest.json', 'ublock-origin-lite/LICENSE.txt',
+                    'ublock-origin-lite/_locales/**', 'ublock-origin-lite/img/icon_*.png',
+                    'ublock-origin-lite/web_accessible_resources/**',
+                    'ublock-origin-lite/js/scripting/isolated-api.js', 'ublock-origin-lite/js/scripting/css-generic.js')
+                for (String ruleset : ['ublock-filters', 'easylist', 'easyprivacy']) {
+                    it.include("ublock-origin-lite/rulesets/main/${ruleset}.json", "ublock-origin-lite/rulesets/regex/${ruleset}.json",
+                        "ublock-origin-lite/rulesets/scripting/generic/${ruleset}.js")
+                }
             }
         }
     }

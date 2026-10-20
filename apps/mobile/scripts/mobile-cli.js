@@ -477,8 +477,9 @@ else if (command === "run") {
   if (platform === "android") {
     // The built-in extension bundles are not in the repository; they are
     // fetched against pinned hashes before the APK that carries them is built
-    // (both engines: GeckoView takes the adapted copies, Once Lite the upstream ones).
-    run(process.execPath, [path.join(root, "scripts", "fetch-extensions.js")])
+    // (both engines: GeckoView takes the adapted copies, Once Lite the upstream
+    // ones and uBlock Origin Lite's rulesets for its Tier 2).
+    run(process.execPath, [path.join(root, "scripts", "fetch-extensions.js"), ...(engine === "lite" ? ["--ubolite"] : [])])
     const android = androidEnvironment(channel)
     run(android.command, [
       "-classpath",

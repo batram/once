@@ -32,10 +32,12 @@ import { liteCookieStore } from "./liteCookies"
 import { LiteJsonStore } from "./liteStorage"
 import { createLiteSettingsCoordinator, readSettings, waitForUblockLists } from "./liteSettings"
 import { LiteWorldMessages } from "./liteWorldMessages"
+import { LiteTier2 } from "./liteTier2"
 import {
   CdpEventParams,
   CdpFrameTree,
   ExtensionCommandParams,
+  SessionRulesParams,
   StartParams,
   StartResult,
   TargetAttachedParams,
@@ -71,6 +73,8 @@ export class LiteBroker {
   private readonly cookies
   private readonly settings
   private management: LiteManagement | null = null
+  /** Set when `lite.start` said DevTools is unavailable: no extension loads, Java enforces what this compiles. */
+  private tier2: LiteTier2 | null = null
   private start: StartParams | null = null
   /** Tab documents wait for uBlock's lists after it loads, bounded; see `holdForLists`. */
   private listsReady: Promise<void> = Promise.resolve()
@@ -190,9 +194,17 @@ export class LiteBroker {
 
   private registerHandlers(): void {
     this.channel.onRequest("lite.start", (params) => this.handleStart(params as StartParams))
-    this.channel.onRequest("extension.command", (params) => this.requireManagement().command(params as ExtensionCommandParams))
-    this.channel.onRequest("settings.apply", (params) => this.settings.applySettings(readSettings(params)))
-    this.channel.onRequest("extensions.list", () => this.requireManagement().catalog())
+    this.channel.onRequest("extension.command", (params) => {
+      const command = params as ExtensionCommandParams
+      return this.tier2 ? this.tier2.command(command.action, command.id) : this.requireManagement().command(command)
+    })
+    this.channel.onRequest("settings.apply", (params) =>
+      this.tier2 ? this.tier2.applySettings(readSettings(params)) : this.settings.applySettings(readSettings(params)))
+    this.channel.onRequest("extensions.list", () => this.tier2 ? this.tier2.catalog() : this.requireManagement().catalog())
+    this.channel.onRequest("net.sessionRules", (params) => {
+      if (!this.tier2) throw new Error("Session rules through the broker exist in Tier 2 only")
+      return this.tier2.updateSessionRules(params as SessionRulesParams)
+    })
     this.channel.onEvent("target.attached", (params) => this.targetAttached(params as TargetAttachedParams))
     this.channel.onEvent("target.detached", (params) => this.targetDetached((params as { targetId: string }).targetId))
     this.channel.onEvent("cdp.event", (params) => this.cdpEvent(params as CdpEventParams))
@@ -225,6 +237,20 @@ export class LiteBroker {
       openOptions: (id) => this.openOptions(id),
       openAction: (id) => this.openAction(id)
     })
+    if (params.devtools === false) {
+      const management = this.management
+      this.tier2 = new LiteTier2({
+        channel: this.channel,
+        files: this.files,
+        bundle: () => this.bundle("lite-tier2-page.js"),
+        locale: () => params.locale,
+        bundled: params.bundled,
+        ubolite: params.ubolite,
+        installed: async () => (await management.catalog()).filter((entry) => !entry.bundled)
+      })
+      await this.tier2.start()
+      return { ready: true, extensions: await this.tier2.catalog() }
+    }
     await this.management.manager.restore(params.bundled)
     await this.worlds.update()
     return { ready: true, extensions: await this.management.catalog() }

@@ -30,14 +30,19 @@ import org.json.JSONObject;
  * LitePackages, LiteCookies), the DevTools fan-out (LiteTargets) and the
  * extension pages (LitePage). The activity binds for dialogs, the page
  * presenter and the tab shell; tabs register their WebViews and report their
- * state. Without a usable DevTools connection the runtime still starts, but
- * reports its extensions as limited (Tier 2 of docs/plans/once-lite-plan.md).
+ * state. Without a usable DevTools connection the runtime still starts in
+ * Tier 2 of docs/plans/once-lite-plan.md: no extension loads, and LiteTier2
+ * enforces the rules and page scripts the broker compiles.
  */
 public final class LiteExtensionEngine {
     private static final String TAG = BrokerChannel.TAG;
     public static final String DEVTOOLS_UNAVAILABLE = "Extensions limited: DevTools unavailable";
     static final String UBLOCK_ID = "uBlock0@raymondhill.net";
     static final String VIOLENTMONKEY_ID = "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}";
+    static final String UBOLITE_ID = "uBOLite@raymondhill.net";
+    static final String UBOLITE_DIRECTORY = "asset:extensions/ublock-origin-lite";
+    /** `adb shell setprop debug.once.lite.devtools off` forces Tier 2 in debuggable builds (docs/DEVELOPMENT.md). */
+    public static final String DEVTOOLS_PROPERTY = "debug.once.lite.devtools";
     private static final long DEVTOOLS_WAIT_MS = 4000;
     private static final long SETTINGS_TIMEOUT_MS = 15000;
     private static LiteExtensionEngine current;
@@ -70,6 +75,7 @@ public final class LiteExtensionEngine {
     private final LiteFiles files;
     private final LitePackages packages = new LitePackages();
     private final LiteCookies cookies;
+    private final LiteTier2 tier2;
     private final LiteTargets targets;
     private final BrokerView broker;
     private final DevToolsClient devtools;
@@ -96,6 +102,8 @@ public final class LiteExtensionEngine {
     private int settingsInFlight;
     private int settingsApplications;
     private boolean violentmonkeyConnected;
+    /** Whether the running broker started without DevTools (Tier 2); settled at `lite.start`. */
+    private volatile boolean tier2Mode;
 
     /** The process's engine, created on first use (main thread). */
     public static synchronized LiteExtensionEngine get(Context context) {
@@ -110,11 +118,15 @@ public final class LiteExtensionEngine {
         token = newToken();
         files = new LiteFiles(this.context);
         hidden = new FrameLayout(this.context);
-        devtools = DevToolsClient.connect();
+        devtools = devtoolsForcedOff(this.context)
+            ? DevToolsClient.disabled("DevTools switched off by " + DEVTOOLS_PROPERTY)
+            : DevToolsClient.connect();
+        tier2 = new LiteTier2(files, packageStamp(this.context));
         cookies = new LiteCookies(() -> devtools, this::brokerSession);
         targets = new LiteTargets(() -> devtools, channel, cookies, () -> bridgeSources[0] == null && bridgeSources[1] == null ? null : bridgeSources);
         targets.onDevToolsConnected();
         files.register(channel);
+        tier2.register(channel);
         packages.register(channel);
         cookies.register(channel);
         registerHandlers();
@@ -127,6 +139,32 @@ public final class LiteExtensionEngine {
             if (error != null) Log.w(TAG, "DevTools unavailable: " + error.getMessage());
             else cookies.prime();
         });
+    }
+
+    /**
+     * The Tier 2 switch for testing: only a debuggable build reads it, so a
+     * release build always uses DevTools when the WebView offers it.
+     */
+    static boolean devtoolsForcedOff(Context context) {
+        if ((context.getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) return false;
+        try {
+            Process process = new ProcessBuilder("getprop", DEVTOOLS_PROPERTY).redirectErrorStream(true).start();
+            byte[] output = LiteFiles.readAll(process.getInputStream(), 256);
+            process.waitFor();
+            return "off".equals(new String(output, StandardCharsets.UTF_8).trim());
+        } catch (Exception error) {
+            return false;
+        }
+    }
+
+    /** Changes with every install of the APK, so caches of its assets follow it. */
+    private static String packageStamp(Context context) {
+        try {
+            android.content.pm.PackageInfo info = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            return info.lastUpdateTime + ":" + info.versionName;
+        } catch (Exception error) {
+            return "unknown";
+        }
     }
 
     private static String newToken() {
@@ -160,6 +198,9 @@ public final class LiteExtensionEngine {
 
     public LiteTargets targets() { return targets; }
     public boolean devtoolsAvailable() { return devtools.available(); }
+    /** True once the broker started without DevTools: Java enforces the rules and page scripts it compiled. */
+    public boolean tier2Active() { return tier2Mode; }
+    public LiteTier2 tier2() { return tier2; }
     public boolean isStarted() { return started; }
     public int nextTabId() { return tabIds.incrementAndGet(); }
 
@@ -274,8 +315,11 @@ public final class LiteExtensionEngine {
                 bundled.put(new JSONObject().put("id", bundle[0]).put("directory", bundle[1]).put("present", files.assetExists(bundle[1], "manifest.json")));
             }
             params.put("bundled", bundled).put("locale", Locale.getDefault().toLanguageTag()).put("arch", arch())
-                .put("token", token).put("storageRoot", files.storageRoot.getAbsolutePath()).put("devtools", devtools.available());
+                .put("token", token).put("storageRoot", files.storageRoot.getAbsolutePath()).put("devtools", devtools.available())
+                .put("ubolite", new JSONObject().put("id", UBOLITE_ID).put("directory", UBOLITE_DIRECTORY)
+                    .put("present", files.assetExists(UBOLITE_DIRECTORY, "manifest.json")));
         } catch (Exception error) { Log.e(TAG, "Could not describe the start", error); return; }
+        tier2Mode = !devtools.available();
         Log.i(TAG, "starting the broker (devtools=" + devtools.available() + ")");
         channel.request("lite.start", params).whenComplete((result, error) -> main.post(() -> {
             if (error != null) { Log.e(TAG, "The broker did not start: " + error.getMessage()); releaseStartWaiters(); return; }
@@ -321,25 +365,21 @@ public final class LiteExtensionEngine {
         });
     }
 
-    /** The shell's `extensionCommand`; `list` carries the Tier 2 reason when DevTools is unavailable. */
+    /** The shell's `extensionCommand`; in Tier 2 the broker lists the full extensions as limited. */
     public CompletableFuture<JSONObject> command(JSONObject params) {
         CompletableFuture<JSONObject> result = new CompletableFuture<>();
         channel.request("extension.command", params).whenComplete((answer, error) -> {
             if (error != null) { result.completeExceptionally(error); return; }
             JSONArray extensions = answer.optJSONArray("extensions");
-            if (extensions != null) { catalogue = extensions; markLimited(extensions); }
+            if (extensions != null) catalogue = extensions;
             result.complete(answer);
         });
         return result;
     }
 
-    private void markLimited(JSONArray extensions) {
-        if (devtools.available()) return;
-        for (int index = 0; index < extensions.length(); index++) {
-            JSONObject entry = extensions.optJSONObject(index);
-            try { if (entry != null && entry.optString("disabledReason", "").isEmpty()) entry.put("disabledReason", DEVTOOLS_UNAVAILABLE); }
-            catch (Exception ignored) { /* a constant document */ }
-        }
+    /** `declarativeNetRequest.updateSessionRules` for uBO Lite in Tier 2 (instrumentation tests). */
+    public CompletableFuture<JSONObject> sessionRules(JSONObject params) {
+        return channel.request("net.sessionRules", params);
     }
 
     /** The shell's synced documents; pages opening now wait for the broker's acknowledgement. */
@@ -445,6 +485,7 @@ public final class LiteExtensionEngine {
         devtools.removeListener(targets);
         targets.close();
         packages.close();
+        tier2.close();
         files.close();
         synchronized (LiteExtensionEngine.class) { if (current == this) current = null; }
     }

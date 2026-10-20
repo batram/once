@@ -90,6 +90,20 @@ public final class DevToolsClient {
         thread.start();
     }
 
+    /** A client that never connects: Tier 2 forced for testing (see LiteExtensionEngine.devtoolsForcedOff). */
+    private DevToolsClient(String socketName, String reason) {
+        this.socketName = socketName;
+        thread = new Thread(() -> {}, "once-devtools-off");
+        closed = true;
+        failure = reason;
+        ready.completeExceptionally(new IOException(reason));
+    }
+
+    /** Not the process's client: {@link #current()} keeps answering the real one, if any. */
+    public static DevToolsClient disabled(String reason) {
+        return new DevToolsClient("webview_devtools_remote_" + Process.myPid(), reason);
+    }
+
     /** Resolves once the browser connection is up and auto-attach is on; fails when the handshake does. */
     public CompletableFuture<Void> whenConnected() { return ready; }
 
@@ -170,7 +184,7 @@ public final class DevToolsClient {
 
     public void close() {
         closed = true;
-        current = null;
+        synchronized (DevToolsClient.class) { if (current == this) current = null; }
         WebSocket out = socket;
         if (out != null) out.close();
         thread.interrupt();

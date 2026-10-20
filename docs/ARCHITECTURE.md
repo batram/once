@@ -159,8 +159,12 @@ broker over a frame-authenticated channel or a world-scoped binding and get
 `browser.*` built by the shared `PreloadApi` with the same allowlists as
 Electron; and the broker, which may ask Java for anything in the protocol but
 holds no file, socket or WebView of its own. Where the DevTools connection
-cannot be made the surface still works and the catalogue reports its
-extensions as limited (the plan's Tier 2; the fallback itself is milestone M4).
+cannot be made the surface still works in the plan's Tier 2: no full
+extension loads, the broker compiles uBlock Origin Lite's default rulesets
+and the synced lists into rules Java's own DNR evaluator applies from
+`shouldInterceptRequest`, and cosmetics and userscripts are page scripts Java
+registers at document start (`liteTier2.ts`, `LiteTier2.java`); the
+catalogue lists the full extensions as limited.
 
 The sync URL can contain credentials, so mobile stores it outside the WebView:
 iOS uses Keychain and Android encrypts an app-private preference with an

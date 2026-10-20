@@ -43,7 +43,7 @@ answered. Order within the channel is preserved; nothing else is.
 
 | Method | Params | Result | Notes |
 | --- | --- | --- | --- |
-| `lite.start` (request) | `{bundled: [{id, directory, present}], locale, arch, token, storageRoot, devtools}` | `{ready: true, extensions: CatalogEntry[]}` | Once per broker page, after the broker's `broker.hello` event. `bundled` lists the shipped extensions (ids from `scripts/fetch-extensions.js`: `uBlock0@raymondhill.net` in `ublock-origin`, `{aecec67f-0d10-4fa7-b7c7-609a2db280cf}` in the plain `violentmonkey` bundle, **not** the Gecko-adapted `android/violentmonkey`); `directory` is whatever string `onceLiteFiles.read` resolves (an `asset:` prefix for APK assets is Java's own convention). `token` is a random secret (32+ hex chars) generated per app process and also given to the bridge/main helper scripts. `storageRoot` is the directory JSON stores live under (`<files>/lite-extensions`); `devtools` says whether Java holds a usable DevTools connection (false is Tier 2). The broker restores the catalogue, loads enabled extensions (opening their background pages) and installs the world registrations before answering. |
+| `lite.start` (request) | `{bundled: [{id, directory, present}], locale, arch, token, storageRoot, devtools}` | `{ready: true, extensions: CatalogEntry[]}` | Once per broker page, after the broker's `broker.hello` event. `bundled` lists the shipped extensions (ids from `scripts/fetch-extensions.js`: `uBlock0@raymondhill.net` in `ublock-origin`, `{aecec67f-0d10-4fa7-b7c7-609a2db280cf}` in the plain `violentmonkey` bundle, **not** the Gecko-adapted `android/violentmonkey`); `directory` is whatever string `onceLiteFiles.read` resolves (an `asset:` prefix for APK assets is Java's own convention). `token` is a random secret (32+ hex chars) generated per app process and also given to the bridge/main helper scripts. `storageRoot` is the directory JSON stores live under (`<files>/lite-extensions`); `devtools` says whether Java holds a usable DevTools connection (false is Tier 2, see below); `ubolite` (`{id: "uBOLite@raymondhill.net", directory: "asset:extensions/ublock-origin-lite", present}`) is the bundle Tier 2 enforces. With DevTools the broker restores the catalogue, loads enabled extensions (opening their background pages) and installs the world registrations before answering; in Tier 2 it loads none and answers once Java has uBO Lite's rules and cosmetics (`net.rules`, `tier2.scripts`). |
 | `extension.command` (request) | `{action, id?, source?, enabled?, file?}` | `{extensions?, cancelled?, noPage?}` | The shell's `extensionCommand` verbatim (`MobileExtensionCommand`). `list` answers the catalogue in the exact `MobileBrowserExtension` shape (`id, name, iconDataUrl?, description, version, enabled, bundled, hasOptions, hasAction, permissions, disabledReason`). `install {source}` previews an AMO listing/XPI URL, asks `ui.confirm`, installs. `chooseFile` asks `ui.pickFile` unless `file` is given, then the same (Java's plugin runs the picker itself and sends `chooseFile {file}`; `ui.pickFile` answers `{}`, which is a cancel). `enable {id, enabled}`, `remove {id}` (confirmed), `update {id}`, `options {id}` and `action {id}` (answer `noPage: true` when the extension has no such page; `action` without a popup fires `browserAction.onClicked`). Errors are answered as request errors; `code: "INVALID_SOURCE"` for a source that is neither AMO nor a file. |
 | `extensions.list` (request) | – | `CatalogEntry[]` | The catalogue alone. |
 | `settings.apply` (request) | `{filterLists, userscripts}` | – | The shell's `applyExtensionSettings` documents. Filter lists are handed to uBlock Origin through its dashboard port (`getLists`, `applyFilterListSelection`, `reloadAllFilters`, which uBlock answers after loading); the broker then asks `getLists` once more, which uBlock answers only with its lists in force, before answering this request (30 s bound). Userscripts are **not** applied here (the `GeckoViolentmonkey` hand-off below does that), see `liteSettings.ts`. |
@@ -63,6 +63,44 @@ answered. Order within the channel is preserved; nothing else is.
 | `log` | `{level: "log" \| "warn" \| "error", message}` | Forward to logcat under the Lite tag. |
 
 Plus request `ui.confirm {title, message, detail, confirmLabel, cancelLabel}` → `{confirmed: boolean}` (an `AlertDialog` on the activity), and `ui.pickFile {}` → `{file?: string}` (the document picker for `*.xpi`/`*.zip`; `file` is whatever string `package.readArchive` accepts back, a content URI).
+
+## Tier 2 (no DevTools)
+
+When `lite.start` says `devtools: false` no extension loads and no world,
+page or `Fetch` traffic exists. The broker (`liteTier2.ts`) compiles what
+Java enforces itself, so the request path never waits for the broker:
+
+| Request (broker → Java) | Params | Result |
+| --- | --- | --- |
+| `net.rules` | `{groups: [{id, directory?, rulesets?: [path], rules: DnrRule[]}]}` — the whole rule state. Group `ubolite`: uBO Lite's enabled rulesets by package path (`rulesets/main/<id>.json` and `rulesets/regex/<id>.json`, read by Java from `directory`; a missing file is skipped) plus its session rules inline. Group `once-lists`: the synced filter lists in the portable subset as block and allow rules. | `{counts: {group: rules}, skipped}` once the new evaluator is in force |
+| `tier2.scripts` | `{sources: string[]}` — page-world sources, in order: the lists' generic cosmetics (one `<style>`), uBO Lite's generic cosmetic filtering, and when userscripts exist the `lite-tier2-page.js` runtime under a random key, one source per userscript, and the key's removal. Java registers each with `addDocumentStartJavaScript(source, ["*"])` on every reading tab, now and for tabs opened later, removing the previous set (`ScriptHandler.remove`); `addJavaScriptOnEvent` in world `once-tier2` where `JS_INJECTION_IN_FRAME_AND_WORLD` is supported. | – once registered on every tab |
+| `tier2.fetchList` | `{url}` (http or https) | `{status, text?}` — the list's text for a 2xx, following redirects, 16 MB cap |
+
+| Request (Java → broker) | Params | Result |
+| --- | --- | --- |
+| `net.sessionRules` | `{addRules?, removeRuleIds?}` — `declarativeNetRequest.updateSessionRules` for uBO Lite's group, validated by the shared rule parser (Tier 2 only; an error otherwise) | `net.rules`'s result after the push |
+
+`settings.apply` in Tier 2 fetches the lists through `tier2.fetchList` (a
+failed list is logged and left out), converts them, takes the userscripts
+(either the synced `source` form or the shell's parsed `{body, matches,
+includes, excludes, runAt, noFrames}` form), and answers after `net.rules`
+and `tier2.scripts` did. `extension.command` answers `list` with uBO Lite
+first (enabled, no options or popup), then the bundled and installed
+extensions with `enabled: false` and `disabledReason: "Extensions limited:
+DevTools unavailable"`; `options`/`action` for uBO Lite answer `noPage`, and
+every other verb is refused with that message and code `LIMITED`.
+
+Java's side (`LiteTier2.java`, `DnrEvaluator.java`): `shouldInterceptRequest`
+of each reading tab builds the request (type from `Sec-Fetch-Dest` when
+present, else the main-frame flag, `Accept`, `Range` and the extension;
+initiator the tab's document), evaluates every group, and answers a block
+with an empty 403, an `extensionPath` redirect with the package file
+(`Access-Control-Allow-Origin: *`), and a URL redirect or `upgradeScheme` by
+navigating a top-level document or fetching a subresource `GET` itself
+(WebView takes no 3xx from the callback). An `allowAllRequests` match on the
+document covers the tab's later requests. Static rulesets are compiled once
+per process and cached in binary form per APK install
+(`files/lite-extensions/tier2-rules/`).
 
 ## Tabs
 

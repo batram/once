@@ -43,6 +43,15 @@ engine: the GeckoView flavours take `ublock-origin` and the Gecko-adapted
 `ublock-origin` and the plain upstream `violentmonkey` under
 `assets/extensions/` (`OnceLiteExtensionAssets`), because its runtime does
 the relay's work from the privileged side and must not load the relay twice.
+Once Lite also carries part of uBlock Origin Lite, the Safari build iOS
+ships (`scripts/fetch-ios-extensions.js`; `fetch-extensions.js --ubolite`
+fetches the same pin for Lite builds, and a unit test keeps the two pins
+equal): its manifest, locales, icons, `web_accessible_resources`, the
+default rulesets (uBlock filters, EasyList, EasyPrivacy) and the generic
+cosmetic scripts, which Tier 2 enforces without DevTools. When the bundle is
+updated, keep `OnceLiteExtensionAssets`' ruleset list in step with the
+manifest's enabled `rule_resources` (the same test checks it) and run
+`LiteTier2Test` and `test:mobile:e2e:android:lite:tier2:local`.
 
 uBlock's Firefox build is Mozilla-signed; the pinned hash is that of the
 signed archive as published, so what ships is what Mozilla signed.

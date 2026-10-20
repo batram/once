@@ -105,7 +105,9 @@ const liteEntry = {
   "lite-page-bootstrap": path.join(__dirname, "src", "lite", "pageBootstrap.ts"),
   "lite-world-bootstrap": path.join(__dirname, "src", "lite", "worldBootstrap.ts"),
   "lite-bridge-world": path.join(__dirname, "src", "lite", "bridgeWorld.ts"),
-  "lite-pip-main": path.join(__dirname, "src", "lite", "pipMain.ts")
+  "lite-pip-main": path.join(__dirname, "src", "lite", "pipMain.ts"),
+  // Tier 2 (no DevTools): cosmetics and userscripts at document start.
+  "lite-tier2-page": path.join(__dirname, "src", "lite", "tier2Page.ts")
 }
 
 module.exports = (_env = {}, argv = {}) => {

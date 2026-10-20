@@ -185,9 +185,10 @@ npm run run:mobile:android:lite                        # Once Lite Dev on a devi
 npm run package:mobile:android:lite                    # unsigned Once Lite production AAB
 npm run deploy:mobile:android:lite                     # replaces com.zmarn.once.lite on the paired phone
 npm run test:mobile:e2e:android:lite:local             # the smoke suite against Once Lite
+npm run test:mobile:e2e:android:lite:tier2:local       # the smoke suite with DevTools forced off (Tier 2)
 npm run inspect:mobile:android:lite
 cd apps/mobile/android && ./gradlew lintLiteDevelopmentDebug testLiteDevelopmentDebugUnitTest
-ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedLiteDevelopmentDebugAndroidTest -PonceDeployAbis=arm64-v8a  # LiteDevToolsTest, LiteExtensionEngineTest
+ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedLiteDevelopmentDebugAndroidTest -PonceDeployAbis=arm64-v8a  # LiteDevToolsTest, LiteExtensionEngineTest, LiteTier2Test
 npm run test:mobile:e2e:android:lite:extensions:local  # the Lite extension acceptance suite
 ```
 
@@ -205,6 +206,28 @@ The broker (`apps/mobile/src/lite`, built into `lite-runtime.html` and the
 Violentmonkey come from `vendor/extensions` (the plain upstream copies, under
 `assets/extensions/`), which `scripts/fetch-extensions.js` provides for both
 engines.
+
+Without a usable DevTools connection Lite runs in Tier 2 (the plan's degraded
+mode, see "Once Lite (WebView)" in `docs/EXTENSION_COMPATIBILITY.md`): Java
+enforces uBlock Origin Lite's default rulesets and the synced lists from
+`shouldInterceptRequest` and injects cosmetics and userscripts at document
+start, with no full extension loaded. To test it on a working WebView,
+switch DevTools off for debuggable builds before the runtime starts (the app
+reads the property once per runtime start; release builds ignore it):
+
+```bash
+adb -s emulator-5554 shell setprop debug.once.lite.devtools off   # then force-stop and reopen Once Lite Dev
+adb -s emulator-5554 shell setprop debug.once.lite.devtools ""    # back to DevTools (Tier 1)
+```
+
+`npm run test:mobile:e2e:android:lite:tier2:local` sets and clears it around
+the smoke suite, and `LiteTier2Test` does the same around its in-process
+runtime restart. Logcat's `OnceLite` tag reports the compiled rule counts
+(`Tier 2 rules {...}`); the static rulesets are compiled once per install and
+cached under `files/lite-extensions/tier2-rules/`. The extension acceptance
+suite (`test:mobile:e2e:android:lite:extensions:local`) is Tier 1 only: it
+drives uBlock Origin's and Violentmonkey's own pages, which Tier 2 does not
+load.
 
 `deploy:mobile:android` builds the release-channel production flavor with the
 local debug signature, for the device's ABI only, and replaces `com.zmarn.once`

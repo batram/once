@@ -289,7 +289,7 @@ Violentmonkey copy.
 | Listener registration | `addListener` reaches the broker asynchronously (Electron's is synchronous); order within a context is preserved |
 | URLs | Extension pages see the https form in `location` and the `moz-extension://` form from `runtime.getURL`; content worlds get the https form from `runtime.getURL` |
 | Tabs and windows | One window (`windowId` 1); `tabs.move` answers without moving; `captureVisibleTab` is unavailable |
-| Background page access | `extension.getBackgroundPage` and `runtime.getBackgroundPage` throw: the background page is another WebView; use `runtime.sendMessage` |
+| Background page access | `extension.getBackgroundPage` returns `null` and `runtime.getBackgroundPage` resolves `null`, as Firefox answers where the page is out of reach: the background page is another WebView; use `runtime.sendMessage` |
 | Userscripts | Handed to Violentmonkey through the `GeckoViolentmonkey` plugin contract (answered by the broker the Electron way, over a `VirtualContext`), not by the settings coordinator; filter lists reach uBlock through its dashboard port |
 
 **Absent**: native messaging; `dns.resolve` (reserved in the protocol, not
@@ -297,11 +297,33 @@ exposed); `privacy.*` answers the Firefox defaults and changes nothing;
 and everything the Electron table lists as unavailable.
 
 **Degraded mode (Tier 2)**: when the DevTools socket cannot be attached or
-the `Fetch` domain is refused, the surface still browses and the catalogue
-marks its entries "Extensions limited: DevTools unavailable"
-(`LiteExtensionEngine.java`). The reduced filtering of that tier
-(`shouldInterceptRequest`, cosmetic CSS and userscripts without full
-extensions) is milestone M4 of the plan and not implemented yet.
+the `Fetch` domain is refused, no full extension loads. The broker still
+starts and compiles what Java then enforces on its own, with no broker round
+trip per request (`liteTier2.ts`, `LiteTier2.java`; protocol in
+[plans/once-lite-broker-protocol.md](plans/once-lite-broker-protocol.md)):
+
+| Feature | Tier 2 behaviour |
+| --- | --- |
+| Catalogue | uBlock Origin Lite (bundled, `uBOLite@raymondhill.net`) is the running extension, without options or popup; uBlock Origin, Violentmonkey and installed extensions are listed disabled with "Extensions limited: DevTools unavailable", and enabling, installing or opening their pages is refused with that reason |
+| Network rules | `shouldInterceptRequest` consults a Java port of the DNR matcher (`DnrEvaluator.java`): `urlFilter` (`\|\|`, `\|`, `^`, `*`), `regexFilter`, request and initiator domains with exclusions, `domainType`, resource types (no types means not the top-level document), methods, tab ids, priorities with allow over block, and `allowAllRequests` for a tab's document. Every group decides on its own and a block from any wins: uBO Lite's default rulesets (uBlock filters, EasyList, EasyPrivacy, about 112k rules, read from the package and cached compiled per install) plus its session rules, and Once's synced lists in the portable subset the GeckoView bridge applies (block and `@@` rules without options) |
+| Network actions | A block is an empty 403; a redirect to an `extensionPath` is served from uBO Lite's package (its neutered `web_accessible_resources` scripts and media); a redirect or `upgradeScheme` to a URL navigates a top-level document there and is fetched by Java for a subresource `GET`, since WebView refuses 3xx responses from the callback |
+| Resource types | Inferred: API 36 passes no `Sec-Fetch-Dest` (used when present), so the main-frame flag, `Accept` (`text/html` sub-frame, `image/*`, `text/css`), a `Range` header (media) and the path's extension decide; anything else is `other` |
+| Cosmetics | The synced lists' generic `##` selectors as one `<style>` at document start; uBO Lite's generic cosmetic filtering (its own `css-generic.js` over the default rulesets' selector maps, honouring their per-site exceptions) |
+| Userscripts | The synced userscripts at their `@run-at`, matched by @once/core's `UserscriptMatcher` (`@match`, `@include`, `@exclude`, `@noframes`), each registered on its own so one that does not parse costs only itself (`tier2Page.ts`); GM shim as on iOS: `GM_addStyle`, `GM_getValue`/`GM_setValue`/`GM_deleteValue`/`GM_listValues` in the page origin's `localStorage` (under `once.userscript.<id>.`, so the page can read them), `GM_xmlhttpRequest` as a same-origin `fetch`, the `GM.*` promise forms, `GM_info`, `unsafeWindow` the page's `window` |
+| Injection | `addDocumentStartJavaScript` on every reading tab, in the page world (the GM functions are closure-scoped, not page globals); where the WebView reports `JS_INJECTION_IN_FRAME_AND_WORLD`, `addJavaScriptOnEvent` in an isolated world `once-tier2` instead (written, but WebView 133 on the API 36 emulator cannot exercise it) |
+| Ready barrier | `applyExtensionSettings` answers once Java has the new rules and page scripts in force, which the first navigation waits for, as in Tier 1 |
+
+Not in Tier 2: header edits (`modifyHeaders`, `webRequest`), request bodies,
+redirect hops (`shouldInterceptRequest` sees none), scriptlets and
+procedural or site-specific cosmetics (uBO Lite's per-site CSS and scriptlet
+tables, the synced lists' domain-scoped rules), uBO Lite's optional rulesets
+and its strict-block page, its dashboard and popup, extension pages (a
+`moz-extension:` navigation fails with the reason), and the requests of
+service workers. A subframe's requests are judged against the tab's
+document, which is the initiator Java knows. `adb shell setprop
+debug.once.lite.devtools off` forces Tier 2 on a debuggable build
+([DEVELOPMENT.md](DEVELOPMENT.md)); `LiteTier2Test` and
+`npm run test:mobile:e2e:android:lite:tier2:local` exercise it.
 
 `tests/e2e/mobile/mobile.lite-extensions.js`
 ([README](../tests/e2e/mobile/README-lite-extensions.md)) is the acceptance
