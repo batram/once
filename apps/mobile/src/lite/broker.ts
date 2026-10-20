@@ -251,8 +251,8 @@ export class LiteBroker {
       await this.tier2.start()
       return { ready: true, extensions: await this.tier2.catalog() }
     }
-    await this.management.manager.restore(params.bundled)
-    await this.worlds.update()
+    const management = this.management
+    await this.worlds.batchRestore(() => management.manager.restore(params.bundled))
     return { ready: true, extensions: await this.management.catalog() }
   }
 

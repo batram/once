@@ -90,6 +90,7 @@ export class LiteWorlds {
   private timer: ReturnType<typeof setTimeout> | null = null
   private current: WorldRegistration[] = []
   private dirty = false
+  private restoreDepth = 0
   private inFlight: Promise<void> | null = null
 
   constructor(
@@ -107,8 +108,21 @@ export class LiteWorlds {
     return this.current
   }
 
+  /** Initial restoration holds navigation; intermediate updates are sent once at its end. */
+  async batchRestore(work: () => Promise<void>): Promise<void> {
+    this.restoreDepth++
+    try { await work() } finally {
+      this.restoreDepth--
+      if (this.restoreDepth === 0) await this.update()
+    }
+  }
+
   /** Rebuilds and sends; resolves once Java has installed the set. */
   update(): Promise<void> {
+    if (this.restoreDepth) {
+      this.dirty = true
+      return Promise.resolve()
+    }
     if (this.timer) {
       clearTimeout(this.timer)
       this.timer = null
@@ -145,6 +159,7 @@ export class LiteWorlds {
   /** A registration changed; sent after the current burst of changes settles. */
   schedule(): void {
     this.dirty = true
+    if (this.restoreDepth) return
     if (this.timer) clearTimeout(this.timer)
     this.timer = setTimeout(() => {
       this.timer = null

@@ -1,0 +1,455 @@
+{
+  "measured": "2026-10-20",
+  "commit": "eb761777",
+  "device": "Samsung SM-G780G, Android 13, WebView 155.0.8059.43",
+  "method": "Process-cold, retained profile and caches; instrumented debug APK. Three launches per condition. Milliseconds from host launch request, calibrated with shell performance clock. Temporary counterfactual overrides, not production implementations.",
+  "conditions": {
+    "stock": {
+      "extensionsReadyMedianMs": 4862.3,
+      "extensionsReadyRangeMs": [
+        4854.2,
+        4959.0
+      ],
+      "samples": [
+        {
+          "run": 1,
+          "documentStartMs": 654.7,
+          "extensionsReadyMs": 4862.3,
+          "configsMs": 2154.0,
+          "firstStoriesMs": 2783.3,
+          "all110StoriesMs": 2862.7,
+          "longestUblockStorageGetMs": 1577.1,
+          "worldRegistrations": 2,
+          "worldRegistrationSourceChars": 1857704,
+          "uboStats": {
+            "allReadyAfter": "1847 ms (selfie)",
+            "maxAssetCacheWait": "80 ms",
+            "cacheBackend": "indexedDB"
+          }
+        },
+        {
+          "run": 2,
+          "documentStartMs": 571.5,
+          "extensionsReadyMs": 4854.2,
+          "configsMs": 2275.3,
+          "firstStoriesMs": 2635.8,
+          "all110StoriesMs": 4427.4,
+          "longestUblockStorageGetMs": 1651.1,
+          "worldRegistrations": 3,
+          "worldRegistrationSourceChars": 2359366,
+          "uboStats": {
+            "allReadyAfter": "2094 ms (selfie)",
+            "maxAssetCacheWait": "144 ms",
+            "cacheBackend": "indexedDB"
+          }
+        },
+        {
+          "run": 3,
+          "documentStartMs": 573.7,
+          "extensionsReadyMs": 4959.0,
+          "configsMs": 2625.4,
+          "firstStoriesMs": 2963.6,
+          "all110StoriesMs": 3127.9,
+          "longestUblockStorageGetMs": 1692.1,
+          "worldRegistrations": 3,
+          "worldRegistrationSourceChars": 2359366,
+          "uboStats": {
+            "allReadyAfter": "1940 ms (selfie)",
+            "maxAssetCacheWait": "83 ms",
+            "cacheBackend": "indexedDB"
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "extensionsReadyMedianMs": 3275.3,
+      "extensionsReadyRangeMs": [
+        3207.8,
+        3523.6
+      ],
+      "samples": [
+        {
+          "run": 1,
+          "documentStartMs": 614.5,
+          "extensionsReadyMs": 3523.6,
+          "configsMs": 2271.2,
+          "firstStoriesMs": 2878.0,
+          "all110StoriesMs": 3122.7,
+          "longestUblockStorageGetMs": 0.1,
+          "worldRegistrations": 3,
+          "worldRegistrationSourceChars": 2359366,
+          "uboStats": {
+            "allReadyAfter": "772 ms (selfie)",
+            "maxAssetCacheWait": "278 ms",
+            "cacheBackend": "indexedDB"
+          }
+        },
+        {
+          "run": 2,
+          "documentStartMs": 601.6,
+          "extensionsReadyMs": 3207.8,
+          "configsMs": 2269.5,
+          "firstStoriesMs": 2702.8,
+          "all110StoriesMs": 2765.7,
+          "longestUblockStorageGetMs": 0.1,
+          "worldRegistrations": 3,
+          "worldRegistrationSourceChars": 2359366,
+          "uboStats": {
+            "allReadyAfter": "544 ms (selfie)",
+            "maxAssetCacheWait": "287 ms",
+            "cacheBackend": "indexedDB"
+          }
+        },
+        {
+          "run": 3,
+          "documentStartMs": 595.9,
+          "extensionsReadyMs": 3275.3,
+          "configsMs": 2263.5,
+          "firstStoriesMs": 2749.8,
+          "all110StoriesMs": 2814.7,
+          "longestUblockStorageGetMs": 0.1,
+          "worldRegistrations": 3,
+          "worldRegistrationSourceChars": 2359366,
+          "uboStats": {
+            "allReadyAfter": "497 ms (selfie)",
+            "maxAssetCacheWait": "184 ms",
+            "cacheBackend": "indexedDB"
+          }
+        }
+      ]
+    },
+    "worlds": {
+      "extensionsReadyMedianMs": 4611.7,
+      "extensionsReadyRangeMs": [
+        4537.3,
+        5002.3
+      ],
+      "samples": [
+        {
+          "run": 1,
+          "documentStartMs": 608.4,
+          "extensionsReadyMs": 5002.3,
+          "configsMs": 2569.1,
+          "firstStoriesMs": 2993.0,
+          "all110StoriesMs": 4417.2,
+          "longestUblockStorageGetMs": 1750.1,
+          "worldRegistrations": 1,
+          "worldRegistrationSourceChars": 928852,
+          "uboStats": {
+            "allReadyAfter": "2085 ms (selfie)",
+            "maxAssetCacheWait": "96 ms",
+            "cacheBackend": "indexedDB"
+          }
+        },
+        {
+          "run": 2,
+          "documentStartMs": 598.9,
+          "extensionsReadyMs": 4611.7,
+          "configsMs": 2356.2,
+          "firstStoriesMs": 2635.6,
+          "all110StoriesMs": 2768.0,
+          "longestUblockStorageGetMs": 1657.4,
+          "worldRegistrations": 1,
+          "worldRegistrationSourceChars": 928852,
+          "uboStats": {
+            "allReadyAfter": "1921 ms (selfie)",
+            "maxAssetCacheWait": "85 ms",
+            "cacheBackend": "indexedDB"
+          }
+        },
+        {
+          "run": 3,
+          "documentStartMs": 606.2,
+          "extensionsReadyMs": 4537.3,
+          "configsMs": 2537.1,
+          "firstStoriesMs": 4065.6,
+          "all110StoriesMs": 4828.6,
+          "longestUblockStorageGetMs": 1548.9,
+          "worldRegistrations": 1,
+          "worldRegistrationSourceChars": 928852,
+          "uboStats": {
+            "allReadyAfter": "1969 ms (selfie)",
+            "maxAssetCacheWait": "200 ms",
+            "cacheBackend": "indexedDB"
+          }
+        }
+      ]
+    },
+    "metadata-worlds": {
+      "extensionsReadyMedianMs": 3178.5,
+      "extensionsReadyRangeMs": [
+        3042.2,
+        3203.6
+      ],
+      "samples": [
+        {
+          "run": 1,
+          "documentStartMs": 559.2,
+          "extensionsReadyMs": 3042.2,
+          "configsMs": 2302.3,
+          "firstStoriesMs": 2698.1,
+          "all110StoriesMs": 2760.6,
+          "longestUblockStorageGetMs": 0.1,
+          "worldRegistrations": 1,
+          "worldRegistrationSourceChars": 928852,
+          "uboStats": {
+            "allReadyAfter": "564 ms (selfie)",
+            "maxAssetCacheWait": "279 ms",
+            "cacheBackend": "indexedDB"
+          }
+        },
+        {
+          "run": 2,
+          "documentStartMs": 580,
+          "extensionsReadyMs": 3178.5,
+          "configsMs": 2403.7,
+          "firstStoriesMs": 2673.7,
+          "all110StoriesMs": 2826,
+          "longestUblockStorageGetMs": 0.1,
+          "worldRegistrations": 1,
+          "worldRegistrationSourceChars": 928852,
+          "uboStats": {
+            "allReadyAfter": "549 ms (selfie)",
+            "maxAssetCacheWait": "295 ms",
+            "cacheBackend": "indexedDB"
+          }
+        },
+        {
+          "run": 3,
+          "documentStartMs": 591.6,
+          "extensionsReadyMs": 3203.6,
+          "configsMs": 2439.9,
+          "firstStoriesMs": 2715.6,
+          "all110StoriesMs": 2870.7,
+          "longestUblockStorageGetMs": 0.2,
+          "worldRegistrations": 1,
+          "worldRegistrationSourceChars": 928852,
+          "uboStats": {
+            "allReadyAfter": "667 ms (selfie)",
+            "maxAssetCacheWait": "313 ms",
+            "cacheBackend": "indexedDB"
+          }
+        }
+      ]
+    }
+  },
+  "implementation": {
+    "baseCommit": "eb761777",
+    "description": "Keyed native reads, lazy extension storage with patch recovery, and batched initial world registrations. Actual installed implementation, no timing overrides.",
+    "extensionsReadyMedianMs": 3199.5,
+    "extensionsReadyRangeMs": [
+      3085.6,
+      3451.2
+    ],
+    "samples": [
+      {
+        "run": 1,
+        "documentStartMs": 736.5,
+        "extensionsReadyMs": 3451.2,
+        "configsMs": 2843.6,
+        "firstStoriesMs": 3731.9,
+        "all110StoriesMs": 4197.0,
+        "longestUblockStorageGetMs": 123.1,
+        "worldRegistrationsObserved": 1,
+        "worldRegistrationSourceChars": 930328,
+        "loadedUblockStorageValueChars": 5760,
+        "uboStats": {
+          "allReadyAfter": "522 ms (selfie)",
+          "maxAssetCacheWait": "142 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 2,
+        "documentStartMs": 595.8,
+        "extensionsReadyMs": 3298.4,
+        "configsMs": 2433.3,
+        "firstStoriesMs": 2740.9,
+        "all110StoriesMs": 2901.1,
+        "longestUblockStorageGetMs": 85.7,
+        "worldRegistrationsObserved": 1,
+        "worldRegistrationSourceChars": 930328,
+        "loadedUblockStorageValueChars": 5760,
+        "uboStats": {
+          "allReadyAfter": "685 ms (selfie)",
+          "maxAssetCacheWait": "299 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 3,
+        "documentStartMs": 563.9,
+        "extensionsReadyMs": 3183.6,
+        "configsMs": 2389.9,
+        "firstStoriesMs": 2742.6,
+        "all110StoriesMs": 2805.7,
+        "longestUblockStorageGetMs": 76.9,
+        "worldRegistrationsObserved": 1,
+        "worldRegistrationSourceChars": 930328,
+        "loadedUblockStorageValueChars": 5760,
+        "uboStats": {
+          "allReadyAfter": "569 ms (selfie)",
+          "maxAssetCacheWait": "253 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 4,
+        "documentStartMs": 571.1,
+        "extensionsReadyMs": 3085.6,
+        "configsMs": 2306.6,
+        "firstStoriesMs": 2675.8,
+        "all110StoriesMs": 2738.9,
+        "longestUblockStorageGetMs": 39.9,
+        "worldRegistrationsObserved": 1,
+        "worldRegistrationSourceChars": 930328,
+        "loadedUblockStorageValueChars": 5760,
+        "uboStats": {
+          "allReadyAfter": "502 ms (selfie)",
+          "maxAssetCacheWait": "252 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "run": 5,
+        "documentStartMs": 582.4,
+        "extensionsReadyMs": 3199.5,
+        "configsMs": 2423.9,
+        "firstStoriesMs": 2704.6,
+        "all110StoriesMs": 2848.0,
+        "longestUblockStorageGetMs": 60.4,
+        "worldRegistrationsObserved": 1,
+        "worldRegistrationSourceChars": 930328,
+        "loadedUblockStorageValueChars": 5760,
+        "uboStats": {
+          "allReadyAfter": "669 ms (selfie)",
+          "maxAssetCacheWait": "293 ms",
+          "cacheBackend": "indexedDB"
+        }
+      }
+    ],
+    "validation": {
+      "javascriptTestsPassed": 114,
+      "jvmTestsPassed": 45,
+      "samsungInstrumentationTestsPassed": 6,
+      "installedApkSha256": "b6dcbbe38d96f8a2a99680080bab6d9aac28767353560143c0b221e677bd7eab",
+      "localApkSha256": "b6dcbbe38d96f8a2a99680080bab6d9aac28767353560143c0b221e677bd7eab",
+      "finalNetworkFilters": 260221,
+      "finalCosmeticFilters": 44204,
+      "finalStories": 110,
+      "finalSourceConfigs": 5,
+      "diagnosticOverridesRemoved": true
+    }
+  },
+  "assetLoading": {
+    "note": "Separate instrumented runs; request times overlap and must not be summed into startup time. FileReader time includes native-interface overhead and decoding, not just filesystem IO.",
+    "coldStartupRuns": [
+      {
+        "run": 1,
+        "domContentLoadedMs": 1110,
+        "fileReaderCalls": 69,
+        "fileReaderTotalMs": 180.6,
+        "servedResourcesIncludingDocument": 64,
+        "serveMedianMs": 135.0,
+        "prepareFulfillMedianMs": 70.9,
+        "fulfillRoundTripMedianMs": 75.9
+      },
+      {
+        "run": 2,
+        "domContentLoadedMs": 1211.8,
+        "fileReaderCalls": 69,
+        "fileReaderTotalMs": 176.7,
+        "servedResourcesIncludingDocument": 64,
+        "serveMedianMs": 142.5,
+        "prepareFulfillMedianMs": 69.0,
+        "fulfillRoundTripMedianMs": 72.0
+      },
+      {
+        "run": 3,
+        "domContentLoadedMs": 1321,
+        "fileReaderCalls": 69,
+        "fileReaderTotalMs": 184.1,
+        "servedResourcesIncludingDocument": 64,
+        "serveMedianMs": 185.8,
+        "prepareFulfillMedianMs": 84.5,
+        "fulfillRoundTripMedianMs": 102.7
+      }
+    ],
+    "nativeLogTrace": {
+      "nativePauseToBroker": {
+        "count": 64,
+        "medianMs": 77.5,
+        "minMs": 4.2,
+        "maxMs": 115.8
+      },
+      "jsCommandToNativeSend": {
+        "count": 64,
+        "medianMs": 38.8,
+        "minMs": 1.3,
+        "maxMs": 217.1
+      },
+      "nativeSendToJsAck": {
+        "count": 64,
+        "medianMs": 82.3,
+        "minMs": 2.5,
+        "maxMs": 127.6
+      }
+    },
+    "warmReloadExperiment": [
+      {
+        "clearReaderCache": false,
+        "domContentLoadedMs": 370,
+        "uboStats": {
+          "allReadyAfter": "197 ms (selfie)",
+          "maxAssetCacheWait": "80 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "clearReaderCache": true,
+        "domContentLoadedMs": 450.2,
+        "uboStats": {
+          "allReadyAfter": "154 ms (selfie)",
+          "maxAssetCacheWait": "62 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "clearReaderCache": true,
+        "domContentLoadedMs": 439,
+        "uboStats": {
+          "allReadyAfter": "184 ms (selfie)",
+          "maxAssetCacheWait": "75 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "clearReaderCache": false,
+        "domContentLoadedMs": 307.1,
+        "uboStats": {
+          "allReadyAfter": "149 ms (selfie)",
+          "maxAssetCacheWait": "65 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "clearReaderCache": false,
+        "domContentLoadedMs": 296,
+        "uboStats": {
+          "allReadyAfter": "157 ms (selfie)",
+          "maxAssetCacheWait": "69 ms",
+          "cacheBackend": "indexedDB"
+        }
+      },
+      {
+        "clearReaderCache": true,
+        "domContentLoadedMs": 466.5,
+        "uboStats": {
+          "allReadyAfter": "196 ms (selfie)",
+          "maxAssetCacheWait": "72 ms",
+          "cacheBackend": "indexedDB"
+        }
+      }
+    ]
+  }
+}

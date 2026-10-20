@@ -104,9 +104,18 @@ public final class LiteFiles {
                 File file = storeFile(params.getString("directory"), params.getString("name"));
                 File split = splitDirectory(file);
                 File source = file;
-                if (split.isDirectory()) {
+                Set<String> keys = null;
+                if (params.has("keys")) {
+                    keys = new java.util.LinkedHashSet<>();
+                    JSONArray requested = params.getJSONArray("keys");
+                    for (int index = 0; index < requested.length(); index++) keys.add(requested.getString(index));
+                }
+                if (split.isDirectory() || (keys != null && file.isFile())) {
                     source = new File(chunkDirectory(), "read-" + java.util.UUID.randomUUID());
-                    try (Writer out = new java.io.OutputStreamWriter(new FileOutputStream(source), StandardCharsets.UTF_8)) { ShallowJson.join(split, out); }
+                    try (Writer out = new java.io.OutputStreamWriter(new FileOutputStream(source), StandardCharsets.UTF_8)) {
+                        if (split.isDirectory()) ShallowJson.join(split, out, keys);
+                        else ShallowJson.select(file, out, keys);
+                    }
                 }
                 if (!source.isFile()) { reply.resolve(new JSONObject().put("json", JSONObject.NULL)); return; }
                 if (source.length() <= INLINE_LIMIT) {

@@ -32,7 +32,7 @@ final class ShallowJson {
     /** The file a key lives in: URL-safe base64 of its UTF-8, so any key is a file name, or its hash when that is too long. */
     static File keyFile(File directory, String key) {
         String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(key.getBytes(StandardCharsets.UTF_8));
-        return new File(directory, encoded.length() <= NAME_LIMIT ? encoded : HASHED + sha256(key));
+        return new File(directory, !encoded.isEmpty() && encoded.length() <= NAME_LIMIT ? encoded : HASHED + sha256(key));
     }
 
     /** Where a long key's text is kept; null for a key spelled in its file name. */
@@ -75,7 +75,13 @@ final class ShallowJson {
 
     /** Streams `{"key": value, ...}` from the directory's files into `out`. */
     static void join(File directory, Writer out) throws IOException {
-        File[] files = directory.listFiles();
+        join(directory, out, null);
+    }
+
+    /** Keyed reads open only requested files; large unrelated values stay on disk. */
+    static void join(File directory, Writer out, java.util.Set<String> keys) throws IOException {
+        File[] files = keys == null ? directory.listFiles()
+            : keys.stream().map(key -> keyFile(directory, key)).toArray(File[]::new);
         out.write('{');
         boolean first = true;
         if (files != null) for (File file : files) {
@@ -90,6 +96,42 @@ final class ShallowJson {
             }
         }
         out.write('}');
+    }
+
+    /** Selects keys from a legacy unsplit document without materializing discarded values. */
+    static void select(File file, Writer out, java.util.Set<String> keys) throws IOException {
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8), 65536)) {
+            Scanner scanner = new Scanner(in);
+            Writer discard = new Writer() {
+                @Override public void write(char[] buffer, int offset, int length) {}
+                @Override public void write(int value) {}
+                @Override public void flush() {}
+                @Override public void close() {}
+            };
+            scanner.expect('{');
+            out.write('{');
+            boolean first = true;
+            if (scanner.peekSkippingSpace() != '}') for (;;) {
+                String key = scanner.readString();
+                scanner.expect(':');
+                scanner.peekSkippingSpace();
+                boolean selected = keys.contains(key);
+                if (selected) {
+                    if (!first) out.write(',');
+                    first = false;
+                    out.write(org.json.JSONObject.quote(key));
+                    out.write(':');
+                }
+                scanner.copyValue(selected ? out : discard);
+                int next = scanner.peekSkippingSpace();
+                if (next == '}') break;
+                if (next != ',') throw new IOException("Malformed store document");
+                scanner.read();
+            }
+            scanner.expect('}');
+            if (scanner.peekSkippingSpace() != -1) throw new IOException("Trailing store document content");
+            out.write('}');
+        }
     }
 
     /** Streams the object document in `file` into one file per top-level key under `directory`. */

@@ -24,9 +24,13 @@ export class LiteJsonStore implements JsonStore {
     private readonly files: FilesInterface | null = null
   ) {}
 
-  async read(name: string): Promise<unknown> {
+  async readKeys(name: string, keys: string[]): Promise<Record<string, unknown>> {
+    return (await this.read(name, keys) ?? {}) as Record<string, unknown>
+  }
+
+  async read(name: string, keys?: string[]): Promise<unknown> {
     const result = await this.channel.request<StoreReadResult>("store.read", {
-      directory: this.directory, name
+      directory: this.directory, name, ...(keys ? { keys } : {})
     } satisfies StoreReadParams)
     let text = result.json
     if (result.chunked) text = await this.readChunks(result.chunked)

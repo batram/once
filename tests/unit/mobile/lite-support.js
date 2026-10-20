@@ -83,7 +83,12 @@ class FakeJava {
     this.pages = new Map()
     this.cdp = []
     this.handlers = {
-      "store.read": ({ directory, name }) => ({ json: this.stores.get(`${directory}/${name}`) ?? null }),
+      "store.read": ({ directory, name, keys }) => {
+        const json = this.stores.get(`${directory}/${name}`)
+        if (!json || !keys) return { json: json ?? null }
+        const all = JSON.parse(json)
+        return { json: JSON.stringify(Object.fromEntries(keys.filter(key => Object.hasOwn(all, key)).map(key => [key, all[key]]))) }
+      },
       "store.write": ({ directory, name, json }) => { this.stores.set(`${directory}/${name}`, json) },
       // Java merges a patch into the document on disk: parsed, keys set and removed, written back.
       "store.patch": ({ directory, name, set, remove }) => {

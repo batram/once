@@ -222,7 +222,7 @@ test("storage.local round-trips through the Java store and dynamic DNR rules blo
   await invoke(10, "storage.local", "set", [{ answer: 43 }])
   await invoke(11, "storage.local", "remove", ["big"])
   await host.storage.flush()
-  const patch = java.patches.find((entry) => entry.name === "storage.json")
+  const patch = java.patches.findLast((entry) => entry.name === "storage.json")
   assert.deepEqual(patch, { name: "storage.json", set: ["answer"], remove: ["big"] })
   assert.deepEqual(JSON.parse(java.stores.get(`/storage/${host.extension.host}/storage.json`)), { answer: 43 })
 
@@ -805,4 +805,19 @@ test("a queued injection loses an activeTab grant before its document is prepare
   release()
   await java.nextCdp("Fetch.continueResponse")
   assert.equal(java.requests.filter((e) => e.method === "sync.set").length, 0, "revoked authority cannot reach the next document")
+})
+
+test("initial restore registers both extensions once and later loads still update worlds", async () => {
+  const files = fakeFiles({ "/first": { "manifest.json": manifestFor("first@test", "First"), "background.js": "" }, "/second": { "manifest.json": manifestFor("second@test", "Second"), "background.js": "" } })
+  const java = new FakeJava(files)
+  const broker = new LiteBroker(java.port, files)
+  await java.request("lite.start", { bundled: [
+    { id: "second@test", directory: "/second", present: true },
+    { id: "first@test", directory: "/first", present: true }
+  ], locale: "en", arch: "arm64", token: TOKEN, storageRoot: "/storage" })
+  assert.equal(java.requests.filter(e => e.method === "worlds.set").length, 1)
+  assert.equal(java.registrations.length, 2)
+  await broker.load(fixture, FIXTURE_ID)
+  assert.equal(java.requests.filter(e => e.method === "worlds.set").length, 2)
+  assert.equal(java.registrations.length, 3)
 })

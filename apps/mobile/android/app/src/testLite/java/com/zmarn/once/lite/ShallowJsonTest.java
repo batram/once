@@ -39,4 +39,34 @@ public class ShallowJsonTest {
         assertEquals(2, new org.json.JSONObject(joined.toString()).length());
         LiteFiles.delete(directory);
     }
+    @Test public void keyedReadsMatchLegacyAndSplitWithoutOpeningUnrelatedValues() throws Exception {
+        File directory = Files.createTempDirectory("shallow-selected").toFile();
+        try {
+            String longKey = new String(new char[600]).replace("\0", "x");
+            org.json.JSONObject data = new org.json.JSONObject().put("small", 1).put("", "empty key")
+                .put(longKey, new org.json.JSONArray("[1,{\"nested\":true}]"))
+                .put("large", new String(new char[2000000]).replace("\0", "z"));
+            File document = new File(directory, "storage.json");
+            Files.write(document.toPath(), data.toString().getBytes(StandardCharsets.UTF_8));
+            java.util.Set<String> keys = new java.util.LinkedHashSet<>(java.util.Arrays.asList("small", "", longKey, "absent"));
+            StringWriter legacy = new StringWriter();
+            ShallowJson.select(document, legacy, keys);
+            org.json.JSONObject selected = new org.json.JSONObject(legacy.toString());
+            assertEquals(3, selected.length());
+            assertEquals("empty key", selected.getString(""));
+            assertEquals(1, selected.getInt("small"));
+            assertEquals(2, selected.getJSONArray(longKey).length());
+            File split = new File(directory, "split");
+            ShallowJson.split(document, split);
+            // A keyed read must not touch or parse this unrelated cache entry.
+            Files.write(ShallowJson.keyFile(split, "large").toPath(), "invalid JSON".getBytes(StandardCharsets.UTF_8));
+            StringWriter joined = new StringWriter();
+            ShallowJson.join(split, joined, keys);
+            org.json.JSONObject splitSelected = new org.json.JSONObject(joined.toString());
+            assertEquals(selected.toString(), splitSelected.toString());
+            joined = new StringWriter();
+            ShallowJson.join(split, joined, java.util.Collections.emptySet());
+            assertEquals("{}", joined.toString());
+        } finally { LiteFiles.delete(directory); }
+    }
 }

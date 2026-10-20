@@ -34,3 +34,13 @@ test("inline and absent store values need no synchronous file interface", async 
   assert.deepEqual(await store.read("present"), { ok: true })
   assert.equal(await store.read("absent"), undefined)
 })
+
+test("keyed store reads carry exact keys and retain the chunked response path", async () => {
+  const requests = []
+  const store = new LiteJsonStore({ request: async (method, params) => {
+    requests.push({ method, ...params })
+    return { chunked: "selected" }
+  } }, "/store", { readChunk: () => JSON.stringify({ text: '{"cache":"selected large value"}', done: true }) })
+  assert.deepEqual(await store.readKeys("storage.json", ["cache", "missing"]), { cache: "selected large value" })
+  assert.deepEqual(requests, [{ method: "store.read", directory: "/store", name: "storage.json", keys: ["cache", "missing"] }])
+})

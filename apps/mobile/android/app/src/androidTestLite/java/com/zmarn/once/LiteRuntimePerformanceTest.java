@@ -92,11 +92,33 @@ public class LiteRuntimePerformanceTest {
         }
     }
 
+    @Test
+    public void keyedStorageReadsLegacySplitAndChunkedValues() throws Exception {
+        String result = evaluateBroker("(async()=>{"
+            + "const b=onceLiteBroker,s=[...b.hosts.values()][0].store,n='keyed-read-test-'+crypto.randomUUID()+'.json';"
+            + "try{const large='x'.repeat(2*1024*1024)+'🐢';await s.write(n,{small:1,large,empty:null});"
+            + "const legacy=await s.readKeys(n,['small','absent','empty']);"
+            + "await s.patch(n,{small:2},[]);const split=await s.readKeys(n,['small','absent']);"
+            + "const big=await s.readKeys(n,['large']);await s.patch(n,{},['small']);"
+            + "const removed=await s.readKeys(n,['small']);"
+            + "return JSON.stringify({legacy,split,largeMatches:big.large===large,removed});"
+            + "}finally{await b.channel.request('files.remove',{directory:s.directory+'/'+n});"
+            + "await b.channel.request('files.remove',{directory:s.directory+'/'+n+'.d'});}})()");
+        JSONObject value = new JSONObject(result);
+        assertEquals(1, value.getJSONObject("legacy").getInt("small"));
+        assertTrue(value.getJSONObject("legacy").isNull("empty"));
+        assertFalse(value.getJSONObject("legacy").has("absent"));
+        assertEquals(2, value.getJSONObject("split").getInt("small"));
+        assertEquals(1, value.getJSONObject("split").length());
+        assertTrue(value.getBoolean("largeMatches"));
+        assertEquals(0, value.getJSONObject("removed").length());
+    }
+
     private String evaluateBroker(String expression) throws Exception {
         com.zmarn.once.devtools.DevToolsClient client = com.zmarn.once.devtools.DevToolsClient.current();
         for (com.zmarn.once.devtools.DevToolsClient.Target target : client.targets()) {
             if (target.url == null || !target.url.contains("/lite-runtime.html")) continue;
-            JSONObject value = client.call(target.sessionId, "Runtime.evaluate", new JSONObject().put("expression", expression).put("returnByValue", true), 10000);
+            JSONObject value = client.call(target.sessionId, "Runtime.evaluate", new JSONObject().put("expression", expression).put("returnByValue", true).put("awaitPromise", true), 10000);
             if (value.has("exceptionDetails")) throw new AssertionError(value.toString());
             return String.valueOf(value.getJSONObject("result").opt("value"));
         }

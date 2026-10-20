@@ -25,6 +25,8 @@ export interface JsonStore {
    * document that exists but cannot be read or parsed is an error.
    */
   read(name: string): Promise<unknown>
+  /** Optional keyed object read; omitted keys are absent. Use with patch for lazy storage. */
+  readKeys?(name: string, keys: string[]): Promise<Record<string, unknown>>
   /** Replaces the document so that a reader sees the old or the new one, never a torn one. */
   write(name: string, value: unknown): Promise<void>
   /**

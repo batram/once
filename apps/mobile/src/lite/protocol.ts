@@ -332,6 +332,8 @@ export interface TabUpdateParams {
 export interface StoreReadParams {
   directory: string
   name: string
+  /** When present, return only these top-level keys; missing keys are omitted. */
+  keys?: string[]
 }
 
 /** A value too large for one message travels beforehand through `onceLiteFiles.writeChunk(token, text)`. */

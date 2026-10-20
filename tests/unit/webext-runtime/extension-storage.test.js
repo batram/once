@@ -50,3 +50,83 @@ test("the Node store tells a missing document from a broken one", async () => {
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })
+
+function keyedStore(initial) {
+  let data = { ...initial }
+  const reads = []
+  return {
+    reads,
+    snapshot: () => data,
+    async read() { reads.push(null); return { ...data } },
+    async readKeys(_name, keys) {
+      reads.push(keys)
+      return Object.fromEntries(keys.filter(key => Object.hasOwn(data, key)).map(key => [key, data[key]]))
+    },
+    async write() { throw Error("Partial storage must not replace the document") },
+    async patch(_name, set, remove) {
+      data = { ...data, ...set }
+      data = Object.fromEntries(Object.entries(data).filter(([key]) => !remove.includes(key)))
+    }
+  }
+}
+
+test("keyed storage caches misses, batches requested keys and leaves large values unread", async () => {
+  const store = keyedStore({ small: 1, cache: "x".repeat(1000000) })
+  const storage = new ExtensionStorage(store, "storage.json")
+  assert.deepEqual(await storage.get({ small: 0, absent: "fallback" }), { small: 1, absent: "fallback" })
+  assert.deepEqual(await storage.get(["small", "absent"]), { small: 1 })
+  assert.deepEqual(store.reads, [["small", "absent"]])
+  assert.equal(storage.someKey(key => key === "cache"), undefined, "partial knowledge is not proof of absence")
+  assert.deepEqual(await storage.set({ small: 2, added: 3 }), {
+    small: { oldValue: 1, newValue: 2 }, added: { oldValue: undefined, newValue: 3 }
+  })
+  await storage.remove("small")
+  assert.deepEqual(await storage.get(null), { cache: "x".repeat(1000000), added: 3 })
+  assert.equal(storage.someKey(key => key === "missing"), false)
+  await storage.flush()
+  assert.deepEqual(store.snapshot(), { cache: "x".repeat(1000000), added: 3 })
+  await storage.clear()
+  await storage.flush()
+  assert.deepEqual(store.snapshot(), {})
+})
+
+test("overlapping keyed reads share loaded keys and a failed read is retried", async () => {
+  const store = keyedStore({ a: 1, b: 2 })
+  const read = store.readKeys
+  let fail = true
+  store.readKeys = async (...args) => { if (fail) { fail = false; throw Error("read failed") } return read(...args) }
+  const storage = new ExtensionStorage(store, "storage.json")
+  await assert.rejects(storage.get("a"), /read failed/)
+  assert.deepEqual(await Promise.all([storage.get(["a", "b"]), storage.get("a")]), [{ a: 1, b: 2 }, { a: 1 }])
+  assert.deepEqual(store.reads, [["a", "b"]])
+})
+
+test("failed partial patches retry current values without overwriting unread data", async () => {
+  const store = keyedStore({ setting: 1, untouched: "cache" })
+  const patch = store.patch
+  let fail = true
+  store.patch = async (...args) => { if (fail) { fail = false; throw Error("disk unavailable") } return patch(...args) }
+  const storage = new ExtensionStorage(store, "storage.json")
+  await storage.set({ setting: 2 })
+  await storage.flush()
+  await storage.set({ setting: 3 })
+  await storage.flush()
+  assert.deepEqual(store.snapshot(), { setting: 3, untouched: "cache" })
+  assert.deepEqual(store.reads, [["setting"]])
+})
+
+test("a full read racing a local change preserves the local value and deletion", async () => {
+  const store = keyedStore({ a: 1, b: 2, unseen: 3 })
+  const storage = new ExtensionStorage(store, "storage.json")
+  await storage.get(["a", "b"])
+  let release
+  store.read = () => new Promise(resolve => { release = () => resolve({ a: 1, b: 2, unseen: 3 }) })
+  const all = storage.get(null)
+  await Promise.resolve()
+  await storage.set({ a: 9 })
+  await storage.remove("b")
+  release()
+  assert.deepEqual(await all, { a: 9, unseen: 3 })
+  await storage.flush()
+  assert.deepEqual(store.snapshot(), { a: 9, unseen: 3 })
+})
