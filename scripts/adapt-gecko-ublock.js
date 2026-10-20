@@ -4,6 +4,7 @@
 const crypto = require("node:crypto")
 const fs = require("node:fs")
 const path = require("node:path")
+const { compactHostnameDB, compactGenericMap, scheduleLegacySelfieRewrite } = require("./adapt-gecko-ublock-cosmetic")
 const { batchStartupAdminStorage, prefetchStartupSelfie } = require("./gecko-ublock-startup")
 
 function replaceOnce(source, before, after) {
@@ -83,6 +84,8 @@ const restoreAdminStorage = (${batchStartupAdminStorage.toString()})(vAPI.adminS
 
 function adaptGeckoUblock(source, target, upstreamSha256) {
   const hash = crypto.createHash("sha256").update(upstreamSha256).update(fs.readFileSync(__filename))
+    .update(fs.readFileSync(require.resolve("./adapt-gecko-ublock-cosmetic")))
+    .update(fs.readFileSync(require.resolve("./gecko-ublock-cosmetic")))
     .update(batchStartupAdminStorage.toString()).update(prefetchStartupSelfie.toString()).digest("hex")
   try {
     if (JSON.parse(fs.readFileSync(path.join(target, ".once-bundle.json"), "utf8")).adapterHash === hash) return false
@@ -93,9 +96,12 @@ function adaptGeckoUblock(source, target, upstreamSha256) {
     throw new Error("Expected the pinned uBlock MV2 background; review the Android adaptation")
   }
   const start = optimizeStart(fs.readFileSync(path.join(source, "js/start.js"), "utf8"))
-  const storage = optimizeStorage(fs.readFileSync(path.join(source, "js/storage.js"), "utf8"))
+  const storage = scheduleLegacySelfieRewrite(optimizeStorage(fs.readFileSync(path.join(source, "js/storage.js"), "utf8")))
+  const cosmetic = compactGenericMap(fs.readFileSync(path.join(source, "js/cosmetic-filtering.js"), "utf8"))
+  const codec = fs.readFileSync(require.resolve("./gecko-ublock-cosmetic"), "utf8").replace(/^module\.exports = /m, "export ")
+  const hostnameDB = compactHostnameDB(fs.readFileSync(path.join(source, "js/static-ext-filtering-db.js"), "utf8"))
   // ensureBuiltIn compares versions, so every adaptation must trigger an update.
-  // Keep the same extension identity, permissions, cache formats and user data.
+  // Keep the same extension identity and permissions; legacy snapshots remain readable.
   // uBlock treats a fourth numeric component as a development build. Preserve
   // its upstream runtime version/defaults while Gecko sees the adapter revision.
   manifest.version_name ??= manifest.version
@@ -107,6 +113,9 @@ function adaptGeckoUblock(source, target, upstreamSha256) {
   fs.writeFileSync(path.join(staging, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n")
   fs.writeFileSync(path.join(staging, "js/storage.js"), storage)
   fs.writeFileSync(path.join(staging, "js/start.js"), start)
+  fs.writeFileSync(path.join(staging, "js/static-ext-filtering-db.js"), hostnameDB)
+  fs.writeFileSync(path.join(staging, "js/cosmetic-filtering.js"), cosmetic)
+  fs.writeFileSync(path.join(staging, "js/once-cosmetic-cache.js"), codec)
   fs.writeFileSync(path.join(staging, ".once-bundle.json"), JSON.stringify({
     upstreamSha256, adapterHash: hash, version: manifest.version
   }, null, 2))

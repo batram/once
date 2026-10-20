@@ -1,0 +1,827 @@
+{
+  "date": "2026-10-20",
+  "baselineCommit": "c4266d3e",
+  "device": "Samsung SM-G780G, Android 13, GeckoView 155.0.20260903215306",
+  "protocol": {
+    "A": "c4266d3e baseline",
+    "B": "packed cosmetic cache",
+    "order": [
+      "A",
+      "B",
+      "B",
+      "A"
+    ],
+    "sameApk": true,
+    "measuredPerVariant": 6,
+    "warmupsPerBlock": 2,
+    "registryFlushWaitMs": 5000,
+    "minCooldownMs": 60000,
+    "maxPreBlockAPC": 33.5,
+    "maxPreBlockBatteryC": 33,
+    "automaticAssetUpdatesPausedInBenchmarkOnly": true,
+    "fixture": "300-byte HTML over adb reverse; every measured response transferred 600 bytes including reported overhead"
+  },
+  "dataset": {
+    "canonicalFilterContentSha256": "f59dd254b995fc221d9f1e81dc190aa4b68a2db89d28927b863af44c71350794",
+    "networkFilters": 276265,
+    "selectedLists": [
+      "adguard-cookies",
+      "adguard-mobile",
+      "adguard-mobile-app-banners",
+      "adguard-other-annoyances",
+      "adguard-popup-overlays",
+      "adguard-social",
+      "adguard-widgets",
+      "easylist",
+      "easylist-annoyances",
+      "easylist-chat",
+      "easylist-newsletters",
+      "easylist-notifications",
+      "easyprivacy",
+      "fanboy-ai-suggestions",
+      "fanboy-cookiemonster",
+      "fanboy-social",
+      "fanboy-thirdparty_social",
+      "plowe-0",
+      "ublock-annoyances",
+      "ublock-badware",
+      "ublock-cookies-adguard",
+      "ublock-cookies-easylist",
+      "ublock-filters",
+      "ublock-privacy",
+      "ublock-quick-fixes",
+      "ublock-unbreak",
+      "urlhaus-1",
+      "user-filters"
+    ],
+    "cosmeticAcceptedCount": 248845
+  },
+  "summary": {
+    "A": {
+      "cacheReadMs": {
+        "medianMs": 323,
+        "minMs": 308,
+        "maxMs": 397
+      },
+      "restoreMs": {
+        "medianMs": 0,
+        "minMs": 0,
+        "maxMs": 1
+      },
+      "readAndRestoreMs": {
+        "medianMs": 323.5,
+        "minMs": 308,
+        "maxMs": 397
+      },
+      "uboReadyMs": {
+        "medianMs": 536.5,
+        "minMs": 470,
+        "maxMs": 619
+      },
+      "nativeOpenMs": {
+        "medianMs": 1376.6499999761581,
+        "minMs": 1308.9000000953674,
+        "maxMs": 1543.9000000953674
+      },
+      "pageReportMs": {
+        "medianMs": 1838.5,
+        "minMs": 1691,
+        "maxMs": 2109
+      },
+      "requestAfterUboReadyMs": {
+        "medianMs": 9,
+        "minMs": 8,
+        "maxMs": 13
+      }
+    },
+    "B": {
+      "cacheReadMs": {
+        "medianMs": 289.5,
+        "minMs": 238,
+        "maxMs": 307
+      },
+      "restoreMs": {
+        "medianMs": 18,
+        "minMs": 14,
+        "maxMs": 19
+      },
+      "readAndRestoreMs": {
+        "medianMs": 307.5,
+        "minMs": 252,
+        "maxMs": 326
+      },
+      "uboReadyMs": {
+        "medianMs": 556,
+        "minMs": 404,
+        "maxMs": 720
+      },
+      "nativeOpenMs": {
+        "medianMs": 1379.3999999761581,
+        "minMs": 1341.6000001430511,
+        "maxMs": 1621.7000000476837
+      },
+      "pageReportMs": {
+        "medianMs": 1854.5,
+        "minMs": 1640,
+        "maxMs": 2021
+      },
+      "requestAfterUboReadyMs": {
+        "medianMs": 9,
+        "minMs": 7,
+        "maxMs": 11
+      }
+    }
+  },
+  "blocks": [
+    {
+      "block": 1,
+      "variant": "A",
+      "preBlock": {
+        "time": 1792517348794,
+        "thermalStatus": 0,
+        "apC": 32.8,
+        "batteryC": 31.9,
+        "batteryLevel": 100,
+        "ac": true
+      },
+      "runs": [
+        {
+          "run": "cosmetic-v3-1-A-1",
+          "before": {
+            "time": 1792517348921,
+            "thermalStatus": 0,
+            "apC": 32.8,
+            "batteryC": 31.9,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "after": {
+            "time": 1792517367817,
+            "thermalStatus": 0,
+            "apC": 36.9,
+            "batteryC": 31.9,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "cacheReadMs": 397,
+          "restoreMs": 0,
+          "readAndRestoreMs": 397,
+          "uboReadyMs": 619,
+          "nativeOpenMs": 1543.9000000953674,
+          "pageReportMs": 2109,
+          "requestAfterUboReadyMs": 9,
+          "cacheValid": true,
+          "transferBytes": 600
+        },
+        {
+          "run": "cosmetic-v3-1-A-2",
+          "before": {
+            "time": 1792517368121,
+            "thermalStatus": 0,
+            "apC": 36.9,
+            "batteryC": 31.9,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "after": {
+            "time": 1792517386494,
+            "thermalStatus": 0,
+            "apC": 39.2,
+            "batteryC": 32.2,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "cacheReadMs": 322,
+          "restoreMs": 0,
+          "readAndRestoreMs": 322,
+          "uboReadyMs": 509,
+          "nativeOpenMs": 1345.5,
+          "pageReportMs": 1747,
+          "requestAfterUboReadyMs": 8,
+          "cacheValid": true,
+          "transferBytes": 600
+        },
+        {
+          "run": "cosmetic-v3-1-A-3",
+          "before": {
+            "time": 1792517386822,
+            "thermalStatus": 0,
+            "apC": 39.2,
+            "batteryC": 32.2,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "after": {
+            "time": 1792517405546,
+            "thermalStatus": 0,
+            "apC": 40,
+            "batteryC": 32.9,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "cacheReadMs": 322,
+          "restoreMs": 1,
+          "readAndRestoreMs": 323,
+          "uboReadyMs": 612,
+          "nativeOpenMs": 1506.5999999046326,
+          "pageReportMs": 2015,
+          "requestAfterUboReadyMs": 9,
+          "cacheValid": true,
+          "transferBytes": 600
+        }
+      ]
+    },
+    {
+      "block": 2,
+      "variant": "B",
+      "preBlock": {
+        "time": 1792517542644,
+        "thermalStatus": 0,
+        "apC": 33.5,
+        "batteryC": 32.5,
+        "batteryLevel": 100,
+        "ac": true
+      },
+      "runs": [
+        {
+          "run": "cosmetic-v3-2-B-1",
+          "before": {
+            "time": 1792517542788,
+            "thermalStatus": 0,
+            "apC": 33.5,
+            "batteryC": 32.5,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "after": {
+            "time": 1792517561556,
+            "thermalStatus": 0,
+            "apC": 36.2,
+            "batteryC": 32.5,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "cacheReadMs": 285,
+          "restoreMs": 19,
+          "readAndRestoreMs": 304,
+          "uboReadyMs": 720,
+          "nativeOpenMs": 1530.5,
+          "pageReportMs": 2001,
+          "requestAfterUboReadyMs": 10,
+          "cacheValid": true,
+          "transferBytes": 600
+        },
+        {
+          "run": "cosmetic-v3-2-B-2",
+          "before": {
+            "time": 1792517561835,
+            "thermalStatus": 0,
+            "apC": 36.2,
+            "batteryC": 32.5,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "after": {
+            "time": 1792517580197,
+            "thermalStatus": 0,
+            "apC": 36.9,
+            "batteryC": 32.5,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "cacheReadMs": 238,
+          "restoreMs": 14,
+          "readAndRestoreMs": 252,
+          "uboReadyMs": 404,
+          "nativeOpenMs": 1341.6000001430511,
+          "pageReportMs": 1640,
+          "requestAfterUboReadyMs": 11,
+          "cacheValid": true,
+          "transferBytes": 600
+        },
+        {
+          "run": "cosmetic-v3-2-B-3",
+          "before": {
+            "time": 1792517580658,
+            "thermalStatus": 0,
+            "apC": 36.9,
+            "batteryC": 32.5,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "after": {
+            "time": 1792517599267,
+            "thermalStatus": 0,
+            "apC": 37.1,
+            "batteryC": 33,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "cacheReadMs": 288,
+          "restoreMs": 18,
+          "readAndRestoreMs": 306,
+          "uboReadyMs": 504,
+          "nativeOpenMs": 1363.3000001907349,
+          "pageReportMs": 1761,
+          "requestAfterUboReadyMs": 9,
+          "cacheValid": true,
+          "transferBytes": 600
+        }
+      ]
+    },
+    {
+      "block": 3,
+      "variant": "B",
+      "preBlock": {
+        "time": 1792517765894,
+        "thermalStatus": 0,
+        "apC": 32.9,
+        "batteryC": 32.6,
+        "batteryLevel": 100,
+        "ac": true
+      },
+      "runs": [
+        {
+          "run": "cosmetic-v3-3-B-1",
+          "before": {
+            "time": 1792517766059,
+            "thermalStatus": 0,
+            "apC": 32.9,
+            "batteryC": 32.6,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "after": {
+            "time": 1792517784510,
+            "thermalStatus": 0,
+            "apC": 37.8,
+            "batteryC": 32.6,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "cacheReadMs": 291,
+          "restoreMs": 18,
+          "readAndRestoreMs": 309,
+          "uboReadyMs": 490,
+          "nativeOpenMs": 1364.5,
+          "pageReportMs": 1742,
+          "requestAfterUboReadyMs": 9,
+          "cacheValid": true,
+          "transferBytes": 600
+        },
+        {
+          "run": "cosmetic-v3-3-B-2",
+          "before": {
+            "time": 1792517784761,
+            "thermalStatus": 0,
+            "apC": 37.8,
+            "batteryC": 32.6,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "after": {
+            "time": 1792517803515,
+            "thermalStatus": 0,
+            "apC": 38.3,
+            "batteryC": 33.1,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "cacheReadMs": 307,
+          "restoreMs": 19,
+          "readAndRestoreMs": 326,
+          "uboReadyMs": 648,
+          "nativeOpenMs": 1621.7000000476837,
+          "pageReportMs": 2021,
+          "requestAfterUboReadyMs": 7,
+          "cacheValid": true,
+          "transferBytes": 600
+        },
+        {
+          "run": "cosmetic-v3-3-B-3",
+          "before": {
+            "time": 1792517803807,
+            "thermalStatus": 0,
+            "apC": 38.3,
+            "batteryC": 33.1,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "after": {
+            "time": 1792517822584,
+            "thermalStatus": 0,
+            "apC": 38.3,
+            "batteryC": 33.1,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "cacheReadMs": 304,
+          "restoreMs": 17,
+          "readAndRestoreMs": 321,
+          "uboReadyMs": 608,
+          "nativeOpenMs": 1394.2999999523163,
+          "pageReportMs": 1948,
+          "requestAfterUboReadyMs": 9,
+          "cacheValid": true,
+          "transferBytes": 600
+        }
+      ]
+    },
+    {
+      "block": 4,
+      "variant": "A",
+      "preBlock": {
+        "time": 1792517992089,
+        "thermalStatus": 0,
+        "apC": 33.1,
+        "batteryC": 32.8,
+        "batteryLevel": 100,
+        "ac": true
+      },
+      "runs": [
+        {
+          "run": "cosmetic-v3-4-A-1",
+          "before": {
+            "time": 1792517992242,
+            "thermalStatus": 0,
+            "apC": 33.1,
+            "batteryC": 32.8,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "after": {
+            "time": 1792518010868,
+            "thermalStatus": 0,
+            "apC": 36,
+            "batteryC": 32.8,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "cacheReadMs": 350,
+          "restoreMs": 0,
+          "readAndRestoreMs": 350,
+          "uboReadyMs": 548,
+          "nativeOpenMs": 1407.7999999523163,
+          "pageReportMs": 1921,
+          "requestAfterUboReadyMs": 9,
+          "cacheValid": true,
+          "transferBytes": 600
+        },
+        {
+          "run": "cosmetic-v3-4-A-2",
+          "before": {
+            "time": 1792518011159,
+            "thermalStatus": 0,
+            "apC": 36,
+            "batteryC": 32.8,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "after": {
+            "time": 1792518029630,
+            "thermalStatus": 0,
+            "apC": 37.1,
+            "batteryC": 32.8,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "cacheReadMs": 308,
+          "restoreMs": 0,
+          "readAndRestoreMs": 308,
+          "uboReadyMs": 470,
+          "nativeOpenMs": 1308.9000000953674,
+          "pageReportMs": 1691,
+          "requestAfterUboReadyMs": 11,
+          "cacheValid": true,
+          "transferBytes": 600
+        },
+        {
+          "run": "cosmetic-v3-4-A-3",
+          "before": {
+            "time": 1792518029902,
+            "thermalStatus": 0,
+            "apC": 37.1,
+            "batteryC": 32.8,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "after": {
+            "time": 1792518048374,
+            "thermalStatus": 0,
+            "apC": 37.7,
+            "batteryC": 33.3,
+            "batteryLevel": 100,
+            "ac": true
+          },
+          "cacheReadMs": 324,
+          "restoreMs": 0,
+          "readAndRestoreMs": 324,
+          "uboReadyMs": 525,
+          "nativeOpenMs": 1326.5,
+          "pageReportMs": 1756,
+          "requestAfterUboReadyMs": 13,
+          "cacheValid": true,
+          "transferBytes": 600
+        }
+      ]
+    }
+  ],
+  "isolatedDatabaseRead": [
+    {
+      "mode": "raw",
+      "readMs": 206,
+      "decodeMs": 0,
+      "linkedCount": 395610,
+      "hosts": 78548
+    },
+    {
+      "mode": "packed",
+      "readMs": 106,
+      "decodeMs": 17,
+      "linkedCount": 395610,
+      "hosts": 78548
+    },
+    {
+      "mode": "packed",
+      "readMs": 101,
+      "decodeMs": 14,
+      "linkedCount": 395610,
+      "hosts": 78548
+    },
+    {
+      "mode": "raw",
+      "readMs": 196,
+      "decodeMs": 0,
+      "linkedCount": 395610,
+      "hosts": 78548
+    },
+    {
+      "mode": "packed",
+      "readMs": 96,
+      "decodeMs": 14,
+      "linkedCount": 395610,
+      "hosts": 78548
+    },
+    {
+      "mode": "raw",
+      "readMs": 206,
+      "decodeMs": 0,
+      "linkedCount": 395610,
+      "hosts": 78548
+    },
+    {
+      "mode": "raw",
+      "readMs": 207,
+      "decodeMs": 0,
+      "linkedCount": 395610,
+      "hosts": 78548
+    },
+    {
+      "mode": "packed",
+      "readMs": 121,
+      "decodeMs": 21,
+      "linkedCount": 395610,
+      "hosts": 78548
+    }
+  ],
+  "copyOnly": [
+    {
+      "mode": "raw",
+      "copyMs": 118,
+      "validateMs": 0
+    },
+    {
+      "mode": "packed",
+      "copyMs": 5,
+      "validateMs": 16
+    },
+    {
+      "mode": "packed",
+      "copyMs": 5,
+      "validateMs": 12
+    },
+    {
+      "mode": "raw",
+      "copyMs": 124,
+      "validateMs": 0
+    },
+    {
+      "mode": "packed",
+      "copyMs": 5,
+      "validateMs": 12
+    },
+    {
+      "mode": "raw",
+      "copyMs": 169,
+      "validateMs": 0
+    },
+    {
+      "mode": "raw",
+      "copyMs": 118,
+      "validateMs": 0
+    },
+    {
+      "mode": "packed",
+      "copyMs": 4,
+      "validateMs": 11
+    }
+  ],
+  "lookupEquivalence": {
+    "hostnameCases": 2534,
+    "hostnameMismatches": 0,
+    "genericEntries": 39027,
+    "genericMismatches": 0
+  },
+  "lookupTimings": {
+    "hostname": [
+      {
+        "name": "original",
+        "elapsed": 36
+      },
+      {
+        "name": "packed",
+        "elapsed": 45
+      },
+      {
+        "name": "packed",
+        "elapsed": 36
+      },
+      {
+        "name": "original",
+        "elapsed": 29
+      }
+    ],
+    "generic": [
+      {
+        "name": "original",
+        "elapsed": 2,
+        "found": 5000
+      },
+      {
+        "name": "packed",
+        "elapsed": 3,
+        "found": 5000
+      },
+      {
+        "name": "packed",
+        "elapsed": 2,
+        "found": 5000
+      },
+      {
+        "name": "original",
+        "elapsed": 1,
+        "found": 5000
+      }
+    ]
+  },
+  "firstEdit": [
+    {
+      "mode": "raw",
+      "kind": "specific",
+      "firstMs": 0,
+      "nextMs": 0
+    },
+    {
+      "mode": "packed",
+      "kind": "specific",
+      "firstMs": 64,
+      "nextMs": 0
+    },
+    {
+      "mode": "raw",
+      "kind": "generic",
+      "firstMs": 0,
+      "nextMs": 0
+    },
+    {
+      "mode": "packed",
+      "kind": "generic",
+      "firstMs": 17,
+      "nextMs": 0
+    },
+    {
+      "mode": "packed",
+      "kind": "specific",
+      "firstMs": 75,
+      "nextMs": 0
+    },
+    {
+      "mode": "raw",
+      "kind": "specific",
+      "firstMs": 0,
+      "nextMs": 0
+    },
+    {
+      "mode": "packed",
+      "kind": "generic",
+      "firstMs": 18,
+      "nextMs": 0
+    },
+    {
+      "mode": "raw",
+      "kind": "generic",
+      "firstMs": 0,
+      "nextMs": 0
+    }
+  ],
+  "migration": {
+    "before": {
+      "format": 1,
+      "invalid": false,
+      "ready": "563 ms (selfie)",
+      "savedAutoUpdate": {}
+    },
+    "after": {
+      "format": "once-packed-1",
+      "invalid": false,
+      "ready": "563 ms (selfie)",
+      "savedAutoUpdate": {}
+    },
+    "hashBefore": {
+      "format": 1,
+      "semanticHash": "f59dd254b995fc221d9f1e81dc190aa4b68a2db89d28927b863af44c71350794",
+      "selfieInvalid": false,
+      "networkFilters": 276265
+    },
+    "hashAfter": {
+      "format": "once-packed-1",
+      "semanticHash": "f59dd254b995fc221d9f1e81dc190aa4b68a2db89d28927b863af44c71350794",
+      "selfieInvalid": false,
+      "networkFilters": 276265
+    },
+    "coldReload": {
+      "format": "once-packed-1",
+      "invalid": false,
+      "ready": "868 ms (selfie)",
+      "savedAutoUpdate": {}
+    }
+  },
+  "rendering": {
+    "selector": {
+      "className": "zone-advertisement",
+      "selector": ".zone-advertisement",
+      "indexType": "PackedFilterIndex",
+      "netFiltering": true
+    },
+    "hidden": {
+      "display": "none",
+      "height": 0,
+      "controlHeight": 80
+    },
+    "removed": {
+      "display": "block",
+      "height": 64,
+      "controlHeight": 80
+    },
+    "restored": {
+      "display": "none",
+      "height": 0,
+      "controlHeight": 80
+    }
+  },
+  "validation": {
+    "focusedTests": 9,
+    "mobileTestsBeforeFinalModuleTest": 353,
+    "nativeMethods": 3
+  },
+  "benchmarkApkSha256": "cf83657b6d09633390ea796ea1e81499b5e6d8bb0a70b11c0d3b158a5d186d73",
+  "installedApkSha256": "dc5a1862dbb387b525939f1a9323270e4dd865d1d1eadca495c3624f0828a1a4",
+  "finalState": {
+    "format": "once-packed-1",
+    "indexType": "PackedFilterIndex",
+    "valid": true,
+    "ready": "1046 ms (selfie)",
+    "autoUpdate": true,
+    "savedAutoUpdate": {},
+    "runtimeVersion": "1.74.0",
+    "developmentDefaults": false,
+    "permissions": {
+      "origins": [
+        "<all_urls>"
+      ],
+      "data_collection": [],
+      "permissions": [
+        "alarms",
+        "dns",
+        "privacy",
+        "storage",
+        "tabs",
+        "unlimitedStorage",
+        "webNavigation",
+        "webRequest",
+        "webRequestBlocking"
+      ]
+    },
+    "benchmarkProbePresent": false
+  },
+  "cleanup": {
+    "dns": {
+      "value": "",
+      "userValue": false
+    },
+    "benchmarkMarkerRemoved": true,
+    "inspectorForwardsRemoved": true
+  },
+  "integrationBase": "748e5a85",
+  "integrationAndroidSourcesUnchanged": true
+}
