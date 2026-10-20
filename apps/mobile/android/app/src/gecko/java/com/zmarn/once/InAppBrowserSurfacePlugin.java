@@ -604,18 +604,27 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost implements Rea
             };
             waiting.put(call, timeout);
             handler.postDelayed(timeout, 30000);
-            engine.catalog().accept(installed -> {
+            org.mozilla.geckoview.GeckoResult<List<WebExtension>> catalog;
+            try {
+                // Queue extension preparation, then start only an empty session
+                // immediately. Gecko can create its content process while the
+                // built-ins are prepared. No requested URL is loaded here.
+                catalog = engine.catalog();
+                ensureReadingSession();
+            } catch (RuntimeException error) {
+                if (finishWaiting(call)) call.reject("Browser operation failed", error);
+                return;
+            }
+            catalog.accept(installed -> {
                 if (!waiting.containsKey(call)) return;
                 if (destroyed || generation != surfaceGeneration) { finishWaiting(call); call.reject("The browser surface was closed"); return; }
                 try {
+                    // The early session could not attach delegates for extensions
+                    // that were still installing. adopt() attaches their session
+                    // delegates; attachBridge() also attaches the native ports.
                     extensions.adopt(installed);
                     attachBridge();
-                    // Gecko starts extension background pages after the first
-                    // session opens. Waiting for their settings acknowledgement
-                    // before opening any session creates a 15-second timeout
-                    // cycle. Bootstrap an empty session, but keep the requested
-                    // URL behind the settings barrier.
-                    if (session == null || !session.isOpen()) createReadingSession();
+                    ensureReadingSession();
                 } catch (RuntimeException error) { finishWaiting(call); call.reject("Browser operation failed", error); return; }
                 // The engine starts with the first page, so the bridge receives
                 // the synced filter lists only now. That page
@@ -628,19 +637,10 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost implements Rea
                     try { work.run(); } catch (RuntimeException error) { call.reject("Browser operation failed", error); }
                 });
             }, error -> {
-                Runnable pending = waiting.remove(call);
-                if (pending == null) return;
-                handler.removeCallbacks(pending);
+                if (!finishWaiting(call)) return;
                 call.reject("Browser extensions could not start: " + error.getMessage());
             });
         });
-    }
-
-    private boolean finishWaiting(PluginCall call) {
-        Runnable pending = waiting.remove(call);
-        if (pending == null) return false;
-        handler.removeCallbacks(pending);
-        return true;
     }
 
     private void whenExtensionSettingsApplied(Runnable work) {

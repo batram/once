@@ -12,7 +12,7 @@ import static org.junit.Assert.*;
 @RunWith(AndroidJUnit4.class)
 public class GeckoTabsTest {
     @Test public void retainedTabsKeepDocumentsHistoryAndRejectClosedGenerations() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.shellReady();
         String previous = (String) GeckoTestSupport.field(t.plugin, "selectedTab");
         String first = UUID.randomUUID().toString(), second = UUID.randomUUID().toString();
         String generation = UUID.randomUUID().toString();
