@@ -1,0 +1,604 @@
+{
+  "date": "2026-10-20",
+  "baselineCommit": "e7287626",
+  "device": "Samsung Galaxy S20 FE SM-G780G, Android 13, GeckoView 155.0.20260903215306",
+  "method": "Process-cold, retained profile, unlocked foreground; 15-second shell observation then local HTTP fixture. Three measured runs per earlier batch, five final prefetch runs; warmups and diagnostics excluded. Sequential original/updated/original/updated/final batches expose large session drift. Not randomized.",
+  "groups": {
+    "ubo-before": {
+      "runs": [
+        {
+          "run": "ubo-before-1",
+          "nativeOpenMs": 1349.7999999523163,
+          "pageReportMs": 1918,
+          "uboReadyMs": 751,
+          "uboDocumentToReadyMs": 965,
+          "maxAssetCacheWaitMs": 260,
+          "selfieInvalid": false,
+          "requestStartMs": 401,
+          "requestAfterUboReadyMs": 11
+        },
+        {
+          "run": "ubo-before-2",
+          "nativeOpenMs": 1052,
+          "pageReportMs": 1661,
+          "uboReadyMs": 578,
+          "uboDocumentToReadyMs": 871,
+          "maxAssetCacheWaitMs": 243,
+          "selfieInvalid": false,
+          "requestStartMs": 363,
+          "requestAfterUboReadyMs": 9
+        },
+        {
+          "run": "ubo-before-3",
+          "nativeOpenMs": 1199.4000000953674,
+          "pageReportMs": 1710,
+          "uboReadyMs": 596,
+          "uboDocumentToReadyMs": 818,
+          "maxAssetCacheWaitMs": 267,
+          "selfieInvalid": false,
+          "requestStartMs": 326,
+          "requestAfterUboReadyMs": 8
+        }
+      ],
+      "summary": {
+        "nativeOpenMs": {
+          "median": 1199.4000000953674,
+          "min": 1052,
+          "max": 1349.7999999523163
+        },
+        "pageReportMs": {
+          "median": 1710,
+          "min": 1661,
+          "max": 1918
+        },
+        "uboReadyMs": {
+          "median": 596,
+          "min": 578,
+          "max": 751
+        },
+        "uboDocumentToReadyMs": {
+          "median": 871,
+          "min": 818,
+          "max": 965
+        },
+        "maxAssetCacheWaitMs": {
+          "median": 260,
+          "min": 243,
+          "max": 267
+        },
+        "requestStartMs": {
+          "median": 363,
+          "min": 326,
+          "max": 401
+        },
+        "requestAfterUboReadyMs": {
+          "median": 9,
+          "min": 8,
+          "max": 11
+        }
+      }
+    },
+    "ubo-final": {
+      "runs": [
+        {
+          "run": "ubo-final-1",
+          "nativeOpenMs": 1505.7999999523163,
+          "pageReportMs": 2276,
+          "uboReadyMs": 872,
+          "uboDocumentToReadyMs": 1111,
+          "maxAssetCacheWaitMs": 450,
+          "selfieInvalid": false,
+          "requestStartMs": 524,
+          "requestAfterUboReadyMs": 15
+        },
+        {
+          "run": "ubo-final-2",
+          "nativeOpenMs": 1580.2000000476837,
+          "pageReportMs": 2321,
+          "uboReadyMs": 859,
+          "uboDocumentToReadyMs": 1098,
+          "maxAssetCacheWaitMs": 374,
+          "selfieInvalid": false,
+          "requestStartMs": 533,
+          "requestAfterUboReadyMs": 15
+        },
+        {
+          "run": "ubo-final-3",
+          "nativeOpenMs": 1486.1000001430511,
+          "pageReportMs": 2112,
+          "uboReadyMs": 724,
+          "uboDocumentToReadyMs": 968,
+          "maxAssetCacheWaitMs": 355,
+          "selfieInvalid": false,
+          "requestStartMs": 417,
+          "requestAfterUboReadyMs": 11
+        }
+      ],
+      "summary": {
+        "nativeOpenMs": {
+          "median": 1505.7999999523163,
+          "min": 1486.1000001430511,
+          "max": 1580.2000000476837
+        },
+        "pageReportMs": {
+          "median": 2276,
+          "min": 2112,
+          "max": 2321
+        },
+        "uboReadyMs": {
+          "median": 859,
+          "min": 724,
+          "max": 872
+        },
+        "uboDocumentToReadyMs": {
+          "median": 1098,
+          "min": 968,
+          "max": 1111
+        },
+        "maxAssetCacheWaitMs": {
+          "median": 374,
+          "min": 355,
+          "max": 450
+        },
+        "requestStartMs": {
+          "median": 524,
+          "min": 417,
+          "max": 533
+        },
+        "requestAfterUboReadyMs": {
+          "median": 15,
+          "min": 11,
+          "max": 15
+        }
+      }
+    },
+    "ubo-return": {
+      "runs": [
+        {
+          "run": "ubo-return-1",
+          "nativeOpenMs": 2103.5,
+          "pageReportMs": 2798,
+          "uboReadyMs": 894,
+          "uboDocumentToReadyMs": 1152,
+          "maxAssetCacheWaitMs": 370,
+          "selfieInvalid": false,
+          "requestStartMs": 512,
+          "requestAfterUboReadyMs": 11
+        },
+        {
+          "run": "ubo-return-2",
+          "nativeOpenMs": 2196.4000000953674,
+          "pageReportMs": 2935,
+          "uboReadyMs": 938,
+          "uboDocumentToReadyMs": 1177,
+          "maxAssetCacheWaitMs": 358,
+          "selfieInvalid": false,
+          "requestStartMs": 478,
+          "requestAfterUboReadyMs": 13
+        },
+        {
+          "run": "ubo-return-3",
+          "nativeOpenMs": 1990.7000000476837,
+          "pageReportMs": 2687,
+          "uboReadyMs": 811,
+          "uboDocumentToReadyMs": 1042,
+          "maxAssetCacheWaitMs": 334,
+          "selfieInvalid": false,
+          "requestStartMs": 493,
+          "requestAfterUboReadyMs": 13
+        }
+      ],
+      "summary": {
+        "nativeOpenMs": {
+          "median": 2103.5,
+          "min": 1990.7000000476837,
+          "max": 2196.4000000953674
+        },
+        "pageReportMs": {
+          "median": 2798,
+          "min": 2687,
+          "max": 2935
+        },
+        "uboReadyMs": {
+          "median": 894,
+          "min": 811,
+          "max": 938
+        },
+        "uboDocumentToReadyMs": {
+          "median": 1152,
+          "min": 1042,
+          "max": 1177
+        },
+        "maxAssetCacheWaitMs": {
+          "median": 358,
+          "min": 334,
+          "max": 370
+        },
+        "requestStartMs": {
+          "median": 493,
+          "min": 478,
+          "max": 512
+        },
+        "requestAfterUboReadyMs": {
+          "median": 13,
+          "min": 11,
+          "max": 13
+        }
+      }
+    },
+    "ubo-confirm": {
+      "runs": [
+        {
+          "run": "ubo-confirm-1",
+          "nativeOpenMs": 1964.2000000476837,
+          "pageReportMs": 2556,
+          "uboReadyMs": 798,
+          "uboDocumentToReadyMs": 1024,
+          "maxAssetCacheWaitMs": 362,
+          "selfieInvalid": false,
+          "requestStartMs": 423,
+          "requestAfterUboReadyMs": 11
+        },
+        {
+          "run": "ubo-confirm-2",
+          "nativeOpenMs": 2046.2000000476837,
+          "pageReportMs": 2842,
+          "uboReadyMs": 954,
+          "uboDocumentToReadyMs": 1179,
+          "maxAssetCacheWaitMs": 350,
+          "selfieInvalid": false,
+          "requestStartMs": 510,
+          "requestAfterUboReadyMs": 11
+        },
+        {
+          "run": "ubo-confirm-3",
+          "nativeOpenMs": 2045.2000000476837,
+          "pageReportMs": 2752,
+          "uboReadyMs": 740,
+          "uboDocumentToReadyMs": 988,
+          "maxAssetCacheWaitMs": 383,
+          "selfieInvalid": false,
+          "requestStartMs": 423,
+          "requestAfterUboReadyMs": 13
+        }
+      ],
+      "summary": {
+        "nativeOpenMs": {
+          "median": 2045.2000000476837,
+          "min": 1964.2000000476837,
+          "max": 2046.2000000476837
+        },
+        "pageReportMs": {
+          "median": 2752,
+          "min": 2556,
+          "max": 2842
+        },
+        "uboReadyMs": {
+          "median": 798,
+          "min": 740,
+          "max": 954
+        },
+        "uboDocumentToReadyMs": {
+          "median": 1024,
+          "min": 988,
+          "max": 1179
+        },
+        "maxAssetCacheWaitMs": {
+          "median": 362,
+          "min": 350,
+          "max": 383
+        },
+        "requestStartMs": {
+          "median": 423,
+          "min": 423,
+          "max": 510
+        },
+        "requestAfterUboReadyMs": {
+          "median": 11,
+          "min": 11,
+          "max": 13
+        }
+      }
+    },
+    "ubo-prefetch": {
+      "runs": [
+        {
+          "run": "ubo-prefetch-1",
+          "nativeOpenMs": 1644.6000001430511,
+          "pageReportMs": 2208,
+          "uboReadyMs": 733,
+          "uboDocumentToReadyMs": 960,
+          "maxAssetCacheWaitMs": 418,
+          "selfieInvalid": false,
+          "requestStartMs": 358,
+          "requestAfterUboReadyMs": 13
+        },
+        {
+          "run": "ubo-prefetch-2",
+          "nativeOpenMs": 1507.2999999523163,
+          "pageReportMs": 2103,
+          "uboReadyMs": 704,
+          "uboDocumentToReadyMs": 939,
+          "maxAssetCacheWaitMs": 439,
+          "selfieInvalid": false,
+          "requestStartMs": 375,
+          "requestAfterUboReadyMs": 16
+        },
+        {
+          "run": "ubo-prefetch-3",
+          "nativeOpenMs": 1517.9000000953674,
+          "pageReportMs": 2042,
+          "uboReadyMs": 689,
+          "uboDocumentToReadyMs": 913,
+          "maxAssetCacheWaitMs": 421,
+          "selfieInvalid": false,
+          "requestStartMs": 342,
+          "requestAfterUboReadyMs": 14
+        },
+        {
+          "run": "ubo-prefetch-4",
+          "nativeOpenMs": 1554.0999999046326,
+          "pageReportMs": 2094,
+          "uboReadyMs": 642,
+          "uboDocumentToReadyMs": 880,
+          "maxAssetCacheWaitMs": 437,
+          "selfieInvalid": false,
+          "requestStartMs": 359,
+          "requestAfterUboReadyMs": 20
+        },
+        {
+          "run": "ubo-prefetch-5",
+          "nativeOpenMs": 1491.2000000476837,
+          "pageReportMs": 1999,
+          "uboReadyMs": 591,
+          "uboDocumentToReadyMs": 824,
+          "maxAssetCacheWaitMs": 423,
+          "selfieInvalid": false,
+          "requestStartMs": 143,
+          "requestAfterUboReadyMs": 31
+        }
+      ],
+      "summary": {
+        "nativeOpenMs": {
+          "median": 1517.9000000953674,
+          "min": 1491.2000000476837,
+          "max": 1644.6000001430511
+        },
+        "pageReportMs": {
+          "median": 2094,
+          "min": 1999,
+          "max": 2208
+        },
+        "uboReadyMs": {
+          "median": 689,
+          "min": 591,
+          "max": 733
+        },
+        "uboDocumentToReadyMs": {
+          "median": 913,
+          "min": 824,
+          "max": 960
+        },
+        "maxAssetCacheWaitMs": {
+          "median": 423,
+          "min": 418,
+          "max": 439
+        },
+        "requestStartMs": {
+          "median": 358,
+          "min": 143,
+          "max": 375
+        },
+        "requestAfterUboReadyMs": {
+          "median": 16,
+          "min": 13,
+          "max": 31
+        }
+      }
+    }
+  },
+  "labels": {
+    "ubo-before": "Original initial baseline",
+    "ubo-final": "Intermediate, no prefetch",
+    "ubo-return": "Original reinstalled",
+    "ubo-confirm": "Intermediate repeated, no prefetch",
+    "ubo-prefetch": "Final implementation with prefetch"
+  },
+  "cacheDiagnostic": [
+    {
+      "key": "cache/selfie/staticMain",
+      "readMs": 1,
+      "present": true,
+      "shape": "object",
+      "bytes": 45932,
+      "nodes": 1349
+    },
+    {
+      "key": "cache/selfie/staticExtFilteringEngine",
+      "readMs": 335,
+      "present": true,
+      "shape": "object",
+      "bytes": 15030282,
+      "nodes": 939306
+    },
+    {
+      "key": "cache/selfie/staticNetFilteringEngine",
+      "readMs": 175,
+      "present": true,
+      "shape": "object",
+      "bytes": 19955944,
+      "nodes": 57707
+    },
+    {
+      "key": "cache/selfie/redirectEngine/resources",
+      "readMs": 4,
+      "present": true,
+      "shape": "object",
+      "bytes": 632372,
+      "nodes": 2407
+    }
+  ],
+  "serializedAlternativeDiagnostic": [
+    {
+      "key": "cache/selfie/staticExtFilteringEngine",
+      "readMs": 158,
+      "deserializeMs": 380,
+      "stringLength": 7164310,
+      "serialized": true,
+      "shape": "object"
+    },
+    {
+      "key": "cache/selfie/staticNetFilteringEngine",
+      "readMs": 313,
+      "deserializeMs": 449,
+      "stringLength": 16491446,
+      "serialized": true,
+      "shape": "object"
+    }
+  ],
+  "validation": {
+    "focusedUnitTests": 15,
+    "mobileUnitTestsBeforeIntegration": 344,
+    "nativeMethodsPassed": 3,
+    "nativeIntegratedMethodsPassed": 3
+  },
+  "profileState": {
+    "stats": {
+      "allReadyAfter": "591 ms (selfie)",
+      "maxAssetCacheWait": "423 ms",
+      "cacheBackend": "indexedDB"
+    },
+    "selfieInvalid": false,
+    "manifestVersion": "1.74.0.2299286",
+    "runtimeVersion": "1.74.0",
+    "developmentDefaults": false,
+    "hiddenSettings": {},
+    "permissions": {
+      "origins": [
+        "<all_urls>"
+      ],
+      "data_collection": [],
+      "permissions": [
+        "alarms",
+        "dns",
+        "privacy",
+        "storage",
+        "tabs",
+        "unlimitedStorage",
+        "webNavigation",
+        "webRequest",
+        "webRequestBlocking"
+      ]
+    },
+    "filterCount": 276265
+  },
+  "baselineApkSha256": "63642651f5fa2e37feabcd18fa640208af5a7283f7629bc13a36d85c2d92800f",
+  "benchmarkApkSha256": "d70b17b4681f71c88bd219fc345b11f1952d7c7bb82ff1e1b35c6de8ce29c2e9",
+  "finalNativePhases": {
+    "clock": "Device epoch timestamps relative to Gecko LAUNCHED, milliseconds",
+    "runs": [
+      {
+        "run": 1,
+        "libraries": 70,
+        "running": 336,
+        "blank": 752,
+        "page": 1663,
+        "pageReady": 2148,
+        "uboDocument": 1008,
+        "uboT0": 1235,
+        "uboReady": 1968
+      },
+      {
+        "run": 2,
+        "libraries": 36,
+        "running": 279,
+        "blank": 656,
+        "page": 1521,
+        "pageReady": 2032,
+        "uboDocument": 907,
+        "uboT0": 1142,
+        "uboReady": 1846
+      },
+      {
+        "run": 3,
+        "libraries": 45,
+        "running": 283,
+        "blank": 666,
+        "page": 1526,
+        "pageReady": 1983,
+        "uboDocument": 910,
+        "uboT0": 1134,
+        "uboReady": 1823
+      },
+      {
+        "run": 4,
+        "libraries": 37,
+        "running": 320,
+        "blank": 711,
+        "page": 1554,
+        "pageReady": 2032,
+        "uboDocument": 984,
+        "uboT0": 1222,
+        "uboReady": 1864
+      },
+      {
+        "run": 5,
+        "libraries": 34,
+        "running": 278,
+        "blank": 660,
+        "page": 1675,
+        "pageReady": 1929,
+        "uboDocument": 915,
+        "uboT0": 1148,
+        "uboReady": 1739
+      }
+    ],
+    "median": {
+      "libraries": 37,
+      "running": 283,
+      "blank": 666,
+      "page": 1554,
+      "pageReady": 2032,
+      "uboDocument": 915,
+      "uboT0": 1148,
+      "uboReady": 1846
+    }
+  },
+  "installedApkSha256": "fcf47477cbeaeca5e91ce64a6276827efc02045daeef0302540d62dce029fa5e",
+  "integrationBase": "d1baa8d4",
+  "integratedSmoke": {
+    "nativeOpenMs": 2388.5999999046326,
+    "pageReportMs": 3113,
+    "error": null
+  },
+  "finalState": {
+    "stats": {
+      "allReadyAfter": "654 ms (selfie)",
+      "maxAssetCacheWait": "535 ms",
+      "cacheBackend": "indexedDB"
+    },
+    "selfieInvalid": false,
+    "manifestVersion": "1.74.0.13285787",
+    "runtimeVersion": "1.74.0",
+    "developmentDefaults": false,
+    "hiddenSettings": {},
+    "permissions": {
+      "origins": [
+        "<all_urls>"
+      ],
+      "data_collection": [],
+      "permissions": [
+        "alarms",
+        "dns",
+        "privacy",
+        "storage",
+        "tabs",
+        "unlimitedStorage",
+        "webNavigation",
+        "webRequest",
+        "webRequestBlocking"
+      ]
+    },
+    "filterCount": 276265
+  }
+}

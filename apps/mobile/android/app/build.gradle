@@ -72,8 +72,8 @@ android {
 
 // The built-in extensions GeckoView loads from resource://android/assets/<name>/
 // (see GeckoEngine): Once's own bridge, and the bundles scripts/fetch-extensions.js
-// unpacks into vendor/extensions. Violentmonkey comes from android/, the copy
-// carrying the app's userscript relay; the upstream, iOS and uBO Lite bundles
+// unpacks into vendor/extensions. Android copies carry the userscript relay
+// and uBlock startup adaptation; the upstream, iOS and uBO Lite bundles
 // stay out. AGP ignores source-set excludes for assets, so the wanted bundles
 // are copied into a generated asset dir instead.
 abstract class OnceExtensionAssets extends DefaultTask {
@@ -91,7 +91,7 @@ abstract class OnceExtensionAssets extends DefaultTask {
         fs.sync { spec ->
             spec.into(outputDir)
             spec.from(onceExtensions)
-            spec.from(vendorExtensions) { it.include('ublock-origin/**', 'android/violentmonkey/**') }
+            spec.from(vendorExtensions) { it.include('android/ublock-origin/**', 'android/violentmonkey/**') }
         }
     }
 }

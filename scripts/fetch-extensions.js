@@ -6,14 +6,16 @@
 // bumping a version here (with its new hash) is how an update is released.
 //
 // uBlock's Firefox build is Mozilla-signed (META-INF/mozilla.rsa); the pin
-// here is the hash of that signed archive as published, so what ships is
-// exactly what Mozilla signed. Violentmonkey publishes an unsigned zip.
+// here is the hash of that signed archive as published. The retained upstream
+// copy is exactly what Mozilla signed; Android builds a separate adapted copy.
+// Violentmonkey publishes an unsigned zip.
 
 const crypto = require("node:crypto")
 const fs = require("node:fs")
 const path = require("node:path")
 const AdmZip = require("adm-zip")
 const { adaptGeckoViolentmonkey } = require("./adapt-gecko-violentmonkey")
+const { adaptGeckoUblock } = require("./adapt-gecko-ublock")
 const { downloadExtension } = require("./download-extension")
 
 const root = path.resolve(__dirname, "..")
@@ -96,6 +98,10 @@ async function main() {
   fs.mkdirSync(vendorRoot, { recursive: true })
   for (const bundle of BUNDLES) await fetchBundle(bundle)
   await fetchBundle(UBOLITE)
+  const ublock = BUNDLES.find(bundle => bundle.name === "ublock-origin")
+  if (adaptGeckoUblock(path.join(vendorRoot, ublock.name), path.join(vendorRoot, "android", ublock.name), ublock.sha256)) {
+    console.log(`Adapted ${ublock.name} ${ublock.version} for Android`)
+  }
   // Android hands userscripts to its own copy of Violentmonkey, which carries
   // the relay the app talks to.
   const violentmonkey = BUNDLES.find((bundle) => bundle.name === "violentmonkey")
