@@ -7,6 +7,7 @@ import com.getcapacitor.PluginHandle;
 
 public class MainActivity extends BridgeActivity {
     VideoPresentation readingVideo;
+    private KeyboardSpace keyboardSpace;
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(AddressBarPlugin.class);
@@ -21,6 +22,12 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         getBridge().getWebView().setWebChromeClient(new RedactingChromeClient(getBridge()));
         getBridge().addWebViewListener(new ShellRenderRecovery(this));
+        keyboardSpace = KeyboardSpace.install(getWindow().getDecorView());
+    }
+
+    @Override public void onResume() {
+        super.onResume();
+        if (keyboardSpace != null) keyboardSpace.schedule();
     }
 
     @Override public boolean dispatchTouchEvent(MotionEvent event) {

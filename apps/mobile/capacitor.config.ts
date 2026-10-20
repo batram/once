@@ -71,6 +71,10 @@ export function createCapacitorConfig(
       // window behind it takes the body's background, so the strip above the
       // keyboard matches the active theme instead of showing black.
       Keyboard: { resize: KeyboardResize.Native, autoBackdropColor: "dom" },
+      // The shell's viewport always covers the bars. Saying so from the start
+      // keeps SystemBars' padding equal to Android's KeyboardSpace, which owns
+      // it, before the first page has reported its viewport.
+      SystemBars: { initialViewportFitValueHint: "cover" },
       SplashScreen: {
         launchAutoHide: true,
         backgroundColor: dev ? "#342b20" : "#ffffff"

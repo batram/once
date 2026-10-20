@@ -1,5 +1,3 @@
-import { Capacitor } from "@capacitor/core"
-import { Keyboard } from "@capacitor/keyboard"
 import { normalizeReadingUrl } from "@once/platform-mobile"
 import { addressBarPlugin, type AddressBarPlugin } from "./addressMenu"
 import {
@@ -96,7 +94,6 @@ export class ReadingAddressEditor {
   /** Earlier drafts, newest last; each Undo steps back one change. */
   private history: { text: string; caret: number; display?: string }[] = []
   private reported = ""
-  private dismissal = 0
   private typing = false
   private typingTimer = 0
 
@@ -125,7 +122,6 @@ export class ReadingAddressEditor {
 
   /** Opens on the page address with the caret at `caret`, or at its end. */
   open(caret?: number): void {
-    this.dismissal += 1
     const page = this.actions.page()
     this.current = page.url
     this.part(".address_editor_current b").textContent = page.title || hostOf(page.url) || page.url
@@ -142,23 +138,17 @@ export class ReadingAddressEditor {
   }
 
   close(): void {
-    this.dismissal += 1
     if (this.dialog.open) this.dialog.close()
   }
 
   /**
-   * Closes once the keyboard is down. Closing brings the native page view
-   * back, and doing that while the keyboard's hide animation runs has left
-   * the shell laid out for a keyboard that was gone.
+   * Closes at once. The keyboard goes with the field's focus; Android's
+   * KeyboardSpace releases its room however the hide and the native page
+   * view's return interleave, so nothing here waits on the keyboard.
    */
   private dismiss(): void {
-    const dismissal = ++this.dismissal
-    // A tapped button may already own focus, even while the IME is visible.
-    // Register before blurring so the hide event cannot race the listener.
-    const hidden = Capacitor.isNativePlatform() ? keyboardHidden(600) : Promise.resolve()
     this.field.blur()
-    if (!Capacitor.isNativePlatform()) { this.close(); return }
-    void hidden.then(() => { if (dismissal === this.dismissal) this.close() })
+    this.close()
   }
 
   clear(): void {
@@ -548,29 +538,6 @@ async function nativeOr<T>(native: () => Promise<T> | undefined, web: () => Prom
     try { return await call } catch { /* not implemented on this platform */ }
   }
   return web()
-}
-
-/** Resolves when the keyboard reports it is hidden, or after `timeout` ms. */
-function keyboardHidden(timeout: number): Promise<void> {
-  return new Promise(resolve => {
-    let settled = false
-    let handle: { remove(): Promise<void> } | null = null
-    const done = () => {
-      if (settled) return
-      settled = true
-      window.clearTimeout(timer)
-      void handle?.remove().catch(() => undefined)
-      resolve()
-    }
-    const timer = window.setTimeout(done, timeout)
-    Keyboard.addListener("keyboardDidHide", done)
-      .then(registered => {
-        handle = registered
-        if (settled) void registered.remove().catch(() => undefined)
-        else void Keyboard.hide().catch(() => undefined)
-      })
-      .catch(done)
-  })
 }
 
 function hostOf(url: string): string {

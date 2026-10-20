@@ -56,6 +56,32 @@ function flushCoordinator() {
   return new Promise((resolve) => setImmediate(resolve))
 }
 
+test("a resize while the page view opens is sent once it is open, measured then", async () => {
+  const { ReadingSurfaceCoordinator } = await loadCoordinator()
+  const session = new ReadingSession(), surface = createSurface()
+  let finishOpen
+  surface.open = options => {
+    surface.calls.push(["open", options])
+    return new Promise(resolve => { finishOpen = resolve })
+  }
+  // The keyboard is up when Go opens the first page, then goes down.
+  let height = 300
+  const coordinator = new ReadingSurfaceCoordinator(session, surface, createReader(), {
+    getBoundingClientRect: () => ({ x: 0, y: 0, width: 320, height })
+  })
+  await coordinator.install()
+  coordinator.setReadingPanelVisible(true)
+  session.navigate("https://example.test/first")
+  await flushCoordinator()
+  assert.equal(surface.calls.find(([name]) => name === "open")[1].bounds.height, 300)
+  height = 600
+  const resized = coordinator.updateBounds()
+  finishOpen()
+  await resized
+  const bounds = surface.calls.filter(([name]) => name === "setBounds")
+  assert.equal(bounds.at(-1)?.[1].height, 600, "The page view must take the panel's size after the keyboard went down")
+})
+
 test("a rejected browser open becomes a visible error and Reload retries initialization", async () => {
   const { ReadingSurfaceCoordinator } = await loadCoordinator()
   const session = new ReadingSession(), surface = createSurface()

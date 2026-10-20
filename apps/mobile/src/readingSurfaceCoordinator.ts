@@ -382,9 +382,17 @@ export class ReadingSurfaceCoordinator {
     await this.enqueue(() => this.surface.reload())
   }
 
+  /**
+   * Measures when its turn in the queue comes, not when asked: a resize while
+   * the page view is still opening (the keyboard going down as Go opens the
+   * first page) waits for the open and then sends the panel's size at that
+   * time, rather than being dropped and leaving the page the keyboard's height.
+   */
   async updateBounds(): Promise<void> {
-    if (!this.session.snapshot().currentUrl || !this.browserOpened) return
-    await this.enqueue(() => this.surface.setBounds(this.bounds()))
+    await this.enqueue(async () => {
+      if (!this.session.snapshot().currentUrl || !this.browserOpened) return
+      await this.surface.setBounds(this.bounds())
+    })
   }
 
   private async syncSurface(
