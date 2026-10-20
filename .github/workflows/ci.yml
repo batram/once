@@ -25,6 +25,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      # The Lite unit tests read the pinned upstream bundles.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: vendor/extensions
+          key: unit-extensions-${{ hashFiles('scripts/fetch-extensions.js', 'scripts/download-extension.js') }}
+      - run: npm run fetch:extensions
       - run: npm run test:unit
 
   extensions:
