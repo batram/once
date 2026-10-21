@@ -23,7 +23,7 @@ extension InAppBrowserSurfacePlugin {
               let body = message.body as? [String: Any],
               let frame = body["frame"] as? String,
               let playing = body["playing"] as? Bool else { return }
-        if playing { tab.playingFrames.insert(frame) } else { tab.playingFrames.remove(frame) }
+        if playing { tab.playingFrames[frame] = message.frameInfo } else { tab.playingFrames.removeValue(forKey: frame) }
         let hadPictureInPicture = !tab.pictureInPictureFrames.isEmpty
         if body["pip"] as? Bool == true { tab.pictureInPictureFrames.insert(frame) }
         else { tab.pictureInPictureFrames.remove(frame) }
@@ -53,6 +53,55 @@ extension InAppBrowserSurfacePlugin {
         }
     }
 
+    /// The audio background mode (for reader speech) would otherwise let
+    /// page audio play on; unless the user keeps it, pause it as before.
+    /// When kept, WebKit still interrupts audible video as the app leaves
+    /// the foreground, so the playing frames resume it. Locking resigns
+    /// active, becomes active and resigns again, and WebKit's pause may
+    /// land in between, so forgetting the armed media waits a moment.
+    func observeBackgroundMedia() -> [NSObjectProtocol] {
+        let center = NotificationCenter.default
+        return [
+            center.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                self?.pendingMediaClear?.cancel()
+                guard let self, PlaybackAudioSession.shared.keepsPageMedia else { return }
+                for tab in [self] + Array(self.tabs.values) { tab.backgroundMedia("arm") }
+            },
+            center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                let keeps = PlaybackAudioSession.shared.keepsPageMedia
+                for tab in [self] + Array(self.tabs.values) {
+                    if keeps { tab.backgroundMedia("resume") } else { tab.pauseUnlessPictureInPicture() }
+                }
+            },
+            center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                let clear = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    for tab in [self] + Array(self.tabs.values) { tab.backgroundMedia("clear") }
+                }
+                self.pendingMediaClear = clear
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: clear)
+            },
+        ]
+    }
+
+    /// The kept-media policy around WebKit's background interruption: "arm"
+    /// as the app resigns active remembers what plays audibly, "resume" once
+    /// backgrounded plays it again, "clear" on return forgets it. Arming adds
+    /// up until cleared, and the frames armed stay addressed: WebKit's pause
+    /// may report a frame silent before it hears "resume".
+    func backgroundMedia(_ phase: String) {
+        if phase == "arm" { armedFrames.merge(playingFrames) { $1 } }
+        let frames = Array(armedFrames.values)
+        if phase == "clear" { armedFrames.removeAll() }
+        guard let view = surface else { return }
+        for frame in frames {
+            view.callAsyncJavaScript("window.__onceMedia && window.__onceMedia.background(phase)",
+                                     arguments: ["phase": phase], in: frame, in: MediaObserver.world)
+        }
+    }
+
     fileprivate func publishMedia() {
         let playing = !playingFrames.isEmpty
         guard playing != mediaPlaying else { return }
@@ -73,8 +122,23 @@ final class MediaObserver: NSObject, WKScriptMessageHandler {
     /// WebKit treats it as a PiP exit too. Exiting fullscreen should leave the
     /// user's separate PiP presentation alone. Native PiP close and explicit
     /// exitPictureInPicture / webkitSetPresentationMode("inline") still work.
+    /// While the observer keeps media playing in the background, the page
+    /// is told it stays visible: YouTube unloads its video once hidden.
     static let presentationSource = """
     (function () {
+      var kept = false;
+      window.addEventListener('oncemediakept', function () { kept = true; }, true);
+      window.addEventListener('oncemediareleased', function () { kept = false; }, true);
+      [['hidden', false], ['webkitHidden', false], ['visibilityState', 'visible'], ['webkitVisibilityState', 'visible']].forEach(function (entry) {
+        var descriptor = Object.getOwnPropertyDescriptor(Document.prototype, entry[0]);
+        if (!descriptor || typeof descriptor.get !== 'function') return;
+        var original = descriptor.get;
+        descriptor.get = function () { return kept ? entry[1] : original.call(this); };
+        Object.defineProperty(Document.prototype, entry[0], descriptor);
+      });
+      ['visibilitychange', 'webkitvisibilitychange'].forEach(function (type) {
+        window.addEventListener(type, function (event) { if (kept) event.stopImmediatePropagation(); }, true);
+      });
       ['webkitExitFullscreen', 'webkitExitFullScreen'].forEach(function (name) {
         var prototype = HTMLVideoElement.prototype;
         var descriptor = Object.getOwnPropertyDescriptor(prototype, name);
@@ -91,6 +155,10 @@ final class MediaObserver: NSObject, WKScriptMessageHandler {
     // Media events don't bubble, hence capture on document. An element that
     // played gets direct listeners too: removed from the document, WebKit
     // pauses it where the document no longer hears.
+    // iOS WebKit interrupts audible video (not audio or PiP) as the app
+    // enters the background, but lets script play it again afterwards. With
+    // media kept, armed elements resume if paused around that moment only,
+    // so a later pause from the lock screen sticks.
     static let source = """
     (function () {
       if (window.__onceMedia) return;
@@ -103,6 +171,8 @@ final class MediaObserver: NSObject, WKScriptMessageHandler {
       var types = ['play', 'playing', 'pause', 'ended', 'emptied', 'volumechange', 'webkitpresentationmodechanged', 'enterpictureinpicture', 'leavepictureinpicture'];
       var audible = false;
       var pictureInPicture = false;
+      var armed = new Set();
+      var resumeUntil = 0;
       function post(value, pip) {
         if (value === audible && pip === pictureInPicture) return;
         audible = value;
@@ -118,6 +188,27 @@ final class MediaObserver: NSObject, WKScriptMessageHandler {
         });
         post(playing, pipMedia.size > 0);
       }
+      function resume(media) {
+        if (!media.paused || media.ended) return;
+        armed.delete(media);
+        var played = media.play();
+        if (played) played.catch(function () {});
+      }
+      state.background = function (phase) {
+        if (phase === 'arm') {
+          active.forEach(function (media) {
+            if (!media.paused && !media.ended && !media.muted && media.volume > 0) armed.add(media);
+          });
+          if (armed.size) window.dispatchEvent(new Event('oncemediakept'));
+        } else if (phase === 'resume') {
+          resumeUntil = Date.now() + 3000;
+          armed.forEach(resume);
+        } else {
+          armed.clear();
+          resumeUntil = 0;
+          window.dispatchEvent(new Event('oncemediareleased'));
+        }
+      };
       function seen(event) {
         var media = event.target;
         if (!(media instanceof HTMLMediaElement)) return;
@@ -136,6 +227,7 @@ final class MediaObserver: NSObject, WKScriptMessageHandler {
           media.webkitPresentationMode === 'picture-in-picture' || document.pictureInPictureElement === media;
         if (pip) pipMedia.add(media);
         else pipMedia.delete(media);
+        if (event.type === 'pause' && armed.has(media) && Date.now() < resumeUntil) resume(media);
         update();
       }
       types.forEach(function (type) { document.addEventListener(type, seen, true); });

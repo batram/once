@@ -38,7 +38,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
 
     private(set) weak var owner: InAppBrowserSurfacePlugin?
     private var memoryObserver: NSObjectProtocol?
-    private var backgroundObserver: NSObjectProtocol?
+    private var backgroundObservers: [NSObjectProtocol] = []
+    var pendingMediaClear: DispatchWorkItem?
     private var reclaimedURL: URL?
     private var adoptedWindow = false
     // Opened by a page's window.open, so that page's script may close it again.
@@ -65,20 +66,12 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                 }
             }
         }
-        // The audio background mode (for reader speech) would otherwise let
-        // page audio play on; unless the user keeps it, pause it as before.
-        backgroundObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification,
-                                                                    object: nil, queue: .main) { [weak self] _ in
-            guard let self, !PlaybackAudioSession.shared.keepsPageMedia else { return }
-            for tab in [self] + Array(self.tabs.values) {
-                tab.pauseUnlessPictureInPicture()
-            }
-        }
+        backgroundObservers = observeBackgroundMedia()
     }
 
     deinit {
         if let memoryObserver { NotificationCenter.default.removeObserver(memoryObserver) }
-        if let backgroundObserver { NotificationCenter.default.removeObserver(backgroundObserver) }
+        backgroundObservers.forEach(NotificationCenter.default.removeObserver)
     }
 
     // Capacitor invokes plugin methods on its bridge queue, but the tab maps and
@@ -167,8 +160,11 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var installedRuleJSON: String?
     private var contentRuleList: WKContentRuleList?
     private var extensionUserScripts: [WKUserScript] = []
-    /// Frames (by their script's token) currently playing audible media.
-    var playingFrames = Set<String>()
+    /// Frames (by their script's token) currently playing audible media, kept
+    /// so the background policy can reach each of them.
+    var playingFrames: [String: WKFrameInfo] = [:]
+    /// Frames that played as the app resigned active, while media is kept.
+    var armedFrames: [String: WKFrameInfo] = [:]
     var pictureInPictureFrames = Set<String>()
     var mediaPlaying = false
     /// Root-only: a popup's configuration shares its opener's controller, and
