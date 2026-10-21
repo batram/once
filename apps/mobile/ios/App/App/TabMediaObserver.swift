@@ -1,3 +1,4 @@
+import MediaPlayer
 import WebKit
 
 // Tab media observation: which surfaces play audible media, reported to the
@@ -23,7 +24,9 @@ extension InAppBrowserSurfacePlugin {
               let body = message.body as? [String: Any],
               let frame = body["frame"] as? String,
               let playing = body["playing"] as? Bool else { return }
-        if playing { tab.playingFrames[frame] = message.frameInfo } else { tab.playingFrames.removeValue(forKey: frame) }
+        if playing { tab.playingFrames.insert(frame) } else { tab.playingFrames.remove(frame) }
+        if body["held"] as? Bool == true { tab.mediaFrames[frame] = message.frameInfo }
+        else { tab.mediaFrames.removeValue(forKey: frame) }
         let hadPictureInPicture = !tab.pictureInPictureFrames.isEmpty
         if body["pip"] as? Bool == true { tab.pictureInPictureFrames.insert(frame) }
         else { tab.pictureInPictureFrames.remove(frame) }
@@ -33,6 +36,7 @@ extension InAppBrowserSurfacePlugin {
 
     func resetMedia() {
         playingFrames.removeAll()
+        mediaFrames.removeAll()
         pictureInPictureFrames.removeAll()
         updateSurfaceVisibility()
         publishMedia()
@@ -73,8 +77,10 @@ extension InAppBrowserSurfacePlugin {
                 for tab in [self] + Array(self.tabs.values) {
                     if keeps { tab.backgroundMedia("resume") } else { tab.pauseUnlessPictureInPicture() }
                 }
+                if keeps { self.holdPausedMedia() }
             },
             center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                PageMediaRemote.shared.release()
                 guard let self else { return }
                 let clear = DispatchWorkItem { [weak self] in
                     guard let self else { return }
@@ -86,13 +92,26 @@ extension InAppBrowserSurfacePlugin {
         ]
     }
 
+    /// Root-only. Once resumed media had a moment to report playing, media
+    /// still paused gets the app's own lock-screen commands.
+    private func holdPausedMedia() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self, UIApplication.shared.applicationState == .background else { return }
+            let all = [self] + Array(self.tabs.values)
+            guard !all.contains(where: { $0.mediaPlaying }),
+                  let held = all.first(where: { !$0.armedFrames.isEmpty }) else { return }
+            PageMediaRemote.shared.hold { [weak held] in held?.backgroundMedia("play") }
+        }
+    }
+
     /// The kept-media policy around WebKit's background interruption: "arm"
-    /// as the app resigns active remembers what plays audibly, "resume" once
+    /// as the app resigns active remembers what plays audibly and keeps the
+    /// page visible while it holds media to resume, "resume" once
     /// backgrounded plays it again, "clear" on return forgets it. Arming adds
     /// up until cleared, and the frames armed stay addressed: WebKit's pause
     /// may report a frame silent before it hears "resume".
     func backgroundMedia(_ phase: String) {
-        if phase == "arm" { armedFrames.merge(playingFrames) { $1 } }
+        if phase == "arm" { armedFrames.merge(mediaFrames) { $1 } }
         let frames = Array(armedFrames.values)
         if phase == "clear" { armedFrames.removeAll() }
         guard let view = surface else { return }
@@ -109,6 +128,41 @@ extension InAppBrowserSurfacePlugin {
         pageEvent("mediaStateChanged", data: ["playing": playing])
         let root = owner ?? self
         PlaybackAudioSession.shared.setPagePlaying(root.mediaPlaying || root.tabs.values.contains { $0.mediaPlaying })
+        if playing { PageMediaRemote.shared.release() }
+    }
+}
+
+/// Lock-screen play for kept page media paused in the background. Without
+/// commands of the app's own, the suspended app's web process hears WebKit's
+/// play only once the app returns. Registered, iOS lets WebKit's command
+/// through and the page plays; the app's target plays the held media should
+/// it get the command instead. WebKit's Now Playing entry stays as it is:
+/// publishing one here flashes it. Main queue only.
+final class PageMediaRemote {
+    static let shared = PageMediaRemote()
+    private var targets: [(MPRemoteCommand, Any)] = []
+    private var play: (() -> Void)?
+
+    func hold(_ play: @escaping () -> Void) {
+        self.play = play
+        let commands = MPRemoteCommandCenter.shared()
+        if targets.isEmpty {
+            for remote in [commands.playCommand, commands.togglePlayPauseCommand] {
+                remote.isEnabled = true
+                targets.append((remote, remote.addTarget { [weak self] _ in
+                    guard let play = self?.play else { return .noActionableNowPlayingItem }
+                    play()
+                    return .success
+                }))
+            }
+        }
+    }
+
+    func release() {
+        guard play != nil else { return }
+        play = nil
+        for (remote, target) in targets { remote.removeTarget(target) }
+        targets.removeAll()
     }
 }
 
@@ -158,7 +212,9 @@ final class MediaObserver: NSObject, WKScriptMessageHandler {
     // iOS WebKit interrupts audible video (not audio or PiP) as the app
     // enters the background, but lets script play it again afterwards. With
     // media kept, armed elements resume if paused around that moment only,
-    // so a later pause from the lock screen sticks.
+    // so a later pause from the lock screen sticks. Media that played
+    // audibly is held until emptied or ended: paused, it stays loaded for
+    // the lock screen to play again.
     static let source = """
     (function () {
       if (window.__onceMedia) return;
@@ -173,18 +229,23 @@ final class MediaObserver: NSObject, WKScriptMessageHandler {
       var pictureInPicture = false;
       var armed = new Set();
       var resumeUntil = 0;
+      var held = new Set();
+      var last = null;
+      var holding = false;
       function post(value, pip) {
-        if (value === audible && pip === pictureInPicture) return;
+        var holds = held.size > 0;
+        if (value === audible && pip === pictureInPicture && holds === holding) return;
         audible = value;
         pictureInPicture = pip;
+        holding = holds;
         state.pictureInPicture = pip;
-        try { window.webkit.messageHandlers.onceMedia.postMessage({ frame: frame, playing: value, pip: pip }); } catch (e) {}
+        try { window.webkit.messageHandlers.onceMedia.postMessage({ frame: frame, playing: value, pip: pip, held: holds }); } catch (e) {}
       }
       function update() {
         var playing = false;
         active.forEach(function (media) {
           if (media.paused || media.ended) active.delete(media);
-          else if (!media.muted && media.volume > 0) playing = true;
+          else if (!media.muted && media.volume > 0) { playing = true; held.add(media); last = media; }
         });
         post(playing, pipMedia.size > 0);
       }
@@ -199,7 +260,9 @@ final class MediaObserver: NSObject, WKScriptMessageHandler {
           active.forEach(function (media) {
             if (!media.paused && !media.ended && !media.muted && media.volume > 0) armed.add(media);
           });
-          if (armed.size) window.dispatchEvent(new Event('oncemediakept'));
+          if (held.size) window.dispatchEvent(new Event('oncemediakept'));
+        } else if (phase === 'play') {
+          if (last && held.has(last)) resume(last);
         } else if (phase === 'resume') {
           resumeUntil = Date.now() + 3000;
           armed.forEach(resume);
@@ -228,10 +291,11 @@ final class MediaObserver: NSObject, WKScriptMessageHandler {
         if (pip) pipMedia.add(media);
         else pipMedia.delete(media);
         if (event.type === 'pause' && armed.has(media) && Date.now() < resumeUntil) resume(media);
+        if (event.type === 'emptied' || event.type === 'ended') held.delete(media);
         update();
       }
       types.forEach(function (type) { document.addEventListener(type, seen, true); });
-      window.addEventListener('pagehide', function () { pipMedia.clear(); post(false, false); });
+      window.addEventListener('pagehide', function () { pipMedia.clear(); held.clear(); post(false, false); });
       window.addEventListener('pageshow', function (event) { if (event.persisted) update(); });
     })();
     """

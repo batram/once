@@ -160,10 +160,12 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var installedRuleJSON: String?
     private var contentRuleList: WKContentRuleList?
     private var extensionUserScripts: [WKUserScript] = []
-    /// Frames (by their script's token) currently playing audible media, kept
-    /// so the background policy can reach each of them.
-    var playingFrames: [String: WKFrameInfo] = [:]
-    /// Frames that played as the app resigned active, while media is kept.
+    /// Frames (by their script's token) currently playing audible media.
+    var playingFrames = Set<String>()
+    /// Frames holding media that played audibly and may play again, playing
+    /// or paused, kept so the background policy can reach each of them.
+    var mediaFrames: [String: WKFrameInfo] = [:]
+    /// Frames that held media as the app resigned active, while media is kept.
     var armedFrames: [String: WKFrameInfo] = [:]
     var pictureInPictureFrames = Set<String>()
     var mediaPlaying = false
