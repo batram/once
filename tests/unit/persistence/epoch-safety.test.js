@@ -153,6 +153,19 @@ test("forked thumbnail slots take the canonical copy while a local descendant st
   assert.equal((await local.get("tth_other_slot_000")).createdAt, "stale")
 })
 
+test("a forked add-on vault takes the canonical snapshot and the retired database keeps the local one", async t => {
+  const w = await world(t), previous = w.named("previous"), canonical = w.named("canonical"), local = w.named("local")
+  await previous.put({ _id: "addon_vault", list: { version: 2, sealed: "remote" } })
+  await local.put({ _id: "addon_vault", list: { version: 2, sealed: "local" } })
+  await copyWinningRevisions(previous, canonical, "previous")
+  const epoch = new LocalDatabaseEpoch(local.name, local.name, local, w.open, () => {}, w.storage)
+  await epoch.rebuild("https://sync.test/next", () => {}, { canonical, previous })
+  const moved = w.open(`${local.name}@next`)
+  assert.equal((await moved.get("addon_vault", { conflicts: true }))._conflicts, undefined)
+  assert.equal((await moved.get("addon_vault")).list.sealed, "remote")
+  assert.equal((await local.get("addon_vault")).list.sealed, "local")
+})
+
 test("upgrading an earlier committed epoch reconciles into a new versioned local database", async t => {
   const w = await world(t), previous = w.named("previous"), canonical = w.named("canonical"), base = w.named("base").name
   const legacy = w.open(`${base}@next`)
