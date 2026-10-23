@@ -1,6 +1,6 @@
 import { epochContent } from "./EpochContent"
 import { censusRevisions, copyWinningRevisions, EPOCH_BATCH_SIZE, EpochCopyDatabase, EpochMigrationProgress, EpochSourceConflictError } from "./PouchEpochCopy"
-import { isSyncMetadataId } from "@once/core"
+import { isSyncMetadataId, THUMB_DOC_PREFIX } from "@once/core"
 import { EpochSettingReviewError, reviewableSetting } from "./EpochSettingReview"
 import { epochAncestor as ancestor, isRetiredEpochRevision, preflightEpochSettings, reconcileDevicePublication } from "./EpochReconciliationPolicy"
 import { reconcileEpochStory } from "./EpochStoryReconciliation"
@@ -33,6 +33,9 @@ export async function reconcileEpoch(local: EpochCopyDatabase, canonical: EpochC
         continue
       }
       const conflicted = Boolean(row.doc?._conflicts?.length)
+      // Thumbnail slots are a cache their device rewrites and any device may
+      // empty in place, so a forked copy holds nothing worth keeping.
+      if (held && row.id.startsWith(THUMB_DOC_PREFIX) && (conflicted || !ancestor(String(held._rev), doc))) continue
       if (conflicted && await reconcileEpochStory(local, previous, target, doc, held, true, isCurrent)) continue
       if ((conflicted || held && !ancestor(String(held._rev), doc)) &&
         await reconcileDevicePublication(local, target, doc, held, conflicted)) continue

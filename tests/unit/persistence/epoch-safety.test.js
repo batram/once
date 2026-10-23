@@ -133,6 +133,26 @@ test("unrelated pending edits stop migration without replacing or deleting local
   assert.equal((await epoch.state()).retired, undefined)
 })
 
+test("forked thumbnail slots take the canonical copy while a local descendant still moves", async t => {
+  const w = await world(t), previous = w.named("previous"), canonical = w.named("canonical"), local = w.named("local")
+  const thumb = (id, text) => ({ _id: id, type: "thumb", deviceId: "other", createdAt: text,
+    contentHash: require("node:crypto").createHash("sha1").update(text).digest("hex"),
+    _attachments: { "thumb.jpg": { content_type: "image/jpeg", data: Buffer.from(text).toString("base64") } } })
+  await previous.put(thumb("tth_other_slot_000", "remote"))
+  await local.put(thumb("tth_other_slot_000", "stale"))
+  await previous.put(thumb("tth_other_slot_001", "shared"))
+  await previous.replicate.to(local, { doc_ids: ["tth_other_slot_001"] })
+  await local.put({ ...thumb("tth_other_slot_001", "newer"), _rev: (await local.get("tth_other_slot_001"))._rev })
+  await copyWinningRevisions(previous, canonical, "previous")
+  const epoch = new LocalDatabaseEpoch(local.name, local.name, local, w.open, () => {}, w.storage)
+  await epoch.rebuild("https://sync.test/next", () => {}, { canonical, previous })
+  const moved = w.open(`${local.name}@next`)
+  assert.equal((await moved.get("tth_other_slot_000", { conflicts: true }))._conflicts, undefined)
+  assert.equal((await moved.get("tth_other_slot_000")).createdAt, "remote")
+  assert.equal((await moved.get("tth_other_slot_001")).createdAt, "newer")
+  assert.equal((await local.get("tth_other_slot_000")).createdAt, "stale")
+})
+
 test("upgrading an earlier committed epoch reconciles into a new versioned local database", async t => {
   const w = await world(t), previous = w.named("previous"), canonical = w.named("canonical"), base = w.named("base").name
   const legacy = w.open(`${base}@next`)
