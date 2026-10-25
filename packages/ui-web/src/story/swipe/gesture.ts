@@ -1,7 +1,8 @@
 import { SwipeActionId } from "@once/app"
 import {
   getTouchGestureAxis,
-  getTouchGestureStart
+  getTouchGestureStart,
+  holdTouchScroll
 } from "../../gesture/touchGestureLock"
 import type { StoryListItem } from "../StoryListItem"
 import { commitSwipeAction } from "./commit"
@@ -71,6 +72,9 @@ export function attachStorySwipe(row: StoryListItem): void {
     row.swipePreview?.onTravel?.(offset)
   })
 
+  // Set while a touch swipe keeps the list from scrolling under it.
+  let release_scroll: (() => void) | null = null
+
   const mouse_swipe = (event: MouseEvent) => {
     if (!tracker.revealed) tracker.showReveal()
     tracker.move(event.pageX)
@@ -95,6 +99,7 @@ export function attachStorySwipe(row: StoryListItem): void {
       // release having registered almost nothing.
       tracker.anchor(getTouchGestureStart(scroller)?.x ?? one_touch.clientX)
       tracker.showReveal()
+      release_scroll = holdTouchScroll(row)
     }
     tracker.move(one_touch.clientX)
   }
@@ -144,13 +149,17 @@ export function attachStorySwipe(row: StoryListItem): void {
 
   const listen = () => {
     for (const [type, handler] of followers) {
-      document.addEventListener(type, handler)
+      // Not passive, or the preventDefault above would be ignored: browsers
+      // treat touch listeners on the document as passive by default.
+      document.addEventListener(type, handler, { passive: false })
     }
     row.parentElement?.addEventListener("scroll", end_swipe)
   }
 
   const reset_swipe = (hold = false) => {
     const released_from = tracker.reset(hold)
+    release_scroll?.()
+    release_scroll = null
     document.body.style.cursor = ""
     for (const [type, handler] of followers) {
       document.removeEventListener(type, handler)

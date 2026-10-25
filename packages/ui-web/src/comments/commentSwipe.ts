@@ -4,6 +4,8 @@
 // comment follows the finger a little and snaps back on release. Thresholds
 // are the Hacker News navigator userscript's, which feel right on a phone.
 
+import { holdTouchScroll } from "../gesture/touchGestureLock"
+
 const SWIPE_MIN_PX = 50
 /** Slower than this is a drag, not a swipe. */
 const SWIPE_MAX_MS = 600
@@ -27,6 +29,8 @@ interface Touching {
   y: number
   time: number
   moved: boolean
+  /** Lets the thread scroll again, once the swipe has held it. */
+  release?: () => void
 }
 
 const isHorizontal = (dx: number, dy: number) => Math.abs(dx) >= Math.abs(dy) * 2
@@ -42,6 +46,7 @@ export function attachCommentSwipe(root: HTMLElement, target: CommentSwipeTarget
   }
 
   const start = (event: TouchEvent) => {
+    touching?.release?.()
     touching = null
     if (event.touches.length !== 1) return
     const touch = event.touches[0]
@@ -60,6 +65,8 @@ export function attachCommentSwipe(root: HTMLElement, target: CommentSwipeTarget
     const dy = touch.clientY - touching.y
     // Only start following once the gesture is clearly horizontal.
     if (!touching.moved && (Math.abs(dx) < SLOP_PX || !isHorizontal(dx, dy))) return
+    if (event.cancelable) event.preventDefault()
+    if (!touching.moved) touching.release = holdTouchScroll(touching.main)
     touching.moved = true
     // Eased, so it feels like resistance and never runs off the screen.
     shift(touching.main, Math.sign(dx) * Math.min(Math.abs(dx) / 2, SWIPE_SHIFT_MAX))
@@ -69,6 +76,7 @@ export function attachCommentSwipe(root: HTMLElement, target: CommentSwipeTarget
     const done = touching
     touching = null
     if (!done) return
+    done.release?.()
     if (done.moved) shift(done.main, null)
     if (event.type !== "touchend" || event.changedTouches.length !== 1) return
     const touch = event.changedTouches[0]
@@ -80,7 +88,7 @@ export function attachCommentSwipe(root: HTMLElement, target: CommentSwipeTarget
   }
 
   root.addEventListener("touchstart", start, { passive: true })
-  root.addEventListener("touchmove", move, { passive: true })
+  root.addEventListener("touchmove", move, { passive: false })
   root.addEventListener("touchend", finish, { passive: true })
   root.addEventListener("touchcancel", finish, { passive: true })
   return () => {

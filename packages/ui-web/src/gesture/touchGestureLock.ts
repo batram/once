@@ -63,3 +63,30 @@ export function isTouchGestureActive(scroller: HTMLElement): boolean {
 export function endTouchGesture(scroller: HTMLElement): void {
   gestures.delete(scroller)
 }
+
+/**
+ * Stops the lists around `element` scrolling for the rest of a touch that
+ * turned out to be a sideways swipe.
+ *
+ * An iOS overflow scroller has no directional lock: it pans with any vertical
+ * drift of the finger, and it may already have started during the slop before
+ * the axis resolved, after which the swipe's preventDefault no longer counts.
+ * Android rails a mostly sideways pan, so a vertical list never moves there.
+ * Turning the scroller's overflow off is what WebKit honours mid-gesture: it
+ * disables the native scroll view, which ends its pan and any momentum.
+ *
+ * @returns the release, which gives each scroller its own overflow back
+ */
+export function holdTouchScroll(element: HTMLElement): () => void {
+  const held: [HTMLElement, string][] = []
+  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+    const overflow = getComputedStyle(node).overflowY
+    if (overflow !== "auto" && overflow !== "scroll") continue
+    held.push([node, node.style.overflowY])
+    node.style.overflowY = "hidden"
+  }
+  return () => {
+    for (const [node, overflow] of held) node.style.overflowY = overflow
+    held.length = 0
+  }
+}

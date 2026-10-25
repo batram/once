@@ -2,6 +2,7 @@ import {
   beginTouchGesture,
   endTouchGesture,
   getTouchGestureAxis,
+  holdTouchScroll,
   updateTouchGesture
 } from "@once/ui-web/gesture/touchGestureLock"
 
@@ -35,10 +36,13 @@ export function attachTraySwipe(threshold = DEFAULT_THRESHOLD): () => void {
   let canContinue = false
   let startX = 0
   let progress = 0
+  let releaseScroll: (() => void) | null = null
 
   const reset = (): void => {
     if (!tray) return
     endTouchGesture(tray)
+    releaseScroll?.()
+    releaseScroll = null
     delete tray.dataset.traySwipe
     delete tray.dataset.traySwipeAction
     tray.style.removeProperty("--tray-swipe-travel")
@@ -76,6 +80,8 @@ export function attachTraySwipe(threshold = DEFAULT_THRESHOLD): () => void {
       return
     }
     if (event.cancelable) event.preventDefault()
+    // The story list or reading view around the tray stays where it is.
+    releaseScroll ??= holdTouchScroll(tray)
     const delta = touch.clientX - startX
     // A tray with nowhere to continue to stays put when dragged right.
     const travel = delta > 0 && !canContinue ? 0 : delta

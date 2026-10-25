@@ -125,3 +125,22 @@ test("the tray follows the finger and the badge matches the direction", async ()
     assert.equal(tray.querySelector(".tray_swipe_indicator"), null)
   })
 })
+
+test("a sideways swipe holds the list around the tray still until release", async () => {
+  await withDom(({ window, tray }) => {
+    const list = window.document.body
+    list.style.overflowY = "scroll"
+    globalThis.getComputedStyle = (node) => ({ overflowX: "visible", overflowY: node === list ? "auto" : "visible" })
+    const message = tray.querySelector(".message")
+    message.dispatchEvent(touch(window, "touchstart", 300, 200))
+    message.dispatchEvent(touch(window, "touchmove", 296, 230))
+    assert.equal(list.style.overflowY, "scroll")
+    message.dispatchEvent(touch(window, "touchend"))
+    message.dispatchEvent(touch(window, "touchstart", 300, 200))
+    message.dispatchEvent(touch(window, "touchmove", 270, 204))
+    assert.equal(list.style.overflowY, "hidden")
+    message.dispatchEvent(touch(window, "touchmove", 220, 214))
+    message.dispatchEvent(touch(window, "touchend"))
+    assert.equal(list.style.overflowY, "scroll")
+  })
+})

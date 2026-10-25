@@ -130,7 +130,11 @@ for (const file of sourceFiles) {
       const property = match[1]
       const transientCursor = property === "cursor" &&
         file === "packages/ui-web/src/story/swipe/gesture.ts"
-      if (!reviewedRuntimeProperties.has(property) && !transientCursor) {
+      // A sideways swipe holds the list still and hands its overflow back
+      // on release; only a mid-gesture overflow change stops an iOS pan.
+      const transientScrollHold = property === "overflowY" &&
+        file === "packages/ui-web/src/gesture/touchGestureLock.ts"
+      if (!reviewedRuntimeProperties.has(property) && !transientCursor && !transientScrollHold) {
         failures.push(`Static inline style requires review: ${file}:${index + 1} ${property}`)
       }
     }
