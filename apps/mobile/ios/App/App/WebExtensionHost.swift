@@ -13,6 +13,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
     let store: ExtensionPackageStore
     /// Confirms installs and removals and picks local files; nil confirms silently (test hosts).
     var presenter: ExtensionInstallPresenter?
+    private var icons: [String: String] = [:]
     private var loading: Task<Void, Never>?
     private var reading: ExtensionTab?
     private var readingTabs: [ObjectIdentifier: ExtensionTab] = [:]
@@ -91,6 +92,20 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
         if isEnabled(entry.id) { try controller.load(context) }
     }
 
+    /// The packaged icon as the small PNG the settings rows and the browser sheet
+    /// draw, as Android sends it; rendered once per version, kept for the catalog.
+    private func iconDataUrl(for ext: WKWebExtension, id: String) -> String? {
+        let key = "\(id)@\(ext.version ?? "")"
+        if let cached = icons[key] { return cached.isEmpty ? nil : cached }
+        let size = CGSize(width: 40, height: 40)
+        let png = ext.icon(for: size).flatMap { image in
+            UIGraphicsImageRenderer(size: size, format: .default()).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }.pngData()
+        }
+        let value = png.map { "data:image/png;base64," + $0.base64EncodedString() } ?? ""
+        icons[key] = value
+        return value.isEmpty ? nil : value
+    }
+
     func makeContext(for ext: WKWebExtension, identifier: String, host: String) -> WKWebExtensionContext {
         let context = WKWebExtensionContext(for: ext)
         context.uniqueIdentifier = identifier
@@ -163,6 +178,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
         row["hasOptions"] = context.optionsPageURL != nil
         row["hasAction"] = ext.manifest["action"] != nil || ext.manifest["browser_action"] != nil
         row["permissions"] = ext.requestedPermissions.map(\.rawValue).sorted()
+        if let icon = iconDataUrl(for: ext, id: id) { row["iconDataUrl"] = icon }
         // WebKit's manifest notes (an empty `commands` entry, say) explain a failed
         // load; on a running extension they are compatibility notes, not a reason.
         let notes = context.errors.map(\.localizedDescription)
