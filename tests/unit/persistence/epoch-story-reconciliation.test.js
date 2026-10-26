@@ -22,12 +22,12 @@ async function fixture(t, localDoc, remoteDoc) {
   return { local, remote, previous, target, migrate }
 }
 
-test("unrelated parsed story differences retain the canonical revision without a prompt or write", async t => {
+test("legacy first observation survives epoch reconciliation with canonical parsed metadata", async t => {
   const f = await fixture(t, { timestamp: 99, title: "Other parse", ingested_at: 100 }, {})
   const before = (await f.remote.info()).update_seq
   await f.migrate()
   const result = await f.target.get(id, { conflicts: true })
-  assert.equal(result._rev, "1-remote")
+  assert.equal(result.ingested_at, 100)
   assert.equal(result.title, story.title)
   assert.equal(result._conflicts, undefined)
   assert.equal((await f.remote.info()).update_seq, before)

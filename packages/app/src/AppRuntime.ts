@@ -175,7 +175,7 @@ export class AppRuntime {
       }
       // Tab documents written here, by another window or panel, or pulled.
       if (this.sync.routeChange(change)) return
-      if (!change.id.startsWith("sto_")) {
+      if (!change.id.startsWith("sto_") && !change.id.startsWith("obs_")) {
         this.settings.handleObservedChange(change)
         return
       }

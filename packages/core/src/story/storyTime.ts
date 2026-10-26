@@ -6,13 +6,9 @@ export function storyTimestamp(value: string | number | Date): number {
   return Date.parse(/^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d(?:\.\d+)?)?$/.test(value) ? `${value}Z` : value)
 }
 
-const observed = new WeakMap<object, number>()
-
-/** A session-local display fallback. It never enters a replicated record. */
-export function storyDisplayTime(story: { timestamp: string | number | Date }): number {
+/** Publication time, then persisted first observation; never invent an age on load. */
+export function storyDisplayTime(story: { timestamp: string | number | Date; ingested_at?: unknown }): number {
   const timestamp = storyTimestamp(story.timestamp)
-  if (timestamp) return timestamp
-  let time = observed.get(story)
-  if (time === undefined) { time = Date.now(); observed.set(story, time) }
-  return time
+  if (Number.isFinite(timestamp) && timestamp > 0) return timestamp
+  return typeof story.ingested_at === "number" && Number.isFinite(story.ingested_at) && story.ingested_at > 0 ? story.ingested_at : 0
 }

@@ -649,7 +649,7 @@ export class PouchSyncService {
         doc,
         presentation
       }
-      if (doc._id.startsWith("sto_")) {
+      if (doc._id.startsWith("sto_") || doc._id.startsWith("obs_")) {
         this.remoteChangeHandlers.forEach((handler) => handler(change))
       } else if (isTabSyncChangeId(doc._id)) {
         // Deletions arrive as `_deleted` stubs and are routed the same way.

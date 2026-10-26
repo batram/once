@@ -6,6 +6,7 @@ export interface StoryTag {
 }
 
 export interface SubStory {
+  ingested_at?: number
   type: string
   comment_url: string
   timestamp: string | number | Date

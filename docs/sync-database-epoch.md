@@ -275,9 +275,30 @@ automatically deleted to settle a metadata conflict.
 
 New publication times are normalized to numeric UTC timestamps. Missing source
 dates use zero, including collector fallbacks that previously used `Date.now()` or
-relative-age estimates. Rendering/sorting can use a session-local observation time;
-that fallback is not serialized or represented as a known publication date.
+relative-age estimates. Rendering/sorting falls back to the earliest persisted
+observation, never the current session's load time. An undated legacy story with
+no retained observation shows "Unknown time" and sorts behind dated stories.
 Existing records are not bulk-rewritten to normalize their legacy representation.
+
+First observation is separate from the article revision. Immutable documents
+`obs_<encodeURIComponent(story URL)>|<milliseconds>` contain only `_id`, `href`
+and `ingested_at`. Discovery creates one only when no observation is known;
+refreshes reuse the existing minimum. Offline independent discoveries can add
+different observation documents, but cannot create article conflicts. Equal
+observations have identical IDs and bodies. Ordinary replication carries these
+records; readers query the URL's key range and take the minimum positive finite
+time together with any legacy article `ingested_at`. Live observation changes
+refresh only resident stories. This costs an extra indexed range read per loaded
+story and a small document per independent discovery, without scanning the archive.
+
+New article documents omit `ingested_at`. Legacy article values remain intact;
+conflict maintenance and epoch reconciliation retain their minimum before retiring
+branches. On the next normal save the legacy minimum is also seeded as an
+observation. Previously discarded times cannot be reconstructed. As with all
+client wall clocks, a badly set device clock can supply an inaccurate minimum.
+CouchDB/PouchDB provide no field-level exclusion from revision/conflict handling.
+`_local` documents avoid replication entirely, so cannot supply a cross-device
+minimum. Do not rewrite revision bodies using `new_edits: false` to bypass this.
 
 Repeated user actions with the same value do not stamp clocks or save. Genuine
 transitions retain clocks, including a toggle away and back; failed optimistic

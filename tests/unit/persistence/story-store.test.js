@@ -1,7 +1,22 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const { Story } = require("../../../packages/core/dist")
-const { PouchStoryStore } = require("../../../packages/persistence/dist")
+const { PouchStoryStore: RealPouchStoryStore } = require("../../../packages/persistence/dist")
+
+// These article-write unit doubles already have observation metadata. Real
+// sidecar persistence and replication are covered by story-ingestion-policy.
+class PouchStoryStore extends RealPouchStoryStore {
+  constructor(db, fromObj) {
+    const allDocs = db.allDocs?.bind(db)
+    super({ ...db, allDocs: async options => {
+      if (options.startkey?.startsWith("obs_")) {
+        const href = decodeURIComponent(options.startkey.slice(4, -1))
+        return { rows: [{ doc: { href, ingested_at: 1 } }] }
+      }
+      return allDocs(options)
+    } }, fromObj)
+  }
+}
 
 test("bulk story lookup reads each URL once and retains all found stories", async () => {
   const first = new Story("rss", "https://example.com/first", "First")

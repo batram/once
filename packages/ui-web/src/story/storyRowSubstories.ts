@@ -117,9 +117,10 @@ function buildInfoBlock(
   }
 
   const time = document.createElement("div")
-  time.innerText = humanTime(storyDisplayTime(sub_story_ob))
+  const displayTime = storyDisplayTime({ ...sub_story_ob, ingested_at: row.story.ingested_at })
+  time.innerText = displayTime ? humanTime(displayTime) : "Unknown time"
   try {
-    time.title = sub_story_ob.timestamp ? new Date(sub_story_ob.timestamp).toISOString() : "Publication time unknown; showing local observation time"
+    time.title = sub_story_ob.timestamp ? new Date(sub_story_ob.timestamp).toISOString() : displayTime ? `Publication time unknown; first seen ${new Date(displayTime).toISOString()}` : "Publication time unknown; first observation unavailable"
   } catch (e) {
     console.log("date parsing error", sub_story_ob)
   }

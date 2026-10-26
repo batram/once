@@ -15,6 +15,10 @@ export class StoryChangeReconciler {
   ) {}
 
   async observed(change: DatabaseChange): Promise<void> {
+    if (change.id.startsWith("obs_")) {
+      if (typeof change.doc?.href === "string") await this.observation(change.doc.href)
+      return
+    }
     if (change.doc?._deleted) {
       await this.removeUnlessStored(change.id.substring("sto_".length))
       return
@@ -44,7 +48,21 @@ export class StoryChangeReconciler {
     }
   }
 
+  async observation(href: string): Promise<void> {
+    const current = this.workingSet.get(href)
+    if (!current) return
+    const stored = await this.storyStore.getStory(href)
+    if (stored && current.ingested_at !== stored.ingested_at) {
+      current.ingested_at = stored.ingested_at
+      this.workingSet.set(href, current)
+    }
+  }
+
   async remote(change: DatabaseChange): Promise<void> {
+    if (change.id.startsWith("obs_") && typeof change.doc?.href === "string") {
+      await this.observation(change.doc.href)
+      return
+    }
     if (!change.id.startsWith("sto_") || !change.doc) return
 
     if (change.doc._deleted) {

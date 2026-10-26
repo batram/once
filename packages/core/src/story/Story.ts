@@ -18,6 +18,7 @@ export class Story {
   title: string
   comment_url: string
   timestamp: string | number | Date
+  ingested_at?: number
   filter: string
   substories: SubStory[]
   read_state: "unread" | "read" | "skipped"

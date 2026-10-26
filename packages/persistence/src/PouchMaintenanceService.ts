@@ -214,6 +214,9 @@ export function mergeStoryStateDocuments(
   candidate: Record<string, unknown>
 ): Record<string, unknown> {
   const merged = { ...current }
+  const observations = [current.ingested_at, candidate.ingested_at].filter(
+    (time): time is number => typeof time === "number" && Number.isFinite(time) && time > 0)
+  if (observations.length) merged.ingested_at = Math.min(...observations)
   const currentUpdates = timestampRecord(current.sync_updated_at)
   const candidateUpdates = timestampRecord(candidate.sync_updated_at)
   const mergedUpdates = { ...currentUpdates }
@@ -257,7 +260,7 @@ export function sameStoryStateDocuments(
   left: Record<string, unknown>,
   right: Record<string, unknown>
 ): boolean {
-  return synchronizedStoryFields.every((field) => left[field] === right[field]) &&
+  return left.ingested_at === right.ingested_at && synchronizedStoryFields.every((field) => left[field] === right[field]) &&
     JSON.stringify(left.tags || []) === JSON.stringify(right.tags || []) &&
     JSON.stringify(left.substories || []) === JSON.stringify(right.substories || []) &&
     JSON.stringify(timestampRecord(left.sync_updated_at)) ===

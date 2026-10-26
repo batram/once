@@ -25,9 +25,44 @@ test("new stories normalize time representations and never serialize local obser
   assert.equal(again._rev, saved._rev)
   const unknown = new Story("RSS", "https://example.test/unknown", "Unknown")
   assert.equal(unknown.timestamp, 0)
-  assert.ok(storyDisplayTime(unknown) > 0)
+  assert.equal(storyDisplayTime(unknown), 0)
   assert.equal(storyDisplayTime(unknown), storyDisplayTime(unknown))
   assert.equal(unknown.to_obj().timestamp, 0)
+})
+
+test("first observations replicate by minimum without article conflicts or refresh revisions", async t => {
+  const a = await fixture(t), b = await fixture(t)
+  const left = item(); left.ingested_at = 200
+  const right = item(); right.ingested_at = 100
+  await a.store.saveStory(left)
+  await b.store.saveStory(right)
+  assert.equal(left._rev, right._rev)
+  assert.equal((await a.db.get(left._id)).ingested_at, undefined)
+  await a.db.replicate.to(b.db)
+  await b.db.replicate.to(a.db)
+  for (const peer of [a, b]) {
+    const loaded = await peer.store.getStory(left.href)
+    assert.equal(loaded.ingested_at, 100)
+    assert.equal(storyDisplayTime(loaded), 100)
+    const sequence = (await peer.db.info()).update_seq
+    await peer.store.saveStory(item())
+    assert.equal((await peer.db.info()).update_seq, sequence)
+    assert.equal((await peer.db.get(left._id, { conflicts: true }))._conflicts, undefined)
+  }
+})
+
+test("legacy observation survives reload and is seeded without rewriting the article", async t => {
+  const { db, store } = await fixture(t)
+  const original = { ...item().to_obj(), _id: "sto_https://example.test/story", ingested_at: 100 }
+  const before = await db.put(original)
+  const loaded = await store.getStory(item().href)
+  assert.equal(storyDisplayTime(loaded), 100)
+  await store.saveStory(item())
+  assert.equal((await db.get(original._id))._rev, before.rev)
+  const reopenedStore = new PouchStoryStore(db, Story.from_obj.bind(Story))
+  assert.equal(storyDisplayTime(await reopenedStore.getStory(item().href)), 100)
+  const known = item(200)
+  assert.equal(Story.compare(loaded, known), 1)
 })
 
 test("independent discovery with equivalent dates or no dates mints identical revisions", async t => {

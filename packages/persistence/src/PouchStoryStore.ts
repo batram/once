@@ -94,12 +94,12 @@ export class PouchStoryStore<TStory extends Story> {
       ...(limit === undefined ? {} : { limit })
     })
 
-    return response.rows
+    return Promise.all(response.rows
       .filter((entry) => entry.doc)
       .map((entry) => {
         const doc = entry.doc as Record<string, unknown>
         return this.storyFromDocument(doc)
-      })
+      }))
   }
 
   async getStaredStories(): Promise<TStory[]> {
@@ -108,7 +108,7 @@ export class PouchStoryStore<TStory extends Story> {
       // too. A tiny changes-fed ID projection avoids that cold-start write storm.
       const read = this.starredReads.then(() => starredStoryDocuments(this.db))
       this.starredReads = read.then(() => undefined, () => undefined)
-      return (await read).map(doc => this.storyFromDocument(doc))
+      return Promise.all((await read).map(doc => this.storyFromDocument(doc)))
     }
     const indexOptions = {
       index: {
@@ -129,9 +129,9 @@ export class PouchStoryStore<TStory extends Story> {
       selector: { stared: { $eq: true } },
       use_index: ["once-stared", "stared-only"]
     })
-    return response.docs.map((doc) =>
+    return Promise.all(response.docs.map((doc) =>
       this.storyFromDocument(doc as unknown as Record<string, unknown>)
-    )
+    ))
   }
 
   async getStoriesByUrls(urls: string[]): Promise<Map<string, TStory>> {
@@ -141,11 +141,11 @@ export class PouchStoryStore<TStory extends Story> {
       keys: Array.from(new Set(urls), (url) => this.storyId(url))
     })
     const stories = new Map<string, TStory>()
-    response.rows.forEach((entry) => {
+    await Promise.all(response.rows.map(async (entry) => {
       if (!entry.doc) return
-      const story = this.storyFromDocument(entry.doc as Record<string, unknown>)
+      const story = await this.storyFromDocument(entry.doc as Record<string, unknown>)
       stories.set(story.href, story)
-    })
+    }))
     return stories
   }
 
@@ -211,11 +211,16 @@ export class PouchStoryStore<TStory extends Story> {
       // story, not a conflict. Nothing device-specific may go in: no clock,
       // no key order. Documents created before this keep their ingested_at.
       await fingerprintContent(story, pendingContent)
+      await this.observeStory(story)
       story._id = id
-      return this.writeDocument(story, canonicalDocument(storedAttachments({ ...story.to_obj(), _id: id })), pendingContent)
+      const document: Record<string, unknown> = { ...story.to_obj(), _id: id }
+      delete document.ingested_at
+      return this.writeDocument(story, canonicalDocument(storedAttachments(document)), pendingContent)
     }
 
-    const stored = this.storyFromDocument(doc)
+    const stored = await this.storyFromDocument(doc)
+    await this.observeStory(stored)
+    story.ingested_at = stored.ingested_at
     const associations = mergeStoryAssociations(stored, story)
     const reconciled = mergeStorySyncState(stored, story)
     if (options.derivedFilter) {
@@ -244,6 +249,7 @@ export class PouchStoryStore<TStory extends Story> {
     await fingerprintContent(story, pendingContent)
     const nextDocument = canonicalDocument(storedAttachments({ ...story.to_obj(), timestamp: doc.timestamp,
       substories: associations.substories }, doc))
+    delete nextDocument.ingested_at
     const mutable = new Set(["read_state", "stared", "filter", "sync_updated_at", "tags", "substories", "bucket", "stored_content"])
     for (const [key, value] of Object.entries(doc)) {
       if (!key.startsWith("_") && !mutable.has(key)) nextDocument[key] = value
@@ -303,9 +309,40 @@ export class PouchStoryStore<TStory extends Story> {
     }
   }
 
-  private storyFromDocument(
+  private async storyFromDocument(
     doc: Record<string, unknown>,
     fallbackUrl = String(doc._id ?? "").replace(/^sto_/, "")
+  ): Promise<TStory> {
+    const story = this.parseStoryDocument(doc, fallbackUrl)
+    await this.observeStory(story, false)
+    return story
+  }
+
+  /** Immutable observations cannot branch the article's revision tree. */
+  private async observeStory(story: TStory, create = true): Promise<void> {
+    // encodeURIComponent escapes |, so one URL's range cannot include another.
+    const prefix = `obs_${encodeURIComponent(story.href)}|`
+    const result = await this.db.allDocs({ startkey: prefix, endkey: `${prefix}\uffff`, include_docs: true })
+    const times = result.rows.flatMap(row => {
+      const doc = row.doc as Record<string, unknown> | undefined
+      return doc?.href === story.href && typeof doc.ingested_at === "number" && Number.isFinite(doc.ingested_at) && doc.ingested_at > 0 ? [doc.ingested_at] : []
+    })
+    if (typeof story.ingested_at === "number" && Number.isFinite(story.ingested_at) && story.ingested_at > 0) times.push(story.ingested_at)
+    const earliest = times.length ? Math.min(...times) : undefined
+    // Seed a legacy time too, so deleting old article branches cannot lose it.
+    if (create && (earliest === undefined || !result.rows.some(row => (row.doc as Record<string, unknown> | undefined)?.ingested_at === earliest))) {
+      const time = earliest ?? Date.now()
+      const observation = { _id: `${prefix}${time}`, href: story.href, ingested_at: time }
+      try { await this.db.put(observation) } catch (error) {
+        if ((error as { status?: number }).status !== 409) throw error
+      }
+      story.ingested_at = time
+    } else if (earliest !== undefined) story.ingested_at = earliest
+  }
+
+  private parseStoryDocument(
+    doc: Record<string, unknown>,
+    fallbackUrl: string
   ): TStory {
     try {
       return this.fromObj(doc)
