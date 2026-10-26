@@ -6,8 +6,13 @@ import WebKit
 @MainActor
 final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebExtensionWindow {
     let controller: WKWebExtensionController
-    private var contexts: [String: WKWebExtensionContext] = [:]
-    private var failures: [String: String] = [:]
+    var contexts: [String: WKWebExtensionContext] = [:]
+    var failures: [String: String] = [:]
+    /// User-installed packages, in install order, as the catalog file records them.
+    var installed: [InstalledExtension] = []
+    let store: ExtensionPackageStore
+    /// Confirms installs and removals and picks local files; nil confirms silently (test hosts).
+    var presenter: ExtensionInstallPresenter?
     private var loading: Task<Void, Never>?
     private var reading: ExtensionTab?
     private var readingTabs: [ObjectIdentifier: ExtensionTab] = [:]
@@ -18,15 +23,16 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
     private weak var parent: UIView?
     var changed: () -> Void = {}
     var pageChanged: ([String: Any]) -> Void = { _ in }
-    private let bundles: [(id: String, directory: String, name: String)] = [
+    let bundles: [(id: String, directory: String, name: String)] = [
         ("ublock-origin-lite", "ublock-origin-lite", "uBlock Origin Lite"),
         ("addon@darkreader.org", "darkreader", "Dark Reader"),
         ("sponsorBlocker@ajay.app", "sponsorblock", "SponsorBlock"),
         ("{aecec67f-0d10-4fa7-b7c7-609a2db280cf}", "violentmonkey", "Violentmonkey")
     ]
 
-    init(configuration: WKWebExtensionController.Configuration? = nil) {
+    init(configuration: WKWebExtensionController.Configuration? = nil, store: ExtensionPackageStore = .default) {
         controller = WKWebExtensionController(configuration: configuration ?? .default())
+        self.store = store
         super.init()
         controller.delegate = self
     }
@@ -37,6 +43,12 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
             for bundle in bundles {
                 do { try await loadBundle(bundle) }
                 catch { failures[bundle.id] = error.localizedDescription }
+            }
+            installed = store.load()
+            store.prune(keeping: installed)
+            for entry in installed {
+                do { try await loadInstalled(entry) }
+                catch { failures[entry.id] = error.localizedDescription }
             }
             changed()
         }
@@ -53,17 +65,14 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
             throw hostError("Bundled \(bundle.name) resources are missing. Run the iOS asset build.")
         }
         let ext = try await WKWebExtension(resourceBaseURL: url)
-        let context = WKWebExtensionContext(for: ext)
         // Stable identities and base URLs preserve extension storage across launches.
-        context.uniqueIdentifier = bundle.id == "ublock-origin-lite" ? "once.ublock-origin-lite" : bundle.id
-        context.baseURL = URL(string: "webkit-extension://once-\(bundle.directory)/")!
-        for permission in ext.requestedPermissions { context.setPermissionStatus(.grantedExplicitly, for: permission) }
-        for pattern in ext.requestedPermissionMatchPatterns.union(ext.allRequestedMatchPatterns) { context.setPermissionStatus(.grantedExplicitly, for: pattern) }
+        let context = makeContext(for: ext, identifier: bundle.id == "ublock-origin-lite" ? "once.ublock-origin-lite" : bundle.id,
+                                  host: "once-\(bundle.directory)")
         if bundle.directory == "ublock-origin-lite", let all = try? WKWebExtension.MatchPattern(string: "<all_urls>") {
             context.setPermissionStatus(.grantedExplicitly, for: all)
         }
         contexts[bundle.id] = context
-        if UserDefaults.standard.bool(forKey: "once.extension.disabled.\(bundle.id)") != true {
+        if isEnabled(bundle.id) {
             try controller.load(context)
             // uBO installs its rules before the first navigation. Other event-page
             // backgrounds wake through WebKit when content scripts or tools need them.
@@ -72,6 +81,31 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
             }
         }
     }
+
+    /// A user-installed package from the catalog; its enabled state is the same switch bundles use.
+    private func loadInstalled(_ entry: InstalledExtension) async throws {
+        guard !contexts.keys.contains(entry.id) else { throw hostError("\(entry.name) is included with Once") }
+        let ext = try await WKWebExtension(resourceBaseURL: store.directory(entry.directory))
+        let context = makeContext(for: ext, identifier: entry.id, host: WebExtensionHost.hostName(for: entry.id))
+        contexts[entry.id] = context
+        if isEnabled(entry.id) { try controller.load(context) }
+    }
+
+    func makeContext(for ext: WKWebExtension, identifier: String, host: String) -> WKWebExtensionContext {
+        let context = WKWebExtensionContext(for: ext)
+        context.uniqueIdentifier = identifier
+        context.baseURL = URL(string: "webkit-extension://\(host)/")!
+        for permission in ext.requestedPermissions { context.setPermissionStatus(.grantedExplicitly, for: permission) }
+        for pattern in ext.requestedPermissionMatchPatterns.union(ext.allRequestedMatchPatterns) { context.setPermissionStatus(.grantedExplicitly, for: pattern) }
+        return context
+    }
+
+    /// A stable origin for any Firefox id (ids may carry braces and @), so storage survives updates.
+    static func hostName(for id: String) -> String {
+        "once-x" + ExtensionSource.sha256(Data(id.utf8)).prefix(24)
+    }
+
+    func isEnabled(_ id: String) -> Bool { UserDefaults.standard.bool(forKey: "once.extension.disabled.\(id)") != true }
 
     /// Every surface is a tab of this one window: it opens with the first and
     /// closes with the last. Selection, not attachment, focuses it.
@@ -109,21 +143,32 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
     }
 
     func catalog() -> [[String: Any]] {
-        bundles.map { bundle in
-            guard let context = contexts[bundle.id] else {
-                return ["id": bundle.id, "name": bundle.name, "description": "Bundled browser extension",
-                        "version": "", "enabled": false, "bundled": true, "hasOptions": false,
-                        "hasAction": false, "permissions": [], "disabledReason": failures[bundle.id] ?? ""]
-            }
-            let ext = context.webExtension
-            return ["id": bundle.id, "name": ext.displayName ?? bundle.name,
-                    "description": ext.displayDescription ?? "", "version": ext.version ?? "",
-                    "enabled": context.isLoaded, "bundled": true,
-                    "hasOptions": context.optionsPageURL != nil,
-                    "hasAction": ext.manifest["action"] != nil || ext.manifest["browser_action"] != nil,
-                    "permissions": ext.requestedPermissions.map(\.rawValue).sorted(),
-                    "disabledReason": ([failures[bundle.id]].compactMap { $0 } + context.errors.map(\.localizedDescription)).joined(separator: "\n")]
-        }
+        bundles.map { entry(id: $0.id, name: $0.name, version: "", installed: nil) } +
+            installed.map { entry(id: $0.id, name: $0.name, version: $0.version, installed: $0) }
+    }
+
+    /// The row the settings page shows; a bundle names no source, its row says "Included with Once".
+    private func entry(id: String, name: String, version: String, installed: InstalledExtension?) -> [String: Any] {
+        var row: [String: Any] = ["id": id, "name": name, "version": version, "bundled": installed == nil,
+                                  "description": installed == nil ? "Bundled browser extension" : "Installed browser extension",
+                                  "enabled": false, "hasOptions": false, "hasAction": false, "permissions": [],
+                                  "warnings": installed?.warnings ?? [], "disabledReason": failures[id] ?? ""]
+        if let installed { row["source"] = installed.source }
+        guard let context = contexts[id] else { return row }
+        let ext = context.webExtension
+        row["name"] = ext.displayName ?? name
+        row["description"] = ext.displayDescription ?? ""
+        row["version"] = ext.version ?? version
+        row["enabled"] = context.isLoaded
+        row["hasOptions"] = context.optionsPageURL != nil
+        row["hasAction"] = ext.manifest["action"] != nil || ext.manifest["browser_action"] != nil
+        row["permissions"] = ext.requestedPermissions.map(\.rawValue).sorted()
+        // WebKit's manifest notes (an empty `commands` entry, say) explain a failed
+        // load; on a running extension they are compatibility notes, not a reason.
+        let notes = context.errors.map(\.localizedDescription)
+        row["disabledReason"] = ([failures[id]].compactMap { $0 } + (context.isLoaded ? [] : notes)).joined(separator: "\n")
+        if installed == nil { row["warnings"] = notes }
+        return row
     }
 
     func command(_ action: String, id: String, enabled: Bool) throws -> [String: Any] {
@@ -145,7 +190,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
             guard let reading else { return ["noPage": true] }
             context.userGesturePerformed(in: reading)
             context.performAction(for: reading)
-        default: throw hostError("iOS currently supports bundled extensions only")
+        default: throw hostError("Unknown extension command \(action)")
         }
         return ["extensions": catalog()]
     }
@@ -264,7 +309,7 @@ extension WebExtensionHost {
     }
 }
 
-private func hostError(_ message: String) -> NSError {
+func hostError(_ message: String) -> NSError {
     NSError(domain: "OnceWebExtensions", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
 }
 

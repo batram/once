@@ -92,6 +92,8 @@ const entry = {
   "image-text-probe": path.join(__dirname, "src", "imageTextProbe.ts"),
   "image-text-overlay": path.join(__dirname, "src", "imageTextOverlayView.ts"),
   "page-find": path.join(__dirname, "src", "pageFindRuntime.ts"),
+  // iOS: the document-start script that makes addons.mozilla.org add to Once.
+  "amo-page-shim": path.join(__dirname, "src", "amoPageShim.ts"),
   "addon-sandbox": path.join(__dirname, "src", "addonSandbox.ts"),
   "pdf-sandbox": path.join(__dirname, "src", "pdfSandbox.ts")
 }

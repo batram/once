@@ -70,14 +70,41 @@ test("Firefox Add-ons catalog opens in the mobile reading view", async () => {
   assert.deepEqual(ui.openedUrls, ["https://addons.mozilla.org/en-US/firefox/"])
 })
 
-test("iOS exposes bundled extension controls without promising Firefox installation", async () => {
+test("iOS exposes bundled extension controls and offers WebKit installation", async () => {
   const ui = harness(async () => ({ extensions: [{ id: "ublock-origin-lite", name: "uBlock Origin Lite", version: "1", description: "Blocker", enabled: false, bundled: true, hasOptions: false, hasAction: false, permissions: [], disabledReason: "Requires iOS 18.6" }] }), true, "ios")
   await settle()
-  assert.equal(ui.document.body.textContent.includes("Safari-compatible"), true)
-  assert.equal(ui.document.body.textContent.includes("Install extension"), false)
+  assert.equal(ui.document.body.textContent.includes("WebKit"), true)
+  assert.equal(ui.document.body.textContent.includes("Safari-compatible"), false)
+  assert.ok([...ui.document.querySelectorAll("button")].some(button => button.textContent === "Install extension"))
   await ui.click("Manage uBlock Origin Lite")
   assert.equal(ui.document.body.textContent.includes("Requires iOS 18.6"), true)
   assert.equal(ui.document.body.textContent.includes("Check for update"), false)
+  assert.equal(ui.document.body.textContent.includes("Compatibility notes"), false)
+  await ui.click("Browser Extensions")
+  await ui.click("Install extension")
+  assert.ok([...ui.document.querySelectorAll("button")].some(button => button.textContent === "Choose XPI or ZIP file…"))
+  assert.equal(ui.document.body.textContent.includes("Local files are not signature-verified."), true)
+  assert.equal(ui.document.body.textContent.includes("Compatibility depends on what iOS WebKit supports"), true)
+  assert.equal(ui.document.body.textContent.includes("Choose signed XPI file…"), false)
+})
+
+test("iOS installed extensions show compatibility notes, their source and management controls", async () => {
+  const ui = harness(async () => ({ extensions: [{ id: "ublock", name: "uBlock Origin", version: "1.60", description: "Blocker",
+    enabled: true, bundled: false, hasOptions: true, hasAction: true, permissions: ["webRequest"], disabledReason: "",
+    source: "https://addons.mozilla.org/en-US/firefox/addon/ublock-origin/",
+    warnings: ["Not available on iOS: webRequestBlocking"] }] }), true, "ios")
+  await settle()
+  await ui.click("Manage uBlock Origin")
+  const text = ui.document.body.textContent
+  assert.equal([...ui.document.querySelectorAll("h4")].some(heading => heading.textContent === "Compatibility notes"), true)
+  assert.equal(text.includes("Not available on iOS: webRequestBlocking"), true)
+  assert.equal(text.includes("Installed from https://addons.mozilla.org/en-US/firefox/addon/ublock-origin/"), true)
+  assert.equal(ui.document.querySelector('a[href*="ublock-origin"]'), null)
+  const labels = [...ui.document.querySelectorAll("button")].map(button => button.textContent)
+  assert.ok(labels.includes("Check for update"))
+  assert.ok(labels.includes("Remove extension…"))
+  await ui.click("Remove extension…")
+  assert.equal(ui.document.body.textContent.includes("Remove uBlock Origin and its extension data from this device?"), true)
 })
 
 test("Hidden extension settings do not start Gecko until opened", async () => {

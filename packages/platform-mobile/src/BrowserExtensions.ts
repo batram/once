@@ -13,6 +13,10 @@ export interface MobileBrowserExtension {
   hasAction: boolean
   permissions: string[]
   disabledReason: string
+  /** Where it was installed from: an AMO URL, "Local XPI (signature not verified)", or "Included with Once". */
+  source?: string
+  /** Compatibility notes the native host computed, e.g. "Not available on iOS: webRequestBlocking". */
+  warnings?: string[]
 }
 
 export interface MobileExtensionCommand {

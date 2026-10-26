@@ -1,3 +1,4 @@
+import UIKit
 import WebKit
 
 // Navigation reporting for a tab's surface: the WKNavigationDelegate callbacks
@@ -96,6 +97,20 @@ extension InAppBrowserSurfacePlugin {
             + "Version/\(os.majorVersion).\(os.minorVersion) Safari/605.1.15"
     }
 
+    /// An XPI link tapped in a page installs through the same review as the
+    /// settings page; the result reaches the user as a sheet, not a download.
+    func installExtension(from url: URL) {
+        Task { @MainActor in
+            await extensions.prepare()
+            do { _ = try await extensions.perform("install", id: "", source: url.absoluteString, enabled: true) }
+            catch {
+                let alert = UIAlertController(title: "Extension not installed", message: error.localizedDescription, preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                bridge?.viewController?.present(alert, animated: true)
+            }
+        }
+    }
+
     private func decidePolicy(
         for navigationAction: WKNavigationAction,
         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
@@ -109,6 +124,12 @@ extension InAppBrowserSurfacePlugin {
         if navigationAction.targetFrame == nil, navigationAction.navigationType == .linkActivated,
            embeddable(url.absoluteString) != nil {
             decisionHandler(.allow)
+            return
+        }
+        // A Mozilla Add-ons package link is an install request, as on Electron.
+        if navigationAction.targetFrame?.isMainFrame != false, ExtensionSource.kind(of: url.absoluteString) == .download {
+            installExtension(from: url)
+            decisionHandler(.cancel)
             return
         }
         switch extensions.navigationDisposition(for: url, targetIsMainFrame: navigationAction.targetFrame?.isMainFrame) {

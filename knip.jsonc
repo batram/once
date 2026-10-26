@@ -136,6 +136,8 @@
         "src/imageTextOverlayView.ts",
         // The find engine the iOS surface plugin evaluates in the page.
         "src/pageFindRuntime.ts",
+        // The document-start script iOS injects on addons.mozilla.org.
+        "src/amoPageShim.ts",
         "src/readerRuntime.ts",
         // Once Lite (Android): the extension runtime broker page and the
         // scripts Java injects into extension pages, content worlds and tabs.

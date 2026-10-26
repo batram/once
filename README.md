@@ -34,8 +34,10 @@ see [Development](docs/DEVELOPMENT.md) to build them.
   folder or ZIP; the AI "What? Wait, who, why?" add-on comes bundled and can
   be removed
 - Firefox extensions in the embedded browsers: uBlock Origin and
-  Violentmonkey are bundled on Electron and both Android apps, and any signed
-  Firefox extension can be installed
+  Violentmonkey are bundled on Electron and both Android apps, uBlock Origin
+  Lite, Dark Reader, SponsorBlock and Violentmonkey on iOS, and Firefox
+  extensions from addons.mozilla.org or a file can be installed on every one
+  of them (iOS runs them through WebKit's extension host, adapted on the device)
 
 ## Quick start
 

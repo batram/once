@@ -11,6 +11,8 @@ const device = process.argv[2]
 if (!device) throw new Error("Pass the UUID of a booted iOS 18.4+ simulator")
 const run = (cmd, args) => execFileSync(cmd, args, { cwd: root, encoding: "utf8" }).trim()
 const bundleID = "com.once.hosttest"
+// The production host and the installer it now depends on (no UIKit prompts: the harness confirms silently).
+const hostSources = ["WebExtensionHost.swift", "WebExtensionManagement.swift", "WebExtensionInstaller.swift", "ExtensionArchive.swift"]
 
 async function main() {
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "once-extension-host-"))
@@ -29,13 +31,16 @@ async function main() {
     MinimumOSVersion: "18.4", LSRequiresIPhoneOS: true, UILaunchScreen: {}
   }))
   run("plutil", ["-convert", "xml1", info])
+  // The app's inspector switch is a Capacitor plugin; the host only asks it to track views.
+  const inspector = path.join(temporary, "WebInspector.swift")
+  fs.writeFileSync(inspector, "import WebKit\nenum WebInspector { static func track(_ view: WKWebView) { view.isInspectable = true } }\n")
   const sdk = run("xcrun", ["--sdk", "iphonesimulator", "--show-sdk-path"])
   const arch = process.arch === "arm64" ? "arm64" : "x86_64"
   run("xcrun", ["--sdk", "iphonesimulator", "swiftc", "-parse-as-library", "-target", `${arch}-apple-ios18.4-simulator`,
     "-sdk", sdk, path.join(__dirname, "ios-extension-host.swift"),
     path.join(__dirname, "ios-violentmonkey-host.swift"),
     path.join(__dirname, "ios-ublock-tools.swift"),
-    "apps/mobile/ios/App/App/WebExtensionHost.swift", "-o", path.join(app, "Host")])
+    ...hostSources.map(name => `apps/mobile/ios/App/App/${name}`), inspector, "-o", path.join(app, "Host")])
   run("codesign", ["--force", "--sign", "-", app])
   try { run("xcrun", ["simctl", "terminate", device, bundleID]) } catch { /* not running */ }
   run("xcrun", ["simctl", "uninstall", device, bundleID])

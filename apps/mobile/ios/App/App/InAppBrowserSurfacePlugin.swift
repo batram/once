@@ -178,8 +178,12 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                                                     injectionTime: .atDocumentStart, forMainFrameOnly: false)
     private(set) lazy var extensions: WebExtensionHost = {
         let host = WebExtensionHost()
-        host.changed = { [weak self] in self?.notifyListeners("extensionsChanged", data: [:]) }
+        host.changed = { [weak self] in
+            self?.notifyListeners("extensionsChanged", data: [:])
+            self?.notifyAmoPages()
+        }
         host.pageChanged = { [weak self] in self?.notifyListeners("extensionPageChanged", data: $0) }
+        host.presenter = ExtensionPrompts(controller: { [weak self] in self?.bridge?.viewController })
         return host
     }()
 
@@ -212,6 +216,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         }
         installMediaObserver(configuration.userContentController)
         installContextMenuTracker(configuration.userContentController)
+        installAmoBridge(configuration.userContentController)
         // iPhone WebKit defaults to fullscreen-only video; like Safari, play
         // inline wherever the page allows it (playsinline).
         configuration.allowsInlineMediaPlayback = true
@@ -574,8 +579,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                 ensureSurface()?.isHidden = true
             }
             do {
-                call.resolve(try extensions.command(action, id: call.getString("id") ?? "",
-                                                    enabled: call.getBool("enabled") ?? true))
+                call.resolve(try await extensions.perform(action, id: call.getString("id") ?? "", source: call.getString("source"),
+                                                          enabled: call.getBool("enabled") ?? true))
             } catch { call.reject(error.localizedDescription) }
         }
     }

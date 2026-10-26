@@ -47,7 +47,9 @@ export function amoShim(): void {
 
   // AMO's client trusts the user agent its server saw. Both the raw string
   // and the parsed browser live in the serialized store; patched once the
-  // parser has moved past the script, before the bundle reads it.
+  // parser has moved past the script, before the bundle reads it. A phone
+  // host (iOS WebKit) also has its OS rewritten to the one the string names:
+  // AMO disables the install button outright for Firefox on iOS or Android.
   const FIREFOX_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:143.0) Gecko/20100101 Firefox/143.0"
   const observer = new MutationObserver(() => {
     const script = document.getElementById("redux-store-state")
@@ -56,6 +58,8 @@ export function amoShim(): void {
     script.textContent = script.textContent
       .replace(/"userAgent":"[^"]*"/, () => `"userAgent":${JSON.stringify(FIREFOX_UA)}`)
       .replace(/"userAgentInfo":\{"browser":\{[^}]*\}/, '"userAgentInfo":{"browser":{"name":"Firefox","version":"143.0","major":"143"}')
+      .replace(/("userAgentInfo":\{"browser":\{[^}]*\})(?:,"device":\{[^}]*\})?,"os":\{"name":"(?:iOS|Android)"[^}]*\}/,
+        '$1,"device":{},"os":{"name":"Windows","version":"10"}')
   })
   observer.observe(document, { childList: true, subtree: true })
 

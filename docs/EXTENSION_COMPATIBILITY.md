@@ -8,7 +8,7 @@ embedded browsing surface. Their configuration and runtime ownership are separat
 | Electron | Declarative contributions and sandboxed scripts | Bundled extensions plus user-installed Firefox MV2 and MV3 XPIs; see the management and API limits below |
 | Android | Declarative contributions and sandboxed scripts in the app shell | GeckoView built-ins and user-installed signed Firefox extensions; synced additions handled by Once's bridge |
 | Android Lite | The same app shell | Bundled uBlock Origin and Violentmonkey plus user-installed Firefox XPIs in Once's own runtime over the system WebView; see [Once Lite (WebView)](#once-lite-webview) |
-| iOS | Shared add-on implementation; device validation remains required | Explicit WebKit-adapted bundles through `WKWebExtensionController`, plus supplemental content rules and the small GM shim |
+| iOS | Shared add-on implementation; device validation remains required | Bundled WebKit-adapted extensions plus user-installed Firefox XPIs through `WKWebExtensionController`, with supplemental content rules and the small GM shim; see [iOS](#installing-and-managing-firefox-extensions-on-ios) |
 | Chrome side panel | Declarative contributions and sandboxed scripts | Browser-native extensions remain the user's browser configuration |
 | Firefox side panel | Declarative contributions and sandboxed scripts in the packaged MV2 extension; no hosting setup | Browser-native extensions remain the user's browser configuration |
 
@@ -83,9 +83,11 @@ are cached by content hash (four recent identifiers). An empty list clears the
 installed rules; failed compilation preserves the working rules.
 
 The iOS host loads bundled uBlock Origin Lite, Dark Reader, SponsorBlock and
-Violentmonkey contexts. It awaits uBO background readiness before navigation;
-the other backgrounds wake through WebKit events as needed. These are adapted,
-pinned bundles, not support for installing arbitrary Firefox XPIs. The host needs
+Violentmonkey contexts, then the user's installed packages. It awaits uBO
+background readiness before navigation; the other backgrounds wake through
+WebKit events as needed. The bundles are adapted and pinned at build time;
+installed packages are adapted on the device as described under
+[iOS](#installing-and-managing-firefox-extensions-on-ios). The host needs
 iOS 18.4 or later; the bundled uBO Lite release requires iOS 18.6 or later.
 
 The portable examples live in `tests/fixtures/extensions/portable-filters.json`.
@@ -221,7 +223,7 @@ background-page load is not proof that every feature works. This custom runtime
 is not a full implementation of Firefox's API or permission model. Install only
 extensions whose source you trust. Android uses GeckoView's own installer and
 permission model, described below. Arbitrary storage sync selection remains an
-Electron feature; iOS hosts only the explicit WebKit-adapted bundles described above.
+Electron feature; iOS installs through WebKit's own extension host, described below.
 
 ## Installing and managing Firefox extensions on Android
 
@@ -245,6 +247,138 @@ Account sync, a browser bookmarks/history database, a full tab strip, or a
 general Android download manager. Page-action-only extensions and extension
 pages requiring unimplemented browser UI delegates may need further host work.
 See [Android architecture, limits, and validation](plans/android-gecko-extension-management.md).
+
+## Installing and managing Firefox extensions on iOS
+
+Settings → Browser Extensions lists the bundled extensions and every package the
+user installed, including disabled entries. Install extension accepts a Firefox
+Add-ons listing URL, one of its XPI download links, or a local XPI/ZIP chosen in
+the Files picker. Tapping an XPI download link in a page opened in Once goes
+through the same install instead of a download, and the Add-ons site itself
+installs into Once when browsed in a tab: as on Electron and Once Lite, the
+shared AMO shim (`packages/webext-runtime/src/amoShim.ts`) runs as a
+document-start script in the page's own world (`apps/mobile/src/amoPageShim.ts`,
+bundled as `amo-page-shim.js`), rewrites AMO's server state to name Firefox
+and supplies `navigator.mozAddonManager` over a reply message handler that the
+native side (`AmoInstallBridge.swift`) answers only for `addons.mozilla.org`'s
+top frame. AMO then shows its own "Add to Once", installed, enabled and Remove
+states; the install URL is the page's, as WebKit reports it, and the native
+review sheet confirms before anything is kept. The native side
+(`WebExtensionInstaller.swift`, `WebExtensionManagement.swift`,
+`ExtensionArchive.swift`) does what the Electron package rules do: a listing is
+resolved through Mozilla's API, the download must stay on Mozilla's hosts and
+match the published SHA-256 hash and GUID, a direct XPI link must be the file
+Mozilla currently lists for the id the package declares, local files are
+labelled "signature not verified", and the archive is checked for size,
+entry-count and path safety before extraction (32 MB archive, 128 MB expanded,
+10000 entries). A package without a Gecko id (`browser_specific_settings.gecko.id`)
+is refused, as are the ids of the bundled extensions, which update with Once.
+
+Before anything is kept, a native sheet shows the extension name, version,
+description, source, requested permissions and host patterns, the adaptations
+Once applied and the limitations it found; Cancel discards the unpacked
+package. The package is adapted for WebKit by rewriting only `manifest.json`:
+a Manifest V2 background page or script list becomes a non-persistent event
+page (iOS has no persistent background pages, WebKit refuses them), and a
+Manifest V3 `service_worker` runs as an event page script, as it would in
+Firefox. Upstream code is untouched. Permissions WebKit does not know are
+dropped by WebKit itself; Once lists them under "Compatibility notes" on the
+extension's page, and names `webRequestBlocking` explicitly because without
+blocking request listeners a filtering extension cannot filter (uBlock Origin
+installs and shows its dashboard, but blocks nothing; uBO Lite's
+`declarativeNetRequest` rules are what WebKit enforces). WebKit's own manifest
+parse errors join the same notes.
+
+Installed packages live under the app's Application Support directory with a
+catalog file; each extension keeps a stable unique identifier and
+`webkit-extension://` origin derived from its id, so storage survives updates.
+Updates re-run the install from the recorded Add-ons URL (a package installed
+from a file is updated by choosing the new file) and keep the enabled state; a
+version that fails to load restores the previous one. Removal asks first, then
+unloads the context, deletes WebKit's data for the extension and its package.
+Enabled state is kept per device; nothing about installed extensions syncs.
+Optional permission requests are not prompted and resolve as denied.
+
+Compatibility is whatever iOS WebKit's `WKWebExtension` implements: content
+scripts, event-page backgrounds, storage, `declarativeNetRequest`, popups and
+options pages, tabs/windows approximations through Once's single window. There
+is no blocking `webRequest`, no `contextualIdentities`, `downloads`,
+`nativeMessaging`, `bookmarks`, `history`, `sessions`, `identity`, `management`,
+`privacy`, `proxy` or `theme`, and extensions that rely on a persistent
+background lose in-memory state when the event page unloads. Installation
+proves that the package parses and its background loads, not that every feature
+works. `npm run test:mobile:e2e:ios:extension-compat -- <simulator UUID>`
+downloads the add-ons in `tests/e2e/mobile/fixtures/ios-extension-compat.json`,
+installs each through the real installer in a throwaway simulator app and
+writes `artifacts/extension-support/ios-compat-report.md` with what loaded,
+what WebKit dropped and which extension pages opened; see
+[iOS compatibility results](#ios-compatibility-results) for the last recorded run.
+
+### iOS compatibility results
+
+Recorded on 2026-10-26 from `npm run test:mobile:e2e:ios:extension-compat` on an
+iPhone 17 Pro simulator running iOS 26.5, with the then-current Add-ons
+releases. Each package went through the real review → install → remove path;
+"Background" is whether `loadBackgroundContent` resolved, "Content" whether
+WebKit reports injected content for an `https://example.com` page, and
+"Popup/Options" whether the action popup (or the options page) opened and had
+text three seconds later. Limitations are what the review sheet shows,
+shortened: "no blocking webRequest" is the `webRequestBlocking` note, "missing"
+lists permissions WebKit does not implement. Background error counts come from
+the extension's own pages (`error`, `unhandledrejection`, `console.error`).
+
+| Extension | MV | Loads | Background | Content | Popup/Options | Limitations |
+| --- | --- | --- | --- | --- | --- | --- |
+| uBlock Origin 1.75.0 | 2 | yes | loaded (1 error) | yes | popup renders | no blocking webRequest; missing: dns, privacy |
+| Privacy Badger 2026.9.15 | 2 | yes | loaded (2 errors) | yes | popup empty | no blocking webRequest; missing: privacy |
+| Decentraleyes 3.0.2 | 3 | yes | loaded (3 errors) | no | popup renders | no blocking webRequest; missing: privacy |
+| ClearURLs 1.27.3 | 2 | yes | loaded (2 errors) | no | popup renders | no blocking webRequest; missing: downloads |
+| LocalCDN 2.6.86 | 2 | yes | loaded | no | popup renders | no blocking webRequest; missing: privacy |
+| NoScript 13.6.36 | 2 | yes | loaded (5 errors) | yes | options render | no blocking webRequest; missing: dns, webRequestFilterResponse |
+| Stylus 2.4.17 | 2 | yes | loaded (1 error) | yes | popup renders | no blocking webRequest |
+| Tampermonkey 5.5.0 | 2 | yes | loaded (1 error) | no | popup empty | no blocking webRequest; missing: contextualIdentities, downloads, idle |
+| Return YouTube Dislike 4.0.6 | 2 | yes | loaded | no | popup renders | missing: identity |
+| I still don't care about cookies 1.1.9 | 2 | yes | loaded | no | popup renders | no blocking webRequest |
+| Consent-O-Matic 1.1.5 | 3 | yes | loaded | yes | popup renders | none |
+| Tranquility Reader 3.0.26 | 2 | yes | loaded | no | options render | none |
+| Redirector 3.5.3 | 2 | yes | loaded (1 error) | no | popup renders | no blocking webRequest |
+| Vimium 2.4.2 | 3 | yes | loaded (1 error) | yes | popup renders | missing: bookmarks, clipboardRead, history, search, sessions |
+| Read Aloud 1.83.2 | 2 | yes | loaded | no | popup renders | missing: identity |
+| Simple Translate 3.1.0 | 3 | yes | loaded | yes | popup renders | none |
+| Old Reddit Redirect 3.0.3 | 3 | yes | loaded | no | no popup | static DNR ruleset rejected by WebKit (see below) |
+| Firefox Multi-Account Containers 8.3.8 | 2 | yes | loaded (4 errors) | yes | popup empty | no blocking webRequest; missing: contextualIdentities, history, idle, management |
+| Ghostery 10.6.9 | 2 | yes | loaded (4 errors) | yes | popup empty | no blocking webRequest |
+| DuckDuckGo Privacy Essentials 2026.10.6 | 2 | yes | loaded (1 error) | yes | popup empty | no blocking webRequest |
+| Bitwarden 2026.10.0 | 2 | yes | loaded (1 error) | yes | popup empty | no blocking webRequest; missing: clipboardRead, idle |
+| Reddit Enhancement Suite 5.24.11 | 2 | yes | loaded | no | options empty | missing: history, identity |
+| Cookie AutoDelete 3.8.2 | 2 | yes | loaded | no | popup renders | missing: browsingData, contextualIdentities |
+| KeePassXC-Browser 1.10.4.1 | 2 | yes | loaded | yes | popup renders | no blocking webRequest |
+| Unpaywall 3.98 | 2 | yes | loaded | yes | popup renders | id taken from Mozilla's listing (manifest names none) |
+| Dark Reader, SponsorBlock, Violentmonkey | – | refused | – | – | – | bundled with Once; the bundle updates with the app |
+
+What the run shows: every package Mozilla lists installs, parses and starts
+its background in WebKit, and the review sheet names the permissions that are
+gone. Working as intended is a smaller set: content-script and
+storage-driven extensions (Consent-O-Matic, Simple Translate, Stylus, KeePassXC,
+Cookie AutoDelete, the YouTube/Reddit helpers, Tranquility). Filtering and
+redirecting extensions (uBlock Origin, Privacy Badger, Ghostery, DuckDuckGo,
+ClearURLs, LocalCDN, Decentraleyes, NoScript, Redirector) install and show
+their pages but cannot block or rewrite requests, because WebKit has no
+blocking `webRequest`; uBO Lite's `declarativeNetRequest` rules are the
+filtering iOS enforces. WebKit also accepts some permissions whose APIs are
+then missing at runtime, which is what the background errors are:
+`webNavigation.onHistoryStateUpdated`/`onCreatedNavigationTarget` (Stylus,
+Vimium, NoScript), `notifications.onClicked` (Tampermonkey),
+`management.onInstalled` (Multi-Account Containers),
+`webRequest.OnHeadersReceivedOptions.EXTRA_HEADERS` (DuckDuckGo),
+`declarativeNetRequest.ResourceType` (NoScript), a `ws://*/*` listener pattern
+(Privacy Badger); Old Reddit Redirect's static ruleset (`modifyHeaders` and a
+`queryTransform` redirect under `regexFilter`) fails in
+`declarativeNetRequest.updateEnabledRulesets`, and ClearURLs cannot store its
+downloaded rule set. An extension whose background initialisation throws
+usually opens an empty popup ("No runtime.onConnect listeners"), which is the
+"popup empty" column. The per-extension JSON, with every captured message, is
+`artifacts/extension-support/ios-compat-results.json` after a run.
 
 ## Once Lite (WebView)
 

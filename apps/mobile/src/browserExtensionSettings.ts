@@ -95,11 +95,13 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
     if (active()) title.textContent = pageTitle(target, extension)
     if (target === "overview") {
       page.append(...explained(api.platform === "ios"
-        ? "Bundled Safari-compatible extensions for pages opened in Once."
+        ? "Firefox extensions for pages opened in Once, run by iOS WebKit."
         : "Firefox extensions for pages opened in Once.",
-      api.platform === "ios" ? "Extension settings stay on this device." : "Installation and settings stay on this device."))
-      if (api.platform !== "ios") page.append(link("Install extension", "install"))
-      page.append(withTestId(link("Filter lists & userscripts", "supplemental"), "extension-supplemental"))
+      api.platform === "ios"
+        ? "Installation and settings stay on this device. Extensions are adapted to WebKit; not every Firefox feature is available."
+        : "Installation and settings stay on this device."))
+      page.append(link("Install extension", "install"),
+        withTestId(link("Filter lists & userscripts", "supplemental"), "extension-supplemental"))
       const result = await api.command({ action: "list" })
       installed.clear()
       for (const item of result.extensions ?? []) installed.set(item.id, item)
@@ -113,7 +115,7 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
       }
       page.append(control("Refresh extensions", () => void show("overview")))
     } else if (target === "install") {
-      renderInstall(page, api, button, async () => navigate("overview"), openBrowserUrl)
+      renderInstall(page, api, api.platform, button, async () => navigate("overview"), openBrowserUrl)
     } else if (target === "detail" && extension) {
       renderDetail(page, api, extension, { button, link, refreshSelected })
     } else if (target === "remove" && extension) {
@@ -199,7 +201,11 @@ type PageControls = {
 function renderDetail(page: HTMLElement, api: MobileBrowserExtensions, extension: MobileBrowserExtension, controls: PageControls): void {
   const { button, link, refreshSelected } = controls
   page.append(element("h4", `${extension.name} ${extension.version}`), element("p", extension.description))
+  if (extension.source) page.append(element("p", `Installed from ${extension.source}`, "mobile_extension_meta"))
   if (extension.disabledReason) page.append(element("p", extension.disabledReason, "settings_status"))
+  if (extension.warnings?.length) {
+    page.append(element("h4", "Compatibility notes"), ...extension.warnings.map(warning => element("p", warning)))
+  }
   page.append(button(extension.enabled ? "Disable extension" : "Enable extension", async () => {
     await api.command({ action: "enable", id: extension.id, enabled: !extension.enabled })
     await refreshSelected()
@@ -225,16 +231,38 @@ function renderDetail(page: HTMLElement, api: MobileBrowserExtensions, extension
   element("h4", "Requested access"), element("p", extension.permissions.join(", ") || "None"))
 }
 
+/** Install-page wording per platform: Gecko verifies signatures on Android; iOS adapts packages to WebKit. */
+function installTexts(platform: MobileBrowserExtensions["platform"]) {
+  return platform === "ios" ? {
+    choose: "Choose a Firefox extension from Firefox Add-ons.",
+    review: "Once downloads it, adapts it to WebKit, and shows its verified identity and requested access before installation.",
+    file: "Choose XPI or ZIP file…",
+    local: "Local files are not signature-verified.",
+    compatibility: "Compatibility depends on what iOS WebKit supports; Once lists the limitations before installing."
+  } : {
+    choose: "Choose an Android-compatible Firefox extension.",
+    review: "Once will download it and show its verified identity and requested access before installation.",
+    file: "Choose signed XPI file…",
+    local: "Local XPI files must be signed by Mozilla.",
+    compatibility: "Extension compatibility depends on Firefox for Android and the browser APIs Once supports."
+  }
+}
+
 function renderInstall(
-  page: HTMLElement, api: MobileBrowserExtensions,
+  page: HTMLElement, api: MobileBrowserExtensions, platform: MobileBrowserExtensions["platform"],
   button: (label: string, work: () => Promise<void>) => HTMLButtonElement,
   done: () => Promise<void>,
   openBrowserUrl: (url: string) => void
 ): void {
+  const texts = installTexts(platform)
   const label = element("label", "Firefox Add-ons URL")
   const input = element("input")
   input.type = "url"
   input.id = "mobile-extension-source"
+  // iOS capitalises the first letter of a field otherwise, and an address is not prose.
+  input.autocapitalize = "none"
+  input.setAttribute("autocorrect", "off")
+  input.spellcheck = false
   input.placeholder = "https://addons.mozilla.org/en-US/firefox/addon/…/"
   label.htmlFor = input.id
   const catalog = element("p", "Browse the ", "settings_description")
@@ -245,8 +273,7 @@ function renderInstall(
     openBrowserUrl(catalogLink.href)
   })
   catalog.append(catalogLink, " and paste an add-on's page URL above.")
-  page.append(label, input, catalog, ...explained("Choose an Android-compatible Firefox extension.",
-    "Once will download it and show its verified identity and requested access before installation."))
+  page.append(label, input, catalog, ...explained(texts.choose, texts.review))
   const install = async (source: string) => {
     const result = await api.command({ action: "install", source })
     if (!result.cancelled) await done()
@@ -258,10 +285,9 @@ function renderInstall(
     event.preventDefault()
     reviewButton.click()
   })
-  page.append(reviewButton, button("Choose signed XPI file…", async () => {
+  page.append(reviewButton, button(texts.file, async () => {
     const result = await api.command({ action: "chooseFile" })
     if (!result.cancelled) await done()
   }))
-  page.append(...explained("Local XPI files must be signed by Mozilla.",
-    "Extension compatibility depends on Firefox for Android and the browser APIs Once supports."))
+  page.append(...explained(texts.local, texts.compatibility))
 }

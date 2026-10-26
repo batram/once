@@ -48,6 +48,7 @@ final class HostTest: UIResponder, UIApplicationDelegate, WKScriptMessageHandler
   web.uiDelegate = self
   w.rootViewController!.view.addSubview(web)
   host.attach(web, parent: w.rootViewController!.view)
+  host.select(web) // Actions and popups land on the selected tab only.
   host.pageChanged = { [weak self] info in
    // Match the real shell: the browsing view is hidden behind extension pages.
    self?.web.isHidden = info["open"] as? Bool == true
@@ -56,7 +57,7 @@ final class HostTest: UIResponder, UIApplicationDelegate, WKScriptMessageHandler
   Task { do { try await run() } catch { results["failure"] = error.localizedDescription }; results["errors"] = errors; results["requests"] = requests; results["done"] = true; save() }
   return true
  }
- func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { host.navigationChanged() }
+ func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { host.navigationChanged(webView) }
  func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
   guard let url = action.request.url else { decisionHandler(.cancel); return }
   let disposition = host.navigationDisposition(for:url, targetIsMainFrame:action.targetFrame?.isMainFrame)

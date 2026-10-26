@@ -13,6 +13,11 @@
 		7A1E0C152E6800010000A001 /* BrowserNavigationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C142E6800010000A001 /* BrowserNavigationState.swift */; };
 		7A1E0C132E6800010000A001 /* InAppBrowserSurfacePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C122E6800010000A001 /* InAppBrowserSurfacePlugin.swift */; };
 		7A1E0C112E6800010000A001 /* WebExtensionHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C102E6800010000A001 /* WebExtensionHost.swift */; };
+		7A1E0C392E6800010000A0D1 /* AmoInstallBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C382E6800010000A0D1 /* AmoInstallBridge.swift */; };
+		7A1E0C372E6800010000A0D1 /* ExtensionPrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C362E6800010000A0D1 /* ExtensionPrompts.swift */; };
+		7A1E0C352E6800010000A0D1 /* WebExtensionManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C342E6800010000A0D1 /* WebExtensionManagement.swift */; };
+		7A1E0C332E6800010000A0D1 /* WebExtensionInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C322E6800010000A0D1 /* WebExtensionInstaller.swift */; };
+		7A1E0C312E6800010000A0D1 /* ExtensionArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C302E6800010000A0D1 /* ExtensionArchive.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
@@ -39,6 +44,11 @@
 		7A1E0C142E6800010000A001 /* BrowserNavigationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserNavigationState.swift; sourceTree = "<group>"; };
 		7A1E0C122E6800010000A001 /* InAppBrowserSurfacePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InAppBrowserSurfacePlugin.swift; sourceTree = "<group>"; };
 		7A1E0C102E6800010000A001 /* WebExtensionHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebExtensionHost.swift; sourceTree = "<group>"; };
+		7A1E0C382E6800010000A0D1 /* AmoInstallBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmoInstallBridge.swift; sourceTree = "<group>"; };
+		7A1E0C362E6800010000A0D1 /* ExtensionPrompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionPrompts.swift; sourceTree = "<group>"; };
+		7A1E0C342E6800010000A0D1 /* WebExtensionManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebExtensionManagement.swift; sourceTree = "<group>"; };
+		7A1E0C322E6800010000A0D1 /* WebExtensionInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebExtensionInstaller.swift; sourceTree = "<group>"; };
+		7A1E0C302E6800010000A0D1 /* ExtensionArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionArchive.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -101,6 +111,11 @@
 				7A1E0C142E6800010000A001 /* BrowserNavigationState.swift */,
 				7A1E0C0A2E6800010000A001 /* ExtensionSupport.swift */,
 				7A1E0C102E6800010000A001 /* WebExtensionHost.swift */,
+				7A1E0C382E6800010000A0D1 /* AmoInstallBridge.swift */,
+				7A1E0C362E6800010000A0D1 /* ExtensionPrompts.swift */,
+				7A1E0C342E6800010000A0D1 /* WebExtensionManagement.swift */,
+				7A1E0C322E6800010000A0D1 /* WebExtensionInstaller.swift */,
+				7A1E0C302E6800010000A0D1 /* ExtensionArchive.swift */,
 				7A1E0C0C2E6800010000A001 /* SecureSettings.swift */,
 				7A1E0C0E2E6800010000A001 /* BrowserMenuSheet.swift */,
 				7A1E0C1C2E6800010000A001 /* AddressBar.swift */,
@@ -208,6 +223,11 @@
 				7A1E0C152E6800010000A001 /* BrowserNavigationState.swift in Sources */,
 				7A1E0C0B2E6800010000A001 /* ExtensionSupport.swift in Sources */,
 				7A1E0C112E6800010000A001 /* WebExtensionHost.swift in Sources */,
+				7A1E0C392E6800010000A0D1 /* AmoInstallBridge.swift in Sources */,
+				7A1E0C372E6800010000A0D1 /* ExtensionPrompts.swift in Sources */,
+				7A1E0C352E6800010000A0D1 /* WebExtensionManagement.swift in Sources */,
+				7A1E0C332E6800010000A0D1 /* WebExtensionInstaller.swift in Sources */,
+				7A1E0C312E6800010000A0D1 /* ExtensionArchive.swift in Sources */,
 				7A1E0C0D2E6800010000A001 /* SecureSettings.swift in Sources */,
 				7A1E0C0F2E6800010000A001 /* BrowserMenuSheet.swift in Sources */,
 				7A1E0C1D2E6800010000A001 /* AddressBar.swift in Sources */,
