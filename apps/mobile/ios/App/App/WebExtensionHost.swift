@@ -49,7 +49,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
                 catch { failures[bundle.id] = error.localizedDescription }
             }
             installed = store.load()
-            store.prune(keeping: installed)
+            await store.prune(keeping: installed)
             for entry in installed {
                 do { try await loadInstalled(entry) }
                 catch { failures[entry.id] = error.localizedDescription }

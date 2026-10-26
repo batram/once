@@ -137,5 +137,24 @@ final class MozillaFixture: URLProtocol {
             guard error.localizedDescription.contains("no longer matches"), host.installed == updated else { throw error }
         }
         results["rejectsChangedIdentity"] = true
+
+        // Awaited background cleanup must be complete on return and must never
+        // delete a package still named by the catalog.
+        let orphan = store.directory("orphan")
+        try manager.createDirectory(at: orphan, withIntermediateDirectories: true)
+        try Data("discard".utf8).write(to: orphan.appendingPathComponent("file"))
+        await store.prune(keeping: host.installed)
+        guard !manager.fileExists(atPath: orphan.path),
+              host.installed.allSatisfy({ manager.fileExists(atPath: store.directory($0.directory).path) }) else {
+            throw installError("Pruning removed an installed package or left an orphan")
+        }
+        results["prunePreservesInstalled"] = true
+        let removed = host.installed.first { $0.id == "other@once.invalid" }!
+        _ = try await host.perform("remove", id: removed.id, source: nil, enabled: false)
+        guard host.context(for: removed.id) == nil, !store.load().contains(where: { $0.id == removed.id }),
+              !manager.fileExists(atPath: store.directory(removed.directory).path) else {
+            throw installError("Removal returned before cleanup completed")
+        }
+        results["removalCompleted"] = true
     }
 }

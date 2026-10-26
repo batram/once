@@ -1,0 +1,3710 @@
+{
+  "date": "2026-10-26",
+  "environment": {
+    "device": "physical iPhone 16 Pro Max",
+    "os": [
+      "27.0.1"
+    ],
+    "build": "Xcode 26.6; Release Swift -O",
+    "bundleID": "com.zmarn.once.extensionbenchmark"
+  },
+  "baseline": "ios-extension-impact-2026-10-26.json",
+  "sources": {
+    "apps/mobile/ios/App/App/ExtensionSupport.swift": "00d35eaa67f25e6b9d9a0c32d7622445760002ada9aaba6c837cc96bb878e68e",
+    "apps/mobile/ios/App/App/WebExtensionHost.swift": "edf321a8649077256110967295aef6ba99b7d91a77ac5a0684ecf0309c12eba6",
+    "apps/mobile/ios/App/App/WebExtensionManagement.swift": "f78bd816a31e7306e1f387c8ef20666f842e326908779ac8758f98424a381f92",
+    "apps/mobile/ios/App/App/WebExtensionInstaller.swift": "bb6f9eaa6027ffe6164253a4fa0c7ab4e90741eb912d8b5a5b0700f45aec378a",
+    "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift": "7e1cb04116c4ed1945f36756ca813ac657e38f1472f799d6d50f2e7630e80dbc"
+  },
+  "amoBundle": {
+    "beforeBytes": 132189,
+    "afterBytes": 3507,
+    "sha256": "430976ea3de7469f934bc0aa951480921046c01e7e4fb32910235c0e80651aa3"
+  },
+  "methodology": {
+    "cache": "Three fresh process launches; one persistent cache path per rule-count case to avoid evicting other cases. Production keeps one latest entry. Each launch compares cached output byte-for-byte with the uncached exporter and compiles it natively. Round 0 populates files; rounds 1–2 measure process-restart reuse. Simple domain rules differ from the baseline report's salted inputs; only compare matched-input timings here.",
+    "browsing": "Three retained launches plus one excluded conditioning launch per mode; same real HTTP four-page fixture as the baseline. Sequential sessions, not randomized before/after pairs.",
+    "lazyStartup": "Executed production settings method with a host getter that traps on initialization; no full-app startup timing claim.",
+    "cleanup": "Filesystem deletion and pruning use awaited detached tasks; no end-to-end removal speedup claimed."
+  },
+  "cacheSummary": [
+    {
+      "count": 1000,
+      "jsonBytes": 119891,
+      "uncachedMedianMs": 11.768166661262512,
+      "firstMissMs": 12.612916648387909,
+      "restartHitMedianMs": 2.426354169845581,
+      "restartHitRangeMs": [
+        2.3434582948684692,
+        2.509250044822693
+      ],
+      "inProcessHitMedianMs": 0.3008749485015869
+    },
+    {
+      "count": 10000,
+      "jsonBytes": 1208891,
+      "uncachedMedianMs": 77.41154170036316,
+      "firstMissMs": 85.71354168653488,
+      "restartHitMedianMs": 1.0996458530426025,
+      "restartHitRangeMs": [
+        1.021541714668274,
+        1.1777499914169312
+      ],
+      "inProcessHitMedianMs": 1.4728333353996277
+    },
+    {
+      "count": 50000,
+      "jsonBytes": 6088891,
+      "uncachedMedianMs": 366.4035416841507,
+      "firstMissMs": 384.7609583735466,
+      "restartHitMedianMs": 4.525791674852371,
+      "restartHitRangeMs": [
+        4.358291685581207,
+        4.693291664123535
+      ],
+      "inProcessHitMedianMs": 4.698750019073486
+    }
+  ],
+  "browsingSummary": {
+    "browsing": {
+      "all": {
+        "launches": 3,
+        "pages": 12,
+        "prepareMs": {
+          "median": 173.7721250653267,
+          "min": 168.86341661214828,
+          "max": 180.13275003433228,
+          "n": 3
+        },
+        "firstPageMs": {
+          "median": 499.5829167366028,
+          "min": 490.71720826625824,
+          "max": 528.3453332781792,
+          "n": 3
+        },
+        "warmNavigationMs": {
+          "median": 11.382375001907349,
+          "min": 11.348625004291534,
+          "max": 11.496125042438507,
+          "n": 3
+        },
+        "warmNetworkMs": {
+          "median": 94,
+          "min": 94,
+          "max": 99,
+          "n": 3
+        },
+        "frameP95Ms": {
+          "median": 17,
+          "min": 17,
+          "max": 17,
+          "n": 3
+        },
+        "synchronousWorkMs": {
+          "median": 4,
+          "min": 4,
+          "max": 4,
+          "n": 3
+        },
+        "appCPUms": {
+          "median": 4280.42,
+          "min": 4256.508000000001,
+          "max": 4384.969,
+          "n": 3
+        },
+        "appResidentMiB": {
+          "median": 395.78125,
+          "min": 394.25,
+          "max": 398.6875,
+          "n": 3
+        },
+        "appPhysicalFootprintMiB": {
+          "median": 49.564918518066406,
+          "min": 48.33056640625,
+          "max": 50.09626007080078,
+          "n": 3
+        },
+        "appPeakPhysicalFootprintMiB": {
+          "median": 381.62760162353516,
+          "min": 381.58077239990234,
+          "max": 383.2993621826172,
+          "n": 3
+        },
+        "firstCatalogMs": {
+          "median": 9.27112501859665,
+          "min": 9.0109583735466,
+          "max": 9.488249957561493,
+          "n": 3
+        },
+        "cachedCatalogMs": {
+          "median": 0.17051250040531157,
+          "min": 0.1672270864248276,
+          "max": 0.1733020842075348,
+          "n": 3
+        },
+        "cachedPrepareMs": {
+          "median": 0.00015833377838134766,
+          "min": 0.00015625059604644774,
+          "max": 0.0002166658639907837,
+          "n": 3
+        },
+        "framesOver25ms": 6,
+        "frameIntervals": 1068,
+        "thermalStates": [
+          0
+        ],
+        "lowPowerRuns": 0,
+        "perLaunch": [
+          {
+            "round": 0,
+            "prepareMs": 168.86341661214828,
+            "firstPageMs": 528.3453332781792,
+            "warmNavigationMs": 11.348625004291534,
+            "warmNetworkMs": 94,
+            "frameP95Ms": 17,
+            "synchronousWorkMs": 4,
+            "appCPUms": 4384.969,
+            "appResidentMiB": 398.6875,
+            "appPhysicalFootprintMiB": 48.33056640625,
+            "appPeakPhysicalFootprintMiB": 381.62760162353516,
+            "firstCatalogMs": 9.27112501859665,
+            "cachedCatalogMs": 0.1733020842075348,
+            "cachedPrepareMs": 0.00015625059604644774
+          },
+          {
+            "round": 1,
+            "prepareMs": 173.7721250653267,
+            "firstPageMs": 499.5829167366028,
+            "warmNavigationMs": 11.496125042438507,
+            "warmNetworkMs": 99,
+            "frameP95Ms": 17,
+            "synchronousWorkMs": 4,
+            "appCPUms": 4256.508000000001,
+            "appResidentMiB": 394.25,
+            "appPhysicalFootprintMiB": 49.564918518066406,
+            "appPeakPhysicalFootprintMiB": 383.2993621826172,
+            "firstCatalogMs": 9.0109583735466,
+            "cachedCatalogMs": 0.1672270864248276,
+            "cachedPrepareMs": 0.00015833377838134766
+          },
+          {
+            "round": 2,
+            "prepareMs": 180.13275003433228,
+            "firstPageMs": 490.71720826625824,
+            "warmNavigationMs": 11.382375001907349,
+            "warmNetworkMs": 94,
+            "frameP95Ms": 17,
+            "synchronousWorkMs": 4,
+            "appCPUms": 4280.42,
+            "appResidentMiB": 395.78125,
+            "appPhysicalFootprintMiB": 50.09626007080078,
+            "appPeakPhysicalFootprintMiB": 381.58077239990234,
+            "firstCatalogMs": 9.488249957561493,
+            "cachedCatalogMs": 0.17051250040531157,
+            "cachedPrepareMs": 0.0002166658639907837
+          }
+        ],
+        "control": "bare",
+        "pairedDeltaFromControl": {
+          "prepareMs": {
+            "median": 173.28779166936874,
+            "min": 168.0681666135788,
+            "max": 179.58587503433228,
+            "n": 3
+          },
+          "firstPageMs": {
+            "median": 374.36491668224335,
+            "min": 370.62029153108597,
+            "max": 390.53808331489563,
+            "n": 3
+          },
+          "warmNavigationMs": {
+            "median": 2.2895416617393494,
+            "min": 2.255166709423065,
+            "max": 2.527791738510132,
+            "n": 3
+          },
+          "warmNetworkMs": {
+            "median": 2,
+            "min": 0,
+            "max": 6,
+            "n": 3
+          },
+          "synchronousWorkMs": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "n": 3
+          }
+        }
+      },
+      "amo": {
+        "launches": 3,
+        "pages": 12,
+        "prepareMs": {
+          "median": 0.6251250505447388,
+          "min": 0.5823333859443665,
+          "max": 0.6673749685287476,
+          "n": 3
+        },
+        "firstPageMs": {
+          "median": 121.2657083272934,
+          "min": 120.44254159927368,
+          "max": 124.31341671943665,
+          "n": 3
+        },
+        "warmNavigationMs": {
+          "median": 9.12075001001358,
+          "min": 8.902333319187164,
+          "max": 9.218083262443542,
+          "n": 3
+        },
+        "warmNetworkMs": {
+          "median": 93,
+          "min": 93,
+          "max": 93,
+          "n": 3
+        },
+        "frameP95Ms": {
+          "median": 17,
+          "min": 17,
+          "max": 17,
+          "n": 3
+        },
+        "synchronousWorkMs": {
+          "median": 4,
+          "min": 4,
+          "max": 4,
+          "n": 3
+        },
+        "appCPUms": {
+          "median": 796.891,
+          "min": 784.153,
+          "max": 801.361,
+          "n": 3
+        },
+        "appResidentMiB": {
+          "median": 88.65625,
+          "min": 88.640625,
+          "max": 88.78125,
+          "n": 3
+        },
+        "appPhysicalFootprintMiB": {
+          "median": 17.908348083496094,
+          "min": 17.908348083496094,
+          "max": 17.939620971679688,
+          "n": 3
+        },
+        "appPeakPhysicalFootprintMiB": {
+          "median": 17.908348083496094,
+          "min": 17.908348083496094,
+          "max": 17.939620971679688,
+          "n": 3
+        },
+        "firstCatalogMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 3
+        },
+        "cachedCatalogMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 3
+        },
+        "cachedPrepareMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 3
+        },
+        "framesOver25ms": 11,
+        "frameIntervals": 1068,
+        "thermalStates": [
+          0
+        ],
+        "lowPowerRuns": 0,
+        "perLaunch": [
+          {
+            "round": 0,
+            "prepareMs": 0.5823333859443665,
+            "firstPageMs": 121.2657083272934,
+            "warmNavigationMs": 8.902333319187164,
+            "warmNetworkMs": 93,
+            "frameP95Ms": 17,
+            "synchronousWorkMs": 4,
+            "appCPUms": 784.153,
+            "appResidentMiB": 88.78125,
+            "appPhysicalFootprintMiB": 17.939620971679688,
+            "appPeakPhysicalFootprintMiB": 17.939620971679688,
+            "firstCatalogMs": 0,
+            "cachedCatalogMs": 0,
+            "cachedPrepareMs": 0
+          },
+          {
+            "round": 1,
+            "prepareMs": 0.6673749685287476,
+            "firstPageMs": 120.44254159927368,
+            "warmNavigationMs": 9.12075001001358,
+            "warmNetworkMs": 93,
+            "frameP95Ms": 17,
+            "synchronousWorkMs": 4,
+            "appCPUms": 801.361,
+            "appResidentMiB": 88.65625,
+            "appPhysicalFootprintMiB": 17.908348083496094,
+            "appPeakPhysicalFootprintMiB": 17.908348083496094,
+            "firstCatalogMs": 0,
+            "cachedCatalogMs": 0,
+            "cachedPrepareMs": 0
+          },
+          {
+            "round": 2,
+            "prepareMs": 0.6251250505447388,
+            "firstPageMs": 124.31341671943665,
+            "warmNavigationMs": 9.218083262443542,
+            "warmNetworkMs": 93,
+            "frameP95Ms": 17,
+            "synchronousWorkMs": 4,
+            "appCPUms": 796.891,
+            "appResidentMiB": 88.640625,
+            "appPhysicalFootprintMiB": 17.908348083496094,
+            "appPeakPhysicalFootprintMiB": 17.908348083496094,
+            "firstCatalogMs": 0,
+            "cachedCatalogMs": 0,
+            "cachedPrepareMs": 0
+          }
+        ],
+        "control": "bare",
+        "pairedDeltaFromControl": {
+          "prepareMs": {
+            "median": 0.07825005054473877,
+            "min": -0.21291661262512207,
+            "max": 0.18304157257080078,
+            "n": 3
+          },
+          "firstPageMs": {
+            "median": -4.775458455085754,
+            "min": -16.541541635990143,
+            "max": 4.216499984264374,
+            "n": 3
+          },
+          "warmNavigationMs": {
+            "median": 0.1252499222755432,
+            "min": -0.19112497568130493,
+            "max": 0.15241670608520508,
+            "n": 3
+          },
+          "warmNetworkMs": {
+            "median": 0,
+            "min": -1,
+            "max": 1,
+            "n": 3
+          },
+          "synchronousWorkMs": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "n": 3
+          }
+        }
+      },
+      "bare": {
+        "launches": 3,
+        "pages": 12,
+        "prepareMs": {
+          "median": 0.546875,
+          "min": 0.4843333959579468,
+          "max": 0.7952499985694885,
+          "n": 3
+        },
+        "firstPageMs": {
+          "median": 125.21800005435944,
+          "min": 120.09691673517227,
+          "max": 137.80724996328354,
+          "n": 3
+        },
+        "warmNavigationMs": {
+          "median": 9.092833340168,
+          "min": 8.968333303928375,
+          "max": 9.09345829486847,
+          "n": 3
+        },
+        "warmNetworkMs": {
+          "median": 93,
+          "min": 92,
+          "max": 94,
+          "n": 3
+        },
+        "frameP95Ms": {
+          "median": 17,
+          "min": 17,
+          "max": 17,
+          "n": 3
+        },
+        "synchronousWorkMs": {
+          "median": 4,
+          "min": 4,
+          "max": 4,
+          "n": 3
+        },
+        "appCPUms": {
+          "median": 809.659,
+          "min": 807.155,
+          "max": 810.508,
+          "n": 3
+        },
+        "appResidentMiB": {
+          "median": 88.75,
+          "min": 88.53125,
+          "max": 88.8125,
+          "n": 3
+        },
+        "appPhysicalFootprintMiB": {
+          "median": 17.8927001953125,
+          "min": 17.798995971679688,
+          "max": 17.892723083496094,
+          "n": 3
+        },
+        "appPeakPhysicalFootprintMiB": {
+          "median": 17.8927001953125,
+          "min": 17.798995971679688,
+          "max": 17.892723083496094,
+          "n": 3
+        },
+        "firstCatalogMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 3
+        },
+        "cachedCatalogMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 3
+        },
+        "cachedPrepareMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 3
+        },
+        "framesOver25ms": 10,
+        "frameIntervals": 1068,
+        "thermalStates": [
+          0
+        ],
+        "lowPowerRuns": 0,
+        "perLaunch": [
+          {
+            "round": 0,
+            "prepareMs": 0.7952499985694885,
+            "firstPageMs": 137.80724996328354,
+            "warmNavigationMs": 9.09345829486847,
+            "warmNetworkMs": 94,
+            "frameP95Ms": 17,
+            "synchronousWorkMs": 4,
+            "appCPUms": 807.155,
+            "appResidentMiB": 88.75,
+            "appPhysicalFootprintMiB": 17.798995971679688,
+            "appPeakPhysicalFootprintMiB": 17.798995971679688,
+            "firstCatalogMs": 0,
+            "cachedCatalogMs": 0,
+            "cachedPrepareMs": 0
+          },
+          {
+            "round": 1,
+            "prepareMs": 0.4843333959579468,
+            "firstPageMs": 125.21800005435944,
+            "warmNavigationMs": 8.968333303928375,
+            "warmNetworkMs": 93,
+            "frameP95Ms": 17,
+            "synchronousWorkMs": 4,
+            "appCPUms": 810.508,
+            "appResidentMiB": 88.8125,
+            "appPhysicalFootprintMiB": 17.8927001953125,
+            "appPeakPhysicalFootprintMiB": 17.8927001953125,
+            "firstCatalogMs": 0,
+            "cachedCatalogMs": 0,
+            "cachedPrepareMs": 0
+          },
+          {
+            "round": 2,
+            "prepareMs": 0.546875,
+            "firstPageMs": 120.09691673517227,
+            "warmNavigationMs": 9.092833340168,
+            "warmNetworkMs": 92,
+            "frameP95Ms": 17,
+            "synchronousWorkMs": 4,
+            "appCPUms": 809.659,
+            "appResidentMiB": 88.53125,
+            "appPhysicalFootprintMiB": 17.892723083496094,
+            "appPeakPhysicalFootprintMiB": 17.892723083496094,
+            "firstCatalogMs": 0,
+            "cachedCatalogMs": 0,
+            "cachedPrepareMs": 0
+          }
+        ],
+        "control": "bare",
+        "pairedDeltaFromControl": {
+          "prepareMs": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "n": 3
+          },
+          "firstPageMs": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "n": 3
+          },
+          "warmNavigationMs": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "n": 3
+          },
+          "warmNetworkMs": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "n": 3
+          },
+          "synchronousWorkMs": {
+            "median": 0,
+            "min": 0,
+            "max": 0,
+            "n": 3
+          }
+        }
+      }
+    }
+  },
+  "nativeHostResults": {
+    "catalog": [
+      {
+        "bundled": true,
+        "description": "An efficient content blocker. Blocks ads, trackers, miners, and more immediately upon installation.",
+        "disabledReason": "",
+        "enabled": true,
+        "hasAction": true,
+        "hasOptions": true,
+        "iconDataUrl": "data:image/png;base64,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",
+        "id": "ublock-origin-lite",
+        "name": "uBlock Origin Lite",
+        "permissions": [
+          "activeTab",
+          "alarms",
+          "declarativeNetRequest",
+          "declarativeNetRequestWithHostAccess",
+          "scripting",
+          "storage",
+          "unlimitedStorage"
+        ],
+        "version": "2026.930.1227",
+        "warnings": []
+      },
+      {
+        "bundled": true,
+        "description": "Dark mode for every website. Take care of your eyes, use dark theme for night and daily browsing.",
+        "disabledReason": "",
+        "enabled": true,
+        "hasAction": true,
+        "hasOptions": true,
+        "iconDataUrl": "data:image/png;base64,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",
+        "id": "addon@darkreader.org",
+        "name": "Dark Reader",
+        "permissions": [
+          "alarms",
+          "scripting",
+          "storage"
+        ],
+        "version": "4.9.133",
+        "warnings": []
+      },
+      {
+        "bundled": true,
+        "description": "Skip sponsorships, subscription begging and more on YouTube videos. Report sponsors on videos you watch to save others' time.",
+        "disabledReason": "",
+        "enabled": true,
+        "hasAction": true,
+        "hasOptions": true,
+        "iconDataUrl": "data:image/png;base64,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",
+        "id": "sponsorBlocker@ajay.app",
+        "name": "SponsorBlock for YouTube - Skip Sponsorships",
+        "permissions": [
+          "scripting",
+          "storage",
+          "unlimitedStorage"
+        ],
+        "version": "6.1.7",
+        "warnings": []
+      },
+      {
+        "bundled": true,
+        "description": "An open source userscript manager that supports a lot of browsers Experimental: basic userscripts and GM storage. Notifications, browser downloads, request-header overrides and background scheduling are not supported. Cloud sync is not yet validated.",
+        "disabledReason": "",
+        "enabled": true,
+        "hasAction": true,
+        "hasOptions": true,
+        "iconDataUrl": "data:image/png;base64,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",
+        "id": "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}",
+        "name": "Violentmonkey",
+        "permissions": [
+          "clipboardWrite",
+          "contextMenus",
+          "cookies",
+          "notifications",
+          "storage",
+          "tabs",
+          "unlimitedStorage",
+          "webRequest"
+        ],
+        "version": "2.49.0",
+        "warnings": []
+      }
+    ],
+    "darkAfterRestart": "Dark Reader\nOn\nAuto\nOff\nExtension is disabled\n darkreader.org\nThis site is in global Dark List\nTheme for all websites\nBrightness\n100%\nContrast\n100%\nScheme\nDark\nMode\nDynamic\nSee all options\nConfigure theme\n\nSettings\nHelp\nPay for using DARK READER\nPlease support our work",
+    "darkDisabled": {
+      "background": "rgb(255, 255, 255)",
+      "styles": 0
+    },
+    "darkPage": {
+      "background": "rgb(24, 26, 27)",
+      "html": "<html data-darkreader-mode=\"dynamic\" data-darkreader-scheme=\"dark\" data-darkreader-proxy-injected=\"true\"><head><style class=\"darkreader darkreader--fallback\" media=\"screen\"></style><style class=\"darkreader darkreader--user-agent\" media=\"screen\">@layer {\nhtml {\n    background-color: var(--darkreader-background-ffffff, #181a1b) !important;\n}\nhtml {\n    color-scheme: dark !important;\n}\niframe {\n    color-scheme: dark !important;\n}\nhtml, body {\n    background-color: var(--darkreader-background-fffff",
+      "styles": 9,
+      "url": "https://example.com/once-test"
+    },
+    "darkPopup": {
+      "text": "Dark Reader\nOn\nAuto\nOff\nExtension is enabled\n example.com\nEnabled for current website\nTheme for all websites\nBrightness\n100%\nContrast\n100%\nScheme\nDark\nMode\nDynamic\nSee all options\nConfigure theme\n\nSettings\nHelp\nPay for using DARK READER\nPlease support our work",
+      "viewport": 402,
+      "width": 402
+    },
+    "darkReenabled": 9,
+    "done": true,
+    "errors": [],
+    "internalNavigations": [
+      {
+        "allowed": true,
+        "mainFrame": false,
+        "url": "about:blank"
+      },
+      {
+        "allowed": true,
+        "mainFrame": false,
+        "url": "webkit-extension://once-ublock-origin-lite/zapper-ui.html"
+      },
+      {
+        "allowed": true,
+        "mainFrame": false,
+        "url": "about:blank"
+      },
+      {
+        "allowed": true,
+        "mainFrame": false,
+        "url": "webkit-extension://once-ublock-origin-lite/picker-ui.html"
+      }
+    ],
+    "navigationPolicyPassed": true,
+    "os": "26.5",
+    "pickerCanCreate": true,
+    "pickerFrame": {
+      "height": 734,
+      "loading": false,
+      "width": 402
+    },
+    "pickerHiddenAfterReload": true,
+    "pickerIgnoresPageClose": true,
+    "pickerOverlay": [
+      {
+        "attributes": [
+          [
+            "b5m0qn46wfl",
+            ""
+          ],
+          [
+            "b5m0qn46wfl-loaded",
+            ""
+          ]
+        ],
+        "height": 734,
+        "src": "",
+        "width": 402
+      }
+    ],
+    "pickerPopupClosed": true,
+    "pickerTargetHidden": true,
+    "requests": [
+      "webkit-extension://once-sponsorblock/_generated_background_page.html: mock-fetch:https://sponsor.ajay.app/api/skipSegments/5f6b0?trimUUIDs=5&actionTypes=%5B%22skip%22%2C%22mute%22%2C%22chapter%22%2C%22full%22%2C%22poi%22%5D&categories=%5B%22sponsor%22%2C%22selfpromo%22%2C%22exclusive_access%22%2C%22interaction%22%2C%22poi_highlight%22%2C%22intro%22%2C%22outro%22%2C%22preview%22%2C%22hook%22%2C%22filler%22%2C%22chapter%22%2C%22music_offtopic%22%5D",
+      "webkit-extension://once-sponsorblock/_generated_background_page.html: mock-fetch:https://sponsor.ajay.app/api/viewedVideoSponsorTime?UUID=fixture&videoID=dQw4w9WgXcQ"
+    ],
+    "sponsorOptions": {
+      "panels": [
+        {
+          "id": "options",
+          "overflowX": "auto",
+          "scrollWidth": 565,
+          "width": 402
+        },
+        {
+          "id": "category-type",
+          "overflowX": "visible",
+          "scrollWidth": 550,
+          "width": 372
+        },
+        {
+          "id": "categoryChooserTable",
+          "overflowX": "visible",
+          "scrollWidth": 550,
+          "width": 550
+        }
+      ],
+      "text": " SponsorBlock\nv. 6.1.7\nBehavior\nInterface\nKeyboard shortcuts\nBackup/Restore\nMiscellaneous\n Created By Ajay Ramachandran\n\nNew configuration\nCategory\tSkip option\tSeek bar color\tUnsubmitted color\nSponsor\t\t\t\nPaid promotion, paid referrals and direct advertisements. Not for self-promotion or free shoutouts to causes/creators/websites/products they like. Learn More\nUnpaid/Self Promotion\t\t\t\nSimilar to \"sponsor\" except for unpaid or self promotion. This includes sections about merchandise, donations, or information about who they collaborated with. Learn More\nExclusive Access\t\t\nOnly for labeling entire videos. Used when a video showcases a product, service or location that they've received free or subsidized access to. Learn More\nInteraction Reminder (Subscribe)\t\t\t\nWhen there is a short reminder to like, subscribe or follow them in the middle of content. If it is long or about something specific, it should be under self promotion instead. Learn More\nHighlight\t\t\t\nThe part of the video that most",
+      "viewport": 402,
+      "width": 402
+    },
+    "sponsorStoredSetting": 7,
+    "sponsorVideo": {
+      "duration": 20,
+      "markers": 1,
+      "paused": false,
+      "seeks": [
+        8
+      ],
+      "text": "\n \n",
+      "time": 17.813062749993698,
+      "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    },
+    "vmAfterRestart": {
+      "count": "2",
+      "text": "Restart fixture Violentmonkey ran"
+    },
+    "vmContentRunsAfterWake": "1",
+    "vmExport": {
+      "items": [
+        {
+          "code": "// ==UserScript==\n// @name Once VM compatibility fixture\n// @namespace once-tests\n// @match https://example.com/*\n// @run-at document-end\n// @grant GM_getValue\n// @grant GM_setValue\n// @grant GM_addStyle\n// ==/UserScript==\nconst count = GM_getValue('count', 0) + 1;\nGM_setValue('count', count);\nGM_addStyle('body { color: rgb(12, 34, 56); }');\ndocument.body.dataset.vmCount = String(count);\ndocument.body.append(' Violentmonkey ran');\ndocument.addEventListener('once-write', () => { GM_setValue('afterWake', 42); document.body.dataset.vmWake = 'sent'; });",
+          "script": {
+            "config": {
+              "enabled": 1,
+              "removed": 0,
+              "shouldUpdate": 1
+            },
+            "custom": {
+              "origExclude": true,
+              "origExcludeMatch": true,
+              "origInclude": true,
+              "origMatch": true,
+              "origTag": true,
+              "pathMap": {}
+            },
+            "meta": {
+              "exclude": [],
+              "excludeMatch": [],
+              "grant": [
+                "GM_getValue",
+                "GM_setValue",
+                "GM_addStyle"
+              ],
+              "include": [],
+              "match": [
+                "https://example.com/*"
+              ],
+              "name": "Once VM compatibility fixture",
+              "namespace": "once-tests",
+              "require": [],
+              "resources": {},
+              "runAt": "document-end"
+            },
+            "props": {
+              "id": 1,
+              "lastModified": 1793010350277,
+              "position": 1,
+              "uri": "once-2dtests-0aOnce-20VM-20compatibility-20fixture-0a",
+              "uuid": "088a18ec-7357-44d8-baf6-04bd7aa55fa5"
+            }
+          }
+        },
+        {
+          "code": "// ==UserScript==\n// @name Once VM content fixture\n// @namespace once-tests\n// @match https://example.com/*\n// @inject-into content\n// @run-at document-end\n// @grant GM_setValue\n// ==/UserScript==\ndocument.body.dataset.vmContentRuns = String(Number(document.body.dataset.vmContentRuns || 0) + 1);\ndocument.addEventListener('once-write', () => GM_setValue('afterWake', 43));",
+          "script": {
+            "config": {
+              "enabled": 1,
+              "removed": 0,
+              "shouldUpdate": 1
+            },
+            "custom": {
+              "origExclude": true,
+              "origExcludeMatch": true,
+              "origInclude": true,
+              "origMatch": true,
+              "origTag": true,
+              "pathMap": {}
+            },
+            "meta": {
+              "exclude": [],
+              "excludeMatch": [],
+              "grant": [
+                "GM_setValue"
+              ],
+              "include": [],
+              "injectInto": "content",
+              "match": [
+                "https://example.com/*"
+              ],
+              "name": "Once VM content fixture",
+              "namespace": "once-tests",
+              "require": [],
+              "resources": {},
+              "runAt": "document-end"
+            },
+            "props": {
+              "id": 2,
+              "lastModified": 1793010350281,
+              "position": 2,
+              "uri": "once-2dtests-0aOnce-20VM-20content-20fixture-0a",
+              "uuid": "87c0d3f2-aba0-445c-a7e3-cd1b25cf6c77"
+            }
+          }
+        }
+      ],
+      "values": {
+        "1": {
+          "afterWake": "n42",
+          "count": "n1"
+        },
+        "2": {
+          "afterWake": "n43"
+        }
+      }
+    },
+    "vmInstall": {
+      "code": "// ==UserScript==\n// @name Once VM compatibility fixture\n// @namespace once-tests\n// @match https://example.com/*\n// @run-at document-end\n// @grant GM_getValue\n// @grant GM_setValue\n// @grant GM_addStyle\n// ==/UserScript==\nconst count = GM_getValue('count', 0) + 1;\nGM_setValue('count', count);\nGM_addStyle('body { color: rgb(12, 34, 56); }');\ndocument.body.dataset.vmCount = String(count);\ndocument.body.append(' Violentmonkey ran');\ndocument.addEventListener('once-write', () => { GM_setValue('afterWake', 42); document.body.dataset.vmWake = 'sent'; });",
+      "errors": null,
+      "isNew": true,
+      "update": {
+        "config": {
+          "enabled": 1,
+          "removed": 0,
+          "shouldUpdate": 1
+        },
+        "custom": {
+          "origExclude": true,
+          "origExcludeMatch": true,
+          "origInclude": true,
+          "origMatch": true,
+          "origTag": true,
+          "pathMap": {}
+        },
+        "inferred": {
+          "homepageURL": false
+        },
+        "message": "Script installed.",
+        "meta": {
+          "exclude": [],
+          "excludeMatch": [],
+          "grant": [
+            "GM_getValue",
+            "GM_setValue",
+            "GM_addStyle"
+          ],
+          "include": [],
+          "match": [
+            "https://example.com/*"
+          ],
+          "name": "Once VM compatibility fixture",
+          "namespace": "once-tests",
+          "require": [],
+          "resources": {},
+          "runAt": "document-end"
+        },
+        "props": {
+          "id": 1,
+          "lastModified": 1793010350277,
+          "position": 1,
+          "uri": "once-2dtests-0aOnce-20VM-20compatibility-20fixture-0a",
+          "uuid": "088a18ec-7357-44d8-baf6-04bd7aa55fa5"
+        }
+      },
+      "where": {
+        "id": 1
+      }
+    },
+    "vmOptions": {
+      "text": "\nAbout\nSettings\n\nAllow GM_cookie to access HTTP-only cookies (only for scripts with this option enabled in their settings)\n\nUse browser download API\nPopup menu and icon\n\n\nReload current tab after switching on/off a script from menu\n\nOpen editor from popup in a new window\n\nShow script commands in page menu\nWidth: \n px \nSort order: \n\nGroup by @run-at stage\nDisabled scripts: \n\nEnabled first\nBadge: \nBadge colors:  \n\n\nUpdate\n\nCheck for script updates every  day(s), use 0 to disable\n\nenabled scripts o",
+      "viewport": 402,
+      "width": 402
+    },
+    "vmScriptRun": {
+      "color": "rgb(12, 34, 56)",
+      "count": "1",
+      "text": "Fixture Violentmonkey ran"
+    },
+    "vmUnmatched": null,
+    "zapperFrame": {
+      "height": 734,
+      "loading": false,
+      "width": 402
+    },
+    "zapperHiddenAfterReload": false,
+    "zapperIgnoresPageClose": true,
+    "zapperOverlay": [
+      {
+        "attributes": [
+          [
+            "qadp5qox0z5",
+            ""
+          ],
+          [
+            "qadp5qox0z5-loaded",
+            ""
+          ]
+        ],
+        "height": 734,
+        "src": "",
+        "width": 402
+      }
+    ],
+    "zapperPopupClosed": true,
+    "zapperTargetHidden": true
+  },
+  "runs": [
+    {
+      "file": "cache/ios-0-export-cache.json",
+      "series": "cache",
+      "cacheSamples": [
+        {
+          "cacheExisted": false,
+          "compiled": true,
+          "count": 1000,
+          "equal": true,
+          "firstCachedExportMs": 12.612916648387909,
+          "jsonBytes": 119891,
+          "repeatCachedExportMs": 0.39016664028167725,
+          "uncachedExportMs": 7.505791664123535
+        },
+        {
+          "cacheExisted": false,
+          "compiled": true,
+          "count": 10000,
+          "equal": true,
+          "firstCachedExportMs": 85.71354168653488,
+          "jsonBytes": 1208891,
+          "repeatCachedExportMs": 1.4728333353996277,
+          "uncachedExportMs": 73.54195833206177
+        },
+        {
+          "cacheExisted": false,
+          "compiled": true,
+          "count": 50000,
+          "equal": true,
+          "firstCachedExportMs": 384.7609583735466,
+          "jsonBytes": 6088891,
+          "repeatCachedExportMs": 4.698750019073486,
+          "uncachedExportMs": 364.86933332681656
+        }
+      ],
+      "done": true,
+      "lowPower": false,
+      "mode": "export-cache",
+      "os": "27.0.1",
+      "runToken": "af1a29f8-4e73-4436-bc7b-564beb68a450",
+      "schema": 2,
+      "started": "2026-10-26 10:25:38 +0000",
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 0
+    },
+    {
+      "file": "cache/ios-0-filter-regression.json",
+      "series": "cache",
+      "allowedAfterClearing": true,
+      "blocked": true,
+      "cacheIdentifierStable": true,
+      "controls": [
+        {
+          "compiled": true,
+          "source": "||ads.example^"
+        },
+        {
+          "compiled": true,
+          "source": "foo^bar"
+        },
+        {
+          "compiled": true,
+          "source": "foo^*^"
+        },
+        {
+          "compiled": true,
+          "source": "|https://ads.example/|"
+        },
+        {
+          "compiled": true,
+          "source": "ads.example^*"
+        }
+      ],
+      "cosmeticCleared": true,
+      "cosmeticHidden": true,
+      "done": true,
+      "emptyPreparation": true,
+      "emptyReturnsNil": true,
+      "exceptionAllowed": true,
+      "invalidRejected": true,
+      "lowPower": false,
+      "mode": "filter-regression",
+      "ordinaryAllowed": true,
+      "os": "27.0.1",
+      "runToken": "7838822b-29f7-450c-af6b-3d13558742a0",
+      "schema": 2,
+      "started": "2026-10-26 10:25:41 +0000",
+      "stillBlockedAfterFailure": true,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 0
+    },
+    {
+      "file": "cache/ios-1-export-cache.json",
+      "series": "cache",
+      "cacheSamples": [
+        {
+          "cacheExisted": true,
+          "compiled": true,
+          "count": 1000,
+          "equal": true,
+          "firstCachedExportMs": 2.509250044822693,
+          "jsonBytes": 119891,
+          "repeatCachedExportMs": 0.25066661834716797,
+          "uncachedExportMs": 11.768166661262512
+        },
+        {
+          "cacheExisted": true,
+          "compiled": true,
+          "count": 10000,
+          "equal": true,
+          "firstCachedExportMs": 1.021541714668274,
+          "jsonBytes": 1208891,
+          "repeatCachedExportMs": 2.0270000100135803,
+          "uncachedExportMs": 77.41154170036316
+        },
+        {
+          "cacheExisted": true,
+          "compiled": true,
+          "count": 50000,
+          "equal": true,
+          "firstCachedExportMs": 4.358291685581207,
+          "jsonBytes": 6088891,
+          "repeatCachedExportMs": 7.916999995708466,
+          "uncachedExportMs": 366.4035416841507
+        }
+      ],
+      "done": true,
+      "lowPower": false,
+      "mode": "export-cache",
+      "os": "27.0.1",
+      "runToken": "919853c4-4173-4093-ab20-92db94ddb36e",
+      "schema": 2,
+      "started": "2026-10-26 10:25:43 +0000",
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 1
+    },
+    {
+      "file": "cache/ios-1-filter-regression.json",
+      "series": "cache",
+      "allowedAfterClearing": true,
+      "blocked": true,
+      "cacheIdentifierStable": true,
+      "controls": [
+        {
+          "compiled": true,
+          "source": "||ads.example^"
+        },
+        {
+          "compiled": true,
+          "source": "foo^bar"
+        },
+        {
+          "compiled": true,
+          "source": "foo^*^"
+        },
+        {
+          "compiled": true,
+          "source": "|https://ads.example/|"
+        },
+        {
+          "compiled": true,
+          "source": "ads.example^*"
+        }
+      ],
+      "cosmeticCleared": true,
+      "cosmeticHidden": true,
+      "done": true,
+      "emptyPreparation": true,
+      "emptyReturnsNil": true,
+      "exceptionAllowed": true,
+      "invalidRejected": true,
+      "lowPower": false,
+      "mode": "filter-regression",
+      "ordinaryAllowed": true,
+      "os": "27.0.1",
+      "runToken": "9d33412e-b071-43c6-9cc4-5217b9b03413",
+      "schema": 2,
+      "started": "2026-10-26 10:25:46 +0000",
+      "stillBlockedAfterFailure": true,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 1
+    },
+    {
+      "file": "cache/ios-2-export-cache.json",
+      "series": "cache",
+      "cacheSamples": [
+        {
+          "cacheExisted": true,
+          "compiled": true,
+          "count": 1000,
+          "equal": true,
+          "firstCachedExportMs": 2.3434582948684692,
+          "jsonBytes": 119891,
+          "repeatCachedExportMs": 0.3008749485015869,
+          "uncachedExportMs": 12.25391674041748
+        },
+        {
+          "cacheExisted": true,
+          "compiled": true,
+          "count": 10000,
+          "equal": true,
+          "firstCachedExportMs": 1.1777499914169312,
+          "jsonBytes": 1208891,
+          "repeatCachedExportMs": 1.3964583277702332,
+          "uncachedExportMs": 77.95062500238419
+        },
+        {
+          "cacheExisted": true,
+          "compiled": true,
+          "count": 50000,
+          "equal": true,
+          "firstCachedExportMs": 4.693291664123535,
+          "jsonBytes": 6088891,
+          "repeatCachedExportMs": 4.413833320140839,
+          "uncachedExportMs": 369.61304169893265
+        }
+      ],
+      "done": true,
+      "lowPower": false,
+      "mode": "export-cache",
+      "os": "27.0.1",
+      "runToken": "eb01dc7e-55c0-4f51-b701-f349b4dbdaa3",
+      "schema": 2,
+      "started": "2026-10-26 10:25:49 +0000",
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 2
+    },
+    {
+      "file": "cache/ios-2-filter-regression.json",
+      "series": "cache",
+      "allowedAfterClearing": true,
+      "blocked": true,
+      "cacheIdentifierStable": true,
+      "controls": [
+        {
+          "compiled": true,
+          "source": "||ads.example^"
+        },
+        {
+          "compiled": true,
+          "source": "foo^bar"
+        },
+        {
+          "compiled": true,
+          "source": "foo^*^"
+        },
+        {
+          "compiled": true,
+          "source": "|https://ads.example/|"
+        },
+        {
+          "compiled": true,
+          "source": "ads.example^*"
+        }
+      ],
+      "cosmeticCleared": true,
+      "cosmeticHidden": true,
+      "done": true,
+      "emptyPreparation": true,
+      "emptyReturnsNil": true,
+      "exceptionAllowed": true,
+      "invalidRejected": true,
+      "lowPower": false,
+      "mode": "filter-regression",
+      "ordinaryAllowed": true,
+      "os": "27.0.1",
+      "runToken": "772fc231-7135-461b-b445-53b7a9ddb708",
+      "schema": 2,
+      "started": "2026-10-26 10:25:52 +0000",
+      "stillBlockedAfterFailure": true,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 2
+    },
+    {
+      "file": "browsing/ios--1-all.json",
+      "series": "browsing",
+      "amoScriptBytes": 3507,
+      "appCPUms": 15199.867999999999,
+      "appPeakPhysicalFootprintMiB": 628.9089660644531,
+      "appPhysicalFootprintMiB": 47.23722839355469,
+      "appResidentMiB": 1073.375,
+      "cachedCatalogMs": 0.1712791681289673,
+      "cachedPrepareMs": 0.0001604139804840088,
+      "catalog": [
+        {
+          "bundled": true,
+          "description": "An efficient content blocker. Blocks ads, trackers, miners, and more immediately upon installation.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "ublock-origin-lite",
+          "name": "uBlock Origin Lite",
+          "permissions": [
+            "activeTab",
+            "alarms",
+            "declarativeNetRequest",
+            "declarativeNetRequestWithHostAccess",
+            "scripting",
+            "storage",
+            "unlimitedStorage"
+          ],
+          "version": "2026.930.1227",
+          "warnings": []
+        },
+        {
+          "bundled": true,
+          "description": "Dark mode for every website. Take care of your eyes, use dark theme for night and daily browsing.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "addon@darkreader.org",
+          "name": "Dark Reader",
+          "permissions": [
+            "alarms",
+            "scripting",
+            "storage"
+          ],
+          "version": "4.9.133",
+          "warnings": []
+        },
+        {
+          "bundled": true,
+          "description": "Skip sponsorships, subscription begging and more on YouTube videos. Report sponsors on videos you watch to save others' time.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "sponsorBlocker@ajay.app",
+          "name": "SponsorBlock for YouTube - Skip Sponsorships",
+          "permissions": [
+            "scripting",
+            "storage",
+            "unlimitedStorage"
+          ],
+          "version": "6.1.7",
+          "warnings": []
+        },
+        {
+          "bundled": true,
+          "description": "An open source userscript manager that supports a lot of browsers Experimental: basic userscripts and GM storage. Notifications, browser downloads, request-header overrides and background scheduling are not supported. Cloud sync is not yet validated.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}",
+          "name": "Violentmonkey",
+          "permissions": [
+            "clipboardWrite",
+            "contextMenus",
+            "cookies",
+            "notifications",
+            "storage",
+            "tabs",
+            "unlimitedStorage",
+            "webRequest"
+          ],
+          "version": "2.49.0",
+          "warnings": []
+        }
+      ],
+      "contextErrors": {
+        "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}": [],
+        "addon@darkreader.org": [],
+        "sponsorBlocker@ajay.app": [],
+        "ublock-origin-lite": []
+      },
+      "done": true,
+      "elapsedMs": 10875.294874966145,
+      "firstCatalogMs": 11.907750010490417,
+      "lowPower": false,
+      "memorySnapshots": [
+        {
+          "appCPUms": 165.882,
+          "appPeakPhysicalFootprintMiB": 9.735969543457031,
+          "appPhysicalFootprintMiB": 9.735969543457031,
+          "appResidentMiB": 55.84375,
+          "phase": "beforePrepare",
+          "uptimeMs": 502844252.246625
+        },
+        {
+          "appCPUms": 438.986,
+          "appPeakPhysicalFootprintMiB": 47.87700653076172,
+          "appPhysicalFootprintMiB": 47.87700653076172,
+          "appResidentMiB": 108.015625,
+          "phase": "afterPrepare",
+          "uptimeMs": 502844416.76154166
+        },
+        {
+          "appCPUms": 473.289,
+          "appPeakPhysicalFootprintMiB": 52.48638153076172,
+          "appPhysicalFootprintMiB": 52.48638153076172,
+          "appResidentMiB": 114.703125,
+          "phase": "afterCatalog",
+          "uptimeMs": 502844432.1181667
+        },
+        {
+          "appCPUms": 490.205,
+          "appPeakPhysicalFootprintMiB": 56.45513153076172,
+          "appPhysicalFootprintMiB": 56.45513153076172,
+          "appResidentMiB": 117.296875,
+          "phase": "afterSurface",
+          "uptimeMs": 502844440.01783335
+        },
+        {
+          "appCPUms": 15365.856,
+          "appPeakPhysicalFootprintMiB": 628.9089660644531,
+          "appPhysicalFootprintMiB": 47.23722839355469,
+          "appResidentMiB": 1073.375,
+          "phase": "afterWork",
+          "uptimeMs": 502855127.59820837
+        }
+      ],
+      "mode": "all",
+      "os": "27.0.1",
+      "pages": [
+        {
+          "index": 0,
+          "matchedScripts": 0,
+          "navigationMs": 264.0530416369438,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 66
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 23,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 3,
+              "median": 1,
+              "p95": 3
+            },
+            "totalFrameMs": 1475
+          }
+        },
+        {
+          "index": 1,
+          "matchedScripts": 0,
+          "navigationMs": 13.469083368778229,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 67
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 17,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 3,
+              "median": 1,
+              "p95": 3
+            },
+            "totalFrameMs": 1483
+          }
+        },
+        {
+          "index": 2,
+          "matchedScripts": 0,
+          "navigationMs": 11.438666701316833,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 68
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 17,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 3,
+              "median": 1,
+              "p95": 3
+            },
+            "totalFrameMs": 1473
+          }
+        },
+        {
+          "index": 3,
+          "matchedScripts": 0,
+          "navigationMs": 12.706458389759064,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 71
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 19,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 4,
+              "median": 1,
+              "p95": 3
+            },
+            "totalFrameMs": 1486
+          }
+        }
+      ],
+      "prepareMs": 164.5019999742508,
+      "runToken": "7f7570ae-bfd9-4a9e-b8e2-7f78ca332d81",
+      "schema": 2,
+      "started": "2026-10-26 10:26:20 +0000",
+      "surfaceCreationMs": 7.887791693210602,
+      "surfaceMs": 187.75904166698456,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": -1
+    },
+    {
+      "file": "browsing/ios--1-amo.json",
+      "series": "browsing",
+      "amoScriptBytes": 3507,
+      "appCPUms": 810.1890000000001,
+      "appPeakPhysicalFootprintMiB": 18.03339385986328,
+      "appPhysicalFootprintMiB": 18.03339385986328,
+      "appResidentMiB": 88.859375,
+      "contextErrors": {},
+      "done": true,
+      "elapsedMs": 10797.133625030518,
+      "lowPower": false,
+      "memorySnapshots": [
+        {
+          "appCPUms": 168.145,
+          "appPeakPhysicalFootprintMiB": 9.704696655273438,
+          "appPhysicalFootprintMiB": 9.704696655273438,
+          "appResidentMiB": 56.359375,
+          "phase": "beforePrepare",
+          "uptimeMs": 502819052.95441675
+        },
+        {
+          "appCPUms": 169.851,
+          "appPeakPhysicalFootprintMiB": 10.673652648925781,
+          "appPhysicalFootprintMiB": 10.673652648925781,
+          "appResidentMiB": 57.671875,
+          "phase": "afterPrepare",
+          "uptimeMs": 502819053.59312505
+        },
+        {
+          "appCPUms": 169.856,
+          "appPeakPhysicalFootprintMiB": 10.673652648925781,
+          "appPhysicalFootprintMiB": 10.673652648925781,
+          "appResidentMiB": 57.671875,
+          "phase": "afterCatalog",
+          "uptimeMs": 502819053.59779173
+        },
+        {
+          "appCPUms": 219.947,
+          "appPeakPhysicalFootprintMiB": 13.236381530761719,
+          "appPhysicalFootprintMiB": 13.189506530761719,
+          "appResidentMiB": 64.421875,
+          "phase": "afterSurface",
+          "uptimeMs": 502819071.64525
+        },
+        {
+          "appCPUms": 978.352,
+          "appPeakPhysicalFootprintMiB": 18.03339385986328,
+          "appPhysicalFootprintMiB": 18.03339385986328,
+          "appResidentMiB": 88.859375,
+          "phase": "afterWork",
+          "uptimeMs": 502829850.1227917
+        }
+      ],
+      "mode": "amo",
+      "os": "27.0.1",
+      "pages": [
+        {
+          "index": 0,
+          "matchedScripts": 0,
+          "navigationMs": 114.37045830488205,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 93
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 30,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 16,
+              "median": 4,
+              "p95": 7
+            },
+            "totalFrameMs": 1496
+          }
+        },
+        {
+          "index": 1,
+          "matchedScripts": 0,
+          "navigationMs": 9.399916648864746,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 92
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 31,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1497
+          }
+        },
+        {
+          "index": 2,
+          "matchedScripts": 0,
+          "navigationMs": 8.914166629314423,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 94
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 26,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 18,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1493
+          }
+        },
+        {
+          "index": 3,
+          "matchedScripts": 0,
+          "navigationMs": 9.007166683673859,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 93
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 38,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 18,
+              "median": 4,
+              "p95": 11
+            },
+            "totalFrameMs": 1505
+          }
+        }
+      ],
+      "prepareMs": 0.6253750324249268,
+      "runToken": "d46f721e-2ae4-4ea1-bcd5-7904ce57ceb4",
+      "schema": 2,
+      "started": "2026-10-26 10:25:55 +0000",
+      "surfaceCreationMs": 18.043500006198883,
+      "surfaceMs": 18.67737501859665,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": -1
+    },
+    {
+      "file": "browsing/ios--1-bare.json",
+      "series": "browsing",
+      "appCPUms": 792.193,
+      "appPeakPhysicalFootprintMiB": 17.830245971679688,
+      "appPhysicalFootprintMiB": 17.830245971679688,
+      "appResidentMiB": 89.015625,
+      "contextErrors": {},
+      "done": true,
+      "elapsedMs": 10664.40737503767,
+      "lowPower": false,
+      "memorySnapshots": [
+        {
+          "appCPUms": 164.49,
+          "appPeakPhysicalFootprintMiB": 9.376594543457031,
+          "appPhysicalFootprintMiB": 9.376594543457031,
+          "appResidentMiB": 56.203125,
+          "phase": "beforePrepare",
+          "uptimeMs": 502831652.9585
+        },
+        {
+          "appCPUms": 166.361,
+          "appPeakPhysicalFootprintMiB": 10.220436096191406,
+          "appPhysicalFootprintMiB": 10.220436096191406,
+          "appResidentMiB": 57.234375,
+          "phase": "afterPrepare",
+          "uptimeMs": 502831653.525125
+        },
+        {
+          "appCPUms": 166.365,
+          "appPeakPhysicalFootprintMiB": 10.220436096191406,
+          "appPhysicalFootprintMiB": 10.220436096191406,
+          "appResidentMiB": 57.234375,
+          "phase": "afterCatalog",
+          "uptimeMs": 502831653.5294584
+        },
+        {
+          "appCPUms": 220.115,
+          "appPeakPhysicalFootprintMiB": 13.095756530761719,
+          "appPhysicalFootprintMiB": 13.048881530761719,
+          "appResidentMiB": 64.5,
+          "phase": "afterSurface",
+          "uptimeMs": 502831674.43512505
+        },
+        {
+          "appCPUms": 956.695,
+          "appPeakPhysicalFootprintMiB": 17.830245971679688,
+          "appPhysicalFootprintMiB": 17.830245971679688,
+          "appResidentMiB": 89.015625,
+          "phase": "afterWork",
+          "uptimeMs": 502842317.3964583
+        }
+      ],
+      "mode": "bare",
+      "os": "27.0.1",
+      "pages": [
+        {
+          "index": 0,
+          "matchedScripts": 0,
+          "navigationMs": 98.30754160881042,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 91
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 27,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 16,
+              "median": 4,
+              "p95": 7
+            },
+            "totalFrameMs": 1493
+          }
+        },
+        {
+          "index": 1,
+          "matchedScripts": 0,
+          "navigationMs": 9.250249981880188,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 92
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 30,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1497
+          }
+        },
+        {
+          "index": 2,
+          "matchedScripts": 0,
+          "navigationMs": 9.023916721343994,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 97
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 22,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 16,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1484
+          }
+        },
+        {
+          "index": 3,
+          "matchedScripts": 0,
+          "navigationMs": 8.856875002384186,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 94
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 24,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 18,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1491
+          }
+        }
+      ],
+      "prepareMs": 0.5535833239555359,
+      "runToken": "7df54a1b-9aef-4d14-8b51-2da170ff7d6c",
+      "schema": 2,
+      "started": "2026-10-26 10:26:07 +0000",
+      "surfaceCreationMs": 20.89900004863739,
+      "surfaceMs": 21.46158331632614,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": -1
+    },
+    {
+      "file": "browsing/ios-0-all.json",
+      "series": "browsing",
+      "amoScriptBytes": 3507,
+      "appCPUms": 4384.969,
+      "appPeakPhysicalFootprintMiB": 381.62760162353516,
+      "appPhysicalFootprintMiB": 48.33056640625,
+      "appResidentMiB": 398.6875,
+      "cachedCatalogMs": 0.1733020842075348,
+      "cachedPrepareMs": 0.00015625059604644774,
+      "catalog": [
+        {
+          "bundled": true,
+          "description": "An efficient content blocker. Blocks ads, trackers, miners, and more immediately upon installation.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "ublock-origin-lite",
+          "name": "uBlock Origin Lite",
+          "permissions": [
+            "activeTab",
+            "alarms",
+            "declarativeNetRequest",
+            "declarativeNetRequestWithHostAccess",
+            "scripting",
+            "storage",
+            "unlimitedStorage"
+          ],
+          "version": "2026.930.1227",
+          "warnings": []
+        },
+        {
+          "bundled": true,
+          "description": "Dark mode for every website. Take care of your eyes, use dark theme for night and daily browsing.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "addon@darkreader.org",
+          "name": "Dark Reader",
+          "permissions": [
+            "alarms",
+            "scripting",
+            "storage"
+          ],
+          "version": "4.9.133",
+          "warnings": []
+        },
+        {
+          "bundled": true,
+          "description": "Skip sponsorships, subscription begging and more on YouTube videos. Report sponsors on videos you watch to save others' time.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "sponsorBlocker@ajay.app",
+          "name": "SponsorBlock for YouTube - Skip Sponsorships",
+          "permissions": [
+            "scripting",
+            "storage",
+            "unlimitedStorage"
+          ],
+          "version": "6.1.7",
+          "warnings": []
+        },
+        {
+          "bundled": true,
+          "description": "An open source userscript manager that supports a lot of browsers Experimental: basic userscripts and GM storage. Notifications, browser downloads, request-header overrides and background scheduling are not supported. Cloud sync is not yet validated.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}",
+          "name": "Violentmonkey",
+          "permissions": [
+            "clipboardWrite",
+            "contextMenus",
+            "cookies",
+            "notifications",
+            "storage",
+            "tabs",
+            "unlimitedStorage",
+            "webRequest"
+          ],
+          "version": "2.49.0",
+          "warnings": []
+        }
+      ],
+      "contextErrors": {
+        "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}": [],
+        "addon@darkreader.org": [],
+        "sponsorBlocker@ajay.app": [],
+        "ublock-origin-lite": []
+      },
+      "done": true,
+      "elapsedMs": 11102.135374963284,
+      "firstCatalogMs": 9.27112501859665,
+      "lowPower": false,
+      "memorySnapshots": [
+        {
+          "appCPUms": 168.234,
+          "appPeakPhysicalFootprintMiB": 9.610969543457031,
+          "appPhysicalFootprintMiB": 9.610969543457031,
+          "appResidentMiB": 56.4375,
+          "phase": "beforePrepare",
+          "uptimeMs": 502883200.3572084
+        },
+        {
+          "appCPUms": 520.416,
+          "appPeakPhysicalFootprintMiB": 47.61151885986328,
+          "appPhysicalFootprintMiB": 47.33026885986328,
+          "appResidentMiB": 109.25,
+          "phase": "afterPrepare",
+          "uptimeMs": 502883369.23387504
+        },
+        {
+          "appCPUms": 546.593,
+          "appPeakPhysicalFootprintMiB": 50.93964385986328,
+          "appPhysicalFootprintMiB": 50.93964385986328,
+          "appResidentMiB": 114.703125,
+          "phase": "afterCatalog",
+          "uptimeMs": 502883381.9843334
+        },
+        {
+          "appCPUms": 572.719,
+          "appPeakPhysicalFootprintMiB": 55.29901885986328,
+          "appPhysicalFootprintMiB": 55.29901885986328,
+          "appResidentMiB": 120.59375,
+          "phase": "afterSurface",
+          "uptimeMs": 502883391.37925005
+        },
+        {
+          "appCPUms": 4553.189,
+          "appPeakPhysicalFootprintMiB": 381.62760162353516,
+          "appPhysicalFootprintMiB": 48.33056640625,
+          "appResidentMiB": 398.6875,
+          "phase": "afterWork",
+          "uptimeMs": 502894302.5465417
+        }
+      ],
+      "mode": "all",
+      "os": "27.0.1",
+      "pages": [
+        {
+          "index": 0,
+          "matchedScripts": 0,
+          "navigationMs": 350.0973333120346,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 100
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 19,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 6,
+              "median": 4,
+              "p95": 5
+            },
+            "totalFrameMs": 1485
+          }
+        },
+        {
+          "index": 1,
+          "matchedScripts": 0,
+          "navigationMs": 11.92216670513153,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 94
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 31,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 18,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1498
+          }
+        },
+        {
+          "index": 2,
+          "matchedScripts": 0,
+          "navigationMs": 11.258333384990692,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 98
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 26,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 18,
+              "median": 4,
+              "p95": 11
+            },
+            "totalFrameMs": 1493
+          }
+        },
+        {
+          "index": 3,
+          "matchedScripts": 0,
+          "navigationMs": 11.348625004291534,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 92
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 25,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1492
+          }
+        }
+      ],
+      "prepareMs": 168.86341661214828,
+      "runToken": "272475c6-3269-48ea-9850-807b8d4aa435",
+      "schema": 2,
+      "started": "2026-10-26 10:26:59 +0000",
+      "surfaceCreationMs": 9.384583353996277,
+      "surfaceMs": 191.00945830345154,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 0
+    },
+    {
+      "file": "browsing/ios-0-amo.json",
+      "series": "browsing",
+      "amoScriptBytes": 3507,
+      "appCPUms": 784.153,
+      "appPeakPhysicalFootprintMiB": 17.939620971679688,
+      "appPhysicalFootprintMiB": 17.939620971679688,
+      "appResidentMiB": 88.78125,
+      "contextErrors": {},
+      "done": true,
+      "elapsedMs": 10618.173625051975,
+      "lowPower": false,
+      "memorySnapshots": [
+        {
+          "appCPUms": 174.025,
+          "appPeakPhysicalFootprintMiB": 9.704742431640625,
+          "appPhysicalFootprintMiB": 9.704742431640625,
+          "appResidentMiB": 56.1875,
+          "phase": "beforePrepare",
+          "uptimeMs": 502870487.36558336
+        },
+        {
+          "appCPUms": 176.202,
+          "appPeakPhysicalFootprintMiB": 10.642402648925781,
+          "appPhysicalFootprintMiB": 10.642402648925781,
+          "appResidentMiB": 57.453125,
+          "phase": "afterPrepare",
+          "uptimeMs": 502870487.959625
+        },
+        {
+          "appCPUms": 176.206,
+          "appPeakPhysicalFootprintMiB": 10.642402648925781,
+          "appPhysicalFootprintMiB": 10.642402648925781,
+          "appResidentMiB": 57.453125,
+          "phase": "afterCatalog",
+          "uptimeMs": 502870487.96466666
+        },
+        {
+          "appCPUms": 224.376,
+          "appPeakPhysicalFootprintMiB": 13.158256530761719,
+          "appPhysicalFootprintMiB": 13.111381530761719,
+          "appResidentMiB": 64.21875,
+          "phase": "afterSurface",
+          "uptimeMs": 502870506.045125
+        },
+        {
+          "appCPUms": 958.192,
+          "appPeakPhysicalFootprintMiB": 17.939620971679688,
+          "appPhysicalFootprintMiB": 17.939620971679688,
+          "appResidentMiB": 88.78125,
+          "phase": "afterWork",
+          "uptimeMs": 502881105.56925
+        }
+      ],
+      "mode": "amo",
+      "os": "27.0.1",
+      "pages": [
+        {
+          "index": 0,
+          "matchedScripts": 0,
+          "navigationMs": 102.60737496614456,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 94
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 28,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 6
+            },
+            "totalFrameMs": 1477
+          }
+        },
+        {
+          "index": 1,
+          "matchedScripts": 0,
+          "navigationMs": 9.51612502336502,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 92
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 30,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1497
+          }
+        },
+        {
+          "index": 2,
+          "matchedScripts": 0,
+          "navigationMs": 8.902333319187164,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 93
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 37,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1504
+          }
+        },
+        {
+          "index": 3,
+          "matchedScripts": 0,
+          "navigationMs": 8.81508332490921,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 93
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 38,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1504
+          }
+        }
+      ],
+      "prepareMs": 0.5823333859443665,
+      "runToken": "d40528c3-c0ec-43a5-b9c5-2971abf9fc10",
+      "schema": 2,
+      "started": "2026-10-26 10:26:46 +0000",
+      "surfaceCreationMs": 18.075999975204468,
+      "surfaceMs": 18.667375028133392,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 0
+    },
+    {
+      "file": "browsing/ios-0-bare.json",
+      "series": "browsing",
+      "appCPUms": 807.155,
+      "appPeakPhysicalFootprintMiB": 17.798995971679688,
+      "appPhysicalFootprintMiB": 17.798995971679688,
+      "appResidentMiB": 88.75,
+      "contextErrors": {},
+      "done": true,
+      "elapsedMs": 10669.971833348274,
+      "lowPower": false,
+      "memorySnapshots": [
+        {
+          "appCPUms": 187.579,
+          "appPeakPhysicalFootprintMiB": 9.720436096191406,
+          "appPhysicalFootprintMiB": 9.720436096191406,
+          "appResidentMiB": 56.40625,
+          "phase": "beforePrepare",
+          "uptimeMs": 502857598.86483335
+        },
+        {
+          "appCPUms": 189.608,
+          "appPeakPhysicalFootprintMiB": 10.548675537109375,
+          "appPhysicalFootprintMiB": 10.548675537109375,
+          "appResidentMiB": 57.5,
+          "phase": "afterPrepare",
+          "uptimeMs": 502857599.6790834
+        },
+        {
+          "appCPUms": 189.634,
+          "appPeakPhysicalFootprintMiB": 10.548675537109375,
+          "appPhysicalFootprintMiB": 10.548675537109375,
+          "appResidentMiB": 57.5,
+          "phase": "afterCatalog",
+          "uptimeMs": 502857599.6844583
+        },
+        {
+          "appCPUms": 242.145,
+          "appPeakPhysicalFootprintMiB": 13.111358642578125,
+          "appPhysicalFootprintMiB": 13.064483642578125,
+          "appResidentMiB": 64.25,
+          "phase": "afterSurface",
+          "uptimeMs": 502857622.1749167
+        },
+        {
+          "appCPUms": 994.745,
+          "appPeakPhysicalFootprintMiB": 17.798995971679688,
+          "appPhysicalFootprintMiB": 17.798995971679688,
+          "appResidentMiB": 88.75,
+          "phase": "afterWork",
+          "uptimeMs": 502868268.8724584
+        }
+      ],
+      "mode": "bare",
+      "os": "27.0.1",
+      "pages": [
+        {
+          "index": 0,
+          "matchedScripts": 0,
+          "navigationMs": 114.52587497234344,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 93
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 37,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 11
+            },
+            "totalFrameMs": 1504
+          }
+        },
+        {
+          "index": 1,
+          "matchedScripts": 0,
+          "navigationMs": 9.366750001907349,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 93
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 36,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 16,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1503
+          }
+        },
+        {
+          "index": 2,
+          "matchedScripts": 0,
+          "navigationMs": 9.09345829486847,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 94
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 22,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1488
+          }
+        },
+        {
+          "index": 3,
+          "matchedScripts": 0,
+          "navigationMs": 8.908583343029022,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 94
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 28,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 16,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1495
+          }
+        }
+      ],
+      "prepareMs": 0.7952499985694885,
+      "runToken": "1232ed90-f73e-4347-8f49-5661971c913f",
+      "schema": 2,
+      "started": "2026-10-26 10:26:33 +0000",
+      "surfaceCreationMs": 22.486124992370605,
+      "surfaceMs": 23.291124999523163,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 0
+    },
+    {
+      "file": "browsing/ios-1-all.json",
+      "series": "browsing",
+      "amoScriptBytes": 3507,
+      "appCPUms": 4256.508000000001,
+      "appPeakPhysicalFootprintMiB": 383.2993621826172,
+      "appPhysicalFootprintMiB": 49.564918518066406,
+      "appResidentMiB": 394.25,
+      "cachedCatalogMs": 0.1672270864248276,
+      "cachedPrepareMs": 0.00015833377838134766,
+      "catalog": [
+        {
+          "bundled": true,
+          "description": "An efficient content blocker. Blocks ads, trackers, miners, and more immediately upon installation.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "ublock-origin-lite",
+          "name": "uBlock Origin Lite",
+          "permissions": [
+            "activeTab",
+            "alarms",
+            "declarativeNetRequest",
+            "declarativeNetRequestWithHostAccess",
+            "scripting",
+            "storage",
+            "unlimitedStorage"
+          ],
+          "version": "2026.930.1227",
+          "warnings": []
+        },
+        {
+          "bundled": true,
+          "description": "Dark mode for every website. Take care of your eyes, use dark theme for night and daily browsing.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "addon@darkreader.org",
+          "name": "Dark Reader",
+          "permissions": [
+            "alarms",
+            "scripting",
+            "storage"
+          ],
+          "version": "4.9.133",
+          "warnings": []
+        },
+        {
+          "bundled": true,
+          "description": "Skip sponsorships, subscription begging and more on YouTube videos. Report sponsors on videos you watch to save others' time.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "sponsorBlocker@ajay.app",
+          "name": "SponsorBlock for YouTube - Skip Sponsorships",
+          "permissions": [
+            "scripting",
+            "storage",
+            "unlimitedStorage"
+          ],
+          "version": "6.1.7",
+          "warnings": []
+        },
+        {
+          "bundled": true,
+          "description": "An open source userscript manager that supports a lot of browsers Experimental: basic userscripts and GM storage. Notifications, browser downloads, request-header overrides and background scheduling are not supported. Cloud sync is not yet validated.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}",
+          "name": "Violentmonkey",
+          "permissions": [
+            "clipboardWrite",
+            "contextMenus",
+            "cookies",
+            "notifications",
+            "storage",
+            "tabs",
+            "unlimitedStorage",
+            "webRequest"
+          ],
+          "version": "2.49.0",
+          "warnings": []
+        }
+      ],
+      "contextErrors": {
+        "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}": [],
+        "addon@darkreader.org": [],
+        "sponsorBlocker@ajay.app": [],
+        "ublock-origin-lite": []
+      },
+      "done": true,
+      "elapsedMs": 11143.827083349228,
+      "firstCatalogMs": 9.0109583735466,
+      "lowPower": false,
+      "memorySnapshots": [
+        {
+          "appCPUms": 162.96,
+          "appPeakPhysicalFootprintMiB": 9.610946655273438,
+          "appPhysicalFootprintMiB": 9.610946655273438,
+          "appResidentMiB": 55.75,
+          "phase": "beforePrepare",
+          "uptimeMs": 502908473.25750005
+        },
+        {
+          "appCPUms": 548.78,
+          "appPeakPhysicalFootprintMiB": 55.673973083496094,
+          "appPhysicalFootprintMiB": 55.595848083496094,
+          "appResidentMiB": 114.515625,
+          "phase": "afterPrepare",
+          "uptimeMs": 502908647.04175
+        },
+        {
+          "appCPUms": 573.008,
+          "appPeakPhysicalFootprintMiB": 58.439598083496094,
+          "appPhysicalFootprintMiB": 58.439598083496094,
+          "appResidentMiB": 118.984375,
+          "phase": "afterCatalog",
+          "uptimeMs": 502908659.41037506
+        },
+        {
+          "appCPUms": 589.726,
+          "appPeakPhysicalFootprintMiB": 64.08026885986328,
+          "appPhysicalFootprintMiB": 64.08026885986328,
+          "appResidentMiB": 121.296875,
+          "phase": "afterSurface",
+          "uptimeMs": 502908667.8226667
+        },
+        {
+          "appCPUms": 4419.493,
+          "appPeakPhysicalFootprintMiB": 383.2993621826172,
+          "appPhysicalFootprintMiB": 49.564918518066406,
+          "appResidentMiB": 394.25,
+          "phase": "afterWork",
+          "uptimeMs": 502919617.1420417
+        }
+      ],
+      "mode": "all",
+      "os": "27.0.1",
+      "pages": [
+        {
+          "index": 0,
+          "matchedScripts": 0,
+          "navigationMs": 317.4080416560173,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 94
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 17,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 7,
+              "median": 4,
+              "p95": 5
+            },
+            "totalFrameMs": 1477
+          }
+        },
+        {
+          "index": 1,
+          "matchedScripts": 0,
+          "navigationMs": 11.726291716098785,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 97
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 29,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 22,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1496
+          }
+        },
+        {
+          "index": 2,
+          "matchedScripts": 0,
+          "navigationMs": 11.060125052928925,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 99
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 32,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 18,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1498
+          }
+        },
+        {
+          "index": 3,
+          "matchedScripts": 0,
+          "navigationMs": 11.496125042438507,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 99
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 25,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 18,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1492
+          }
+        }
+      ],
+      "prepareMs": 173.7721250653267,
+      "runToken": "23a38840-ecff-44c9-ade0-399c96261c87",
+      "schema": 2,
+      "started": "2026-10-26 10:27:24 +0000",
+      "surfaceCreationMs": 8.402750015258789,
+      "surfaceMs": 194.55295836925507,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 1
+    },
+    {
+      "file": "browsing/ios-1-amo.json",
+      "series": "browsing",
+      "amoScriptBytes": 3507,
+      "appCPUms": 801.361,
+      "appPeakPhysicalFootprintMiB": 17.908348083496094,
+      "appPhysicalFootprintMiB": 17.908348083496094,
+      "appResidentMiB": 88.65625,
+      "contextErrors": {},
+      "done": true,
+      "elapsedMs": 10701.308541715145,
+      "lowPower": false,
+      "memorySnapshots": [
+        {
+          "appCPUms": 165.078,
+          "appPeakPhysicalFootprintMiB": 9.407821655273438,
+          "appPhysicalFootprintMiB": 9.407821655273438,
+          "appResidentMiB": 56.03125,
+          "phase": "beforePrepare",
+          "uptimeMs": 502921533.63370836
+        },
+        {
+          "appCPUms": 167.823,
+          "appPeakPhysicalFootprintMiB": 10.376708984375,
+          "appPhysicalFootprintMiB": 10.376708984375,
+          "appResidentMiB": 57.296875,
+          "phase": "afterPrepare",
+          "uptimeMs": 502921534.3142084
+        },
+        {
+          "appCPUms": 167.842,
+          "appPeakPhysicalFootprintMiB": 10.376708984375,
+          "appPhysicalFootprintMiB": 10.376708984375,
+          "appResidentMiB": 57.296875,
+          "phase": "afterCatalog",
+          "uptimeMs": 502921534.32033336
+        },
+        {
+          "appCPUms": 221.529,
+          "appPeakPhysicalFootprintMiB": 13.095733642578125,
+          "appPhysicalFootprintMiB": 13.048858642578125,
+          "appResidentMiB": 64.34375,
+          "phase": "afterSurface",
+          "uptimeMs": 502921556.0443334
+        },
+        {
+          "appCPUms": 966.446,
+          "appPeakPhysicalFootprintMiB": 17.908348083496094,
+          "appPhysicalFootprintMiB": 17.908348083496094,
+          "appResidentMiB": 88.65625,
+          "phase": "afterWork",
+          "uptimeMs": 502932234.9766667
+        }
+      ],
+      "mode": "amo",
+      "os": "27.0.1",
+      "pages": [
+        {
+          "index": 0,
+          "matchedScripts": 0,
+          "navigationMs": 98.05583333969116,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 98
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 29,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 16,
+              "median": 4,
+              "p95": 7
+            },
+            "totalFrameMs": 1496
+          }
+        },
+        {
+          "index": 1,
+          "matchedScripts": 0,
+          "navigationMs": 9.12075001001358,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 92
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 34,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 16,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1501
+          }
+        },
+        {
+          "index": 2,
+          "matchedScripts": 0,
+          "navigationMs": 9.147291719913483,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 95
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 26,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1492
+          }
+        },
+        {
+          "index": 3,
+          "matchedScripts": 0,
+          "navigationMs": 8.891541659832,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 93
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 27,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1494
+          }
+        }
+      ],
+      "prepareMs": 0.6673749685287476,
+      "runToken": "2e2c95fa-838d-48bc-b126-2818997745ea",
+      "schema": 2,
+      "started": "2026-10-26 10:27:37 +0000",
+      "surfaceCreationMs": 21.719333291053772,
+      "surfaceMs": 22.39716672897339,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 1
+    },
+    {
+      "file": "browsing/ios-1-bare.json",
+      "series": "browsing",
+      "appCPUms": 810.508,
+      "appPeakPhysicalFootprintMiB": 17.8927001953125,
+      "appPhysicalFootprintMiB": 17.8927001953125,
+      "appResidentMiB": 88.8125,
+      "contextErrors": {},
+      "done": true,
+      "elapsedMs": 10724.905333399773,
+      "lowPower": false,
+      "memorySnapshots": [
+        {
+          "appCPUms": 163.871,
+          "appPeakPhysicalFootprintMiB": 9.657867431640625,
+          "appPhysicalFootprintMiB": 9.657867431640625,
+          "appResidentMiB": 55.890625,
+          "phase": "beforePrepare",
+          "uptimeMs": 502895897.90545833
+        },
+        {
+          "appCPUms": 165.976,
+          "appPeakPhysicalFootprintMiB": 10.470458984375,
+          "appPhysicalFootprintMiB": 10.470458984375,
+          "appResidentMiB": 56.9375,
+          "phase": "afterPrepare",
+          "uptimeMs": 502895898.40137506
+        },
+        {
+          "appCPUms": 165.98,
+          "appPeakPhysicalFootprintMiB": 10.470458984375,
+          "appPhysicalFootprintMiB": 10.470458984375,
+          "appResidentMiB": 56.9375,
+          "phase": "afterCatalog",
+          "uptimeMs": 502895898.4063333
+        },
+        {
+          "appCPUms": 217.162,
+          "appPeakPhysicalFootprintMiB": 13.189460754394531,
+          "appPhysicalFootprintMiB": 13.142585754394531,
+          "appResidentMiB": 64.15625,
+          "phase": "afterSurface",
+          "uptimeMs": 502895920.45487505
+        },
+        {
+          "appCPUms": 974.392,
+          "appPeakPhysicalFootprintMiB": 17.8927001953125,
+          "appPhysicalFootprintMiB": 17.8927001953125,
+          "appResidentMiB": 88.8125,
+          "phase": "afterWork",
+          "uptimeMs": 502906622.83845836
+        }
+      ],
+      "mode": "bare",
+      "os": "27.0.1",
+      "pages": [
+        {
+          "index": 0,
+          "matchedScripts": 0,
+          "navigationMs": 102.69095832109451,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 94
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 35,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 5,
+              "p95": 10
+            },
+            "totalFrameMs": 1502
+          }
+        },
+        {
+          "index": 1,
+          "matchedScripts": 0,
+          "navigationMs": 9.273041725158691,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 91
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 35,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1501
+          }
+        },
+        {
+          "index": 2,
+          "matchedScripts": 0,
+          "navigationMs": 8.968333303928375,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 94
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 30,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 11
+            },
+            "totalFrameMs": 1497
+          }
+        },
+        {
+          "index": 3,
+          "matchedScripts": 0,
+          "navigationMs": 8.818791687488556,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 93
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 27,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 16,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1494
+          }
+        }
+      ],
+      "prepareMs": 0.4843333959579468,
+      "runToken": "e9b38ee0-34c0-420e-a398-c68dcd119a2f",
+      "schema": 2,
+      "started": "2026-10-26 10:27:12 +0000",
+      "surfaceCreationMs": 22.042708337306976,
+      "surfaceMs": 22.53675001859665,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 1
+    },
+    {
+      "file": "browsing/ios-2-all.json",
+      "series": "browsing",
+      "amoScriptBytes": 3507,
+      "appCPUms": 4280.42,
+      "appPeakPhysicalFootprintMiB": 381.58077239990234,
+      "appPhysicalFootprintMiB": 50.09626007080078,
+      "appResidentMiB": 395.78125,
+      "cachedCatalogMs": 0.17051250040531157,
+      "cachedPrepareMs": 0.0002166658639907837,
+      "catalog": [
+        {
+          "bundled": true,
+          "description": "An efficient content blocker. Blocks ads, trackers, miners, and more immediately upon installation.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "ublock-origin-lite",
+          "name": "uBlock Origin Lite",
+          "permissions": [
+            "activeTab",
+            "alarms",
+            "declarativeNetRequest",
+            "declarativeNetRequestWithHostAccess",
+            "scripting",
+            "storage",
+            "unlimitedStorage"
+          ],
+          "version": "2026.930.1227",
+          "warnings": []
+        },
+        {
+          "bundled": true,
+          "description": "Dark mode for every website. Take care of your eyes, use dark theme for night and daily browsing.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "addon@darkreader.org",
+          "name": "Dark Reader",
+          "permissions": [
+            "alarms",
+            "scripting",
+            "storage"
+          ],
+          "version": "4.9.133",
+          "warnings": []
+        },
+        {
+          "bundled": true,
+          "description": "Skip sponsorships, subscription begging and more on YouTube videos. Report sponsors on videos you watch to save others' time.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "sponsorBlocker@ajay.app",
+          "name": "SponsorBlock for YouTube - Skip Sponsorships",
+          "permissions": [
+            "scripting",
+            "storage",
+            "unlimitedStorage"
+          ],
+          "version": "6.1.7",
+          "warnings": []
+        },
+        {
+          "bundled": true,
+          "description": "An open source userscript manager that supports a lot of browsers Experimental: basic userscripts and GM storage. Notifications, browser downloads, request-header overrides and background scheduling are not supported. Cloud sync is not yet validated.",
+          "disabledReason": "",
+          "enabled": true,
+          "hasAction": true,
+          "hasOptions": true,
+          "id": "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}",
+          "name": "Violentmonkey",
+          "permissions": [
+            "clipboardWrite",
+            "contextMenus",
+            "cookies",
+            "notifications",
+            "storage",
+            "tabs",
+            "unlimitedStorage",
+            "webRequest"
+          ],
+          "version": "2.49.0",
+          "warnings": []
+        }
+      ],
+      "contextErrors": {
+        "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}": [],
+        "addon@darkreader.org": [],
+        "sponsorBlocker@ajay.app": [],
+        "ublock-origin-lite": []
+      },
+      "done": true,
+      "elapsedMs": 11061.864625036716,
+      "firstCatalogMs": 9.488249957561493,
+      "lowPower": false,
+      "memorySnapshots": [
+        {
+          "appCPUms": 168.529,
+          "appPeakPhysicalFootprintMiB": 9.657844543457031,
+          "appPhysicalFootprintMiB": 9.657844543457031,
+          "appResidentMiB": 56.28125,
+          "phase": "beforePrepare",
+          "uptimeMs": 502934314.5068334
+        },
+        {
+          "appCPUms": 552.062,
+          "appPeakPhysicalFootprintMiB": 58.142791748046875,
+          "appPhysicalFootprintMiB": 58.142791748046875,
+          "appResidentMiB": 117.921875,
+          "phase": "afterPrepare",
+          "uptimeMs": 502934494.65508336
+        },
+        {
+          "appCPUms": 579.385,
+          "appPeakPhysicalFootprintMiB": 62.252166748046875,
+          "appPhysicalFootprintMiB": 62.174041748046875,
+          "appResidentMiB": 124.03125,
+          "phase": "afterCatalog",
+          "uptimeMs": 502934507.57662505
+        },
+        {
+          "appCPUms": 596.725,
+          "appPeakPhysicalFootprintMiB": 68.56471252441406,
+          "appPhysicalFootprintMiB": 68.56471252441406,
+          "appResidentMiB": 127.4375,
+          "phase": "afterSurface",
+          "uptimeMs": 502934515.02641666
+        },
+        {
+          "appCPUms": 4448.924,
+          "appPeakPhysicalFootprintMiB": 381.58077239990234,
+          "appPhysicalFootprintMiB": 50.09626007080078,
+          "appResidentMiB": 395.78125,
+          "phase": "afterWork",
+          "uptimeMs": 502945376.4281667
+        }
+      ],
+      "mode": "all",
+      "os": "27.0.1",
+      "pages": [
+        {
+          "index": 0,
+          "matchedScripts": 0,
+          "navigationMs": 303.1446249485016,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 97
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 17,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 8,
+              "median": 4,
+              "p95": 5
+            },
+            "totalFrameMs": 1477
+          }
+        },
+        {
+          "index": 1,
+          "matchedScripts": 0,
+          "navigationMs": 11.53529167175293,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 94
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 25,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 18,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1491
+          }
+        },
+        {
+          "index": 2,
+          "matchedScripts": 0,
+          "navigationMs": 11.382375001907349,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 98
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 38,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 18,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1505
+          }
+        },
+        {
+          "index": 3,
+          "matchedScripts": 0,
+          "navigationMs": 11.10916668176651,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 92
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(24, 26, 27)",
+            "darkStyles": 9,
+            "elements": 1517,
+            "framesMs": {
+              "max": 35,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 18,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1502
+          }
+        }
+      ],
+      "prepareMs": 180.13275003433228,
+      "runToken": "99e09164-5880-4152-a3e5-922c5792daeb",
+      "schema": 2,
+      "started": "2026-10-26 10:27:50 +0000",
+      "surfaceCreationMs": 7.439833283424377,
+      "surfaceMs": 200.5053749680519,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 2
+    },
+    {
+      "file": "browsing/ios-2-amo.json",
+      "series": "browsing",
+      "amoScriptBytes": 3507,
+      "appCPUms": 796.891,
+      "appPeakPhysicalFootprintMiB": 17.908348083496094,
+      "appPhysicalFootprintMiB": 17.908348083496094,
+      "appResidentMiB": 88.640625,
+      "contextErrors": {},
+      "done": true,
+      "elapsedMs": 10679.275541722775,
+      "lowPower": false,
+      "memorySnapshots": [
+        {
+          "appCPUms": 164.521,
+          "appPeakPhysicalFootprintMiB": 9.532844543457031,
+          "appPhysicalFootprintMiB": 9.532844543457031,
+          "appResidentMiB": 56.234375,
+          "phase": "beforePrepare",
+          "uptimeMs": 502959878.5801667
+        },
+        {
+          "appCPUms": 166.753,
+          "appPeakPhysicalFootprintMiB": 10.454833984375,
+          "appPhysicalFootprintMiB": 10.454833984375,
+          "appResidentMiB": 57.375,
+          "phase": "afterPrepare",
+          "uptimeMs": 502959879.2191667
+        },
+        {
+          "appCPUms": 166.777,
+          "appPeakPhysicalFootprintMiB": 10.454833984375,
+          "appPhysicalFootprintMiB": 10.454833984375,
+          "appResidentMiB": 57.375,
+          "phase": "afterCatalog",
+          "uptimeMs": 502959879.224625
+        },
+        {
+          "appCPUms": 221.062,
+          "appPeakPhysicalFootprintMiB": 13.220733642578125,
+          "appPhysicalFootprintMiB": 13.173858642578125,
+          "appResidentMiB": 64.515625,
+          "phase": "afterSurface",
+          "uptimeMs": 502959900.280125
+        },
+        {
+          "appCPUms": 961.417,
+          "appPeakPhysicalFootprintMiB": 17.908348083496094,
+          "appPhysicalFootprintMiB": 17.908348083496094,
+          "appResidentMiB": 88.640625,
+          "phase": "afterWork",
+          "uptimeMs": 502970557.88570833
+        }
+      ],
+      "mode": "amo",
+      "os": "27.0.1",
+      "pages": [
+        {
+          "index": 0,
+          "matchedScripts": 0,
+          "navigationMs": 102.6370000243187,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 93
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 27,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 16,
+              "median": 5,
+              "p95": 10
+            },
+            "totalFrameMs": 1494
+          }
+        },
+        {
+          "index": 1,
+          "matchedScripts": 0,
+          "navigationMs": 9.218083262443542,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 93
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 37,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 16,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1504
+          }
+        },
+        {
+          "index": 2,
+          "matchedScripts": 0,
+          "navigationMs": 9.253624975681305,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 93
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 38,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 16,
+              "median": 4,
+              "p95": 11
+            },
+            "totalFrameMs": 1504
+          }
+        },
+        {
+          "index": 3,
+          "matchedScripts": 0,
+          "navigationMs": 8.869083285331726,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 91
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 21,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 16,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1483
+          }
+        }
+      ],
+      "prepareMs": 0.6251250505447388,
+      "runToken": "addc9fb0-283d-4ebf-bd2e-f889e075c66d",
+      "schema": 2,
+      "started": "2026-10-26 10:28:15 +0000",
+      "surfaceCreationMs": 21.05129164457321,
+      "surfaceMs": 21.686083376407623,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 2
+    },
+    {
+      "file": "browsing/ios-2-bare.json",
+      "series": "browsing",
+      "appCPUms": 809.659,
+      "appPeakPhysicalFootprintMiB": 17.892723083496094,
+      "appPhysicalFootprintMiB": 17.892723083496094,
+      "appResidentMiB": 88.53125,
+      "contextErrors": {},
+      "done": true,
+      "elapsedMs": 10658.19716668129,
+      "lowPower": false,
+      "memorySnapshots": [
+        {
+          "appCPUms": 160.857,
+          "appPeakPhysicalFootprintMiB": 9.392219543457031,
+          "appPhysicalFootprintMiB": 9.392219543457031,
+          "appResidentMiB": 55.53125,
+          "phase": "beforePrepare",
+          "uptimeMs": 502947101.38883334
+        },
+        {
+          "appCPUms": 162.753,
+          "appPeakPhysicalFootprintMiB": 10.236038208007812,
+          "appPhysicalFootprintMiB": 10.236038208007812,
+          "appResidentMiB": 56.578125,
+          "phase": "afterPrepare",
+          "uptimeMs": 502947101.95154166
+        },
+        {
+          "appCPUms": 162.798,
+          "appPeakPhysicalFootprintMiB": 10.236038208007812,
+          "appPhysicalFootprintMiB": 10.236038208007812,
+          "appResidentMiB": 56.578125,
+          "phase": "afterCatalog",
+          "uptimeMs": 502947101.95704174
+        },
+        {
+          "appCPUms": 212.871,
+          "appPeakPhysicalFootprintMiB": 13.048835754394531,
+          "appPhysicalFootprintMiB": 13.001960754394531,
+          "appResidentMiB": 63.953125,
+          "phase": "afterSurface",
+          "uptimeMs": 502947119.9842917
+        },
+        {
+          "appCPUms": 970.522,
+          "appPeakPhysicalFootprintMiB": 17.892723083496094,
+          "appPhysicalFootprintMiB": 17.892723083496094,
+          "appResidentMiB": 88.53125,
+          "phase": "afterWork",
+          "uptimeMs": 502957759.6184167
+        }
+      ],
+      "mode": "bare",
+      "os": "27.0.1",
+      "pages": [
+        {
+          "index": 0,
+          "matchedScripts": 0,
+          "navigationMs": 101.5273750424385,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 93
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 37,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1503
+          }
+        },
+        {
+          "index": 1,
+          "matchedScripts": 0,
+          "navigationMs": 9.402500033378601,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 91
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 28,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1495
+          }
+        },
+        {
+          "index": 2,
+          "matchedScripts": 0,
+          "navigationMs": 8.74616664648056,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 92
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 26,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 1,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1493
+          }
+        },
+        {
+          "index": 3,
+          "matchedScripts": 0,
+          "navigationMs": 9.092833340168,
+          "network": {
+            "bytes": 1638400,
+            "elapsedMs": 93
+          },
+          "unexpectedScript": false,
+          "work": {
+            "background": "rgb(255, 255, 255)",
+            "darkStyles": 0,
+            "elements": 1507,
+            "framesMs": {
+              "max": 22,
+              "median": 17,
+              "p95": 17
+            },
+            "framesOver25ms": 0,
+            "synchronousWorkMs": {
+              "max": 17,
+              "median": 4,
+              "p95": 10
+            },
+            "totalFrameMs": 1483
+          }
+        }
+      ],
+      "prepareMs": 0.546875,
+      "runToken": "db76fb7b-83c7-40c8-8909-d693c6c27345",
+      "schema": 2,
+      "started": "2026-10-26 10:28:03 +0000",
+      "surfaceCreationMs": 18.022666692733765,
+      "surfaceMs": 18.579374969005585,
+      "thermalEnd": 0,
+      "thermalStart": 0,
+      "round": 2
+    }
+  ]
+}

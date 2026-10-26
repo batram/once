@@ -6,7 +6,7 @@ const ts = require("typescript")
 const { parseHTML } = require("linkedom")
 
 const settle = () => new Promise(resolve => setImmediate(resolve))
-const preload = require("../../../packages/webext-runtime/dist/preload")
+const amo = require("@once/webext-runtime/amo")
 
 /**
  * The iOS page script against a linkedom document at `origin`, with a
@@ -34,8 +34,8 @@ function harness(origin, { reply = async () => null, handler = true } = {}) {
   }).outputText
   const exports = {}
   const moduleRequire = name => {
-    assert.equal(name, "@once/webext-runtime/preload")
-    return preload
+    assert.equal(name, "@once/webext-runtime/amo")
+    return amo
   }
   // `window` is undefined in the module scope, so the self-install line is inert; the test calls it.
   Function("exports", "require", "window", compiled)(exports, moduleRequire, undefined)

@@ -182,15 +182,24 @@ struct ExtensionPackageStore {
         try encoder.encode(entries).write(to: catalog, options: .atomic)
     }
 
-    func remove(_ name: String) {
-        try? FileManager.default.removeItem(at: directory(name))
+    func remove(_ name: String) async {
+        let target = directory(name)
+        await Task.detached(priority: .utility) {
+            try? FileManager.default.removeItem(at: target)
+        }.value
     }
 
     /// Directories no catalog entry names, left by interrupted installs.
-    func prune(keeping entries: [InstalledExtension]) {
+    func prune(keeping entries: [InstalledExtension]) async {
         let kept = Set(entries.map(\.directory))
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: packages.path)) ?? []
-        for name in names where !kept.contains(name) { remove(name) }
+        let packages = self.packages
+        await Task.detached(priority: .utility) {
+            let manager = FileManager.default
+            let names = (try? manager.contentsOfDirectory(atPath: packages.path)) ?? []
+            for name in names where !kept.contains(name) {
+                try? manager.removeItem(at: packages.appendingPathComponent(name))
+            }
+        }.value
     }
 }
 

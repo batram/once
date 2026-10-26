@@ -83,6 +83,39 @@ enum UserscriptInjection {
 /// rules first and `ignore-previous-rules` exceptions last. Unsupported scriptlets and
 /// procedural cosmetics are intentionally omitted because WKContentRuleList cannot run them.
 enum IOSContentBlockerExporter {
+    // One disposable, atomic cache entry. Bump the filename's version whenever
+    // export semantics change. Content hashes also detect damaged cache contents.
+    private struct CachedExport: Codable {
+        let inputHash: String
+        let outputHash: String
+        let rules: String
+    }
+
+    static func cachedExport(_ list: String, cacheURL: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("once-filter-export-v1.plist")) throws -> String {
+        try Task.checkCancellation()
+        if list.isEmpty { return "[]" }
+        func hash(_ text: String) -> String {
+            SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+        }
+        let inputHash = hash(list)
+        if let data = try? Data(contentsOf: cacheURL),
+           let cached = try? PropertyListDecoder().decode(CachedExport.self, from: data),
+           cached.inputHash == inputHash, cached.outputHash == hash(cached.rules) {
+            try Task.checkCancellation()
+            return cached.rules
+        }
+        let rules = try export(list)
+        try Task.checkCancellation()
+        let cached = CachedExport(inputHash: inputHash, outputHash: hash(rules), rules: rules)
+        let encoder = PropertyListEncoder()
+        encoder.outputFormat = .binary
+        // Cache failure must never prevent valid filters from being applied.
+        try? FileManager.default.createDirectory(at: cacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? encoder.encode(cached).write(to: cacheURL, options: .atomic)
+        return rules
+    }
+
     static func fetchLists(_ urls: [URL]) async throws -> [String] {
         try await withThrowingTaskGroup(of: (Int, String).self) { group in
             for (index, url) in urls.enumerated() {
@@ -216,7 +249,7 @@ final class IOSFilterPreparation {
         let work = Task.detached(priority: .utility) {
             let texts = try await IOSContentBlockerExporter.fetchLists(next)
             try Task.checkCancellation()
-            return try IOSContentBlockerExporter.export(texts.joined(separator: "\n"))
+            return try IOSContentBlockerExporter.cachedExport(texts.joined(separator: "\n"))
         }
         task = work
         return work

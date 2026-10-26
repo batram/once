@@ -6,6 +6,9 @@ Origin, Violentmonkey and user-installed XPIs through it; each supplies the
 engine-specific parts (pages, worlds, request interception, files, cookies)
 and this package decides what an extension sees and may do.
 
+Pages needing only the AMO install bridge can import `@once/webext-runtime/amo`;
+this avoids bundling the full preload API builder and protocol into every page.
+
 ## What is here
 
 | Module | Role |

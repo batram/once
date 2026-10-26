@@ -173,7 +173,7 @@ final class CompatTest: UIResponder, UIApplicationDelegate, WKScriptMessageHandl
   record["hasBackground"] = ext.hasBackgroundContent
   record["manifestErrors"] = ext.errors.map(\.localizedDescription)
   do { try await host.install(candidate) } catch {
-   record["installError"] = error.localizedDescription; host.store.remove(candidate.token); return
+   record["installError"] = error.localizedDescription; await host.store.remove(candidate.token); return
   }
   guard let context = host.context(for: candidate.id) else { record["installError"] = "No context after install"; return }
   record["loaded"] = context.isLoaded

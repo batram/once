@@ -552,8 +552,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                       url.scheme == "https" || url.scheme == "http" else { return nil }
                 return url
             }
-            // Warm extensions without holding startup; content rules don't depend on them.
-            Task { @MainActor in await self.extensions.prepare() }
+            // Supplemental settings also serve reader-only sessions. Browsing and
+            // extension commands await prepare() themselves, before using the host.
             do {
                 let encodedRules = try await filterPreparation.prepare(entries).value
                 guard generation == extensionSettingsGeneration else { call.resolve(); return }

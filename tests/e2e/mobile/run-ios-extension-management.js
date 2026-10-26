@@ -54,7 +54,7 @@ async function main() {
     }
     assert.equal(result?.done, true, "Native management test timed out")
     assert.equal(result.failure, undefined, JSON.stringify(result))
-    for (const key of ["rollbackLoadedAndDisabled", "laterSavePreservesOldVersion", "firstInstallRollback", "directURLUpdate", "rejectsChangedIdentity"]) {
+    for (const key of ["rollbackLoadedAndDisabled", "laterSavePreservesOldVersion", "firstInstallRollback", "directURLUpdate", "rejectsChangedIdentity", "prunePreservesInstalled", "removalCompleted"]) {
       assert.equal(result[key], true, key)
     }
     console.log("Native extension management regressions passed:", result)

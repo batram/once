@@ -47,12 +47,12 @@ extension WebExtensionHost {
         let candidate = try await review(origin)
         do {
             if let presenter, !(await presenter.confirm(candidate, removal: nil)) {
-                store.remove(candidate.token)
+                await store.remove(candidate.token)
                 return ["cancelled": true]
             }
             try await install(candidate)
         } catch {
-            store.remove(candidate.token)
+            await store.remove(candidate.token)
             throw error
         }
         return ["extensions": catalog(), "installed": candidate.summary()]
@@ -119,7 +119,7 @@ extension WebExtensionHost {
                 warnings: WebKitManifestAdapter.warnings(for: ext, requested: adapted.requestedPermissions),
                 adaptations: adapted.adaptations, update: installed.contains { $0.id == adapted.id }, webExtension: ext)
         } catch {
-            store.remove(token)
+            await store.remove(token)
             throw error
         }
     }
@@ -161,7 +161,7 @@ extension WebExtensionHost {
         installed = nextInstalled
         contexts[candidate.id] = context
         failures[candidate.id] = nil
-        if let previous, previous.directory != candidate.token { store.remove(previous.directory) }
+        if let previous, previous.directory != candidate.token { await store.remove(previous.directory) }
         changed()
     }
 
@@ -180,7 +180,7 @@ extension WebExtensionHost {
         UserDefaults.standard.removeObject(forKey: "once.extension.disabled.\(entry.id)")
         installed.removeAll { $0.id == entry.id }
         try store.save(installed)
-        store.remove(entry.directory)
+        await store.remove(entry.directory)
         changed()
     }
 

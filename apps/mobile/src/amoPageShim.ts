@@ -7,7 +7,7 @@
 // which answers only this origin's top frame; the native review sheet still
 // confirms every install.
 
-import { AMO_ORIGIN, AMO_STAGING_KEY, type AmoPageBridge, amoShim } from "@once/webext-runtime/preload"
+import { AMO_ORIGIN, AMO_STAGING_KEY, type AmoPageBridge, amoShim } from "@once/webext-runtime/amo"
 
 /** How the page reaches the native handler: a promise-returning post. */
 export type AmoPagePost = (body: Record<string, unknown>) => Promise<unknown>
