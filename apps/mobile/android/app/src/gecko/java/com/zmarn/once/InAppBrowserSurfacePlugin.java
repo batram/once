@@ -659,7 +659,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost implements Rea
         // The session controller sees this page's content-script connections;
         // background pages arrive through the extension-wide delegate.
         WebExtension.MessageDelegate router = new PortRouter();
-        if (session != null) session.getWebExtensionController().setMessageDelegate(bridgeExtension, router, BRIDGE_NATIVE_APP);
+        extensions.attachPageMessages(session, router, () -> currentUrl);
         bridgeExtension.setMessageDelegate(owner == null ? router : owner.new PortRouter(), BRIDGE_NATIVE_APP);
     }
 

@@ -1,11 +1,12 @@
 {
   "manifest_version": 2,
   "name": "Once surface bridge",
-  "version": "1.3.5",
+  "version": "1.3.7",
   "description": "Lets the Once app run its source picker inside the GeckoView browsing surface. Built into the app; not a user-facing extension.",
   "browser_specific_settings": { "gecko": { "id": "once-surface@zmarn.com" } },
   "permissions": [
     "geckoViewAddons",
+    "mozillaAddons",
     "nativeMessaging",
     "nativeMessagingFromContent",
     "<all_urls>",
@@ -14,6 +15,12 @@
   ],
   "background": { "scripts": ["filterRules.js", "documentContext.js", "background.js"] },
   "content_scripts": [
+    {
+      "matches": ["https://addons.mozilla.org/*"],
+      "js": ["amo.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    },
     {
       "matches": ["<all_urls>"],
       "js": ["pipPresentation.js", "pictureInPicture.js", "media.js", "content.js"],

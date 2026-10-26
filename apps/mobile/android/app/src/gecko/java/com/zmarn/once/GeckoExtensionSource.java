@@ -13,6 +13,21 @@ import org.json.JSONObject;
 final class GeckoExtensionSource {
     private static final Pattern LISTING = Pattern.compile("^/(?:[A-Za-z-]+/)?(?:firefox|android)/addon/([A-Za-z0-9_-]+)/?$");
 
+    static boolean isListing(String source) {
+        if (!isAmo(source)) return false;
+        try { return LISTING.matcher(new URI(source).getPath()).matches(); }
+        catch (Exception ignored) { return false; }
+    }
+
+    static boolean isAmo(String source) {
+        if (source == null) return false;
+        try {
+            URI uri = new URI(source);
+            return "https".equalsIgnoreCase(uri.getScheme()) && "addons.mozilla.org".equalsIgnoreCase(uri.getHost()) &&
+                uri.getUserInfo() == null && uri.getPort() == -1;
+        } catch (Exception ignored) { return false; }
+    }
+
     static String resolve(String source) throws Exception {
         URI uri = new URI(source);
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null || uri.getPort() != -1) {

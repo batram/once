@@ -70,6 +70,13 @@ final class GeckoExtensionManager implements WebExtension.ActionDelegate, WebExt
 
     WebExtension bridge() { return extensions.get(GeckoEngine.BRIDGE_ID); }
 
+    void attachPageMessages(GeckoSession session, WebExtension.MessageDelegate surface, Supplier<String> location) {
+        WebExtension extension = bridge();
+        if (session == null || extension == null) return;
+        session.getWebExtensionController().setMessageDelegate(extension, surface, "once_surface");
+        session.getWebExtensionController().setMessageDelegate(extension, new GeckoAmoBridge(this, session, location), "once_amo");
+    }
+
     void attachSession(GeckoSession session) {
         for (WebExtension extension : extensions.values()) attachSessionExtension(session, extension);
     }
