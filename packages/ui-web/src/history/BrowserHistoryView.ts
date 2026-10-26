@@ -9,18 +9,9 @@ export function mountBrowserHistory(root: HTMLElement, history: Pick<BrowserHist
   root.innerHTML = `<header class="bar toolbar panel_titlebar history-header"><h1>History</h1><button type="button" class="button history-clear">Delete all…</button></header>
     <div class="bar toolbar history-searchbar"><label class="history-search"><span class="icon icon--chrome icon--search" aria-hidden="true"></span><input type="search" aria-label="Search history" placeholder="Search history" autocomplete="off" spellcheck="false"></label></div>
     <div class="history-content"><div class="history-confirm" hidden><p>Delete all browsing history on this device? This cannot be undone.</p><div class="history-confirm-actions"><button type="button" class="button history-cancel">Cancel</button><button type="button" class="button history-confirm-delete">Delete all history</button></div></div>
-    <p class="history-status" role="status" aria-live="polite"></p><div class="history-entries"></div>
-    <nav class="history-pagination" aria-label="History pages"><button type="button" class="button history-newer">Newer</button><button type="button" class="button history-older">Older</button></nav></div>`
-  if (options.back) {
-    const back = document.createElement("button")
-    back.type = "button"
-    back.className = "button button--icon history-back"
-    back.setAttribute("aria-label", "Back")
-    back.dataset.testid = "browser_history-panel-close"
-    back.innerHTML = '<span class="icon icon--chrome icon--chevron-left" aria-hidden="true"></span>'
-    back.onclick = options.back
-    root.querySelector("header")?.prepend(back)
-  }
+    <p class="history-status" role="status" aria-live="polite"></p><p class="history-empty-hint" hidden>Pages you open in the browser will be listed here.</p><div class="history-entries"></div>
+    <nav class="history-pagination" aria-label="History pages" hidden><button type="button" class="button history-newer" hidden>Newer visits</button><button type="button" class="button history-older" hidden>Older visits</button></nav></div>`
+  if (options.back) root.querySelector("header")?.prepend(backButton(options.back))
   const find = <T extends HTMLElement>(selector: string): T => {
     const element = root.querySelector<T>(selector)
     if (!element) throw new Error(`Missing history control: ${selector}`)
@@ -29,8 +20,10 @@ export function mountBrowserHistory(root: HTMLElement, history: Pick<BrowserHist
   const search = find<HTMLInputElement>("input")
   const list = find<HTMLElement>(".history-entries")
   const status = find<HTMLElement>(".history-status")
+  const hint = find<HTMLElement>(".history-empty-hint")
   const confirm = find<HTMLElement>(".history-confirm")
   const clear = find<HTMLButtonElement>(".history-clear")
+  const pagination = find<HTMLElement>(".history-pagination")
   const newer = find<HTMLButtonElement>(".history-newer")
   const older = find<HTMLButtonElement>(".history-older")
   let pages: Array<HistoryQuery["before"]> = [undefined]
@@ -40,6 +33,11 @@ export function mountBrowserHistory(root: HTMLElement, history: Pick<BrowserHist
   let busy = false
   let timer: ReturnType<typeof setTimeout> | undefined
   const error = (failure: unknown) => { status.textContent = failure instanceof Error ? failure.message : "Could not load history. Try again." }
+  const showPages = (show: boolean) => {
+    newer.hidden = !show || pages.length === 1
+    older.hidden = !show || !next
+    pagination.hidden = newer.hidden && older.hidden
+  }
 
   async function load(reset = false): Promise<void> {
     if (disposed) return
@@ -49,10 +47,15 @@ export function mountBrowserHistory(root: HTMLElement, history: Pick<BrowserHist
     newer.disabled = older.disabled = true
     list.setAttribute("aria-busy", "true")
     status.textContent = "Loading history…"
+    hint.hidden = true
+    root.classList.remove("history-empty")
     next = undefined
     try {
       const page = await history.query({ search: search.value, before: pages.at(-1), limit: 50 })
       if (disposed || generation !== current) return
+      // A later page emptied by deletions falls back to the one before it
+      // rather than showing an empty list that claims there is no history.
+      if (!page.entries.length && pages.length > 1) { pages.pop(); return load() }
       next = page.next
       list.replaceChildren()
       let day = ""
@@ -70,14 +73,18 @@ export function mountBrowserHistory(root: HTMLElement, history: Pick<BrowserHist
           search.focus()
         }, error))
       }
-      status.textContent = page.entries.length ? `${page.entries.length} ${page.entries.length === 1 ? "visit" : "visits"}${next ? ", more available" : ""}` : search.value.trim() ? "No matching visits." : "No browsing history yet."
+      const empty = !page.entries.length
+      const searching = search.value.trim() !== ""
+      status.textContent = empty ? searching ? "No matching visits." : "No browsing history yet." : ""
+      hint.hidden = !empty || searching
+      root.classList.toggle("history-empty", empty)
     } catch (failure) { if (generation === current && !disposed) error(failure) }
     finally {
       if (generation === current && !disposed) {
         busy = false
         list.removeAttribute("aria-busy")
-        newer.disabled = pages.length === 1
-        older.disabled = !next
+        newer.disabled = older.disabled = false
+        showPages(true)
       }
     }
   }
@@ -87,7 +94,7 @@ export function mountBrowserHistory(root: HTMLElement, history: Pick<BrowserHist
     // Immediately invalidate in-flight requests so old results cannot replace a new search.
     generation++
     list.replaceChildren()
-    newer.disabled = older.disabled = true
+    showPages(false)
     timer = setTimeout(() => void load(true), 180)
   }
   clear.onclick = () => { confirm.hidden = false; find<HTMLButtonElement>(".history-cancel").focus() }
@@ -108,6 +115,17 @@ export function mountBrowserHistory(root: HTMLElement, history: Pick<BrowserHist
   older.onclick = () => { if (!busy && next) { pages.push(next); void load() } }
   void load()
   return { refresh: () => void load(), dispose: () => { disposed = true; generation++; clearTimeout(timer); root.replaceChildren() } }
+}
+
+function backButton(onclick: () => void): HTMLButtonElement {
+  const back = document.createElement("button")
+  back.type = "button"
+  back.className = "button button--icon history-back"
+  back.setAttribute("aria-label", "Back")
+  back.dataset.testid = "browser_history-panel-close"
+  back.innerHTML = '<span class="icon icon--chrome icon--chevron-left" aria-hidden="true"></span>'
+  back.onclick = onclick
+  return back
 }
 
 function historyRow(entry: BrowserVisit, open: (url: string) => void, removeVisit: () => Promise<void>, error: (failure: unknown) => void): HTMLElement {

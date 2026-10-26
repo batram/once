@@ -96,3 +96,29 @@ test("a new repository reopens the existing history and clamps result limits", a
   assert.equal((await reopened.query({ limit: -1 })).entries.length, 1)
   db.close()
 })
+
+test("a database from before the seq key is moved over with its visits and search", async () => {
+  const db = new DatabaseSync(":memory:")
+  db.exec(`CREATE TABLE visits (id TEXT NOT NULL UNIQUE, url TEXT NOT NULL, title TEXT NOT NULL, visitedAt INTEGER NOT NULL, searchText TEXT NOT NULL);
+    CREATE INDEX visits_time ON visits(visitedAt DESC, id DESC);
+    CREATE VIRTUAL TABLE visit_search USING fts5(title, url, content='visits', content_rowid='rowid', tokenize='trigram');
+    CREATE TRIGGER visits_insert AFTER INSERT ON visits BEGIN INSERT INTO visit_search(rowid,title,url) VALUES(new.rowid,new.title,new.url); END;
+    INSERT INTO visits(id,url,title,visitedAt,searchText) VALUES('old','https://example.com/old','Older schema',1000,'older schema https://example.com/old')`)
+  const driver = {
+    async batch(statements) {
+      db.exec("BEGIN")
+      try {
+        for (const { sql, params = [] } of statements) db.prepare(sql).run(...params)
+        db.exec("COMMIT")
+      } catch (error) { db.exec("ROLLBACK"); throw error }
+    },
+    async query({ sql, params = [] }) { return db.prepare(sql).all(...params) }
+  }
+  const history = new SqlBrowserHistory(driver)
+  assert.deepEqual((await history.query({ search: "schema" })).entries.map(row => row.id), ["old"])
+  await history.record(visit("new", "Newer", 2000))
+  assert.deepEqual((await history.query({})).entries.map(row => row.id), ["new", "old"])
+  assert.match(db.prepare("SELECT sql FROM sqlite_master WHERE name='visits'").get().sql, /seq INTEGER PRIMARY KEY/)
+  assert.equal(db.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name='visits_legacy'").get().n, 0)
+  db.close()
+})

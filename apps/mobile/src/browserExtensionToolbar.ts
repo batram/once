@@ -1,4 +1,4 @@
-import type { InAppBrowserSurface, MobileBrowserExtensions } from "@once/platform-mobile"
+import type { InAppBrowserSurface, MobileBrowserExtensions, NativeOverlayMenuItem } from "@once/platform-mobile"
 import type { ReadingPageActions } from "./readingPageActions"
 import { showChoiceDialog } from "@once/ui-web"
 
@@ -61,12 +61,12 @@ export function bindMobileExtensionToolbar(
     setStatus("")
     try {
       const result = api ? await api.command({ action: "list" }) : { extensions: [] }
-      const items = (result.extensions ?? []).filter(item => item.enabled && (item.hasAction || item.hasOptions))
+      const items: NativeOverlayMenuItem[] = (result.extensions ?? []).filter(item => item.enabled && (item.hasAction || item.hasOptions))
         .map(item => ({
           id: item.id, label: item.name, enabled: true, iconDataUrl: item.iconDataUrl,
           settingsId: item.hasOptions && item.hasAction ? SETTINGS_PREFIX + item.id : undefined
         }))
-      items.push({ id: "once:history", label: "History", enabled: true, iconDataUrl: undefined, settingsId: undefined, ...{ placement: "page" as const } })
+      items.push({ id: "once:history", label: "History", enabled: true, iconDataUrl: undefined, settingsId: undefined, placement: "page" })
       if (api) items.push({ id: "once:manage", label: "Manage extensions", enabled: true, iconDataUrl: undefined, settingsId: undefined })
       // Add-on trays for the open page, listed or not; they open above the page.
       const holding = new Set<string>()

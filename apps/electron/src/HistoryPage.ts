@@ -20,9 +20,10 @@ export function configureHistoryProtocol(session: Session, entry: string): void 
 }
 export function registerHistoryHandlers(coordinator: BrowserCoordinator): void {
   const page = (event: IpcMainInvokeEvent) => {
-    if (!isHistoryUrl(event.sender.getURL()) || event.senderFrame !== event.sender.mainFrame || !coordinator.shellOf(event.sender)) throw new Error("Untrusted history sender")
+    if (!isHistoryUrl(event.sender.getURL()) || event.senderFrame !== event.sender.mainFrame) throw new Error("Untrusted history sender")
     const shell = coordinator.shellOf(event.sender)
-    const owner = shell && coordinator.windowOf(shell)
+    if (!shell) throw new Error("Untrusted history sender")
+    const owner = coordinator.windowOf(shell)
     if (!owner) throw new Error("History window closed")
     return owner
   }
@@ -37,9 +38,9 @@ export function registerHistoryHandlers(coordinator: BrowserCoordinator): void {
   })
   ipcMain.handle("once:history:clear", async event => { page(event); await browserHistory().clear() })
   ipcMain.handle("once:history:open", async (event, value: unknown) => {
-    page(event)
+    const owner = page(event)
     const url = typeof value === "string" && historyUrl(value)
     if (!url) throw new Error("Invalid history URL")
-    await coordinator.createTab(page(event), url, true)
+    await coordinator.createTab(owner, url, true)
   })
 }

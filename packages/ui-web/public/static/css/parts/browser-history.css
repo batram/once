@@ -119,10 +119,6 @@ body.browser-history-page {
   border-bottom: var(--bw) solid var(--divider-color);
 }
 
-.history-entry:hover {
-  background: var(--editing-bg-color);
-}
-
 .history-entry time {
   white-space: nowrap;
   color: var(--text-muted-color);
@@ -156,10 +152,6 @@ body.browser-history-page {
   font-size: var(--fs-caption);
 }
 
-.history-entry a:hover .history-entry-title {
-  text-decoration: underline;
-}
-
 .browser-history .history-remove,
 .browser-history .history-back {
   align-self: center;
@@ -171,16 +163,65 @@ body.browser-history-page {
   color: var(--text-muted-color);
 }
 
-.history-remove:hover {
-  color: var(--text-high-color);
-  border-color: var(--divider-color);
+/* Pointer-only feedback: on touch screens :hover would stick to the last tapped row. */
+@media (hover: hover) {
+  .history-entry:hover {
+    background: var(--editing-bg-color);
+  }
+
+  .history-entry a:hover .history-entry-title {
+    text-decoration: underline;
+  }
+
+  .history-remove:hover {
+    color: var(--text-high-color);
+    border-color: var(--divider-color);
+  }
 }
 
+/* Empty states read like the tab list's: a centred heading with a hint under it. */
+.history-empty .history-status,
+.history-empty-hint {
+  max-width: 28ch;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.history-empty .history-status {
+  margin-block: var(--sp-6) var(--sp-2);
+  color: var(--text-high-color);
+  font-size: var(--panel-title-font-size);
+  font-weight: var(--panel-title-font-weight);
+}
+
+.history-empty-hint {
+  margin-block: 0 var(--sp-3);
+  color: var(--text-muted-color);
+  font-size: var(--fs-dense);
+  line-height: 1.6;
+}
+
+/* Each direction shows only when there is a page that way. */
 .history-pagination {
   display: flex;
   justify-content: flex-end;
   gap: var(--sp-2);
   margin-top: var(--sp-3);
+}
+
+.history-empty-hint[hidden],
+.history-pagination[hidden],
+.history-pagination .button[hidden] {
+  display: none;
+}
+
+/* In Electron's full-width tab the list keeps a readable measure, as Settings does. */
+body.browser-history-page .history-search,
+body.browser-history-page .history-content {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 48rem;
+  margin-inline: auto;
 }
 
 .history-confirm {

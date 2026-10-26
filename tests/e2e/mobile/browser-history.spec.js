@@ -15,6 +15,8 @@ test("browser history opens from the menu, searches, deletes, and survives resta
   await gotoMobileApp(page)
   await openHistory(page)
   await expect(page.locator(".history-status")).toHaveText("No browsing history yet.")
+  await expect(page.locator(".history-empty-hint")).toBeVisible()
+  await expect(page.locator(".history-pagination")).toBeHidden()
   await page.screenshot({ path: "test-results/history-mobile-empty.png" })
   await page.getByTestId("browser_history-panel-close").click()
   await page.getByTestId("reading-menu").click()
@@ -35,6 +37,34 @@ test("browser history opens from the menu, searches, deletes, and survives resta
   await page.screenshot({ path: "test-results/history-mobile-search.png" })
   await page.locator(".history-remove").click()
   await expect(page.locator(".history-entry")).toHaveCount(0)
+  await expect(page.locator(".history-status")).toHaveText("No matching visits.")
+  await expect(page.locator(".history-empty-hint")).toBeHidden()
+})
+
+test("opening a visit leaves History for the page", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await gotoMobileApp(page)
+  const url = new URL("/fixtures/article.html", page.url()).href
+  await page.evaluate(async url => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("once-browser-history", 1)
+      request.onupgradeneeded = () => { request.result.createObjectStore("visits", { keyPath: "id" }).createIndex("time", ["visitedAt", "id"]) }
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("visits", "readwrite")
+      tx.objectStore("visits").put({ id: "seed", url, title: "Article", visitedAt: Date.now() })
+      tx.oncomplete = resolve
+      tx.onabort = () => reject(tx.error)
+    })
+    db.close()
+  }, url)
+  await openHistory(page)
+  await page.locator(".history-entry a").click()
+  await expect(page.locator("#left_panel")).toHaveAttribute("active_panel", "reading")
+  await expect(page.locator("#browser_history_panel")).toHaveCount(0)
+  await expect(page.locator("#reading_url")).toHaveValue(url)
 })
 
 test("history stays bounded, fits phone sizes in both themes, and clears all search results", async ({ page }) => {
@@ -110,7 +140,7 @@ test("history stays bounded, fits phone sizes in both themes, and clears all sea
   await expect(page.locator(".history-entry")).toHaveCount(50)
   await page.locator(".history-older").click()
   await expect(page.locator(".history-entry")).toHaveCount(20)
-  await expect(page.locator(".history-older")).toBeDisabled()
+  await expect(page.locator(".history-older")).toBeHidden()
   await page.locator(".history-newer").click()
   await expect(page.locator(".history-entry")).toHaveCount(50)
   await page.getByRole("searchbox").fill("Match")

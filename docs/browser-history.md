@@ -35,20 +35,25 @@ Installed mobile apps own a dedicated `browser-history.sqlite` outside WebView
 storage. iOS uses Application Support and excludes the database from backup;
 Android uses its no-backup directory and the already bundled SQLite driver.
 Both bridges serialize SQL on background queues. Electron uses the profile's
-`browser-history.sqlite` through a Node SQLite worker thread. The mobile web
+`browser-history.sqlite` through a Node SQLite worker thread; a worker that
+crashes is replaced on the next request after a 30-second pause. The mobile web
 preview alone uses an IndexedDB adapter.
 
 The SQLite implementation is shared in `SqlBrowserHistory`:
 
-- An index on `(visitedAt DESC, id DESC)` supports chronological browsing and
-  cursor pagination, including identical timestamps, without OFFSET scans.
+- `seq INTEGER PRIMARY KEY` aliases the rowid so the FTS index keys on a value
+  that survives VACUUM; a database from before `seq` existed is moved over on
+  open. An index on `(visitedAt DESC, id DESC)` supports chronological browsing
+  and cursor pagination, including identical timestamps, without OFFSET scans.
 - FTS5's trigram tokenizer indexes literal title/URL substrings of at least three
   Unicode characters. Quotes and punctuation are escaped as literal search text.
 - One- and two-character queries scan normalized text in SQLite. These searches
   remain off the UI thread but their cost grows with the stored history.
 - Each query returns at most 100 rows; the UI requests 50 plus a lookahead and
-  keeps only the current page mounted. Search is debounced, and outdated async
-  results are ignored.
+  keeps only the current page mounted. Newer/Older controls appear only when a
+  page exists in that direction, and a later page emptied by deletions falls back
+  to the one before it. Search is debounced, and outdated async results are
+  ignored.
 - WAL, full synchronous commits, and SQLite secure deletion are enabled in native
   stores. Delete operations checkpoint the WAL. This is application deletion, not
   a guarantee of forensic erasure from filesystem snapshots or flash storage.

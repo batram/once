@@ -38,6 +38,7 @@ export function bindMobileBrowserHistory(reading: MobileReadingController): () =
   let panel: HTMLElement | null = null
   let view: ReturnType<typeof mountBrowserHistory> | undefined
   const close = () => { view?.dispose(); view = undefined; panel?.remove(); panel = null; PanelNavigation.closePanel("browser_history") }
+  reading.panelBack.set("browser_history", close)
   return () => {
     if (!panel) {
       const main = document.querySelector("#left_main")
@@ -47,7 +48,9 @@ export function bindMobileBrowserHistory(reading: MobileReadingController): () =
       panel.className = "panel"
       panel.dataset.testid = "browser_history-panel"
       main.append(panel)
+      // Opening a visit leaves History, as a tapped tab leaves the tab list.
       view = mountBrowserHistory(panel, history, url => {
+        close()
         reading.tabs.create()
         reading.openBrowserUrl(url)
       }, { back: close })

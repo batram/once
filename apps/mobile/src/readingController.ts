@@ -41,6 +41,8 @@ export class MobileReadingController {
   private readonly findBar: ReadingFindBar
   private addressEditor!: ReadingAddressEditor
   private activePanel = "stories"
+  /** Panels that close themselves on Back, registered by whoever mounts them. */
+  readonly panelBack = new Map<string, () => void>()
   private editingAddress = false
   private renderedNavigationId = 0
   private currentStoryRow: StoryListItem | null = null
@@ -196,10 +198,7 @@ export class MobileReadingController {
 
   async handleBack(): Promise<boolean> {
     const dialog = Array.from(document.querySelectorAll<HTMLDialogElement>("dialog[open]")).at(-1)
-    if (dialog) {
-      dialog.close()
-      return true
-    }
+    if (dialog) { dialog.close(); return true }
 
     if (isStoryAnchoredMenuOpen()) {
       closeStoryAnchoredMenu()
@@ -209,7 +208,7 @@ export class MobileReadingController {
     if (this.activePanel === "reading" && this.addonTrays.close()) return true
     if (this.activePanel === "reading" && this.findBar.close()) return true
 
-    if (this.activePanel === "browser_history") { document.querySelector<HTMLButtonElement>("#browser_history_panel_bar button")?.click(); return true }
+    if (this.panelBack.has(this.activePanel)) { this.panelBack.get(this.activePanel)?.(); return true }
 
     if (this.activePanel === "settings") {
       return this.settingsNavigate("back")

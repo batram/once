@@ -4382,4 +4382,12 @@
     font-size: var(--fs-meta);
   }
 
+  #browser_history_panel .history-empty .history-status {
+    font-size: var(--fs-title);
+  }
+
+  #browser_history_panel .history-empty-hint {
+    font-size: var(--fs-body);
+  }
+
 }
