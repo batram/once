@@ -2,7 +2,8 @@ import UIKit
 import Capacitor
 
 /// Native browser sheet: Back, Forward, Reload and Find above the shell's
-/// rows (add-on trays for the open page), matching Android's NativeBrowserMenu.
+/// rows (add-on trays for the open page) and the extensions folded under
+/// one row, matching Android's NativeBrowserMenu.
 final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationControllerDelegate {
     /// The sheet's colours, mirroring the shell's CSS theme tokens so the sheet
     /// reads as part of the app rather than a system sheet laid over it.
@@ -150,6 +151,13 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
         // Actions on the page itself (send it to another device) sit right
         // below the switches, ahead of the extensions, and carry no add-on icon.
         var pageActions = content.arrangedSubviews.count
+        // The extension rows fold under one "Extensions (N)" row, as on
+        // Android, and start collapsed; N counts the add-ons, not Manage.
+        let entries = UIStackView()
+        entries.axis = .vertical
+        entries.spacing = 8
+        entries.isHidden = true
+        var count = 0
         for item in call.getArray("items", JSObject.self) ?? [] {
             guard let id = item["id"] as? String, let label = item["label"] as? String else { continue }
             let page = item["placement"] as? String == "page"
@@ -166,9 +174,61 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
                 content.insertArrangedSubview(row, at: pageActions)
                 pageActions += 1
             } else {
-                content.addArrangedSubview(row)
+                if id != "once:manage" { count += 1 }
+                entries.addArrangedSubview(row)
             }
         }
+        // Without the extension API the shell sends no extension rows, so
+        // there is nothing to fold and the row stays out.
+        if !entries.arrangedSubviews.isEmpty {
+            content.addArrangedSubview(expander(count: count, entries: entries))
+            content.addArrangedSubview(entries)
+        }
+    }
+
+    /// The row the extension entries fold under: a puzzle glyph, the count,
+    /// and one chevron at its end that turns about its centre as the list
+    /// opens, as Android's does. Its accessibility label ends in
+    /// ", collapsed" or ", expanded", like the Android content description.
+    private func expander(count: Int, entries: UIStackView) -> UIView {
+        let label = "Extensions (\(count))"
+        let row = button(enabled: true) {}
+        row.configuration?.title = label
+        row.configuration?.image = icon(nil, manage: false)
+        row.configuration?.imagePadding = 12
+        // Room at the end for the chevron, which sits outside the content.
+        row.configuration?.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 44)
+        row.configuration?.titleLineBreakMode = .byTruncatingTail
+        row.configuration?.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var attributes = attributes
+            attributes.font = .systemFont(ofSize: 16)
+            return attributes
+        }
+        row.contentHorizontalAlignment = .leading
+        row.titleLabel?.numberOfLines = 1
+        row.heightAnchor.constraint(equalToConstant: 48).isActive = true
+        let chevron = UIImageView(image: UIImage(systemName: "chevron.down",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)))
+        chevron.tintColor = palette.text
+        chevron.isUserInteractionEnabled = false
+        chevron.translatesAutoresizingMaskIntoConstraints = false
+        row.addSubview(chevron)
+        NSLayoutConstraint.activate([
+            chevron.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -16),
+            chevron.centerYAnchor.constraint(equalTo: row.centerYAnchor)
+        ])
+        row.accessibilityLabel = "\(label), collapsed"
+        row.addAction(UIAction { [weak self] _ in
+            let expanded = entries.isHidden
+            row.accessibilityLabel = "\(label), \(expanded ? "expanded" : "collapsed")"
+            UIView.animate(withDuration: 0.12) {
+                entries.isHidden = !expanded
+                chevron.transform = expanded ? CGAffineTransform(rotationAngle: .pi) : .identity
+                // The sheet grows or shrinks with the list (viewDidLayoutSubviews refits it).
+                self?.view.layoutIfNeeded()
+            }
+        }, for: .touchUpInside)
+        return row
     }
 
     override func viewDidLayoutSubviews() {

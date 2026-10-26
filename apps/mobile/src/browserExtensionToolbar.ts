@@ -75,7 +75,7 @@ export function bindMobileExtensionToolbar(
         items.push({ id: PAGE_ACTION_PREFIX + action.id, label: action.label, enabled: true, iconDataUrl: undefined, settingsId: undefined,
           ...(action.placement ? { placement: action.placement } : {}), ...(action.holdsSheet ? { holdsSheet: true } : {}) })
       }
-      // Both native surfaces draw the sheet (iOS without the extension rows).
+      // Both native surfaces draw the same sheet, extensions folded under one row.
       const selected = api || surface.available
         ? await surface.showMenu({ items, browserControls: true, dark: shellIsDark(), history: history?.() })
         : await showBrowserMenu(items)

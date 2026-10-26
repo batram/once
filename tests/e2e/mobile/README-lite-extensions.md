@@ -72,7 +72,8 @@ Shell (keep stable): `[data-settings-target='extensions']`, `#extension_settings
 `#extension_page_frame` (`hidden`, `.extension_page_frame--popup`, `.extension_page_title`, `.extension_page_close`).
 
 Native (UiAutomator): the browser menu's expander `descriptionStartsWith("Extensions (")`
-(content description ends in ", collapsed"/", expanded"), extension rows by `text("<name>")`,
+(content description ends in ", collapsed"/", expanded"; the iOS sheet's expander carries the same
+accessibility label), extension rows by `text("<name>")`,
 the install prompt by `textContains("Install")` with its "Allow" button, an optional "Remove" confirmation.
 
 Extension pages (Appium WebView contexts whose URL is `https://<host>.moz-extension.localhost/...`):
