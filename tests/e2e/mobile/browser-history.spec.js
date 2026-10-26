@@ -1,6 +1,38 @@
 const { test, expect } = require("@playwright/test")
 const { gotoMobileApp } = require("./helpers/mobile-app")
 
+async function touch(page, row, dx) {
+  const bounds = await row.boundingBox()
+  const x = bounds.x + bounds.width / 2, y = bounds.y + bounds.height / 2
+  const input = await page.context().newCDPSession(page)
+  await input.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
+  for (let step = 1; step <= 5; step++) {
+    await input.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x + dx * step / 5, y }] })
+  }
+  return async () => {
+    await input.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+    await input.detach()
+  }
+}
+
+async function seedVisits(page, visits) {
+  await page.evaluate(async visits => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("once-browser-history", 1)
+      request.onupgradeneeded = () => { request.result.createObjectStore("visits", { keyPath: "id" }).createIndex("time", ["visitedAt", "id"]) }
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("visits", "readwrite")
+      for (const visit of visits) tx.objectStore("visits").put(visit)
+      tx.oncomplete = resolve
+      tx.onabort = () => reject(tx.error)
+    })
+    db.close()
+  }, visits)
+}
+
 async function openHistory(page) {
   await page.getByTestId("reading-menu").click()
   await page.getByRole("button", { name: "Browser menu", exact: true }).click()
@@ -45,25 +77,54 @@ test("opening a visit leaves History for the page", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await gotoMobileApp(page)
   const url = new URL("/fixtures/article.html", page.url()).href
-  await page.evaluate(async url => {
-    const db = await new Promise((resolve, reject) => {
-      const request = indexedDB.open("once-browser-history", 1)
-      request.onupgradeneeded = () => { request.result.createObjectStore("visits", { keyPath: "id" }).createIndex("time", ["visitedAt", "id"]) }
-      request.onsuccess = () => resolve(request.result)
-      request.onerror = () => reject(request.error)
-    })
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction("visits", "readwrite")
-      tx.objectStore("visits").put({ id: "seed", url, title: "Article", visitedAt: Date.now() })
-      tx.oncomplete = resolve
-      tx.onabort = () => reject(tx.error)
-    })
-    db.close()
-  }, url)
+  await seedVisits(page, [{ id: "seed", url, title: "Article", visitedAt: Date.now() }])
   await openHistory(page)
   await page.locator(".history-entry a").click()
   await expect(page.locator("#left_panel")).toHaveAttribute("active_panel", "reading")
   await expect(page.locator("#browser_history_panel")).toHaveCount(0)
+  await expect(page.locator("#reading_url")).toHaveValue(url)
+})
+
+test("history rows swipe like tab rows: left deletes the visit, right opens it", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await gotoMobileApp(page)
+  const url = new URL("/fixtures/article.html", page.url()).href
+  await seedVisits(page, [
+    { id: "keep", url, title: "Article", visitedAt: 1700000000000 },
+    { id: "drop", url: "https://example.test/drop", title: "Dropped", visitedAt: 1700000001000 }
+  ])
+  await openHistory(page)
+  const rows = page.locator(".history-entry")
+  await expect(rows).toHaveCount(2)
+  const releaseDelete = await touch(page, rows.first(), -100)
+  await expect(rows.first()).toHaveAttribute("data-swipe-direction", "delete")
+  await expect(rows.first()).toHaveAttribute("data-swipe-ready", "true")
+  await expect(rows.first().locator(".history-swipe-hint")).toHaveText("Release to delete")
+  await expect(rows.first()).toHaveAttribute("style", /--row-swipe-distance: 100px/)
+  const feedback = await rows.first().evaluate(row => ({
+    hint: row.querySelector(".history-swipe-hint").getBoundingClientRect().width,
+    transform: getComputedStyle(row.querySelector("a")).transform,
+    overflow: document.documentElement.scrollWidth > innerWidth
+  }))
+  expect(feedback.hint).toBeCloseTo(100, 0)
+  expect(feedback.transform).toContain("-100")
+  expect(feedback.overflow).toBe(false)
+  await page.screenshot({ path: "test-results/history-mobile-swipe-delete.png" })
+  await releaseDelete()
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first().locator(".history-entry-title")).toHaveText("Article")
+  // A short drag reveals the action but releases without committing.
+  const releaseShort = await touch(page, rows.first(), 40)
+  await expect(rows.first()).toHaveAttribute("data-swipe-direction", "open")
+  await expect(rows.first()).toHaveAttribute("data-swipe-ready", "false")
+  await releaseShort()
+  await expect(rows.first()).not.toHaveAttribute("data-swipe-direction")
+  await expect(page.locator("#browser_history_panel")).toHaveCount(1)
+  const releaseOpen = await touch(page, rows.first(), 100)
+  await expect(rows.first().locator(".history-swipe-hint")).toHaveText("Release to open")
+  await page.screenshot({ path: "test-results/history-mobile-swipe-open.png" })
+  await releaseOpen()
+  await expect(page.locator("#left_panel")).toHaveAttribute("active_panel", "reading")
   await expect(page.locator("#reading_url")).toHaveValue(url)
 })
 

@@ -110,13 +110,60 @@ body.browser-history-page {
 }
 
 .history-entry {
+  --row-swipe-offset: 0px;
+  --row-swipe-distance: 0px;
+
+  position: relative;
   display: grid;
   grid-template-columns: 5ch minmax(0, 1fr) var(--history-control-size);
   align-items: baseline;
   gap: var(--sp-3);
   min-height: 48px;
   padding-inline: var(--sp-2);
+  overflow: hidden;
   border-bottom: var(--bw) solid var(--divider-color);
+  touch-action: pan-y;
+}
+
+/* The row's content slides aside with the finger; the hint fills the gap it leaves. */
+.history-entry > time,
+.history-entry > a,
+.history-entry > .history-remove {
+  transform: translateX(var(--row-swipe-offset));
+}
+
+.history-swipe-hint {
+  position: absolute;
+  inset-block: 0;
+  display: none;
+  box-sizing: border-box;
+  width: var(--row-swipe-distance);
+  overflow: hidden;
+  padding-inline: var(--sp-1);
+  place-items: center;
+  background: var(--second-bg-color);
+  color: var(--text-high-color);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}
+
+.history-entry[data-swipe-direction] .history-swipe-hint {
+  display: grid;
+}
+
+.history-entry[data-swipe-direction="open"] .history-swipe-hint {
+  inset-inline-start: 0;
+}
+
+.history-entry[data-swipe-direction="delete"] .history-swipe-hint {
+  inset-inline-end: 0;
+}
+
+.history-entry[data-swipe-ready="true"] .history-swipe-hint {
+  background: color-mix(in srgb, var(--cursor-color) 30%, var(--main-bg-color));
+  box-shadow: inset 0 0 0 var(--bw) var(--cursor-color);
 }
 
 .history-entry time {

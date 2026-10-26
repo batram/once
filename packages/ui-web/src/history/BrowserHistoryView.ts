@@ -1,4 +1,5 @@
 import type { BrowserHistoryPort, BrowserVisit, HistoryPage, HistoryQuery } from "@once/core"
+import { attachRowSwipe } from "../gesture/rowSwipe"
 
 const visitTime = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
 
@@ -18,6 +19,7 @@ export function mountBrowserHistory(root: HTMLElement, history: Pick<BrowserHist
     return element
   }
   const search = find<HTMLInputElement>("input")
+  const swipe = historySwipe(find<HTMLElement>(".history-content"))
   const list = find<HTMLElement>(".history-entries")
   const status = find<HTMLElement>(".history-status")
   const hint = find<HTMLElement>(".history-empty-hint")
@@ -114,7 +116,18 @@ export function mountBrowserHistory(root: HTMLElement, history: Pick<BrowserHist
   newer.onclick = () => { if (!busy && pages.length > 1) { pages.pop(); void load() } }
   older.onclick = () => { if (!busy && next) { pages.push(next); void load() } }
   void load()
-  return { refresh: () => void load(), dispose: () => { disposed = true; generation++; clearTimeout(timer); root.replaceChildren() } }
+  return { refresh: () => void load(), dispose: () => { disposed = true; generation++; clearTimeout(timer); swipe.dispose(); root.replaceChildren() } }
+}
+
+/** Like tab rows: swipe left deletes the visit, swipe right opens it. */
+function historySwipe(content: HTMLElement): ReturnType<typeof attachRowSwipe> {
+  return attachRowSwipe(content, {
+    row: ".history-entry",
+    ignore: ".history-remove",
+    hint: ".history-swipe-hint",
+    left: { direction: "delete", action: ".history-remove", idle: "Delete", ready: "Release to delete" },
+    right: { direction: "open", action: "a", idle: "Open", ready: "Release to open" }
+  })
 }
 
 function backButton(onclick: () => void): HTMLButtonElement {
@@ -136,6 +149,7 @@ function historyRow(entry: BrowserVisit, open: (url: string) => void, removeVisi
   time.textContent = visitTime.format(new Date(entry.visitedAt))
   const link = document.createElement("a")
   link.href = entry.url
+  link.draggable = false
   const title = document.createElement("span")
   title.className = "history-entry-title"
   title.textContent = entry.title || entry.url
@@ -156,6 +170,9 @@ function historyRow(entry: BrowserVisit, open: (url: string) => void, removeVisi
     try { await removeVisit() }
     catch (failure) { error(failure); remove.disabled = false }
   }
-  row.append(time, link, remove)
+  const hint = document.createElement("span")
+  hint.className = "history-swipe-hint"
+  hint.setAttribute("aria-hidden", "true")
+  row.append(time, link, remove, hint)
   return row
 }

@@ -22,8 +22,9 @@ not. Title updates modify the existing visit and cannot recreate a deleted row.
 Fragment-only navigation and switching an existing page into reader mode do not
 create duplicate visits.
 
-Removing a row removes that individual visit, preserving other visits to the same
-address. Delete all requires confirmation and clears the entire local history,
+Rows swipe like tab rows: left deletes the visit, right opens it; the row's ✕
+and link do the same by tap. Removing a row removes that individual visit,
+preserving other visits to the same address. Delete all requires confirmation and clears the entire local history,
 even when a search is active. It drops and recreates the FTS index in the same
 transaction rather than producing an FTS deletion record for every visit. Writes
 and deletions are ordered so already queued visits cannot reappear after clear.

@@ -4069,8 +4069,8 @@
   }
 
   .reading_tab_row {
-    --tab-swipe-offset: 0px;
-    --tab-swipe-distance: 0px;
+    --row-swipe-offset: 0px;
+    --row-swipe-distance: 0px;
 
     position: relative;
     overflow: hidden;
@@ -4085,7 +4085,7 @@
   }
 
   .reading_tab_row > button {
-    transform: translateX(var(--tab-swipe-offset));
+    transform: translateX(var(--row-swipe-offset));
   }
 
   .reading_tab_swipe_hint {
@@ -4093,7 +4093,7 @@
     inset-block: 0;
     display: none;
     box-sizing: border-box;
-    width: var(--tab-swipe-distance);
+    width: var(--row-swipe-distance);
     overflow: hidden;
     padding-inline: var(--sp-1);
     place-items: center;
