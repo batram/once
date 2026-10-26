@@ -232,6 +232,14 @@ an Android-compatible Firefox Add-ons listing or choose a Mozilla-signed local
 XPI. Gecko checks the package signature and compatibility, then Once presents
 the verified identity and requested access in a native permission dialog.
 
+Opening that list does not start the engine. Until Gecko (or, on Once Lite, the
+broker) is running and has delivered its catalog, the rows are the catalog the
+engine delivered last time, saved in shared preferences per engine and marked
+as listed without starting the extensions; the engine's first live catalog
+replaces them, as does the Refresh button, which is the one list that starts
+the engine. A first launch with nothing saved yet lists live. Enabling,
+removing, updating and opening extension pages still start the engine.
+
 Management includes enable/disable, options pages, action popups, manual update
 checks, and removal with a data-removal confirmation. Bundled uBlock Origin and
 Violentmonkey can be disabled; they update with Once and cannot be removed. The
@@ -251,7 +259,13 @@ See [Android architecture, limits, and validation](plans/android-gecko-extension
 ## Installing and managing Firefox extensions on iOS
 
 Settings → Browser Extensions lists the bundled extensions and every package the
-user installed, including disabled entries. Install extension accepts a Firefox
+user installed, including disabled entries. Until the WebKit host is prepared,
+that list is read from disk: the bundled manifests and `_locales`, the installed
+catalog file, the enabled switches and the load failures the host recorded last
+time (`ExtensionCatalogSnapshot.swift`). Icons come from the manifest's declared
+images. Opening the list therefore starts no extension; the host's own change
+event replaces the rows once a page or a command has prepared it, and Refresh
+asks for the live catalog explicitly. Install extension accepts a Firefox
 Add-ons listing URL, one of its XPI download links, or a local XPI/ZIP chosen in
 the Files picker. Tapping an XPI download link in a page opened in Once goes
 through the same install instead of a download, and the Add-ons site itself

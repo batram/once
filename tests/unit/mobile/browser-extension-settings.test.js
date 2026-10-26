@@ -233,3 +233,22 @@ test("catalog changes during a slow refresh cause one trailing refresh", async (
   await settle()
   assert.equal(replies.length, 2)
 })
+
+test("a catalog listed from disk is labelled, and Refresh asks the engine for the live one", async () => {
+  const calls = []
+  const row = { id: "uBlock0@raymondhill.net", name: "uBlock Origin", version: "1.60", description: "Blocker", enabled: true, bundled: true, hasOptions: true, hasAction: true, permissions: [], disabledReason: "" }
+  const ui = harness(async options => {
+    calls.push(options)
+    return calls.length === 1 ? { extensions: [row], snapshot: true } : { extensions: [{ ...row, enabled: false }] }
+  })
+  await settle()
+  assert.deepEqual(calls, [{ action: "list" }])
+  assert.equal(ui.document.querySelectorAll(".mobile_extension_row").length, 1)
+  assert.equal(ui.document.body.textContent.includes("Listed without starting the extensions"), true)
+  assert.deepEqual(ui.reports.at(-1), { installed: 1, enabled: 1 })
+  await ui.click("Refresh extensions")
+  assert.deepEqual(calls[1], { action: "list", refresh: true })
+  assert.equal(ui.document.body.textContent.includes("Listed without starting the extensions"), false)
+  assert.equal(ui.document.querySelector(".mobile_extension_meta").textContent.includes("Disabled"), true)
+  assert.deepEqual(ui.reports.at(-1), { installed: 1, enabled: 0 })
+})

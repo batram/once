@@ -27,3 +27,23 @@ test("concurrent catalog readers share one native query and a failure can be ret
   requests[2].resolve({})
   await mutation
 })
+
+test("a refresh list does not join the shared plain query", async () => {
+  const exports = {}
+  const requests = []
+  const code = ts.transpileModule(fs.readFileSync("packages/platform-mobile/src/BrowserExtensions.ts", "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+  }).outputText
+  Function("exports", "require", code)(exports, name => name === "@capacitor/core"
+    ? { Capacitor: { getPlatform: () => "ios" } }
+    : { NativeInAppBrowser: { extensionCommand: options => new Promise((resolve, reject) => requests.push({ options, resolve, reject })) } })
+  const api = exports.createMobileBrowserExtensions()
+  const plain = api.command({ action: "list" })
+  const refresh = api.command({ action: "list", refresh: true })
+  assert.notEqual(refresh, plain)
+  assert.deepEqual(requests.map(request => request.options), [{ action: "list" }, { action: "list", refresh: true }])
+  requests[0].resolve({ extensions: [], snapshot: true })
+  requests[1].resolve({ extensions: [] })
+  assert.deepEqual(await plain, { extensions: [], snapshot: true })
+  assert.deepEqual(await refresh, { extensions: [] })
+})

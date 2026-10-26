@@ -25,7 +25,10 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
     private weak var parent: UIView?
     var changed: () -> Void = {}
     var pageChanged: ([String: Any]) -> Void = { _ in }
-    let bundles: [(id: String, directory: String, name: String)] = [
+    /// Set once `prepare()` has loaded every bundle and package; until then the
+    /// plugin lists extensions from disk instead of starting the host.
+    private(set) var isPrepared = false
+    static let bundles: [(id: String, directory: String, name: String)] = [
         ("ublock-origin-lite", "ublock-origin-lite", "uBlock Origin Lite"),
         ("addon@darkreader.org", "darkreader", "Dark Reader"),
         ("sponsorBlocker@ajay.app", "sponsorblock", "SponsorBlock"),
@@ -44,7 +47,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
     func prepare() async {
         if let loading { await loading.value; return }
         let task = Task { @MainActor in
-            for bundle in bundles {
+            for bundle in Self.bundles {
                 do { try await loadBundle(bundle) }
                 catch { failures[bundle.id] = error.localizedDescription }
             }
@@ -54,16 +57,25 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
                 do { try await loadInstalled(entry) }
                 catch { failures[entry.id] = error.localizedDescription }
             }
+            recordFailures()
+            isPrepared = true
             changed()
         }
         loading = task
         await task.value
     }
 
+    /// Why this iOS cannot run a bundle at all; nil for the rest.
+    static func unavailableReason(forBundle directory: String) -> String? {
+        if directory == "ublock-origin-lite", #unavailable(iOS 18.6) { return "This uBO Lite release requires iOS 18.6 or later." }
+        return nil
+    }
+
+    /// The disk catalog shows the host's last load failures until the host runs again.
+    func recordFailures() { ExtensionLoadRecord.record(failures, for: Self.bundles.map(\.id) + installed.map(\.id)) }
+
     private func loadBundle(_ bundle: (id: String, directory: String, name: String)) async throws {
-        if bundle.directory == "ublock-origin-lite" {
-            guard #available(iOS 18.6, *) else { throw hostError("This uBO Lite release requires iOS 18.6 or later.") }
-        }
+        if let reason = Self.unavailableReason(forBundle: bundle.directory) { throw hostError(reason) }
         guard let url = Bundle.main.url(forResource: bundle.directory, withExtension: nil,
                                         subdirectory: "public/extensions") else {
             throw hostError("Bundled \(bundle.name) resources are missing. Run the iOS asset build.")
@@ -123,7 +135,8 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
         "once-x" + ExtensionSource.sha256(Data(id.utf8)).prefix(24)
     }
 
-    func isEnabled(_ id: String) -> Bool { UserDefaults.standard.bool(forKey: "once.extension.disabled.\(id)") != true }
+    static func enabled(_ id: String) -> Bool { UserDefaults.standard.bool(forKey: "once.extension.disabled.\(id)") != true }
+    func isEnabled(_ id: String) -> Bool { Self.enabled(id) }
 
     /// Every surface is a tab of this one window: it opens with the first and
     /// closes with the last. Selection, not attachment, focuses it.
@@ -161,7 +174,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
     }
 
     func catalog() -> [[String: Any]] {
-        bundles.map { entry(id: $0.id, name: $0.name, version: "", installed: nil) } +
+        Self.bundles.map { entry(id: $0.id, name: $0.name, version: "", installed: nil) } +
             installed.map { entry(id: $0.id, name: $0.name, version: $0.version, installed: $0) }
     }
 

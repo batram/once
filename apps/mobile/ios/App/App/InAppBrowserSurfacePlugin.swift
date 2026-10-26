@@ -571,8 +571,15 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
 
     @objc func extensionCommand(_ call: CAPPluginCall) {
         Task { @MainActor in
-            await extensions.prepare()
             let action = call.getString("action") ?? "list"
+            // Listing never starts the extension host. Until the host is prepared
+            // the rows come from the manifests and the installed catalog on disk,
+            // and the host's change event replaces them once it has loaded.
+            if action == "list", call.getBool("refresh") != true, !extensions.isPrepared {
+                call.resolve(["extensions": ExtensionDiskCatalog.entries(store: extensions.store), "snapshot": true])
+                return
+            }
+            await extensions.prepare()
             if action == "options" || action == "action", surface == nil {
                 ensureSurface()?.isHidden = true
             }

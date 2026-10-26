@@ -138,7 +138,7 @@ final class CompatTest: UIResponder, UIApplicationDelegate, WKScriptMessageHandl
   results["catalog"] = host.catalog()
   results["bundleFailures"] = host.failures
   // Only the extension under test should touch the fixture page.
-  for bundle in host.bundles { _ = try? host.command("enable", id: bundle.id, enabled: false) }
+  for bundle in WebExtensionHost.bundles { _ = try? host.command("enable", id: bundle.id, enabled: false) }
   results["baselineHtmlLength"] = await fixtureLength()
   save()
   for entry in loadIndex() {

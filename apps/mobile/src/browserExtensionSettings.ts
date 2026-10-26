@@ -85,7 +85,7 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
     const entry = result.extensions?.find(item => item.id === selected?.id)
     await show(entry ? "detail" : "overview", entry)
   }
-  const show = async (target: string, extension = selected) => {
+  const show = async (target: string, extension = selected, refresh = false) => {
     const ticket = ++generation
     current = target
     selected = extension
@@ -94,15 +94,10 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
     page.hidden = target === "supplemental"
     if (active()) title.textContent = pageTitle(target, extension)
     if (target === "overview") {
-      page.append(...explained(api.platform === "ios"
-        ? "Firefox extensions for pages opened in Once, run by iOS WebKit."
-        : "Firefox extensions for pages opened in Once.",
-      api.platform === "ios"
-        ? "Installation and settings stay on this device. Extensions are adapted to WebKit; not every Firefox feature is available."
-        : "Installation and settings stay on this device."))
-      page.append(link("Install extension", "install"),
+      page.append(...overviewIntro(api.platform), link("Install extension", "install"),
         withTestId(link("Filter lists & userscripts", "supplemental"), "extension-supplemental"))
-      const result = await api.command({ action: "list" })
+      // A plain list never starts the engine; only Refresh asks for the live catalog.
+      const result = await api.command(refresh ? { action: "list", refresh: true } : { action: "list" })
       installed.clear()
       for (const item of result.extensions ?? []) installed.set(item.id, item)
       report(result)
@@ -113,7 +108,8 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
         populateExtensionRow(row, item)
         page.append(row)
       }
-      page.append(control("Refresh extensions", () => void show("overview")))
+      page.append(control("Refresh extensions", () => void show("overview", selected, true)))
+      if (result.snapshot) page.append(element("p", "Listed without starting the extensions. Refresh shows their current state.", "settings_description"))
     } else if (target === "install") {
       renderInstall(page, api, api.platform, button, async () => navigate("overview"), openBrowserUrl)
     } else if (target === "detail" && extension) {
@@ -136,6 +132,15 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
     else await show("overview")
   }, error => { if (active()) status.textContent = String(error) })
   if (active()) void show("overview")
+}
+
+function overviewIntro(platform: MobileBrowserExtensions["platform"]): Node[] {
+  return explained(platform === "ios"
+    ? "Firefox extensions for pages opened in Once, run by iOS WebKit."
+    : "Firefox extensions for pages opened in Once.",
+  platform === "ios"
+    ? "Installation and settings stay on this device. Extensions are adapted to WebKit; not every Firefox feature is available."
+    : "Installation and settings stay on this device.")
 }
 
 /** Debounce icon/action bursts, retaining changes that arrive during a query. */

@@ -17,6 +17,7 @@
 		7A1E0C372E6800010000A0D1 /* ExtensionPrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C362E6800010000A0D1 /* ExtensionPrompts.swift */; };
 		7A1E0C352E6800010000A0D1 /* WebExtensionManagement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C342E6800010000A0D1 /* WebExtensionManagement.swift */; };
 		7A1E0C332E6800010000A0D1 /* WebExtensionInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C322E6800010000A0D1 /* WebExtensionInstaller.swift */; };
+		7A1E0C3B2E6800010000A0D1 /* ExtensionCatalogSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C3A2E6800010000A0D1 /* ExtensionCatalogSnapshot.swift */; };
 		7A1E0C312E6800010000A0D1 /* ExtensionArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C302E6800010000A0D1 /* ExtensionArchive.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
@@ -48,6 +49,7 @@
 		7A1E0C362E6800010000A0D1 /* ExtensionPrompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionPrompts.swift; sourceTree = "<group>"; };
 		7A1E0C342E6800010000A0D1 /* WebExtensionManagement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebExtensionManagement.swift; sourceTree = "<group>"; };
 		7A1E0C322E6800010000A0D1 /* WebExtensionInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebExtensionInstaller.swift; sourceTree = "<group>"; };
+		7A1E0C3A2E6800010000A0D1 /* ExtensionCatalogSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionCatalogSnapshot.swift; sourceTree = "<group>"; };
 		7A1E0C302E6800010000A0D1 /* ExtensionArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionArchive.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
@@ -115,6 +117,7 @@
 				7A1E0C362E6800010000A0D1 /* ExtensionPrompts.swift */,
 				7A1E0C342E6800010000A0D1 /* WebExtensionManagement.swift */,
 				7A1E0C322E6800010000A0D1 /* WebExtensionInstaller.swift */,
+				7A1E0C3A2E6800010000A0D1 /* ExtensionCatalogSnapshot.swift */,
 				7A1E0C302E6800010000A0D1 /* ExtensionArchive.swift */,
 				7A1E0C0C2E6800010000A001 /* SecureSettings.swift */,
 				7A1E0C0E2E6800010000A001 /* BrowserMenuSheet.swift */,
@@ -227,6 +230,7 @@
 				7A1E0C372E6800010000A0D1 /* ExtensionPrompts.swift in Sources */,
 				7A1E0C352E6800010000A0D1 /* WebExtensionManagement.swift in Sources */,
 				7A1E0C332E6800010000A0D1 /* WebExtensionInstaller.swift in Sources */,
+				7A1E0C3B2E6800010000A0D1 /* ExtensionCatalogSnapshot.swift in Sources */,
 				7A1E0C312E6800010000A0D1 /* ExtensionArchive.swift in Sources */,
 				7A1E0C0D2E6800010000A001 /* SecureSettings.swift in Sources */,
 				7A1E0C0F2E6800010000A001 /* BrowserMenuSheet.swift in Sources */,

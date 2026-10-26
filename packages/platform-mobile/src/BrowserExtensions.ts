@@ -24,11 +24,19 @@ export interface MobileExtensionCommand {
   id?: string
   source?: string
   enabled?: boolean
+  /** A list that may start the engine for its live catalog; a plain list answers from disk until the engine runs. */
+  refresh?: boolean
 }
 
 export interface MobileBrowserExtensions {
   readonly platform?: "android" | "ios"
-  command(options: MobileExtensionCommand): Promise<{ extensions?: MobileBrowserExtension[]; cancelled?: boolean; noPage?: boolean }>
+  command(options: MobileExtensionCommand): Promise<{
+    extensions?: MobileBrowserExtension[]
+    cancelled?: boolean
+    noPage?: boolean
+    /** The rows came from disk, not from running extensions; a refresh lists live. */
+    snapshot?: boolean
+  }>
   onChanged(listener: () => void): Promise<() => void>
 }
 
@@ -45,7 +53,7 @@ export function createMobileBrowserExtensions(): MobileBrowserExtensions | null 
   return {
     platform,
     command(options) {
-      if (options.action !== "list") return NativeInAppBrowser.extensionCommand(options)
+      if (options.action !== "list" || options.refresh) return NativeInAppBrowser.extensionCommand(options)
       if (!listing) {
         listing = NativeInAppBrowser.extensionCommand(options).finally(() => { listing = undefined })
       }

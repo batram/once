@@ -85,7 +85,20 @@ final class HostTest: UIResponder, UIApplicationDelegate, WKScriptMessageHandler
  func run() async throws {
   results["os"] = UIDevice.current.systemVersion
   let videoData = try Data(contentsOf: Bundle.main.url(forResource:"extension-video",withExtension:"mp4")!)
+  // The disk catalog Settings shows before the host runs must describe the same extensions as the live one.
+  let disk = ExtensionDiskCatalog.entries(store: host.store)
   await host.prepare(); results["catalog"] = host.catalog(); save()
+  let live = host.catalog()
+  var mismatches: [String] = []
+  for (index, row) in live.enumerated() {
+    guard index < disk.count else { mismatches.append("missing \(row["id"] ?? "")"); continue }
+    for key in ["id", "name", "version", "enabled", "bundled", "hasOptions", "hasAction", "permissions", "disabledReason"] where String(describing: disk[index][key] ?? "") != String(describing: row[key] ?? "") {
+      mismatches.append("\(row["id"] ?? "").\(key): disk \(disk[index][key] ?? "nil") live \(row[key] ?? "nil")")
+    }
+    if (disk[index]["iconDataUrl"] as? String)?.hasPrefix("data:image/png;base64,") != true { mismatches.append("\(row["id"] ?? "") has no disk icon") }
+  }
+  if disk.count != live.count { mismatches.append("disk rows \(disk.count) live rows \(live.count)") }
+  results["diskCatalogMismatches"] = mismatches
   if CommandLine.arguments.contains("--ubol-only") { try await testUBlockTools(); return }
   web.loadHTMLString("<html><head><meta name='viewport' content='width=device-width'><style>body{background:white;color:black}article{padding:24px}</style></head><body><article><h1>Extension test</h1><p>Dark Reader should theme this page using the upstream extension.</p></article></body></html>", baseURL:URL(string:"https://example.com/once-test"))
   await pause()

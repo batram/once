@@ -247,11 +247,11 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost implements Rea
     @PluginMethod
     public void extensionCommand(PluginCall call) {
         getActivity().runOnUiThread(() -> {
+            // Listing never starts Gecko: before its catalog arrives, the rows are the catalog it delivered last time.
+            if (ExtensionCatalogSnapshot.answer(call, getContext(), "gecko", GeckoEngine.isPrepared())) return;
             ensureEngine();
             if ("chooseFile".equals(call.getString("action"))) {
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("*/*");
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
                 startActivityForResult(call, intent, "extensionFileChosen");
             } else extensions.command(call);
         });

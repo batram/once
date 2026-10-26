@@ -31,6 +31,11 @@ final class GeckoEngine {
         return instance;
     }
 
+    /** Whether a running engine has delivered its startup catalog; false while it starts or before it exists. */
+    static synchronized boolean isPrepared() {
+        return instance != null && instance.prepared;
+    }
+
     private GeckoEngine(Context context) {
         this.context = context;
         GeckoRuntimeSettings.Builder settings = new GeckoRuntimeSettings.Builder()

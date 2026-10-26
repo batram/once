@@ -36,7 +36,7 @@ async function main() {
     run("xcrun", ["--sdk", "iphonesimulator", "swiftc", "-parse-as-library", "-target",
       `${process.arch === "arm64" ? "arm64" : "x86_64"}-apple-ios18.4-simulator`, "-sdk", sdk,
       path.join(__dirname, "ios-extension-management.swift"),
-      ...["WebExtensionHost", "WebExtensionManagement", "WebExtensionInstaller", "ExtensionArchive"].map(name => `apps/mobile/ios/App/App/${name}.swift`),
+      ...["WebExtensionHost", "WebExtensionManagement", "WebExtensionInstaller", "ExtensionArchive", "ExtensionCatalogSnapshot"].map(name => `apps/mobile/ios/App/App/${name}.swift`),
       "-o", path.join(app, "Host")])
     run("codesign", ["--force", "--sign", "-", app])
     // Clear only this test app, so reruns start with fresh preferences and WebKit data.

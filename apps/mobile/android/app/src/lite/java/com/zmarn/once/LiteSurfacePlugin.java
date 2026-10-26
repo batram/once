@@ -346,6 +346,10 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
     @PluginMethod
     public void extensionCommand(PluginCall call) {
         getActivity().runOnUiThread(() -> {
+            // Listing never waits for the broker: until it has started, the rows
+            // are the catalogue it reported last time, and its start replaces them.
+            LiteExtensionEngine running = LiteExtensionEngine.current();
+            if (ExtensionCatalogSnapshot.answer(call, getContext(), "lite", running != null && running.isStarted())) return;
             ensureExtensions();
             if ("chooseFile".equals(call.getString("action"))) {
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);

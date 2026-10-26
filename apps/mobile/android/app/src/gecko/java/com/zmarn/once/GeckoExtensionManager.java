@@ -30,6 +30,7 @@ final class GeckoExtensionManager implements WebExtension.ActionDelegate, WebExt
     private final Map<String, WebExtension> extensions = new LinkedHashMap<>();
     private final Map<String, WebExtension.Action> actions = new HashMap<>();
     private final GeckoExtensionIcons icons;
+    private final ExtensionCatalogSnapshot snapshot;
     private final Map<GeckoSession, Map<String, WebExtension.Action>> tabActions = new HashMap<>();
     private final Map<AlertDialog, GeckoResult<AllowOrDeny>> prompts = new HashMap<>();
     private final ExecutorService downloads = Executors.newSingleThreadExecutor();
@@ -47,12 +48,16 @@ final class GeckoExtensionManager implements WebExtension.ActionDelegate, WebExt
         this.readingSessions = readingSessions;
         this.changed = changed;
         icons = new GeckoExtensionIcons(() -> { if (!disposed) changed.run(); });
+        snapshot = new ExtensionCatalogSnapshot(activity, "gecko");
         pages = new GeckoExtensionPages(activity, shell, engine, this, pageState);
         engine.runtime.getWebExtensionController().setPromptDelegate(new Prompts());
     }
 
     void adopt(List<WebExtension> installed) {
         if (disposed) return;
+        // The shell may be drawing the saved catalog: the first live one, arriving
+        // through a page's start rather than a command's own reply, replaces it.
+        boolean announce = extensions.isEmpty() && !installed.isEmpty() && operation == null;
         extensions.clear();
         for (WebExtension extension : installed) {
             extensions.put(extension.id, extension);
@@ -66,6 +71,7 @@ final class GeckoExtensionManager implements WebExtension.ActionDelegate, WebExt
         icons.adopt(installed);
         // Enabling hands back a new object for the same extension.
         ViolentmonkeyRelayPlugin.attach(installed);
+        if (announce) changed.run();
     }
 
     WebExtension bridge() { return extensions.get(GeckoEngine.BRIDGE_ID); }
@@ -266,6 +272,7 @@ final class GeckoExtensionManager implements WebExtension.ActionDelegate, WebExt
             item.put("disabledReason", meta.enabled ? "" : "Disabled (Gecko flags: " + meta.disabledFlags + ")");
             items.put(item);
         }
+        snapshot.save(items);
         JSObject result = new JSObject();
         result.put("extensions", items);
         return result;

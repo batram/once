@@ -15,7 +15,7 @@ const { downloadExtension } = require("../../../scripts/download-extension.js")
 
 const root = path.resolve(__dirname, "../../..")
 const bundleID = "com.once.compattest"
-const hostSources = ["WebExtensionHost.swift", "WebExtensionManagement.swift", "WebExtensionInstaller.swift", "ExtensionArchive.swift"]
+const hostSources = ["WebExtensionHost.swift", "WebExtensionManagement.swift", "WebExtensionInstaller.swift", "ExtensionArchive.swift", "ExtensionCatalogSnapshot.swift"]
 const bundledDirectories = ["darkreader", "sponsorblock", "ublock-origin-lite", "violentmonkey"]
 const downloads = path.join(root, "artifacts/extension-support/compat")
 const outputs = path.join(root, "artifacts/extension-support")

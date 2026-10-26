@@ -101,7 +101,7 @@ extension WebExtensionHost {
                 try ExtensionArchive.extract(data, to: directory)
                 return try WebKitManifestAdapter.adapt(at: directory, listedId: knownId)
             }.value
-            if bundles.contains(where: { $0.id == adapted.id }) {
+            if Self.bundles.contains(where: { $0.id == adapted.id }) {
                 throw installError("This extension is included with Once and is updated with it")
             }
             let ext = try await WKWebExtension(resourceBaseURL: directory)
@@ -161,6 +161,7 @@ extension WebExtensionHost {
         installed = nextInstalled
         contexts[candidate.id] = context
         failures[candidate.id] = nil
+        ExtensionLoadRecord.forget(candidate.id)
         if let previous, previous.directory != candidate.token { await store.remove(previous.directory) }
         changed()
     }
@@ -177,6 +178,7 @@ extension WebExtensionHost {
             }
         }
         failures[entry.id] = nil
+        ExtensionLoadRecord.forget(entry.id)
         UserDefaults.standard.removeObject(forKey: "once.extension.disabled.\(entry.id)")
         installed.removeAll { $0.id == entry.id }
         try store.save(installed)

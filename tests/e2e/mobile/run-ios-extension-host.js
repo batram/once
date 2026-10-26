@@ -12,7 +12,7 @@ if (!device) throw new Error("Pass the UUID of a booted iOS 18.4+ simulator")
 const run = (cmd, args) => execFileSync(cmd, args, { cwd: root, encoding: "utf8" }).trim()
 const bundleID = "com.once.hosttest"
 // The production host and the installer it now depends on (no UIKit prompts: the harness confirms silently).
-const hostSources = ["WebExtensionHost.swift", "WebExtensionManagement.swift", "WebExtensionInstaller.swift", "ExtensionArchive.swift"]
+const hostSources = ["WebExtensionHost.swift", "WebExtensionManagement.swift", "WebExtensionInstaller.swift", "ExtensionArchive.swift", "ExtensionCatalogSnapshot.swift"]
 
 async function main() {
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "once-extension-host-"))
@@ -62,6 +62,7 @@ async function main() {
   assert.equal(result?.done, true, `Native test timed out; inspect ${output}`)
   assert.equal(result.failure, undefined)
   assert.deepEqual(result.errors, [])
+  assert.deepEqual(result.diskCatalogMismatches, [])
   for (const name of ["zapper", "picker"]) {
     assert.equal(result[name + "IgnoresPageClose"], true)
     assert.equal(result[name + "PopupClosed"], true)

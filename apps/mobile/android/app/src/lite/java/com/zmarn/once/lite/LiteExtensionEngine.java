@@ -109,6 +109,7 @@ public final class LiteExtensionEngine {
     private boolean started;
     private boolean destroyed;
     private JSONArray catalogue = new JSONArray();
+    private final com.zmarn.once.ExtensionCatalogSnapshot snapshot;
     private JSONObject lastSettings;
     private long settingsRevision;
     private long appliedRevision;
@@ -135,6 +136,7 @@ public final class LiteExtensionEngine {
 
     private LiteExtensionEngine(Context context) {
         this.context = context.getApplicationContext();
+        snapshot = new com.zmarn.once.ExtensionCatalogSnapshot(this.context, "lite");
         BrokerChannel.verboseLogs = (this.context.getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
         token = newToken();
         channelToken = newToken();
@@ -367,6 +369,7 @@ public final class LiteExtensionEngine {
             targets.brokerReady();
             JSONArray extensions = result.optJSONArray("extensions");
             catalogue = extensions == null ? new JSONArray() : extensions;
+            snapshot.save(catalogue);
             Log.i(TAG, "broker started with " + catalogue.length() + " extensions");
             if (lastSettings != null) sendSettings(lastSettings, settingsRevision);
             releaseStartWaiters();
@@ -421,7 +424,7 @@ public final class LiteExtensionEngine {
         channel.request("extension.command", params).whenComplete((answer, error) -> {
             if (error != null) { result.completeExceptionally(error); return; }
             JSONArray extensions = answer.optJSONArray("extensions");
-            if (extensions != null) catalogue = extensions;
+            if (extensions != null) { catalogue = extensions; snapshot.save(catalogue); }
             result.complete(answer);
         });
         return result;
