@@ -89,3 +89,40 @@ test("kept background media keeps the page visible until released", () => {
   window.dispatchEvent(new Event("visibilitychange"))
   assert.deepEqual(heard, ["hidden", "hidden"])
 })
+
+// A page without the legacy presentation APIs the script patches.
+function Stub() {}
+
+test("a video file opened on its own is marked to play inline before it plays", () => {
+  const video = { attributes: {}, setAttribute(name, value) { this.attributes[name] = value } }
+  let added = null
+  const observers = []
+  const document = {
+    contentType: "video/mp4",
+    querySelector: selector => selector === "video" ? added : null
+  }
+  class MutationObserver {
+    constructor(callback) { this.callback = callback; observers.push(this) }
+    observe(target) { this.target = target }
+    disconnect() { this.disconnected = true }
+  }
+  const window = Object.assign(new EventTarget(), { document })
+  vm.runInNewContext(source, { window, Document: Stub, HTMLVideoElement: Stub, MutationObserver, Event })
+
+  // WebKit builds the media document's <video> after document-start scripts run.
+  const [observer] = observers
+  assert.equal(observer.target, document)
+  added = video
+  observer.callback()
+  assert.deepEqual(video.attributes, { playsinline: "" })
+  assert.equal(observer.disconnected, true)
+})
+
+test("ordinary pages are left to choose inline playback themselves", () => {
+  let observed = false
+  class MutationObserver { observe() { observed = true } }
+  const document = { contentType: "text/html", querySelector: () => null }
+  const window = Object.assign(new EventTarget(), { document })
+  vm.runInNewContext(source, { window, Document: Stub, HTMLVideoElement: Stub, MutationObserver, Event })
+  assert.equal(observed, false)
+})

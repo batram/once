@@ -207,16 +207,17 @@ final class MediaObserver: NSObject, WKScriptMessageHandler {
       // A video file opened on its own is WebKit's media document, whose
       // <video> has no playsinline, so the iPhone takes it fullscreen as soon
       // as it plays. Marked before it plays, it stays in the tab.
-      if (/^video\\//i.test(document.contentType || '')) {
+      var media = window.document;
+      if (media && (media.contentType || '').toLowerCase().indexOf('video/') === 0) {
         var inline = function () {
-          var video = document.querySelector('video');
+          var video = media.querySelector('video');
           if (!video) return false;
           video.setAttribute('playsinline', '');
           return true;
         };
         if (!inline()) {
           var watcher = new MutationObserver(function () { if (inline()) watcher.disconnect(); });
-          watcher.observe(document, { childList: true, subtree: true });
+          watcher.observe(media, { childList: true, subtree: true });
         }
       }
     })();
