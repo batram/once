@@ -16,12 +16,14 @@ export class NavigationErrors {
     entry.loadErrorRetryable = false
     entry.errorPageUrl = null
     this.host.notify(entry)
-    entry.view.webContents.loadURL(url).catch((error) => {
+    entry.view.webContents.loadURL(url).catch(async (error) => {
       // A tab replaced while loading (an extension page taking its place)
       // has no webContents left by the time the load reports back.
       const contents = entry.view.webContents
       if (isAborted(error) || !contents || contents.isDestroyed()) return
       if (!sameUrl(entry.displayedUrl, url) || entry.loadError) return
+      if (await showsMediaDocument(contents, entry.displayedUrl, error)) return
+      if (contents.isDestroyed() || !sameUrl(entry.displayedUrl, url) || entry.loadError) return
       this.handleFailure(entry, url, error?.message || String(error), true)
     })
   }
@@ -115,6 +117,23 @@ export class NavigationErrors {
 function isAborted(error: unknown): boolean {
   const failure = error as { code?: unknown; errno?: unknown } | null
   return failure?.code === "ERR_ABORTED" || failure?.errno === -3
+}
+
+/**
+ * A video or audio file opened on its own commits as Chromium's media
+ * document, which never finishes loading: the <video> it builds takes the
+ * response over, so loadURL rejects with ERR_FAILED while the player plays.
+ */
+async function showsMediaDocument(
+  contents: Electron.WebContents,
+  url: string,
+  error: unknown
+): Promise<boolean> {
+  const failure = error as { code?: unknown; errno?: unknown } | null
+  if (failure?.code !== "ERR_FAILED" && failure?.errno !== -2) return false
+  if (!sameUrl(contents.getURL(), url)) return false
+  const type = await contents.executeJavaScript("document.contentType").catch(() => "")
+  return typeof type === "string" && /^(video|audio)\//i.test(type)
 }
 
 export function sameUrl(left: string, right: string): boolean {

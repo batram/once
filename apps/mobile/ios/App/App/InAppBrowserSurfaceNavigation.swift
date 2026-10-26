@@ -72,9 +72,34 @@ extension InAppBrowserSurfacePlugin {
 
     private func navigationFailed(_ webView: WKWebView, navigation: WKNavigation?, error: Error) {
         guard webView === surface else { return }
+        if pluginHandledLoad(error) {
+            mediaDocumentLoaded(webView, navigation: navigation)
+            return
+        }
         guard let value = navigationState.failed(navigation, url: webView.url, error: error) else { return }
         finishRefresh()
         pageEvent("navigationFailed", data: value)
+    }
+
+    /// A video or audio file opened on its own plays in WebKit's media
+    /// document, and WebKit ends that navigation with "Plug-in handled load"
+    /// while the player is up. The page is there, so it finished.
+    private func pluginHandledLoad(_ error: Error) -> Bool {
+        let error = error as NSError
+        return error.domain == "WebKitErrorDomain" && error.code == 204
+    }
+
+    private func mediaDocumentLoaded(_ webView: WKWebView, navigation: WKNavigation?) {
+        guard navigationState.isCurrent(navigation) else { return }
+        if navigationState.phase == .started {
+            navigationState.committed()
+            resetMedia()
+            pageEvent("navigationCommitted", data: navigationState.payload(webView.url))
+        }
+        finishRefresh()
+        navigationState.finished(webView.url)
+        pageEvent("navigationFinished", data: navigationState.payload(webView.url))
+        history(webView)
     }
 
     public func webView(
