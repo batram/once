@@ -143,7 +143,14 @@ class NativeIterator extends AbstractIterator {
     }
     // Open eagerly: iteration observes a snapshot from its creation, not its first next().
     this.opened = db.request("iteratorOpen", range).then(opened => {
-      if (opened.rows) { this.rows = opened.rows; this.done = opened.done; this.prefetched = opened.iterator === null }
+      if (opened.rows) {
+        this.rows = opened.rows
+        this.done = opened.done
+        // Both point reads and completed range pages now release their native
+        // handle. Range pages still benefit from batched metadata/body reads.
+        this.prefetched = range.gte !== undefined && range.gte === range.lte &&
+          range.gt === undefined && range.lt === undefined
+      }
       return opened
     })
     this.opened.catch(() => {})

@@ -24,9 +24,14 @@ import org.json.JSONObject;
 /** App-owned SQLite, outside WebView's quota/eviction domain. No SQL crosses the bridge. */
 @CapacitorPlugin(name = "NativeDatabase")
 public class NativeDatabasePlugin extends Plugin {
+    private static final int MAX_SNAPSHOTS = 64;
+    // Measured on-device: about 23 MiB for 64 scanned readers instead of 155 MiB
+    // with the default 2000 KiB cache. The writer keeps its default cache.
+    private static final int SNAPSHOT_CACHE_KIB = 256;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Map<String, SQLiteConnection> databases = new HashMap<>();
     private final Map<String, Snapshot> snapshots = new HashMap<>();
+    private int peakSnapshots;
 
     private static class Snapshot {
         SQLiteConnection db;
@@ -37,6 +42,7 @@ public class NativeDatabasePlugin extends Plugin {
         boolean reverse;
         boolean values;
         long remaining;
+        long openedAtMs;
     }
 
     @PluginMethod
@@ -108,7 +114,9 @@ public class NativeDatabasePlugin extends Plugin {
             return result;
         }
         String name = request.getString("name");
-        if (operation.equals("open")) {
+        if (operation.equals("diagnostics")) {
+            return diagnostics(name);
+        } else if (operation.equals("open")) {
             if (databases.containsKey(name)) throw new IllegalStateException("Database already open");
             File file = path(name);
             if (file.exists() && request.optBoolean("errorIfExists")) throw new IllegalStateException("Database exists");
@@ -196,12 +204,12 @@ public class NativeDatabasePlugin extends Plugin {
                 result.put("done", true);
                 return result;
             }
-            if (snapshots.size() >= 64) throw new IllegalStateException("Too many open range snapshots");
             Snapshot snapshot = new Snapshot();
             snapshot.name = name;
             snapshot.reverse = request.optBoolean("reverse");
             snapshot.values = request.optBoolean("values", true);
             snapshot.remaining = request.optLong("limit", -1);
+            snapshot.openedAtMs = android.os.SystemClock.elapsedRealtime();
             snapshot.parameters = new ArrayList<>();
             ArrayList<String> conditions = new ArrayList<>();
             String[] bounds = {"gt", "gte", "lt", "lte"};
@@ -215,25 +223,71 @@ public class NativeDatabasePlugin extends Plugin {
             snapshot.where = conditions.isEmpty() ? "1" : String.join(" AND ", conditions);
             snapshot.db = new BundledSQLiteDriver().open(path(name).getAbsolutePath());
             try {
+                sql(snapshot.db, "PRAGMA cache_size=-" + SNAPSHOT_CACHE_KIB);
                 sql(snapshot.db, "PRAGMA query_only=ON");
                 sql(snapshot.db, "BEGIN DEFERRED");
                 // Pin the WAL snapshot now. Later pages cannot see concurrent writes.
                 sql(snapshot.db, "SELECT k FROM kv LIMIT 1");
                 String id = UUID.randomUUID().toString();
                 if (request.optBoolean("initialPage")) readPage(snapshot, result);
+                // Story observation queries fan out many short prefix ranges.
+                // Once their rows are materialized, no transaction is needed
+                // while JavaScript consumes them or waits to end its iterator.
+                if (result.optBoolean("done")) {
+                    sql(snapshot.db, "ROLLBACK");
+                    snapshot.db.close();
+                    result.put("iterator", JSONObject.NULL);
+                    return result;
+                }
+                if (snapshots.size() >= MAX_SNAPSHOTS) {
+                    android.util.Log.w("OnceDatabase", "Snapshot capacity reached: " + diagnostics(name));
+                    throw new IllegalStateException("Too many open range snapshots");
+                }
                 snapshots.put(id, snapshot);
+                peakSnapshots = Math.max(peakSnapshots, snapshots.size());
                 result.put("iterator", id);
             } catch (Exception failure) {
                 snapshot.db.close();
                 throw failure;
             }
         } else if (operation.equals("iteratorNext")) {
-            Snapshot snapshot = snapshots.get(request.getString("iterator"));
+            String id = request.getString("iterator");
+            Snapshot snapshot = snapshots.get(id);
             if (snapshot == null || !snapshot.name.equals(name)) throw new IllegalStateException("Unknown snapshot");
-            readPage(snapshot, result);
+            try {
+                readPage(snapshot, result);
+            } catch (Exception failure) {
+                endSnapshot(id);
+                throw failure;
+            }
+            if (result.optBoolean("done")) endSnapshot(id);
         } else if (operation.equals("iteratorEnd")) {
             endSnapshot(request.getString("iterator"));
         } else throw new IllegalArgumentException("Unknown operation");
+        return result;
+    }
+
+    /** Aggregate resource telemetry only: never returns keys, bodies, names or credentials. */
+    private JSObject diagnostics(String name) throws Exception {
+        JSObject result = new JSObject();
+        long now = android.os.SystemClock.elapsedRealtime();
+        long oldest = 0;
+        for (Snapshot snapshot : snapshots.values()) oldest = Math.max(oldest, now - snapshot.openedAtMs);
+        result.put("activeSnapshots", snapshots.size());
+        result.put("peakSnapshots", peakSnapshots);
+        result.put("snapshotLimit", MAX_SNAPSHOTS);
+        result.put("snapshotCacheKiB", SNAPSHOT_CACHE_KIB);
+        result.put("oldestSnapshotMs", oldest);
+        result.put("databaseWalBytes", new File(path(name) + "-wal").length());
+        try (SQLiteStatement statement = database(name).prepare("PRAGMA cache_size")) {
+            if (statement.step()) result.put("writerCacheSize", statement.getLong(0));
+        }
+        result.put("readerCacheSize", JSONObject.NULL);
+        if (!snapshots.isEmpty()) {
+            try (SQLiteStatement statement = snapshots.values().iterator().next().db.prepare("PRAGMA cache_size")) {
+                if (statement.step()) result.put("readerCacheSize", statement.getLong(0));
+            }
+        }
         return result;
     }
 
@@ -247,10 +301,15 @@ public class NativeDatabasePlugin extends Plugin {
         int limit = (int) (snapshot.remaining < 0 ? 128 : Math.min(128, snapshot.remaining));
         JSONArray rows = new JSONArray();
         int bytes = 0;
+        boolean exhausted = false;
         try (SQLiteStatement cursor = snapshot.db.prepare("SELECT k" + (snapshot.values ? ",v" : "") + " FROM kv WHERE " + where
-                + " ORDER BY k " + (snapshot.reverse ? "DESC" : "ASC") + " LIMIT " + limit)) {
+                + " ORDER BY k " + (snapshot.reverse ? "DESC" : "ASC") + " LIMIT " + (limit + 1))) {
             for (int index = 0; index < parameters.size(); index++) cursor.bindText(index + 1, parameters.get(index));
-            while (cursor.step()) {
+            while (true) {
+                if (!cursor.step()) { exhausted = true; break; }
+                // Look ahead without consuming the next page's first row.
+                // A full page alone cannot tell us whether the range ended.
+                if (rows.length() >= limit) break;
                 JSONObject row = new JSONObject();
                 snapshot.last = cursor.getText(0);
                 row.put("key", snapshot.last);
@@ -265,7 +324,7 @@ public class NativeDatabasePlugin extends Plugin {
             }
         }
         result.put("rows", rows);
-        result.put("done", rows.length() == 0 || snapshot.remaining == 0);
+        result.put("done", exhausted || snapshot.remaining == 0);
     }
 
     private void endSnapshot(String id) {

@@ -63,6 +63,72 @@ globalThis.onceNativeProbe = {
       await execute({ operation: "destroy" })
     }
   },
+  async rangeCapacity() {
+    const name = "once-range-capacity-probe-" + Date.now()
+    const execute = request => bridge.execute({ ...request, name })
+    const handles = []
+    await execute({ operation: "open" })
+    try {
+      const baseline = await execute({ operation: "diagnostics" })
+      if (baseline.snapshotLimit !== 64 || baseline.snapshotCacheKiB !== 256) throw new Error("Unexpected snapshot resource policy")
+      await execute({ operation: "batch", operations: Array.from({ length: 256 }, (_, i) => ({
+        type: "put", key: i.toString(16).padStart(6, "0") + "01", value: btoa("old-" + i)
+      })) })
+      // Reproduce story loading's prefix scans, with populated and empty
+      // ranges. Do not end any iterator until the entire burst has resolved.
+      const ranges = await Promise.allSettled(Array.from({ length: 512 }, (_, i) => execute({
+        operation: "iteratorOpen", initialPage: true,
+        gte: i.toString(16).padStart(6, "0") + "00", lt: i.toString(16).padStart(6, "0") + "ff"
+      })))
+      for (const result of ranges) if (result.status === "fulfilled" && result.value.iterator) handles.push(result.value.iterator)
+      for (let i = 0; i < ranges.length; i++) {
+        const result = ranges[i]
+        if (result.status === "rejected") throw result.reason
+        const page = result.value
+        if (page.iterator !== null || !page.done || page.rows.length !== (i < 256 ? 1 : 0)
+          || (i < 256 && atob(page.rows[0].value) !== "old-" + i)) throw new Error("Short range retained a snapshot or lost rows")
+      }
+      const exactPage = await execute({ operation: "iteratorOpen", initialPage: true, lt: "00008000" })
+      if (exactPage.iterator !== null || !exactPage.done || exactPage.rows.length !== 128) throw new Error("Exact page boundary retained a snapshot")
+      // Keep the limit for genuinely active multi-page snapshots. Releasing
+      // final pages must restore capacity even before iteratorEnd arrives.
+      for (let i = 0; i < 64; i++) {
+        const page = await execute({ operation: "iteratorOpen", initialPage: true })
+        if (!page.iterator || page.done || page.rows.length !== 128) throw new Error("Multi-page range closed early")
+        handles.push(page.iterator)
+      }
+      const diagnostics = await execute({ operation: "diagnostics" })
+      if (diagnostics.activeSnapshots !== 64 || diagnostics.peakSnapshots < 64 || diagnostics.oldestSnapshotMs < 0
+        || diagnostics.readerCacheSize !== -256 || diagnostics.writerCacheSize !== baseline.writerCacheSize
+        || diagnostics.databaseWalBytes < 0) throw new Error("Snapshot resource diagnostics or cache policy failed")
+      const shortWhileFull = await execute({ operation: "iteratorOpen", initialPage: true, lt: "00000100" })
+      if (shortWhileFull.iterator !== null || !shortWhileFull.done || shortWhileFull.rows.length !== 1) {
+        throw new Error("Active snapshot limit rejected a materialized short range")
+      }
+      let bounded = false
+      try { await execute({ operation: "iteratorOpen", initialPage: true }) }
+      catch (error) { if (!error.message.includes("Too many open range snapshots")) throw error; bounded = true }
+      if (!bounded) throw new Error("Active snapshot limit was lost")
+      await execute({ operation: "batch", operations: [{ type: "put", key: "00008001", value: btoa("new") }] })
+      for (const iterator of handles) {
+        const page = await execute({ operation: "iteratorNext", iterator })
+        if (!page.done || page.rows.length !== 128 || atob(page.rows[0].value) !== "old-128") throw new Error("Final page lost its snapshot")
+      }
+      const released = await execute({ operation: "diagnostics" })
+      if (released.activeSnapshots !== 0 || released.oldestSnapshotMs !== 0 || released.readerCacheSize !== null) {
+        throw new Error("Completed ranges retained native resources")
+      }
+      const fresh = await execute({ operation: "iteratorOpen", initialPage: true })
+      handles.push(fresh.iterator)
+      if (!fresh.iterator || fresh.done) throw new Error("Final pages did not release snapshot capacity")
+      return { concurrentShortRanges: 512, exactPageRows: 128, activeLimit: 64, finalPageRelease: true,
+        snapshotIsolation: true, readerCacheKiB: 256, diagnostics: true, writerCacheUnchanged: true,
+        shortRangeAtCapacity: true }
+    } finally {
+      for (const iterator of handles) await execute({ operation: "iteratorEnd", iterator })
+      await execute({ operation: "destroy" })
+    }
+  },
   async atomicity() {
     const name = "once-atomicity-probe"
     await bridge.execute({ operation: "open", name })

@@ -7,6 +7,8 @@ const PouchDB = require("pouchdb")
 const { nativePouchAdapter } = require("../../../packages/platform-mobile/dist/nativePouchAdapter")
 const { sqliteBridge } = require("../../helpers/native-sqlite-bridge")
 const { nativeStorageConformance } = require("../../helpers/native-storage-conformance")
+const { Story } = require("../../../packages/core/dist")
+const { PouchStoryStore } = require("../../../packages/persistence/dist")
 
 test("native storage preserves revision branches, large attachments, deletion and checkpoints", async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "once-native-storage-"))
@@ -41,6 +43,10 @@ test("native changes read ahead in bounded pages and invalidate cached metadata 
     assert.equal(keyed.rows[999].doc.value, 999)
     assert.ok(reads < 25, `Expected batched keyed snapshots and bodies, observed ${reads}`)
     assert.ok(largest <= 128)
+    reads = 0
+    const shortRange = await db.allDocs({ startkey: "doc_100", endkey: "doc_199", include_docs: true })
+    assert.equal(shortRange.rows.length, 109)
+    assert.ok(reads < 8, `Completed range pages still prefetch bodies, observed ${reads} reads`)
     const before = await db.get("doc_999")
     await db.put({ ...before, value: "updated" })
     assert.equal((await db.get("doc_999")).value, "updated")
@@ -48,6 +54,45 @@ test("native changes read ahead in bounded pages and invalidate cached metadata 
     await assert.rejects(db.get("doc_999"), { status: 404 })
   } finally {
     await db.destroy()
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test("full range pages keep their bound and release the final snapshot before end", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "once-native-page-boundary-"))
+  const db = rawDatabase(sqliteBridge(directory))
+  const iterators = []
+  try {
+    await invoke(db, "open")
+    await invoke(db, "batch", Array.from({ length: 256 }, (_, i) => ({
+      type: "put", key: String(i).padStart(3, "0"), value: String(i)
+    })))
+    const exact = db.iterator({ lt: "128" })
+    iterators.push(exact)
+    assert.equal((await exact.opened).iterator, null, "exactly 128 rows fit in one page")
+    for (let i = 0; i < 64; i++) iterators.push(db.iterator({}))
+    const active = await Promise.all(iterators.slice(1).map(iterator => iterator.opened))
+    assert.ok(active.every(result => result.iterator !== null), "multi-page ranges retain their snapshots")
+    const short = db.iterator({ lt: "001" })
+    try {
+      assert.equal((await short.opened).iterator, null, "short ranges still succeed at capacity")
+      assert.equal((await invoke(short, "next")).length, 2)
+    } finally { await invoke(short, "end") }
+    const excess = db.iterator({})
+    await assert.rejects(excess.opened, /Too many open range snapshots/)
+    await assert.rejects(invoke(excess, "end"), /Too many open range snapshots/)
+    // Finish the retained ranges without ending their JavaScript iterators.
+    await Promise.all(iterators.slice(1).map(async iterator => {
+      for (let i = 0; i < 256; i++) assert.equal((await invoke(iterator, "next")).length, 2)
+      assert.equal(iterator.done, true)
+      assert.deepEqual(await invoke(iterator, "next"), [])
+    }))
+    const fresh = db.iterator({})
+    iterators.push(fresh)
+    assert.notEqual((await fresh.opened).iterator, null, "final pages released native capacity")
+  } finally {
+    await Promise.allSettled(iterators.map(iterator => invoke(iterator, "end")))
+    await invoke(db, "close")
     fs.rmSync(directory, { recursive: true, force: true })
   }
 })
@@ -135,6 +180,56 @@ test("range first pages retain snapshot order across writes and subsequent pages
     assert.equal((await invoke(db, "get", "259", { asBuffer: false }))[0], "new")
   } finally {
     await invoke(db, "close")
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test("concurrent story observation ranges release materialized snapshots before iterator end", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "once-native-observations-"))
+  const db = rawDatabase(sqliteBridge(directory))
+  const iterators = []
+  try {
+    await invoke(db, "open")
+    await invoke(db, "batch", Array.from({ length: 96 }, (_, i) => ({
+      type: "put", key: `obs_${i}|1`, value: `old-${i}`
+    })))
+    // Story loading fans out prefix ranges, including empty ones. None of
+    // these callers has consumed or ended its iterator when the burst opens.
+    for (let i = 0; i < 192; i++) iterators.push(db.iterator({
+      gte: `obs_${i}|`, lt: `obs_${i}|~`, keyAsBuffer: false, valueAsBuffer: false
+    }))
+    await invoke(db, "put", "obs_0|1", "new")
+    const rows = await Promise.all(iterators.map(iterator => invoke(iterator, "next")))
+    for (let i = 0; i < 192; i++) assert.deepEqual(rows[i], i < 96 ? [`obs_${i}|1`, `old-${i}`] : [])
+    assert.ok(iterators.every(iterator => iterator.done), "short ranges finish in their initial page")
+    assert.ok((await Promise.all(iterators.map(iterator => iterator.opened))).every(result => result.iterator === null),
+      "materialized ranges retain no native handle")
+  } finally {
+    await Promise.allSettled(iterators.map(iterator => invoke(iterator, "end")))
+    await invoke(db, "close")
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test("native story loading resolves hundreds of concurrent observation prefixes", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "once-native-stories-"))
+  PouchDB.plugin(nativePouchAdapter(sqliteBridge(directory)))
+  const db = new PouchDB("story-observations", { adapter: "native-sqlite" })
+  try {
+    const urls = Array.from({ length: 270 }, (_, i) => `https://example.test/story-${i}`)
+    await db.bulkDocs(urls.flatMap((href, i) => [
+      { ...new Story("HN", href, `Story ${i}`, "", 0).to_obj(), _id: `sto_${href}` },
+      { _id: `obs_${encodeURIComponent(href)}|123`, href, ingested_at: 123 }
+    ]))
+    const store = new PouchStoryStore(db, Story.from_obj.bind(Story))
+    const stories = await store.getStoriesByUrls(urls)
+    assert.equal(stories.size, urls.length)
+    for (const [i, href] of urls.entries()) {
+      assert.equal(stories.get(href).title, `Story ${i}`)
+      assert.equal(stories.get(href).ingested_at, 123)
+    }
+  } finally {
+    await db.destroy()
     fs.rmSync(directory, { recursive: true, force: true })
   }
 })

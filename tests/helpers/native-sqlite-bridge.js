@@ -39,7 +39,6 @@ function sqliteBridge(directory) {
           const row = db.prepare("SELECT k,v FROM kv WHERE k=?").get(request.gte)
           return { iterator: null, done: true, rows: row && request.limit !== 0 ? [{ key: row.k, value: Buffer.from(row.v).toString("base64") }] : [] }
         }
-        if (iterators.size >= 64) throw new Error("Too many open range snapshots")
         const conditions = [], parameters = []
         for (const [bound, operator] of [["gt", ">"], ["gte", ">="], ["lt", "<"], ["lte", "<="]]) {
           if (request[bound] !== undefined) { conditions.push(`k${operator}?`); parameters.push(request[bound]) }
@@ -48,11 +47,16 @@ function sqliteBridge(directory) {
           .all(...parameters, request.limit ?? -1)
           .map(row => ({ key: row.k, value: Buffer.from(row.v).toString("base64") }))
         const iterator = crypto.randomUUID()
+        const page = request.initialPage ? rows.splice(0, 128) : undefined
+        if (page && !rows.length) return { iterator: null, rows: page, done: true }
+        if (iterators.size >= 64) throw new Error("Too many open range snapshots")
         iterators.set(iterator, rows)
-        return request.initialPage ? { iterator, rows: rows.splice(0, 128), done: rows.length === 0 } : { iterator }
+        return page ? { iterator, rows: page, done: false } : { iterator }
       } else if (operation === "iteratorNext") {
         const remaining = iterators.get(request.iterator)
-        return { rows: remaining.splice(0, 128), done: remaining.length === 0 }
+        const rows = remaining.splice(0, 128)
+        if (!remaining.length) iterators.delete(request.iterator)
+        return { rows, done: remaining.length === 0 }
       } else if (operation === "iteratorEnd") iterators.delete(request.iterator)
       else throw new Error("Unexpected operation " + operation)
       return {}

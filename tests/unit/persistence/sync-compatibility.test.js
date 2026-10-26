@@ -184,10 +184,14 @@ test("failed sync requests retain safe endpoint context and the original error",
   const warnings = t.mock.method(console, "warn", () => {})
   const { syncFetchDiagnostics } = require("../../../packages/persistence/dist")
   const { syncRequestDetails } = require("../../../packages/persistence/dist/SyncFetchDiagnostics")
-  const failure = new TypeError("Failed to fetch https://alice:secret@sync.test/once/_changes?token=private")
+  // Distinct markers keep filesystem paths such as macOS /private/var from
+  // looking like leaked query/body data in the preserved error stack.
+  const sensitive = /sync-diagnostic-(?:user|password|token|authorization|body)/
+  const url = "https://sync-diagnostic-user:sync-diagnostic-password@sync.test/once/_changes?token=sync-diagnostic-token"
+  const failure = new TypeError(`Failed to fetch ${url}`)
   const controller = new AbortController()
-  const init = { method: "POST", signal: controller.signal, headers: { Authorization: "secret" }, body: "private document" }
-  const url = "https://alice:secret@sync.test/once/_changes?token=private"
+  const init = { method: "POST", signal: controller.signal,
+    headers: { Authorization: "sync-diagnostic-authorization" }, body: "sync-diagnostic-body" }
   const fetcher = syncFetchDiagnostics(async (actualUrl, actualInit) => {
     assert.equal(actualUrl, url)
     assert.equal(actualInit, init)
@@ -200,7 +204,7 @@ test("failed sync requests retain safe endpoint context and the original error",
   assert.equal(request.method, "POST")
   assert.equal(request.aborted, false)
   assert.ok(request.elapsedMs >= 0)
-  assert.doesNotMatch(JSON.stringify(request), /secret|private|alice/)
+  assert.doesNotMatch(JSON.stringify(request), sensitive)
   const normalized = Object.fromEntries(Object.getOwnPropertyNames(failure).map(key => [key, failure[key]]))
   assert.deepEqual(syncRequestDetails(normalized), request, "PouchDB error normalization retains request context")
 
@@ -217,7 +221,7 @@ test("failed sync requests retain safe endpoint context and the original error",
     assert.match(details, /TypeError: Failed to fetch/)
     assert.match(details, /"endpoint":"_changes"/)
     assert.match(details, /"retryInMs":3000/)
-    assert.doesNotMatch(details, /alice|secret|private/)
+    assert.doesNotMatch(details, sensitive)
   } finally { client.syncFrom("") }
 })
 
