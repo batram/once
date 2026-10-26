@@ -16,15 +16,14 @@ export class NavigationErrors {
     entry.loadErrorRetryable = false
     entry.errorPageUrl = null
     this.host.notify(entry)
-    entry.view.webContents.loadURL(url).catch(async (error) => {
+    entry.view.webContents.loadURL(url).catch((error) => {
       // A tab replaced while loading (an extension page taking its place)
       // has no webContents left by the time the load reports back.
       const contents = entry.view.webContents
       if (isAborted(error) || !contents || contents.isDestroyed()) return
       if (!sameUrl(entry.displayedUrl, url) || entry.loadError) return
-      if (await showsMediaDocument(contents, entry.displayedUrl, error)) return
-      if (contents.isDestroyed() || !sameUrl(entry.displayedUrl, url) || entry.loadError) return
-      this.handleFailure(entry, url, error?.message || String(error), true)
+      if (isUnfinished(error) && sameUrl(contents.getURL(), url)) return
+      this.handleFailure(entry, url, failureText(error), true)
     })
   }
 
@@ -120,20 +119,28 @@ function isAborted(error: unknown): boolean {
 }
 
 /**
- * A video or audio file opened on its own commits as Chromium's media
- * document, which never finishes loading: the <video> it builds takes the
- * response over, so loadURL rejects with ERR_FAILED while the player plays.
+ * Electron rejects a load that stopped without finishing or failing. When the
+ * requested page did commit, it is on screen: a video or audio file opened on
+ * its own is Chromium's media document, which never finishes loading because
+ * its player takes the response over. One that never committed (a download, a
+ * 204) left the previous page in place, which TabEvents shows again.
  */
-async function showsMediaDocument(
-  contents: Electron.WebContents,
-  url: string,
-  error: unknown
-): Promise<boolean> {
+function isUnfinished(error: unknown): boolean {
   const failure = error as { code?: unknown; errno?: unknown } | null
-  if (failure?.code !== "ERR_FAILED" && failure?.errno !== -2) return false
-  if (!sameUrl(contents.getURL(), url)) return false
-  const type = await contents.executeJavaScript("document.contentType").catch(() => "")
-  return typeof type === "string" && /^(video|audio)\//i.test(type)
+  return failure?.code === "ERR_FAILED" || failure?.errno === -2
+}
+
+/**
+ * The same "ERR_NAME (-code)" a failed load reports through did-fail-load;
+ * Electron's rejection adds "loading '<url>'", which the error page already
+ * shows on its own.
+ */
+function failureText(error: unknown): string {
+  const failure = error as { code?: unknown; errno?: unknown; message?: unknown } | null
+  if (typeof failure?.code === "string" && failure.code && typeof failure.errno === "number") {
+    return `${failure.code} (${failure.errno})`
+  }
+  return typeof failure?.message === "string" && failure.message ? failure.message : String(error)
 }
 
 export function sameUrl(left: string, right: string): boolean {

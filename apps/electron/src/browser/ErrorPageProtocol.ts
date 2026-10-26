@@ -79,15 +79,43 @@ export function errorPageTheme(background: string): {
 function renderErrorPage(document: ErrorDocument, token: string): string {
   const theme = errorPageTheme(document.background)
   const safeUrl = escapeHtml(document.url)
-  return errorPageTemplate
-    .replace("{{THEME}}", theme.name)
-    .replace("{{STYLESHEET}}", `once-error://style/${token}`)
-    .replace("{{ERROR}}", escapeHtml(document.error))
-    .replace("{{URL}}", safeUrl)
-    .replace(
-      "{{RETRY}}",
-      document.retryable ? `<a class="retry" href="${safeUrl}">Try again</a>` : ""
-    )
+  const values: Record<string, string> = {
+    THEME: theme.name,
+    STYLESHEET: `once-error://style/${token}`,
+    DESCRIPTION: escapeHtml(describeFailure(document.error)),
+    ERROR: escapeHtml(document.error),
+    URL: safeUrl,
+    RETRY: document.retryable ? `<a class="retry" href="${safeUrl}">Try again</a>` : ""
+  }
+  // A function, not a replacement string: a URL may well contain "$&" or "$`",
+  // which String.replace would expand into parts of the template.
+  return errorPageTemplate.replace(/\{\{([A-Z]+)\}\}/g, (placeholder, name: string) => values[name] ?? placeholder)
+}
+
+/** Chromium's network errors people run into most, said in words. */
+const FAILURE_DESCRIPTIONS: Record<string, string> = {
+  ERR_NAME_NOT_RESOLVED: "The site's address could not be found.",
+  ERR_INTERNET_DISCONNECTED: "There is no internet connection.",
+  ERR_NETWORK_CHANGED: "The network connection changed while the page was loading.",
+  ERR_CONNECTION_REFUSED: "The site refused to connect.",
+  ERR_CONNECTION_RESET: "The connection was reset.",
+  ERR_CONNECTION_CLOSED: "The site closed the connection.",
+  ERR_CONNECTION_TIMED_OUT: "The site took too long to respond.",
+  ERR_TIMED_OUT: "The site took too long to respond.",
+  ERR_ADDRESS_UNREACHABLE: "The site's address cannot be reached.",
+  ERR_EMPTY_RESPONSE: "The site sent no data.",
+  ERR_TOO_MANY_REDIRECTS: "The site redirected too many times.",
+  ERR_BLOCKED_BY_CLIENT: "A browser extension blocked this page.",
+  ERR_BLOCKED_BY_RESPONSE: "The site does not allow this page to be shown here.",
+  ERR_SSL_PROTOCOL_ERROR: "The site could not provide a secure connection.",
+  ERR_UNKNOWN_URL_SCHEME: "This kind of address cannot be opened here."
+}
+
+function describeFailure(error: string): string {
+  const code = /\bERR_[A-Z0-9_]+/.exec(error)?.[0]
+  if (code && FAILURE_DESCRIPTIONS[code]) return FAILURE_DESCRIPTIONS[code]
+  if (code?.startsWith("ERR_CERT_")) return "The site's security certificate is not trusted."
+  return "The page could not be loaded."
 }
 
 function escapeHtml(text: string): string {

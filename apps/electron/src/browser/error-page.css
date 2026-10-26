@@ -61,6 +61,7 @@ h1 {
   margin-bottom: var(--sp-1);
   color: var(--text);
 }
+.error-description { font-size: var(--fs-meta); color: var(--text); line-height: 1.35; margin-bottom: var(--sp-1); }
 .error-message { font-size: var(--fs-meta); color: var(--error); line-height: 1.35; word-break: break-word; }
 .url-box {
   background: var(--page-bg);

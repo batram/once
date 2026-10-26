@@ -50,10 +50,11 @@ test.after(() => {
   else delete Module._extensions[".css"]
 })
 
-function entry(failure) {
+function entry(failure, committedUrl = "") {
   const loaded = []
   const contents = Object.assign(new EventEmitter(), {
     isDestroyed: () => false,
+    getURL: () => committedUrl,
     loadURL(url) {
       loaded.push(url)
       return loaded.length === 1 && failure
@@ -128,5 +129,35 @@ test("a real load failure still shows its error page", async () => {
 
   assert.equal(tab.loaded.length, 2)
   assert.match(tab.loaded[1], /^once-error:\/\//)
-  assert.match(tab.loadError, /ERR_NAME_NOT_RESOLVED/)
+  assert.equal(tab.loadError, "ERR_NAME_NOT_RESOLVED (-105)")
+})
+
+// Chromium's media document (a video opened on its own) commits but never
+// finishes loading, so Electron rejects the load although the player is up.
+test("a load that stopped unfinished on the page it asked for shows that page", async () => {
+  const unfinished = Object.assign(
+    new Error("ERR_FAILED (-2) loading 'https://example.com/clip.mp4'"),
+    { code: "ERR_FAILED", errno: -2 }
+  )
+  const tab = entry(unfinished, "https://example.com/clip.mp4")
+
+  navigationErrors().load(tab, "https://example.com/clip.mp4")
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.deepEqual(tab.loaded, ["https://example.com/clip.mp4"])
+  assert.equal(tab.loadError, null)
+})
+
+test("a load that stopped unfinished before any page committed still reports", async () => {
+  const unfinished = Object.assign(
+    new Error("ERR_FAILED (-2) loading 'https://example.com/'"),
+    { code: "ERR_FAILED", errno: -2 }
+  )
+  const tab = entry(unfinished)
+
+  navigationErrors().load(tab, "https://example.com/")
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.match(tab.loaded[1], /^once-error:\/\//)
+  assert.equal(tab.loadError, "ERR_FAILED (-2)")
 })

@@ -204,6 +204,21 @@ final class MediaObserver: NSObject, WKScriptMessageHandler {
         };
         Object.defineProperty(prototype, name, descriptor);
       });
+      // A video file opened on its own is WebKit's media document, whose
+      // <video> has no playsinline, so the iPhone takes it fullscreen as soon
+      // as it plays. Marked before it plays, it stays in the tab.
+      if (/^video\\//i.test(document.contentType || '')) {
+        var inline = function () {
+          var video = document.querySelector('video');
+          if (!video) return false;
+          video.setAttribute('playsinline', '');
+          return true;
+        };
+        if (!inline()) {
+          var watcher = new MutationObserver(function () { if (inline()) watcher.disconnect(); });
+          watcher.observe(document, { childList: true, subtree: true });
+        }
+      }
     })();
     """
     // Media events don't bubble, hence capture on document. An element that

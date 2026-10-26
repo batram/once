@@ -42,6 +42,7 @@ class TabNavigationEvents {
     })
     contents.on("did-stop-loading", () => {
       entry.loading = false
+      this.keepCommittedPage(entry)
       changed()
     })
     contents.on("did-fail-load", (_event, code, description, url, isMainFrame) => {
@@ -70,6 +71,9 @@ class TabNavigationEvents {
     })
     contents.on("did-redirect-navigation", (event) => {
       if (!event.isMainFrame || event.isSameDocument) return
+      // A page without a title of its own (a video, an image) is named after
+      // where it ended up, not the link that led there.
+      if (entry.title === fallbackTabTitle(entry.displayedUrl)) entry.title = fallbackTabTitle(event.url)
       entry.displayedUrl = event.url
       changed()
     })
@@ -128,6 +132,22 @@ class TabNavigationEvents {
   private reportLoadFailure(entry: TabEntry, url: string, reason: string): void {
     const owner = this.actions.ownerFor(entry)
     if (owner && !owner.window.isDestroyed()) owner.window.webContents.send(ELECTRON_IPC.tabsLoadFailed, entry.id, url, reason)
+  }
+
+  /**
+   * A navigation can end without replacing the page: a download, a 204 No
+   * Content, a link handed to another app. Chromium keeps the page it had, so
+   * the address bar and title go back to it rather than naming a document the
+   * tab never showed. Failures have their own error page and are left alone.
+   */
+  private keepCommittedPage(entry: TabEntry): void {
+    const contents = entry.view.webContents
+    if (contents.isDestroyed() || contents.isLoadingMainFrame() || entry.loadError) return
+    const committed = contents.getURL() || "about:blank"
+    if (sameUrl(committed, entry.displayedUrl) || this.errors.state(entry, committed)) return
+    entry.displayedUrl = committed
+    const title = contents.getTitle()
+    entry.title = title && title !== committed ? title : fallbackTabTitle(committed)
   }
 
   private didNavigate(entry: TabEntry, url: string, changed: () => void): void {
