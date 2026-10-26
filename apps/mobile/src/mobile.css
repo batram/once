@@ -4303,4 +4303,83 @@
     clip-path: inset(50%);
   }
 
+  /* History is a browser-menu page, with the same touch chrome as Settings. */
+  #browser_history_panel {
+    --history-control-size: var(--touch);
+    font-family: var(--m-sans);
+  }
+
+  #browser_history_panel .history-header {
+    height: 52px;
+    min-height: 52px;
+    padding: var(--sp-1) var(--sp-3);
+    align-items: center;
+    background: var(--m-head-bg);
+  }
+
+  #browser_history_panel .history-header h1 {
+    font-size: var(--fs-body);
+  }
+
+  #browser_history_panel .button {
+    min-height: var(--touch);
+    margin: 0;
+    padding: 0 var(--sp-3);
+    font-size: var(--fs-body);
+  }
+
+  #browser_history_panel .history-back,
+  #browser_history_panel .history-remove {
+    width: var(--touch);
+    height: var(--touch);
+    padding: 0;
+    border-color: transparent;
+    background: transparent;
+    color: var(--m-ink);
+  }
+
+  #browser_history_panel .history-clear {
+    border-color: transparent;
+    background: transparent;
+    color: var(--m-ink);
+  }
+
+  #browser_history_panel .history-searchbar {
+    min-height: 60px;
+    padding: var(--sp-2) var(--sp-3);
+  }
+
+  #browser_history_panel .history-search {
+    border-color: var(--m-ink);
+    border-radius: var(--m-radius);
+  }
+
+  #browser_history_panel .history-search input {
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: var(--fs-title);
+  }
+
+  #browser_history_panel .history-search input:focus-visible {
+    outline: none;
+  }
+
+  #browser_history_panel .history-entry {
+    min-height: 64px;
+    gap: var(--sp-2);
+  }
+
+  #browser_history_panel .history-entry-title {
+    font-size: var(--fs-body);
+  }
+
+  #browser_history_panel .history-entry-url,
+  #browser_history_panel .history-entry time {
+    font-size: var(--fs-meta);
+  }
+
 }

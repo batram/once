@@ -39,6 +39,8 @@ export interface TabEntry {
    * It cannot be read at close time: the webContents is destroyed by then.
    */
   historySnapshot: TabHistorySnapshot | null
+  /** Current persistent visit, for late title updates without reinserting deletions. */
+  visitId?: string
   /** Kept only for the current document; request bodies stay in main. */
   blockedPopups?: Electron.HandlerDetails[]
   /** What tab sync publishes about the tab's life: opened, navigated, selected, used. */

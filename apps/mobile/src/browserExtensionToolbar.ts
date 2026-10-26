@@ -35,7 +35,8 @@ export function bindMobileExtensionToolbar(
   /** The shell's Back/Forward, which the sheet shows and hands back as historyRequested. */
   history?: () => { back: boolean; forward: boolean },
   /** The sheet's Close: closes the tab being read. */
-  closeTab: () => void = () => undefined
+  closeTab: () => void = () => undefined,
+  openHistory: () => void = () => undefined
 ): void {
   const navigate = document.querySelector<HTMLButtonElement>("#reading_navigate")
   if (!navigate) return
@@ -65,6 +66,7 @@ export function bindMobileExtensionToolbar(
           id: item.id, label: item.name, enabled: true, iconDataUrl: item.iconDataUrl,
           settingsId: item.hasOptions && item.hasAction ? SETTINGS_PREFIX + item.id : undefined
         }))
+      items.push({ id: "once:history", label: "History", enabled: true, iconDataUrl: undefined, settingsId: undefined, ...{ placement: "page" as const } })
       if (api) items.push({ id: "once:manage", label: "Manage extensions", enabled: true, iconDataUrl: undefined, settingsId: undefined })
       // Add-on trays for the open page, listed or not; they open above the page.
       const holding = new Set<string>()
@@ -77,7 +79,9 @@ export function bindMobileExtensionToolbar(
       const selected = api || surface.available
         ? await surface.showMenu({ items, browserControls: true, dark: shellIsDark(), history: history?.() })
         : await showBrowserMenu(items)
-      if (selected === "once:manage") {
+      if (selected === "once:history") {
+        openHistory()
+      } else if (selected === "once:manage") {
         openExtensionManager()
       } else if (selected?.startsWith(PAGE_ACTION_PREFIX)) {
         const held = holding.has(selected)

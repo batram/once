@@ -15,7 +15,7 @@ declare const BROWSER_MENU_WEBPACK_ENTRY: string
 declare const BROWSER_MENU_PRELOAD_WEBPACK_ENTRY: string
 
 const WIDTH = 300
-const COMMANDS: readonly BrowserMenuCommand[] = ["new-tab", "new-window", "close-tab", "fullscreen"]
+const COMMANDS: readonly BrowserMenuCommand[] = ["new-tab", "new-window", "close-tab", "fullscreen", "history"]
 const openMenus = new WeakMap<BrowserWindow, BrowserWindow>()
 // Pressing the button while the menu is open blurs the menu first, which
 // closes it before the click arrives; that click must not open it again.

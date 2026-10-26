@@ -42,6 +42,7 @@ import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
 import { bundledExtensionRoot, resolveBundledExtensions } from "./extensions/bundledExtensions"
 import { extensionScheme } from "./extensions/ExtensionScheme"
 import { addonSandboxScheme, configureAddonConversationProtocol, configureAddonSandboxProtocol } from "./AddonSandboxProtocol"
+import { configureHistoryProtocol, registerHistoryHandlers } from "./HistoryPage"
 import { configureRemoteTabsProtocol, RemoteTabsRelay, remoteTabsScheme } from "./RemoteTabsRelay"
 import { AddonConversationRelay } from "./AddonConversationRelay"
 import { devAddonDirectories } from "./devAddons"
@@ -68,6 +69,7 @@ protocol.registerSchemesAsPrivileged([
   extensionScheme(),
   addonSandboxScheme(),
   remoteTabsScheme(),
+  { scheme: "once-history", privileges: { standard: true, secure: true } },
   imageTextScheme()
 ])
 
@@ -283,6 +285,7 @@ function configureBrowserSession(): Session {
   configureErrorPageProtocol(browserSession)
   configureAddonConversationProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
   configureRemoteTabsProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
+  configureHistoryProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
   configureImageTextProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
   selectImageTextOnDoubleClick()
   browserSession.setPermissionCheckHandler((_webContents, permission) => {
@@ -376,6 +379,7 @@ app
     registerBrowserMenuHandlers(browserCoordinator)
     registerBrowsingDataHandlers(browserCoordinator)
     new RemoteTabsRelay(browserCoordinator).register()
+    registerHistoryHandlers(browserCoordinator)
     extensions.manager.onSyncChanged = document => {
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed()) window.webContents.send(ELECTRON_IPC.extensionsSyncChanged, document)

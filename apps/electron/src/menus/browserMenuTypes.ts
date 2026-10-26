@@ -1,5 +1,5 @@
 /** Commands the shell runs itself once the browser menu has closed. */
-export type BrowserMenuCommand = "new-tab" | "new-window" | "close-tab" | "fullscreen"
+export type BrowserMenuCommand = "new-tab" | "new-window" | "close-tab" | "fullscreen" | "history"
 
 /** Everything the menu can ask of main; zoom keeps the menu open. */
 export type BrowserMenuAction =

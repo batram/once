@@ -20,3 +20,4 @@
 @import "./parts/notifications.css" layer(components);
 @import "./parts/sync-settings.css" layer(components);
 @import "./parts/remote-tabs.css" layer(components);
+@import "./parts/browser-history.css" layer(components);

@@ -30,6 +30,7 @@ class ViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(addressBar)
         bridge?.registerPluginInstance(SecureSettingsPlugin())
+        bridge?.registerPluginInstance(BrowserHistoryPlugin())
         bridge?.registerPluginInstance(surface)
         bridge?.registerPluginInstance(ReaderMediaSessionPlugin())
         bridge?.registerPluginInstance(WebInspectorPlugin())

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BABA00012E6800010000A001 /* BrowserHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BABA00022E6800010000A001 /* BrowserHistory.swift */; };
 		7A1E0CA12E6800010000A001 /* TextRecognition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0CA02E6800010000A001 /* TextRecognition.swift */; };
 		7A1E0CA32E6800010000A001 /* DocumentDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0CA22E6800010000A001 /* DocumentDownload.swift */; };
 		7A1E0C992E6800010000A001 /* ReadingPageCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C982E6800010000A001 /* ReadingPageCommands.swift */; };
@@ -39,6 +40,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		BABA00022E6800010000A001 /* BrowserHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserHistory.swift; sourceTree = "<group>"; };
 		7A1E0CA02E6800010000A001 /* TextRecognition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextRecognition.swift; sourceTree = "<group>"; };
 		7A1E0CA22E6800010000A001 /* DocumentDownload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentDownload.swift; sourceTree = "<group>"; };
 		7A1E0C982E6800010000A001 /* ReadingPageCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingPageCommands.swift; sourceTree = "<group>"; };
@@ -106,6 +108,7 @@
 			children = (
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				BABA00022E6800010000A001 /* BrowserHistory.swift */,
 				7A1E0C122E6800010000A001 /* InAppBrowserSurfacePlugin.swift */,
 				7A1E0CA02E6800010000A001 /* TextRecognition.swift */,
 				7A1E0CA22E6800010000A001 /* DocumentDownload.swift */,
@@ -219,6 +222,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				BABA00012E6800010000A001 /* BrowserHistory.swift in Sources */,
 				7A1E0C132E6800010000A001 /* InAppBrowserSurfacePlugin.swift in Sources */,
 				7A1E0CA12E6800010000A001 /* TextRecognition.swift in Sources */,
 				7A1E0CA32E6800010000A001 /* DocumentDownload.swift in Sources */,

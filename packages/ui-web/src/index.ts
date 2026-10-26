@@ -50,3 +50,4 @@ export { clientRemoteTabsPort, openSyncSettings, setTabsMenuVisible, watchTabSyn
 export { chooseDevice, domMenu, sendTargets, type ShowMenu } from "./tabsync/devicePicker"
 export { openPairingLink } from "./settings/openPairingLink"
 export { openSettingsPage, registerSettingsOverview, invalidateSettingsPages, settingsEnteredFrom } from "./settings/SettingsNavigation"
+export { mountBrowserHistory } from "./history/BrowserHistoryView"

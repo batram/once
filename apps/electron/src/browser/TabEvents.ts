@@ -1,3 +1,6 @@
+import { browserHistory } from "../BrowserHistory"
+import { historyUrl } from "@once/core"
+import { randomUUID } from "node:crypto"
 import { dialog } from "electron"
 import { ELECTRON_IPC } from "@once/platform-electron/bridge"
 import { chordFromKey, chordFromParts, isModifiedChord, sameStoryDocument } from "@once/core"
@@ -22,6 +25,7 @@ interface NavigationActions extends TabOwnerAccess {
 }
 
 class TabNavigationEvents {
+  private readonly visits = new WeakMap<TabEntry, { id: string; url: string }>()
   private readonly titlePreservingReloads = new WeakSet<TabEntry>()
 
   constructor(
@@ -53,6 +57,7 @@ class TabNavigationEvents {
     })
     contents.on("did-start-navigation", (event) => {
       if (!event.isMainFrame || event.isSameDocument) return
+      entry.visitId = undefined
       const preserveTitle = this.titlePreservingReloads.delete(entry)
       const errorPage = this.errors.state(entry, event.url)
       if (errorPage) {
@@ -83,9 +88,13 @@ class TabNavigationEvents {
       if (statusCode >= 500 || statusCode === 429) this.reportLoadFailure(entry, url, `HTTP ${statusCode}`)
     })
     contents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
-      if (isMainFrame) this.didNavigate(entry, url, changed)
+      if (isMainFrame) {
+        this.didNavigate(entry, url, changed)
+        this.recordVisit(entry, true)
+      }
     })
     contents.on("did-finish-load", () => {
+      this.recordVisit(entry, false)
       const owner = this.actions.ownerFor(entry)
       if (owner && this.errors.state(entry, contents.getURL())) {
         this.errors.applyTheme(entry, owner.backgroundColor)
@@ -122,6 +131,20 @@ class TabNavigationEvents {
         event.preventDefault()
       }
     })
+  }
+
+  private recordVisit(entry: TabEntry, sameDocument: boolean): void {
+    if (entry.loadError) return
+    const source = sourceUrlFromReaderUrl(entry.displayedUrl)
+    const url = historyUrl(source ?? entry.displayedUrl)
+    if (!url) return
+    const previous = this.visits.get(entry)
+    if (previous?.url === url && (sameDocument || source)) { entry.visitId = previous.id; return }
+    const id = randomUUID()
+    this.visits.set(entry, { id, url })
+    entry.visitId = id
+    void browserHistory().record({ id, url, title: entry.title, visitedAt: Date.now() })
+      .catch(error => console.error("Could not save browsing history", error))
   }
 
   /**
@@ -353,6 +376,7 @@ class TabLifecycleEvents {
     const changed = () => this.actions.notify(entry)
     contents.on("page-title-updated", (_event, title) => {
       entry.title = title || fallbackTabTitle(contents.getURL())
+      if (entry.visitId) void browserHistory().updateTitle(entry.visitId, entry.title).catch(error => console.error("Could not update browsing history", error))
       changed()
     })
     contents.on("audio-state-changed", (event) => {

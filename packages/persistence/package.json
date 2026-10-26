@@ -9,9 +9,20 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./SqlBrowserHistory": {
+      "types": "./dist/SqlBrowserHistory.d.ts",
+      "default": "./dist/SqlBrowserHistory.js"
     }
   },
   "dependencies": {
     "@once/core": "*"
+  },
+  "typesVersions": {
+    "*": {
+      "SqlBrowserHistory": [
+        "dist/SqlBrowserHistory.d.ts"
+      ]
+    }
   }
 }

@@ -64,6 +64,7 @@
 .icon--chevron-down { --icon: url("../../imgs/chevron-down.svg"); }
 .icon--desktop { --icon: url("../../imgs/desktop.svg"); }
 .icon--gear { --icon: url("../../imgs/gear.svg"); }
+.icon--history { --icon: url("../../imgs/history.svg"); }
 .icon--help { --icon: url("../../imgs/help.svg"); }
 .icon--media-pause { --icon: url("../../imgs/media-pause.svg"); }
 .icon--media-play { --icon: url("../../imgs/media-play.svg"); }

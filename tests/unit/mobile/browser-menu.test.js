@@ -14,7 +14,7 @@ test("the browser menu offers page actions without Android's extension API", asy
   const exports = {}
   let menu
   Function("exports", "require", "document", "Event", compiled)(exports, () => ({
-    showChoiceDialog: async options => { menu = options; return options.choices[0].value }
+    showChoiceDialog: async options => { menu = options; return options.choices.find(item => item.label === "Explain page").value }
   }), document, window.Event)
   const ran = []
   exports.bindMobileExtensionToolbar(null, { showMenu: () => { throw new Error("No native extension sheet") } }, {
@@ -22,7 +22,7 @@ test("the browser menu offers page actions without Android's extension API", asy
   })
   await document.querySelector("#reading_browser_menu").onclick()
   assert.equal(menu.title, "Browser menu")
-  assert.deepEqual(menu.choices.map(item => item.label), ["Explain page", "Find in page", "Close tab"])
+  assert.deepEqual(menu.choices.map(item => item.label), ["History", "Explain page", "Find in page", "Close tab"])
   assert.equal(menu.cancelLabel, "Close")
   assert.deepEqual(ran, ["generic.explain"])
 })
@@ -63,8 +63,8 @@ test("Android browser menu ends the address row and routes extension choices", a
   await button.onclick()
   assert.equal(menu.browserControls, true)
   assert.equal(menu.dark, false, "without a theme choice or a system preference the sheet is light")
-  assert.deepEqual(menu.items.map(item => item.id), ["popup", "both", "options", "once:manage"])
-  assert.deepEqual(menu.items.map(item => item.settingsId), [undefined, "once:settings:both", undefined, undefined],
+  assert.deepEqual(menu.items.map(item => item.id), ["popup", "both", "options", "once:history", "once:manage"])
+  assert.deepEqual(menu.items.map(item => item.settingsId), [undefined, "once:settings:both", undefined, undefined, undefined],
     "only rows whose main tap runs an action need a separate settings control")
   assert.equal(commands.length, 1, "dismissing the menu performs no extension action")
   assert.equal(button.getAttribute("aria-expanded"), "false")
@@ -121,6 +121,7 @@ test("the browser sheet offers add-on page actions for the page being read and r
   const button = document.querySelector("#reading_browser_menu")
   await button.onclick()
   assert.deepEqual(menu.items.map(item => [item.id, item.label]), [
+    ["once:history", "History"],
     ["once:manage", "Manage extensions"],
     ["once:page-action:addon:what-wait-who-why/explain", "What? Wait, who, why?"]
   ])
@@ -131,7 +132,7 @@ test("the browser sheet offers add-on page actions for the page being read and r
   actions = []
   selection = null
   await button.onclick()
-  assert.deepEqual(menu.items.map(item => item.id), ["once:manage"])
+  assert.deepEqual(menu.items.map(item => item.id), ["once:history", "once:manage"])
 })
 
 test("iOS opens the native browser sheet with page actions and no extension rows", async () => {
@@ -155,7 +156,7 @@ test("iOS opens the native browser sheet with page actions and no extension rows
   const button = document.querySelector("#reading_browser_menu")
   await button.onclick()
   assert.equal(menu.browserControls, true)
-  assert.deepEqual(menu.items.map(item => item.id), ["once:page-action:generic.explain"])
+  assert.deepEqual(menu.items.map(item => item.id), ["once:history", "once:page-action:generic.explain"])
   assert.deepEqual(ran, ["generic.explain"])
   let findRequests = 0
   document.addEventListener("once-find-in-page-request", () => { findRequests += 1 })

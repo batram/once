@@ -16,6 +16,7 @@ module.exports = {
   entry: {
     // The main process bundle; package.json "main" resolves to index.js.
     index: "./src/main.ts",
+    "history-worker": "./src/historyWorker.ts",
     // Standalone browser-world bundle the main process injects into tabs
     // with executeJavaScript to run the source picker overlay.
     "picker-injection": {

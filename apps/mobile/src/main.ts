@@ -1,3 +1,4 @@
+import { bindMobileBrowserHistory } from "./browserHistory"
 import { installReaderAiHost } from "./readerAiHost"
 import { App } from "@capacitor/app"
 import { Capacitor } from "@capacitor/core"
@@ -386,7 +387,7 @@ async function startMobileApp(): Promise<void> {
   const browserExtensions = createMobileBrowserExtensions()
   if (browserExtensions) bindMobileBrowserExtensionSettings(browserExtensions, url => reading.openBrowserUrl(url))
   bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(reading, browserSurface.clearSiteData?.bind(browserSurface)),
-    () => reading.historyState(), () => { if (reading.tabs.activeId) reading.tabs.close(reading.tabs.activeId) })
+    () => reading.historyState(), () => { if (reading.tabs.activeId) reading.tabs.close(reading.tabs.activeId) }, bindMobileBrowserHistory(reading))
   bindWebInspectorSetting()
   mountTouchNavigation(reading)
   if (__ONCE_MOBILE_E2E__) installMobileTestHooks(app, reading, browserSurface, navigationListeners, applyExtensionSettings)

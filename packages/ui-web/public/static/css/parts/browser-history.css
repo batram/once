@@ -1,0 +1,205 @@
+body.browser-history-page {
+  font-size: var(--fs-dense);
+}
+
+#left_panel[active_panel="browser_history"] #browser_history_panel {
+  display: flex;
+}
+
+.browser-history {
+  --history-control-size: var(--toolbar-control-size);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  color: var(--text-high-color);
+  font-size: var(--fs-dense);
+}
+
+.history-header {
+  flex: none;
+  gap: var(--sp-2);
+  padding-inline: var(--sp-3);
+}
+
+.history-header h1 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--panel-title-font-size);
+  font-weight: var(--panel-title-font-weight);
+  line-height: 1.4;
+}
+
+.browser-history .button {
+  flex: none;
+  min-height: var(--history-control-size);
+  margin: 0;
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-dense);
+}
+
+.history-clear {
+  white-space: nowrap;
+}
+
+.history-searchbar {
+  flex: none;
+  min-height: var(--panel-titlebar-block-size);
+  box-sizing: border-box;
+  padding: var(--sp-1-5) var(--sp-3);
+}
+
+.history-search {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--sp-2);
+  box-sizing: border-box;
+  height: var(--history-control-size);
+  min-width: 0;
+  padding-inline: var(--sp-2);
+  border: var(--bw) solid var(--text-muted-color);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg-color);
+  color: var(--text-muted-color);
+}
+
+.history-search:focus-within {
+  outline: var(--bw) solid var(--text-high-color);
+  outline-offset: var(--bw);
+}
+
+.history-search input {
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-high-color);
+  font: inherit;
+}
+
+.history-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 var(--sp-3) var(--sp-3);
+}
+
+.history-status {
+  margin: var(--sp-3) 0;
+  color: var(--text-muted-color);
+  font-size: var(--fs-meta);
+}
+
+.history-entries h2 {
+  margin: var(--sp-4) 0 var(--sp-1);
+  padding-bottom: var(--sp-1-5);
+  border-bottom: var(--bw) solid var(--divider-color);
+  font-size: var(--fs-meta);
+  font-weight: 700;
+}
+
+.history-entry {
+  display: grid;
+  grid-template-columns: 5ch minmax(0, 1fr) var(--history-control-size);
+  align-items: baseline;
+  gap: var(--sp-3);
+  min-height: 48px;
+  padding-inline: var(--sp-2);
+  border-bottom: var(--bw) solid var(--divider-color);
+}
+
+.history-entry:hover {
+  background: var(--editing-bg-color);
+}
+
+.history-entry time {
+  white-space: nowrap;
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-entry a {
+  display: grid;
+  min-width: 0;
+  gap: var(--sp-1);
+  line-height: 1.4;
+  padding-block: var(--sp-2);
+  color: inherit;
+  text-decoration: none;
+}
+
+.history-entry-title,
+.history-entry-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-entry-title {
+  font-size: var(--fs-dense);
+}
+
+.history-entry-url {
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+}
+
+.history-entry a:hover .history-entry-title {
+  text-decoration: underline;
+}
+
+.browser-history .history-remove,
+.browser-history .history-back {
+  align-self: center;
+  width: var(--history-control-size);
+  height: var(--history-control-size);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted-color);
+}
+
+.history-remove:hover {
+  color: var(--text-high-color);
+  border-color: var(--divider-color);
+}
+
+.history-pagination {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.history-confirm {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border: var(--bw) solid var(--divider-color);
+  border-radius: var(--radius-md);
+  background: var(--editing-bg-color);
+}
+
+.history-confirm p {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-dense);
+  line-height: 1.5;
+}
+
+.history-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}

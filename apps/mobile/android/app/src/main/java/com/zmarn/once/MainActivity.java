@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AddressBarPlugin.class);
         registerPlugin(SecureSettingsPlugin.class);
         registerPlugin(NativeDatabasePlugin.class);
+        registerPlugin(BrowserHistoryPlugin.class);
         // The engine flavour (GeckoView or Once Lite) registers InAppBrowserSurface
         // and GeckoViolentmonkey, the plugins whose implementation differs.
         EngineSurface.register(this);

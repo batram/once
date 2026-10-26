@@ -23,6 +23,7 @@ import {
 import { hasReaderDocument, storeReaderDocument } from "./ReaderProtocol"
 import { createTabView, PopupWindowOptions } from "./browser/TabView"
 import { isAddonConversationUrl } from "./AddonConversationRelay"
+import { isHistoryUrl } from "./HistoryPage"
 import { isRemoteTabsUrl } from "./RemoteTabsRelay"
 import { fallbackTabTitle, sourceUrlFromReaderUrl } from "./browser/reader-url"
 import { TabEntry, WindowEntry } from "./browser/BrowserState"
@@ -283,6 +284,7 @@ export class BrowserCoordinator {
       if (entry && !entry.view.webContents.isDestroyed()) {
         entry.view.setBackgroundColor(state.backgroundColor)
         this.navigationErrors.applyTheme(entry, state.backgroundColor)
+        if (isHistoryUrl(entry.displayedUrl)) entry.view.webContents.send("once:history:theme", state.backgroundColor)
       }
     }
   }
@@ -677,7 +679,7 @@ export class BrowserCoordinator {
   // applied to other navigable input.
   private normalizeTabUrl(url: string): string {
     const trimmed = url.trim()
-    if (sourceUrlFromReaderUrl(trimmed) || parseExtensionUrl(trimmed) || isAddonConversationUrl(trimmed) || isRemoteTabsUrl(trimmed)) return trimmed
+    if (sourceUrlFromReaderUrl(trimmed) || parseExtensionUrl(trimmed) || isAddonConversationUrl(trimmed) || isRemoteTabsUrl(trimmed) || isHistoryUrl(trimmed)) return trimmed
     return normalizeBrowserUrl(trimmed)
   }
 

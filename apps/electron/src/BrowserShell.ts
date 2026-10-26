@@ -1,5 +1,5 @@
 import { readerErrorDocument } from "@once/ui-web/reader/readerErrorDocument"
-import { ElectronBridge, ElectronTabState, REMOTE_TABS_URL } from "@once/platform-electron/bridge"
+import { ElectronBridge, ElectronTabState, HISTORY_URL, REMOTE_TABS_URL } from "@once/platform-electron/bridge"
 import {
   focusStoryList,
   getKeyboardDispatcher,
@@ -304,6 +304,11 @@ export class BrowserShell {
    */
   private bindKeyboardCommands(): void {
     const keyboard = getKeyboardDispatcher()
+    keyboard.register("browser.history", () => {
+      const existing = this.tabs.find(tab => tab.url === HISTORY_URL)
+      if (existing) void this.bridge.tabs.activate(existing.id)
+      else void this.bridge.tabs.create(HISTORY_URL, true)
+    })
     keyboard.register("browser.new-tab", () => this.openBlankTab())
     keyboard.register("browser.close-tab", () =>
       this.withActive((tab) => this.bridge.tabs.close(tab.id)))

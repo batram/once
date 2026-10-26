@@ -60,6 +60,9 @@
       ],
       "reader/readerErrorDocument": [
         "dist/reader/readerErrorDocument.d.ts"
+      ],
+      "history/BrowserHistoryView": [
+        "dist/history/BrowserHistoryView.d.ts"
       ]
     }
   },
@@ -151,6 +154,10 @@
     "./reader/readerErrorDocument": {
       "types": "./dist/reader/readerErrorDocument.d.ts",
       "default": "./dist/reader/readerErrorDocument.js"
+    },
+    "./history/BrowserHistoryView": {
+      "types": "./dist/history/BrowserHistoryView.d.ts",
+      "default": "./dist/history/BrowserHistoryView.js"
     }
   },
   "dependencies": {

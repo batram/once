@@ -5,6 +5,7 @@ import { getKeyboardDispatcher } from "@once/ui-web"
 // so the menu, the keys and their settings never disagree.
 const COMMANDS: Record<string, string> = {
   "new-tab": "browser.new-tab",
+  history: "browser.history",
   "new-window": "browser.new-window",
   "close-tab": "browser.close-tab",
   fullscreen: "window.toggle-fullscreen"

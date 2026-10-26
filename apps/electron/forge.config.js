@@ -147,6 +147,12 @@ module.exports = {
         config: "./webpack.renderer.config.js",
         entryPoints: [
           {
+            html: "../../packages/ui-web/public/browser-history.html",
+            js: "./src/historyPageRenderer.ts",
+            name: "browser_history",
+            preload: { js: "./src/historyPreload.ts" }
+          },
+          {
             html: "./src/menus/browser-menu.html",
             js: "./src/menus/browserMenuRenderer.ts",
             name: "browser_menu",

@@ -9,6 +9,17 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./browserHistory": {
+      "types": "./dist/browserHistory.d.ts",
+      "default": "./dist/browserHistory.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "browserHistory": [
+        "dist/browserHistory.d.ts"
+      ]
     }
   }
 }

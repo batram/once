@@ -34,6 +34,8 @@ export interface ReadingTab {
   title: string
   readerScroll: number
   restored: boolean
+  /** Initial restoration reload is not a new browsing visit. */
+  historyRestoredUrl?: string
   preview?: string
   /** Audio this session: playing now, or played earlier and since stopped. */
   audio?: "playing" | "played"
@@ -241,6 +243,7 @@ export class ReadingTabs {
   private fromSaved(value: SavedTab): ReadingTab {
     const tab = this.make(value.id)
     tab.restored = true
+    tab.historyRestoredUrl = value.url
     tab.session.restore({ story: value.story ? Story.from_obj(value.story) : null, mode: value.mode, currentUrl: value.url })
     tab.title = value.title
     tab.readerScroll = value.readerScroll

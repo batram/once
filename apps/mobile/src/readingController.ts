@@ -209,6 +209,8 @@ export class MobileReadingController {
     if (this.activePanel === "reading" && this.addonTrays.close()) return true
     if (this.activePanel === "reading" && this.findBar.close()) return true
 
+    if (this.activePanel === "browser_history") { document.querySelector<HTMLButtonElement>("#browser_history_panel_bar button")?.click(); return true }
+
     if (this.activePanel === "settings") {
       return this.settingsNavigate("back")
     }

@@ -259,3 +259,4 @@ function mobileDevice(appVersion: string): NonNullable<OncePlatformPorts["device
     appVersion
   }
 }
+export { mobileBrowserHistory } from "./browserHistory"

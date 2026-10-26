@@ -621,3 +621,5 @@ declare global {
     onceElectron: ElectronBridge
   }
 }
+
+export const HISTORY_URL = "once-history://view/index.html"

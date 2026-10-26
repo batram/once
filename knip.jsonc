@@ -90,6 +90,9 @@
         "src/addonConversation.ts",
         "src/addonConversationPreload.ts",
         // The tabs page: a Forge entry in a browser tab, with the preload that relays to the shell.
+        "src/historyPageRenderer.ts",
+        "src/historyPreload.ts",
+        "src/historyWorker.ts",
         "src/remoteTabsPage.ts",
         "src/remoteTabsPreload.ts",
         "forge.config.js",
