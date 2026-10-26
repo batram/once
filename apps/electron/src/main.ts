@@ -5,6 +5,7 @@ import {
   Rectangle,
   Session,
   protocol,
+  screen,
   session
 } from "electron"
 import started from "electron-squirrel-startup"
@@ -233,7 +234,18 @@ function startAutoUpdates(): void {
   })
 }
 
+/**
+ * A saved window position is only used while some display still shows it:
+ * a monitor unplugged since would otherwise leave the window out of reach.
+ */
+function onScreen(bounds: Rectangle): boolean {
+  return screen.getAllDisplays().some(({ workArea }) =>
+    bounds.x + bounds.width > workArea.x + 40 && bounds.x < workArea.x + workArea.width - 40
+    && bounds.y >= workArea.y - 10 && bounds.y < workArea.y + workArea.height - 40)
+}
+
 function createShellWindow(bounds?: Rectangle): BrowserWindow {
+  const placed = bounds && onScreen(bounds) ? bounds : undefined
   return new BrowserWindow({
     // Linux window managers read this PNG at runtime. Forge copies the matching
     // release/dev asset beside app.asar; unpackaged runs use the dev asset.
@@ -248,8 +260,8 @@ function createShellWindow(bounds?: Rectangle): BrowserWindow {
       ),
     // Off-screen in test runs so the window never lands on the developer's
     // virtual desktop; see showWindow().
-    x: isBackgroundMode() ? OFFSCREEN_TEST_POSITION.x : bounds?.x,
-    y: isBackgroundMode() ? OFFSCREEN_TEST_POSITION.y : bounds?.y,
+    x: isBackgroundMode() ? OFFSCREEN_TEST_POSITION.x : placed?.x,
+    y: isBackgroundMode() ? OFFSCREEN_TEST_POSITION.y : placed?.y,
     width: bounds?.width || 1280,
     height: bounds?.height || 800,
     minWidth: 760,
@@ -402,7 +414,9 @@ app
         }
       }
     })
-    await browserCoordinator.createWindow()
+    // The previous session's windows come back as they were; a first start,
+    // or one after a quit with nothing open, gets a fresh window.
+    if (!await browserCoordinator.restoreSession()) await browserCoordinator.createWindow()
     void extensions.loadBundled(resolveBundledExtensions(bundledExtensionRoot({
       isPackaged: app.isPackaged,
       resourcesPath: process.resourcesPath,
@@ -426,6 +440,12 @@ process.on("uncaughtException", (error) => {
 
 process.on("unhandledRejection", (error) => {
   console.error("Unhandled main-process rejection", error)
+})
+
+// Quitting closes every window, and those windows are the session the next
+// start restores, not a stack of closed tabs.
+app.on("before-quit", () => {
+  browserCoordinator?.beginQuit()
 })
 
 app.on("second-instance", () => {

@@ -3,11 +3,22 @@ import { releaseErrorPages } from "./ErrorPageProtocol"
 import { NavigationErrors } from "./NavigationErrors"
 import { TabEntry, WindowEntry } from "./BrowserState"
 import { ClosedTabs, isThrowaway } from "./ClosedTabs"
-import { OpenTabs, stackOrder } from "./OpenTabs"
+import { OpenTabs, stackOrder, WindowSnapshot } from "./OpenTabs"
 import { markSelected } from "./TabSyncTimes"
 
 interface TabOwnershipActions {
   createBlankTab(owner: WindowEntry): Promise<unknown>
+}
+
+interface TabOwnershipOptions {
+  /**
+   * Whether closing the last window ends the session, as it does where the
+   * app quits with its last window (Windows, Linux). That window's tabs then
+   * stay in the session snapshot for the next start instead of going on the
+   * reopen stack. On macOS the app outlives its windows, and only quitting
+   * ends the session.
+   */
+  lastWindowEndsSession?: boolean
 }
 
 export class TabOwnership {
@@ -16,15 +27,28 @@ export class TabOwnership {
   private readonly observers = new Set<() => void>()
   /** Told when a tab stops being its window's selected one, while its page is still there. */
   readonly deselected = new Set<(entry: TabEntry) => void>()
+  private quitting = false
 
   constructor(
     private readonly errors: NavigationErrors,
     private readonly actions: TabOwnershipActions,
     readonly closedTabs = new ClosedTabs(),
-    private readonly openTabs = new OpenTabs()
-  ) {
-    // Tabs a killed or crashed session left open are the newest closed tabs.
-    closedTabs.adopt(openTabs.takeStale())
+    private readonly openTabs = new OpenTabs(),
+    private readonly options: TabOwnershipOptions = {}
+  ) {}
+
+  /** The windows the previous session left, for the coordinator to restore. */
+  takeSession(): WindowSnapshot[] {
+    return this.openTabs.takeSession()
+  }
+
+  /**
+   * The app is quitting: the windows about to close are the session, so they
+   * keep their snapshot and stay off the reopen stack.
+   */
+  beginQuit(): void {
+    this.quitting = true
+    this.openTabs.flush()
   }
 
   addWindow(owner: WindowEntry): void {
@@ -179,9 +203,24 @@ export class TabOwnership {
     }
   }
 
+  /** The window moved or was resized; the session snapshot follows it. */
+  windowMoved(owner: WindowEntry): void {
+    if (!this.windows.has(owner.id) || owner.window.isDestroyed()) return
+    this.openTabs.updateBounds(owner, owner.window.getBounds())
+  }
+
   closeWindow(owner: WindowEntry): void {
     this.removeWindow(owner)
     const entries = owner.tabs.map((id) => this.tabs.get(id))
+    const endsSession = this.quitting
+      || (this.windows.size === 0 && this.options.lastWindowEndsSession === true)
+    if (endsSession) {
+      // The session's windows come back as windows at the next start, not
+      // one tab at a time through Reopen closed tab.
+      this.openTabs.flush()
+      this.destroyTabs(entries, owner)
+      return
+    }
     // Closing a window is a bulk close: its tabs belong in the reopen stack
     // too, so Reopen closed tab brings them back one at a time, the active
     // tab first and the rest left to right.
@@ -195,6 +234,10 @@ export class TabOwnership {
     const active = entries.findIndex((entry) => entry?.id === owner.activeId)
     this.closedTabs.adopt(stackOrder(records, records.findIndex((record) => record.index === active)))
     this.openTabs.forget(owner)
+    this.destroyTabs(entries, owner)
+  }
+
+  private destroyTabs(entries: (TabEntry | undefined)[], owner: WindowEntry): void {
     for (const entry of entries) {
       if (!entry) continue
       this.tabs.delete(entry.id)
@@ -217,7 +260,8 @@ export class TabOwnership {
       owner.window.webContents.send(ELECTRON_IPC.tabsChanged, this.getAll(owner))
     }
     if (this.windows.has(owner.id)) {
-      this.openTabs.update(owner, owner.tabs.flatMap((id) => this.tabs.get(id) ?? []))
+      const bounds = owner.window.isDestroyed() ? undefined : owner.window.getBounds()
+      this.openTabs.update(owner, owner.tabs.flatMap((id) => this.tabs.get(id) ?? []), bounds)
     }
     for (const observer of this.observers) observer()
   }

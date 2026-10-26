@@ -34,8 +34,9 @@ import { SourcePicker } from "./browser/SourcePicker"
 import { TabEvents } from "./browser/TabEvents"
 import { TabOwnership } from "./browser/TabOwnership"
 import { WindowLifecycle, showWindow } from "./browser/WindowLifecycle"
-import { ClosedTabRecord, isUntouchedBlank } from "./browser/ClosedTabs"
-import { profileTabStores } from "./browser/OpenTabs"
+import { isUntouchedBlank } from "./browser/ClosedTabs"
+import { profileTabStores, WindowSnapshot } from "./browser/OpenTabs"
+import { TabRestore } from "./browser/TabRestore"
 import { activeTabContentsId, createExtensionTabHooks } from "./browser/ExtensionTabHooks"
 import { parseExtensionUrl } from "@once/webext-runtime"
 import { ElectronShellHooks, PageProfile } from "./extensions/runtimeTypes"
@@ -47,6 +48,8 @@ const MAX_FORWARDED_KEYS = 100
 interface CreateWindowOptions {
   url?: string
   tabId?: string
+  /** A previous session's window to bring back as this one. */
+  session?: WindowSnapshot
   point?: ElectronPoint
 }
 
@@ -64,6 +67,11 @@ export class BrowserCoordinator {
   private readonly tabEvents: TabEvents
   private readonly ownership: TabOwnership
   private readonly windowLifecycle: WindowLifecycle
+  private readonly restore = new TabRestore({
+    createTab: (owner, url, active, after) => this.createTab(owner, url, active, after),
+    get: (id) => this.ownership.get(id),
+    pageProfile: (url) => this.pageProfile(url)
+  })
   readonly tabCreated = new Set<(contents: WebContents) => void>()
   private pageProfile: (url: string) => PageProfile | null = () => null
   private redirects: CompiledRedirect[] = []
@@ -87,7 +95,11 @@ export class BrowserCoordinator {
     })
     this.ownership = new TabOwnership(this.navigationErrors, {
       createBlankTab: (owner) => this.createTab(owner, "about:blank", true)
-    }, ...profileTabStores(app.getPath("userData")))
+    }, ...profileTabStores(app.getPath("userData")), {
+      // Closing the last window quits the app everywhere but on macOS (see
+      // window-all-closed in main), so there it ends the session too.
+      lastWindowEndsSession: process.platform !== "darwin"
+    })
     this.windowLifecycle = new WindowLifecycle(this.menus, {
       activeEntry: (owner) => owner.activeId
         ? this.ownership.get(owner.activeId)
@@ -95,6 +107,7 @@ export class BrowserCoordinator {
       back: (owner, id) => this.back(owner, id),
       close: (owner) => this.ownership.closeWindow(owner),
       forward: (owner, id) => this.forward(owner, id),
+      moved: (owner) => this.ownership.windowMoved(owner),
       openUrl: (owner, url) => { void this.openUrl(owner, url, "blank") }
     }, shellEntry)
     const ownerAccess = {
@@ -125,10 +138,33 @@ export class BrowserCoordinator {
     })
   }
 
+  /**
+   * Brings back the windows of the previous session, each with its tabs and
+   * where it stood, like Firefox and Chrome do. Tabs closed before the quit
+   * stay on the reopen stack, where Reopen closed tab reaches them once the
+   * session is back. Returns false when there was nothing to restore.
+   */
+  async restoreSession(): Promise<boolean> {
+    let restored = false
+    for (const snapshot of this.ownership.takeSession()) {
+      const tabs = snapshot.tabs.filter((record) => this.restore.canReopen(record))
+      if (tabs.length === 0) continue
+      const activeIndex = snapshot.tabs[snapshot.activeIndex]
+        ? tabs.indexOf(snapshot.tabs[snapshot.activeIndex]) : -1
+      try {
+        await this.createWindow({ session: { ...snapshot, tabs, activeIndex } })
+        restored = true
+      } catch (error) {
+        console.error("Could not restore a window of the previous session", error)
+      }
+    }
+    return restored
+  }
+
   async createWindow(options: CreateWindowOptions = {}): Promise<BrowserWindow> {
     const bounds = options.point
       ? this.detachedBounds(options.tabId, options.point)
-      : undefined
+      : options.session?.bounds
     const window = this.createShellWindow(bounds)
     const state = this.windowLifecycle.createState(window)
     this.ownership.addWindow(state)
@@ -140,6 +176,8 @@ export class BrowserCoordinator {
       await state.backgroundReady
       if (options.tabId && this.ownership.get(options.tabId)) {
         this.ownership.move(state, options.tabId)
+      } else if (options.session) {
+        await this.restore.openSession(state, options.session)
       } else {
         await this.createTab(state, options.url || "about:blank", true)
       }
@@ -345,40 +383,19 @@ export class BrowserCoordinator {
   /** Reopens the most recently closed tab, newest from this window first. */
   async restoreClosedTab(state: WindowEntry): Promise<string | null> {
     let record = this.ownership.closedTabs.take(state)
-    // A page of an extension that has since been removed cannot load anywhere.
-    while (record && parseExtensionUrl(record.url) && !this.pageProfile(record.url)) {
+    while (record && !this.restore.canReopen(record)) {
       record = this.ownership.closedTabs.take(state)
     }
     if (!record) return null
-    // Reader documents only live for the current session: after a restart the
-    // tab reopens blank and the shell regenerates the article for it, the same
-    // way a typed reader URL is handled in navigate().
-    const readerSource = sourceUrlFromReaderUrl(record.url)
-    const regenerate = readerSource !== null && !hasReaderDocument(readerSource)
-    const id = await this.createTab(state, regenerate ? "about:blank" : record.url, true)
+    const id = await this.restore.openRecord(state, record, true)
     const before = state.tabs[record.index]
     if (before && before !== id) this.ownership.reorder(state, id, before)
-    if (regenerate) {
-      state.window.webContents.send(ELECTRON_IPC.tabsRegenerateReader, readerSource, id)
-    } else {
-      this.restoreTabHistory(id, record)
-    }
     return id
   }
 
-  private restoreTabHistory(id: string, record: ClosedTabRecord): void {
-    const history = record.history
-    if (!history || history.entries.length < 2) return
-    const entry = this.ownership.get(id)
-    if (!entry || entry.view.webContents.isDestroyed()) return
-    try {
-      entry.view.webContents.navigationHistory.restore({
-        entries: history.entries,
-        index: history.index
-      })
-    } catch {
-      // The tab is already open at the right URL; back/forward is a bonus.
-    }
+  /** The app is quitting: its windows are the session the next start restores. */
+  beginQuit(): void {
+    this.ownership.beginQuit()
   }
 
   /** The live page of one of this window's tabs, for find-in-page and the like. */

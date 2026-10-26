@@ -54,6 +54,7 @@ interface WindowLifecycleActions {
   back(owner: WindowEntry, id: string): void
   close(owner: WindowEntry): void
   forward(owner: WindowEntry, id: string): void
+  moved(owner: WindowEntry): void
   openUrl(owner: WindowEntry, url: string): void
 }
 
@@ -138,6 +139,12 @@ export class WindowLifecycle {
       this.sendFullscreen(owner, true)
     })
     window.on("leave-full-screen", () => this.leaveFullscreen(owner))
+    // Where the window stands is part of the session that comes back at the
+    // next start; these fire once a drag or resize is over, not throughout.
+    window.on("moved", () => this.actions.moved(owner))
+    window.on("resized", () => this.actions.moved(owner))
+    window.on("maximize", () => this.actions.moved(owner))
+    window.on("unmaximize", () => this.actions.moved(owner))
     window.on("close", () => {
       owner.closing = true
     })

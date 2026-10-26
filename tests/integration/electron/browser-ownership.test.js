@@ -78,6 +78,7 @@ function fakeWindow(id) {
       this.destroyed = true
     },
     isDestroyed: () => false,
+    getBounds: () => ({ x: 10 * id, y: 20, width: 800, height: 600 }),
     sent,
     children
   })
@@ -572,15 +573,21 @@ test("TabOwnership records every tab of a closed window", () => {
   assert.equal(ownership.closedTabs.take(window).url, "https://example.com/three")
 })
 
-test("tabs left open by a killed session come back before older closed tabs", (t) => {
+function sessionOwnership(directory) {
+  return new TabOwnership(
+    { backTargetIndex: () => -1 }, { createBlankTab: async () => {} },
+    new ClosedTabs(path.join(directory, "closed-tabs.json")),
+    new OpenTabs(path.join(directory, "open-tabs.json"))
+  )
+}
+
+const saved = () => new Promise((resolve) => setTimeout(resolve, 1200))
+
+test("a killed session comes back as its windows, ahead of older closed tabs", (t) => {
   const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "once-open-tabs-"))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const closedFile = path.join(directory, "closed-tabs.json")
   const openFile = path.join(directory, "open-tabs.json")
-  const ownership = new TabOwnership(
-    { backTargetIndex: () => -1 }, { createBlankTab: async () => {} },
-    new ClosedTabs(closedFile), new OpenTabs(openFile)
-  )
+  const ownership = sessionOwnership(directory)
   const window = owner(1)
   ownership.addWindow(window)
   const earlier = navigated("earlier", 1, "https://example.com/earlier")
@@ -594,22 +601,108 @@ test("tabs left open by a killed session come back before older closed tabs", (t
   ownership.notify(window)
   // The snapshot is written a moment after the change, not on every keystroke.
   assert.equal(fs.existsSync(openFile), false)
-  return new Promise((resolve) => setTimeout(resolve, 1200)).then(() => {
+  return saved().then(() => {
     assert.equal(fs.existsSync(openFile), true)
 
-    // The process dies here: no closeWindow. The next start adopts the snapshot.
-    const restarted = new TabOwnership(
-      { backTargetIndex: () => -1 }, { createBlankTab: async () => {} },
-      new ClosedTabs(closedFile), new OpenTabs(openFile)
-    )
-    assert.equal(fs.existsSync(openFile), false, "adopted once")
+    // The process dies here: no closeWindow. The next start restores the window.
+    const restarted = sessionOwnership(directory)
+    const session = restarted.takeSession()
+    assert.equal(fs.existsSync(openFile), false, "taken once")
+    assert.deepEqual(restarted.takeSession(), [])
+    assert.equal(session.length, 1)
+    assert.deepEqual(session[0].tabs.map((tab) => tab.url), [
+      "https://example.com/left", "https://example.com/active", "https://example.com/right"
+    ])
+    assert.equal(session[0].activeIndex, 1)
+    assert.deepEqual(session[0].bounds, { x: 10, y: 20, width: 800, height: 600 })
+    // Only what was closed before the session ended is left to reopen.
     const fresh = owner(7)
-    assert.equal(restarted.closedTabs.take(fresh).url, "https://example.com/active")
-    assert.equal(restarted.closedTabs.take(fresh).url, "https://example.com/left")
-    assert.equal(restarted.closedTabs.take(fresh).url, "https://example.com/right")
     assert.equal(restarted.closedTabs.take(fresh).url, "https://example.com/earlier")
     assert.equal(restarted.closedTabs.take(fresh), undefined)
   })
+})
+
+test("quitting keeps every window with its own tabs for the next start", (t) => {
+  const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "once-open-tabs-"))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ownership = sessionOwnership(directory)
+  const first = owner(1)
+  const second = owner(2)
+  ownership.addWindow(first)
+  ownership.addWindow(second)
+  const tabs = {
+    a: navigated("a", 1, "https://example.com/a"),
+    b: navigated("b", 1, "https://example.com/b"),
+    c: navigated("c", 2, "https://example.com/c")
+  }
+  for (const tab of Object.values(tabs)) tab.view.webContents.close = () => {}
+  ownership.addTab(first, tabs.a)
+  ownership.addTab(first, tabs.b)
+  ownership.addTab(second, tabs.c)
+  ownership.activate(first, tabs.b.id)
+  ownership.activate(second, tabs.c.id)
+  // The quit comes before the debounced save has run; it must not lose anything.
+  ownership.beginQuit()
+  ownership.closeWindow(first)
+  ownership.closeWindow(second)
+  assert.equal(ownership.closedTabs.size, 0, "a quitting window is not a closed window")
+
+  const restarted = sessionOwnership(directory)
+  const session = restarted.takeSession()
+  assert.deepEqual(session.map((window) => window.tabs.map((tab) => tab.url)), [
+    ["https://example.com/a", "https://example.com/b"],
+    ["https://example.com/c"]
+  ])
+  assert.deepEqual(session.map((window) => window.activeIndex), [1, 0])
+  assert.deepEqual(session.map((window) => window.bounds.x), [10, 20])
+  assert.equal(restarted.closedTabs.size, 0)
+})
+
+test("closing the last window ends the session where that quits the app", (t) => {
+  const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "once-open-tabs-"))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ownership = new TabOwnership(
+    { backTargetIndex: () => -1 }, { createBlankTab: async () => {} },
+    new ClosedTabs(path.join(directory, "closed-tabs.json")),
+    new OpenTabs(path.join(directory, "open-tabs.json")),
+    { lastWindowEndsSession: true }
+  )
+  const first = owner(1)
+  const second = owner(2)
+  ownership.addWindow(first)
+  ownership.addWindow(second)
+  const a = navigated("a", 1, "https://example.com/a")
+  const c = navigated("c", 2, "https://example.com/c")
+  for (const tab of [a, c]) tab.view.webContents.close = () => {}
+  ownership.addTab(first, a)
+  ownership.addTab(second, c)
+  ownership.notify(first)
+  ownership.notify(second)
+  // One of two windows closing is an ordinary close: its tab goes on the stack.
+  ownership.closeWindow(second)
+  assert.equal(ownership.closedTabs.size, 1)
+  // The last one closing takes the app down with it, so it is kept as the session.
+  ownership.closeWindow(first)
+  assert.equal(ownership.closedTabs.size, 1)
+  const restarted = sessionOwnership(directory)
+  assert.deepEqual(restarted.takeSession().map((window) => window.tabs.map((tab) => tab.url)),
+    [["https://example.com/a"]])
+  assert.equal(restarted.closedTabs.take(owner(9)).url, "https://example.com/c")
+})
+
+test("a moved window keeps its new place in the session snapshot", (t) => {
+  const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "once-open-tabs-"))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const ownership = sessionOwnership(directory)
+  const window = owner(1)
+  ownership.addWindow(window)
+  ownership.addTab(window, navigated("a", 1, "https://example.com/a"))
+  ownership.notify(window)
+  window.window.getBounds = () => ({ x: 300, y: 400, width: 1000, height: 700 })
+  ownership.windowMoved(window)
+  ownership.beginQuit()
+  assert.deepEqual(sessionOwnership(directory).takeSession()[0].bounds,
+    { x: 300, y: 400, width: 1000, height: 700 })
 })
 
 test("a window that closes normally leaves no open tab snapshot behind", (t) => {

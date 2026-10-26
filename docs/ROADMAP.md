@@ -48,9 +48,9 @@ platform](plans/story-addons-plan.md).
 ## Later
 
 - **Electron**
-  - Restore windows, open tabs and reading position automatically (the
-    tabs of a killed session and recently closed tabs already survive a
-    restart on the reopen stack)
+  - Restore the reading position of restored tabs (windows and their tabs
+    come back at start; recently closed tabs survive a restart on the
+    reopen stack)
   - Developer ID signing and notarization for macOS, and Linux self-update
     (Windows, Linux and macOS packages, Squirrel updates and a manual
     release check exist)

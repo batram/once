@@ -547,11 +547,13 @@ shortcuts. Shared code owns canonical chords, configurable bindings, conflict
 checks, shell dispatch, pane focus, and the durable story cursor. Electron's
 main process forwards registered page keystrokes into that command layer and
 owns recently closed tab history; shells only advertise commands they can
-actually deliver. Because a killed session never closes its windows, main
-also writes every window's open tabs to `open-tabs.json` as they change
-(`browser/OpenTabs.ts`) and puts whatever is still there at the next start on
-top of the reopen stack, so Reopen closed tab brings back the tabs a crash
-lost before older ones.
+actually deliver. Main also writes every window's open tabs and position to
+`open-tabs.json` as they change (`browser/OpenTabs.ts`). A window closed while
+the app keeps running puts its tabs on the reopen stack and leaves the file;
+the windows open at a quit (or a crash, which never closes them) stay in it,
+and the next start restores each of them with its tabs, active tab and
+position, the way Firefox and Chrome do. Reopen closed tab then reaches the
+tabs closed before the session ended.
 
 ## Migration history
 

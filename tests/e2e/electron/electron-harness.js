@@ -466,9 +466,11 @@ async function launchApp(options = {}) {
   launchedApps.push(appLog)
   let window
   try {
+    // A relaunch on a profile that quit with tabs open restores its windows
+    // (options.restored); every other launch starts with one blank window.
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows().length
-    ), { timeout: STARTUP_TIMEOUT_MS }).toBe(1)
+    ), { timeout: STARTUP_TIMEOUT_MS }).toBeGreaterThanOrEqual(1)
     window = await electronApp.firstWindow()
     // Windows CI runners have a 1024x768 screen, which clamps the default
     // 1280x800 window; every run gets that size so local runs lay out as CI does.
@@ -476,9 +478,14 @@ async function launchApp(options = {}) {
       BrowserWindow.getAllWindows()[0].setSize(size.width, size.height), E2E_WINDOW_SIZE)
     appLog.attachPage(window)
     await waitForAppReady(electronApp, window, appLog)
-    await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()),
-      { timeout: STARTUP_TIMEOUT_MS })
-      .toMatchObject([{ url: "about:blank", active: true }])
+    if (!options.restored) {
+      await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().length
+      )).toBe(1)
+      await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()),
+        { timeout: STARTUP_TIMEOUT_MS })
+        .toMatchObject([{ url: "about:blank", active: true }])
+    }
   } catch (error) {
     await captureWindow(appLog, window)
     await attachAppEvidence(test.info(), appLog, `launchApp failed: ${stripAnsi(error.message)}`)
