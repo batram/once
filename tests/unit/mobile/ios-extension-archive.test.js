@@ -17,7 +17,12 @@ function hasSwift() {
 const driver = `
 import Foundation
 let args = CommandLine.arguments
-let data = try! Data(contentsOf: URL(fileURLWithPath: args[1]))
+let data: Data
+do { data = try ExtensionArchive.read(URL(fileURLWithPath: args[1])) }
+catch {
+    print(String(data: try! JSONSerialization.data(withJSONObject: ["readError": error.localizedDescription]), encoding: .utf8)!)
+    exit(0)
+}
 let out = URL(fileURLWithPath: args[2])
 var result: [String: Any] = [:]
 do {
@@ -93,6 +98,54 @@ test("ExtensionArchive unpacks XPI files with the Electron runtime's rules", { s
     assert.equal(fs.readFileSync(path.join(report.output, "scripts/background.js"), "utf8"), big.toString())
     assert.equal(fs.readFileSync(path.join(report.output, "scripts/lib/stored.txt"), "utf8"), "kept verbatim")
     assert.equal(fs.readFileSync(path.join(report.output, "scripts/lib/empty.txt")).length, 0)
+  })
+
+  await t.test("accepts an exact 200 MB mapped archive and rejects one byte over before reading", () => {
+    // A ZIP with a large prefix exercises the archive boundary without allocating 200 MB in the test runner.
+    const archive = zipOf([["manifest.json", "{}"]])
+    const padding = 200_000_000 - archive.length
+    const central = archive.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]))
+    const end = archive.length - 22
+    archive.writeUInt32LE(padding, central + 42)
+    archive.writeUInt32LE(archive.readUInt32LE(end + 16) + padding, end + 16)
+    const input = path.join(directory, "boundary.xpi")
+    const output = path.join(directory, "boundary-out")
+    const fd = fs.openSync(input, "w")
+    fs.writeSync(fd, archive, 0, archive.length, padding)
+    fs.closeSync(fd)
+    const report = JSON.parse(execFileSync(binary, [input, output], { encoding: "utf8" }))
+    assert.equal(report.extracted, true)
+    assert.equal(fs.readFileSync(path.join(output, "manifest.json"), "utf8"), "{}")
+    fs.truncateSync(input, 200_000_001)
+    const oversized = JSON.parse(execFileSync(binary, [input, output + "-oversized"], { encoding: "utf8" }))
+    assert.equal(oversized.readError, "XPI exceeds the 200 MB limit")
+  })
+
+  await t.test("extracts more than 32 MiB compressed and 128 MiB expanded", () => {
+    const archive = zipOf([
+      ["manifest.json", "{}"],
+      ["stored.bin", Buffer.alloc(33 * 1024 * 1024, 42), true],
+      ["deflated.bin", Buffer.alloc(100 * 1024 * 1024, 7)]
+    ])
+    const report = run(binary, directory, "large", archive)
+    assert.equal(report.extracted, true, report.extractError)
+    assert.equal(fs.statSync(path.join(report.output, "stored.bin")).size, 33 * 1024 * 1024)
+    assert.equal(fs.statSync(path.join(report.output, "deflated.bin")).size, 100 * 1024 * 1024)
+  })
+
+  await t.test("rejects Mozilla's expanded and per-file boundaries before extraction", () => {
+    const archive = zipOf([["a", "a"], ["b", "b"], ["c", "c"]])
+    const records = []
+    for (let offset = 0; offset < archive.length - 4; offset++) {
+      if (archive.readUInt32LE(offset) === 0x02014b50) records.push(offset)
+    }
+    const hugeFile = Buffer.from(archive)
+    hugeFile.writeUInt32LE(100 * 1024 * 1024 + 1, records[0] + 24)
+    assert.equal(run(binary, directory, "huge-file", hugeFile).extractError, "XPI file exceeds the 100 MiB limit")
+    for (const [index, size] of [100, 100, 50].entries()) archive.writeUInt32LE(size * 1024 * 1024, records[index] + 24)
+    const expanded = run(binary, directory, "huge-expanded", archive)
+    assert.equal(expanded.extractError, "Expanded XPI must be smaller than 250 MiB")
+    assert.equal(expanded.outputExists, false)
   })
 
   await t.test("refuses unsafe paths and leaves nothing behind", () => {

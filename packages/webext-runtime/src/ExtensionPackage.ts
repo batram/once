@@ -1,13 +1,23 @@
 // From a Mozilla Add-ons listing, an XPI link or a local file to an unpacked,
 // validated package. The host supplies the network, the hash, the unzipper
 // and the package directory (`ExtensionPackageHost`); the rules about what
-// is accepted live here and are the same on every host.
+// is accepted live here; constrained transports may impose lower size limits.
 
 import { LoadedExtension, loadExtension } from "./LoadedExtension"
 import { ArchiveEntry, ExtensionPackageHost } from "./hostServices"
 
-export const MAX_ARCHIVE_BYTES = 32 * 1024 * 1024
-const MAX_EXPANDED = 128 * 1024 * 1024
+// AMO uses decimal MB for uploads and binary MiB for expanded files.
+export const MAX_ARCHIVE_BYTES = 200_000_000
+const MAX_EXPANDED = 250 * 1024 * 1024
+const MAX_FILE_BYTES = 100 * 1024 * 1024
+
+function archiveLimit(host: ExtensionPackageHost): number {
+  return Math.min(host.maxArchiveBytes ?? MAX_ARCHIVE_BYTES, MAX_ARCHIVE_BYTES)
+}
+
+function checkArchiveSize(size: number, limit = MAX_ARCHIVE_BYTES): void {
+  if (size > limit) throw new Error(`XPI exceeds the ${limit === MAX_ARCHIVE_BYTES ? "200 MB" : `${limit / 1024 / 1024} MiB`} limit`)
+}
 
 export interface ExtensionCandidate {
   token: string
@@ -65,6 +75,10 @@ async function download(host: ExtensionPackageHost, url: string, limit: number, 
     return download(host, new URL(location, url).href, limit, redirects + 1)
   }
   if (!response.ok || !response.body) throw new Error(`Extension download failed: HTTP ${response.status}`)
+  if (Number(response.headers.get("content-length")) > limit) {
+    await response.body.cancel()
+    throw new Error("Extension download exceeds the size limit")
+  }
   const chunks: Uint8Array[] = []
   let size = 0
   const reader = response.body.getReader()
@@ -94,8 +108,8 @@ function unsafeSegment(part: string): boolean {
 }
 
 /** Every archive path and size, checked as a whole before anything is written. */
-export function validateArchiveEntries(archive: Uint8Array, entries: readonly ArchiveEntry[]): void {
-  if (archive.length > MAX_ARCHIVE_BYTES) throw new Error("XPI exceeds the 32 MB limit")
+export function validateArchiveEntries(archive: Uint8Array, entries: readonly ArchiveEntry[], maxExpandedBytes = MAX_EXPANDED): void {
+  checkArchiveSize(archive.length)
   const names = new Set<string>()
   let expanded = 0
   if (entries.length > 10000) throw new Error("XPI has too many files")
@@ -105,15 +119,17 @@ export function validateArchiveEntries(archive: Uint8Array, entries: readonly Ar
       throw new Error("XPI contains an unsafe or duplicate file path")
     }
     names.add(name.toLowerCase())
+    if (entry.size > MAX_FILE_BYTES) throw new Error("XPI file exceeds the 100 MiB limit")
     expanded += entry.size
-    if (expanded > MAX_EXPANDED) throw new Error("Expanded XPI exceeds the 128 MB limit")
+    if (expanded >= Math.min(maxExpandedBytes, MAX_EXPANDED)) throw new Error(`Expanded XPI must be smaller than ${Math.min(maxExpandedBytes, MAX_EXPANDED) / 1024 / 1024} MiB`)
   }
 }
 
 /** Validates, then writes the archive into `directory` through the host's package store. */
 export async function unpackExtension(host: ExtensionPackageHost, archive: Uint8Array, directory: string): Promise<void> {
+  checkArchiveSize(archive.length, archiveLimit(host))
   const entries = host.unzip(archive)
-  validateArchiveEntries(archive, entries)
+  validateArchiveEntries(archive, entries, host.maxExpandedBytes)
   for (const entry of entries) {
     if (entry.isDirectory) { await host.packages.mkdir(directory, entry.name); continue }
     const body = entry.data()
@@ -130,12 +146,12 @@ export async function prepareExtension(host: ExtensionPackageHost, source: strin
   const direct = !localFile && amoSourceKind(source) === "download"
   if (localFile) {
     archive = await host.readArchive(localFile)
-    if (archive.length > MAX_ARCHIVE_BYTES) throw new Error("XPI exceeds the 32 MB limit")
+    checkArchiveSize(archive.length, archiveLimit(host))
   } else if (direct) {
-    archive = await download(host, source, MAX_ARCHIVE_BYTES)
+    archive = await download(host, source, archiveLimit(host))
   } else {
     expected = await listing(host, amoSlug(source))
-    archive = await download(host, expected.url, MAX_ARCHIVE_BYTES)
+    archive = await download(host, expected.url, archiveLimit(host))
   }
   const sha256 = await host.sha256(archive)
   if (expected && sha256 !== expected.hash) throw new Error("XPI does not match Mozilla's published hash")

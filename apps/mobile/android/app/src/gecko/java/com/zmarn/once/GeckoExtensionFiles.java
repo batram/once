@@ -17,7 +17,7 @@ final class GeckoExtensionFiles {
             int count;
             while ((count = source.read(buffer)) != -1) {
                 total += count;
-                if (total > 32 * 1024 * 1024) throw new IllegalArgumentException("Extension files must be smaller than 32 MiB");
+                if (total > 200_000_000L) throw new IllegalArgumentException("Extension files must not exceed 200 MB");
                 target.write(buffer, 0, count);
             }
             return file;

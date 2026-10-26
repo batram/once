@@ -83,6 +83,9 @@ export function litePackageHost(
 ): ExtensionPackageHost {
   const packagesRoot = `${storageRoot}/packages`
   return {
+    // Whole archives cross the Java bridge as base64; retain the mobile memory cap.
+    maxArchiveBytes: 32 * 1024 * 1024,
+    maxExpandedBytes: 128 * 1024 * 1024,
     fetch: async (url) => {
       const result = await channel.request<FetchResult>("package.fetch", { url })
       const body = result.status === 204 || result.status === 304 ? null : decodeBase64(result.bodyBase64) as unknown as BodyInit

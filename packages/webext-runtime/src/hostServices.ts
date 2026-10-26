@@ -126,6 +126,9 @@ export interface ExtensionPackageStore {
 
 /** What installing an extension from Mozilla Add-ons or a file needs. */
 export interface ExtensionPackageHost {
+  /** Hosts with constrained archive transports may impose lower limits than AMO. */
+  maxArchiveBytes?: number
+  maxExpandedBytes?: number
   fetch(url: string, init: { credentials: "omit"; redirect: "manual"; signal: AbortSignal }): Promise<Response>
   /** Lower-case hex SHA-256 of the archive. */
   sha256(data: Uint8Array): Promise<string>

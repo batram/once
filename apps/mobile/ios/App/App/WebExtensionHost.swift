@@ -11,6 +11,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
     /// User-installed packages, in install order, as the catalog file records them.
     var installed: [InstalledExtension] = []
     let store: ExtensionPackageStore
+    let packageNetworkConfiguration: URLSessionConfiguration
     /// Confirms installs and removals and picks local files; nil confirms silently (test hosts).
     var presenter: ExtensionInstallPresenter?
     private var icons: [String: String] = [:]
@@ -31,9 +32,11 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
         ("{aecec67f-0d10-4fa7-b7c7-609a2db280cf}", "violentmonkey", "Violentmonkey")
     ]
 
-    init(configuration: WKWebExtensionController.Configuration? = nil, store: ExtensionPackageStore = .default) {
+    init(configuration: WKWebExtensionController.Configuration? = nil, store: ExtensionPackageStore = .default,
+         packageNetworkConfiguration: URLSessionConfiguration = .ephemeral) {
         controller = WKWebExtensionController(configuration: configuration ?? .default())
         self.store = store
+        self.packageNetworkConfiguration = packageNetworkConfiguration
         super.init()
         controller.delegate = self
     }

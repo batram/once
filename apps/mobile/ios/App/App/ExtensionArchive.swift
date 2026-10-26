@@ -4,8 +4,10 @@ import Compression
 /// Reads and unpacks an XPI (ZIP) archive with the same acceptance rules the
 /// Electron runtime applies in packages/webext-runtime/src/ExtensionPackage.ts.
 enum ExtensionArchive {
-    static let maxArchiveBytes = 32 * 1024 * 1024
-    static let maxExpandedBytes = 128 * 1024 * 1024
+    // Mozilla AMO: decimal 200 MB upload, <250 MiB expanded, <=100 MiB per file.
+    static let maxArchiveBytes = 200_000_000
+    static let maxExpandedBytes = 250 * 1024 * 1024
+    static let maxFileBytes = 100 * 1024 * 1024
     static let maxEntries = 10_000
 
     struct Entry: Equatable {
@@ -23,25 +25,38 @@ enum ExtensionArchive {
 
     /// Every entry from the central directory. Throws Failure("Invalid XPI archive") when the data is not a ZIP.
     static func entries(of data: Data) throws -> [Entry] {
-        try records(of: [UInt8](data)).map { Entry(name: $0.name, isDirectory: $0.isDirectory, size: $0.size) }
+        try data.withUnsafeBytes { bytes in
+            try records(of: bytes).map { Entry(name: $0.name, isDirectory: $0.isDirectory, size: $0.size) }
+        }
     }
 
     /// Validates every path and size as a whole (see rules), then writes the
     /// files below `directory`, creating it (it must not exist beforehand).
     /// On any failure the partially written directory is removed before rethrowing.
     static func extract(_ data: Data, to directory: URL) throws {
-        let bytes = [UInt8](data)
-        let records = try records(of: bytes)
-        try validate(byteCount: bytes.count, records: records)
-        let manager = FileManager.default
-        if manager.fileExists(atPath: directory.path) { throw Failure(message: "Extension directory already exists") }
-        try manager.createDirectory(at: directory, withIntermediateDirectories: true)
-        do {
-            for record in records { try write(record, from: bytes, below: directory) }
-        } catch {
-            try? manager.removeItem(at: directory)
-            throw error
+        try data.withUnsafeBytes { bytes in
+            let records = try records(of: bytes)
+            try validate(byteCount: bytes.count, records: records)
+            let manager = FileManager.default
+            if manager.fileExists(atPath: directory.path) { throw Failure(message: "Extension directory already exists") }
+            try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+            do {
+                for record in records { try autoreleasepool { try write(record, from: bytes, below: directory) } }
+            } catch {
+                try? manager.removeItem(at: directory)
+                throw error
+            }
         }
+    }
+
+    /// The picker supplies a private copy. Check its size before mapping it, off the main actor.
+    static func read(_ file: URL) throws -> Data {
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
+        guard try handle.seekToEnd() <= UInt64(maxArchiveBytes) else { throw Failure(message: "XPI exceeds the 200 MB limit") }
+        let data = try Data(contentsOf: file, options: .alwaysMapped)
+        guard data.count <= maxArchiveBytes else { throw Failure(message: "XPI exceeds the 200 MB limit") }
+        return data
     }
 
     // MARK: - Parsing
@@ -57,7 +72,7 @@ enum ExtensionArchive {
     }
 
     private struct Reader {
-        let bytes: [UInt8]
+        let bytes: UnsafeRawBufferPointer
 
         func u16(_ offset: Int) throws -> Int {
             guard offset >= 0, offset + 2 <= bytes.count else { throw invalid }
@@ -69,9 +84,9 @@ enum ExtensionArchive {
             return Int(bytes[offset]) | Int(bytes[offset + 1]) << 8 | Int(bytes[offset + 2]) << 16 | Int(bytes[offset + 3]) << 24
         }
 
-        func slice(_ offset: Int, _ length: Int) throws -> ArraySlice<UInt8> {
+        func slice(_ offset: Int, _ length: Int) throws -> UnsafeRawBufferPointer {
             guard offset >= 0, length >= 0, offset + length <= bytes.count else { throw invalid }
-            return bytes[offset..<(offset + length)]
+            return UnsafeRawBufferPointer(rebasing: bytes[offset..<(offset + length)])
         }
     }
 
@@ -95,7 +110,7 @@ enum ExtensionArchive {
         throw invalid
     }
 
-    private static func records(of bytes: [UInt8]) throws -> [Record] {
+    private static func records(of bytes: UnsafeRawBufferPointer) throws -> [Record] {
         let reader = Reader(bytes: bytes)
         let end = try endRecordOffset(reader)
         let count = try reader.u16(end + 10)
@@ -145,7 +160,7 @@ enum ExtensionArchive {
     }
 
     private static func validate(byteCount: Int, records: [Record]) throws {
-        if byteCount > maxArchiveBytes { throw Failure(message: "XPI exceeds the 32 MB limit") }
+        if byteCount > maxArchiveBytes { throw Failure(message: "XPI exceeds the 200 MB limit") }
         if records.count > maxEntries { throw Failure(message: "XPI has too many files") }
         var seen = Set<String>()
         var expanded = 0
@@ -158,14 +173,15 @@ enum ExtensionArchive {
                 throw unsafePath
             }
             seen.insert(lowered)
+            if record.size > maxFileBytes { throw Failure(message: "XPI file exceeds the 100 MiB limit") }
             expanded += record.size
-            if expanded > maxExpandedBytes { throw Failure(message: "Expanded XPI exceeds the 128 MB limit") }
+            if expanded >= maxExpandedBytes { throw Failure(message: "Expanded XPI must be smaller than 250 MiB") }
         }
     }
 
     // MARK: - Extraction
 
-    private static func write(_ record: Record, from bytes: [UInt8], below directory: URL) throws {
+    private static func write(_ record: Record, from bytes: UnsafeRawBufferPointer, below directory: URL) throws {
         let target = directory.appendingPathComponent(record.name)
         let manager = FileManager.default
         if record.isDirectory {
@@ -179,7 +195,7 @@ enum ExtensionArchive {
     }
 
     /// The decompressed file body, located through the local header the central record points at.
-    private static func contents(of record: Record, from bytes: [UInt8]) throws -> Data {
+    private static func contents(of record: Record, from bytes: UnsafeRawBufferPointer) throws -> Data {
         let reader = Reader(bytes: bytes)
         let local = record.localOffset
         guard try reader.u32(local) == 0x0403_4b50 else { throw invalid }
@@ -190,16 +206,15 @@ enum ExtensionArchive {
             return Data(compressed)
         }
         // One spare byte lets an over-long stream show up as a size mismatch instead of a silent truncation.
-        var output = [UInt8](repeating: 0, count: record.size + 1)
-        let written = compressed.withUnsafeBufferPointer { source -> Int in
-            guard let base = source.baseAddress else { return 0 }
-            return output.withUnsafeMutableBufferPointer { destination in
-                compression_decode_buffer(destination.baseAddress!, destination.count, base, source.count, nil, COMPRESSION_ZLIB)
-            }
+        var output = Data(count: record.size + 1)
+        let written = output.withUnsafeMutableBytes { (destination: UnsafeMutableRawBufferPointer) -> Int in
+            guard let base = compressed.baseAddress else { return 0 }
+            return compression_decode_buffer(destination.baseAddress!.assumingMemoryBound(to: UInt8.self), destination.count,
+                                             base.assumingMemoryBound(to: UInt8.self), compressed.count, nil, COMPRESSION_ZLIB)
         }
         guard written == record.size else { throw Failure(message: "XPI file size mismatch") }
         output.removeLast()
-        return Data(output)
+        return output
     }
 
     private static let crcTable: [UInt32] = (0..<256).map { index -> UInt32 in

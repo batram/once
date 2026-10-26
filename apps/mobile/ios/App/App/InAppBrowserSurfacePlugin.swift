@@ -214,9 +214,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             if let contentRuleList { configuration.userContentController.add(contentRuleList) }
             for script in extensionUserScripts { configuration.userContentController.addUserScript(script) }
         }
-        installMediaObserver(configuration.userContentController)
-        installContextMenuTracker(configuration.userContentController)
-        installAmoBridge(configuration.userContentController)
+        installSurfaceScripts(configuration.userContentController)
         // iPhone WebKit defaults to fullscreen-only video; like Safari, play
         // inline wherever the page allows it (playsinline).
         configuration.allowsInlineMediaPlayback = true
@@ -619,7 +617,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         for tab in tabs.values { tab.installUserscripts(document) }
         let controller = surface?.configuration.userContentController
         controller?.removeAllUserScripts()
-        if let controller { installMediaObserver(controller) }
+        if let controller { installSurfaceScripts(controller) }
         extensionUserScripts = []
         for entry in document["scripts"] as? [JSObject] ?? [] {
             guard let script = UserscriptInjection.script(entry) else { continue }

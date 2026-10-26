@@ -95,6 +95,7 @@
     "test:mobile:e2e:android:lite:extensions": "ONCE_MOBILE_LITE_EXTENSIONS=1 node tests/e2e/mobile/run-mobile-e2e.js android --engine lite",
     "test:mobile:e2e:android:lite:extensions:local": "ONCE_MOBILE_LITE_EXTENSIONS=1 node tests/e2e/mobile/run-android-local.js --engine lite",
     "test:mobile:e2e:ios": "node tests/e2e/mobile/run-mobile-e2e.js ios",
+    "test:mobile:e2e:ios:extension-management": "node tests/e2e/mobile/run-ios-extension-management.js",
     "test:mobile:e2e:ios:extension-compat": "node tests/e2e/mobile/run-ios-extension-compat.js",
     "test:mobile:web": "npm run mobile -- web --channel dev --e2e && node tests/e2e/mobile/run-mobile-web-e2e.js",
     "test:setup": "node scripts/ensure-playwright-browser.js",

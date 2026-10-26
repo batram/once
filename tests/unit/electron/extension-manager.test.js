@@ -143,3 +143,13 @@ test("AMO sources and archive entry names are constrained before extraction", as
   await assert.rejects(unpackExtension(h.files().packages, zip.toBuffer(), path.join(h.root, "unpacked")), /unsafe/)
   await assert.rejects(fs.stat(path.join(h.root, "unpacked")), /ENOENT/)
 })
+
+
+test("the file picker rejects an oversized sparse file before reading it", async t => {
+  const h = await harness(t)
+  const file = path.join(h.root, "oversized.xpi")
+  const handle = await fs.open(file, "w")
+  await handle.truncate(200_000_001)
+  await handle.close()
+  await assert.rejects(h.files().packages.readArchive(file), /200 MB limit/)
+})

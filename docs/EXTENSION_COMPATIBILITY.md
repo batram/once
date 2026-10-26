@@ -270,8 +270,11 @@ resolved through Mozilla's API, the download must stay on Mozilla's hosts and
 match the published SHA-256 hash and GUID, a direct XPI link must be the file
 Mozilla currently lists for the id the package declares, local files are
 labelled "signature not verified", and the archive is checked for size,
-entry-count and path safety before extraction (32 MB archive, 128 MB expanded,
-10000 entries). A package without a Gecko id (`browser_specific_settings.gecko.id`)
+entry-count and path safety before extraction (200,000,000-byte archive, less
+than 250 MiB expanded, at most 100 MiB per file, 10000 entries), matching
+[Mozilla’s upload limit](https://extensionworkshop.com/documentation/publish/submitting-an-add-on/)
+and [archive size limits](https://github.com/mozilla/addons-server/blob/master/src/olympia/lib/settings_base.py). Downloads are staged to disk and archives are mapped
+for extraction to avoid full-archive heap copies. A package without a Gecko id (`browser_specific_settings.gecko.id`)
 is refused, as are the ids of the bundled extensions, which update with Once.
 
 Before anything is kept, a native sheet shows the extension name, version,
@@ -292,9 +295,11 @@ parse errors join the same notes.
 Installed packages live under the app's Application Support directory with a
 catalog file; each extension keeps a stable unique identifier and
 `webkit-extension://` origin derived from its id, so storage survives updates.
-Updates re-run the install from the recorded Add-ons URL (a package installed
-from a file is updated by choosing the new file) and keep the enabled state; a
-version that fails to load restores the previous one. Removal asks first, then
+Updates resolve Mozilla’s current release by the installed extension’s GUID,
+including packages originally installed from a version-specific XPI URL. A
+package installed from a file is updated by choosing the new file. Updates
+keep the enabled state; a failed load or catalog write restores the previous
+version and catalog. Removal asks first, then
 unloads the context, deletes WebKit's data for the extension and its package.
 Enabled state is kept per device; nothing about installed extensions syncs.
 Optional permission requests are not prompted and resolve as denied.
@@ -397,6 +402,12 @@ cryptographically verified, as on Electron; a local package is recorded as
 "signature not verified" (`ExtensionPackage.ts`). Bundled uBlock Origin and
 Violentmonkey are the plain upstream bundles, not the Gecko-adapted
 Violentmonkey copy.
+
+Lite retains a 32 MiB archive limit and a less-than-128 MiB expanded limit:
+its Java/JavaScript bridge transfers whole archives as base64, so raising
+the limit would multiply large allocations on mobile. Electron and iOS accept
+Mozilla’s 200,000,000-byte upload limit; Android Gecko’s local file picker
+uses that limit too and streams the file to disk.
 
 **Full** (the Electron behaviour, or better):
 

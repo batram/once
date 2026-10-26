@@ -15,7 +15,7 @@ protocol ExtensionInstallPresenter: AnyObject {
 /// a package that names a bundled id is refused rather than shadowing it.
 @available(iOS 18.4, *)
 extension WebExtensionHost {
-    enum PackageOrigin { case remote(String), file(URL) }
+    enum PackageOrigin { case remote(String), file(URL), update(id: String, source: String) }
 
     /// The async commands the settings page sends; everything else is `command`.
     func perform(_ action: String, id: String, source: String?, enabled: Bool) async throws -> [String: Any] {
@@ -37,7 +37,7 @@ extension WebExtensionHost {
             guard ExtensionSource.kind(of: entry.source) != .none else {
                 throw installError("This extension was installed from a file; choose the new file to update it")
             }
-            return try await install(from: .remote(entry.source))
+            return try await install(from: .update(id: entry.id, source: entry.source))
         default:
             return try command(action, id: id, enabled: enabled)
         }
@@ -67,18 +67,24 @@ extension WebExtensionHost {
         let source: String
         switch origin {
         case .file(let url):
-            archive = try Data(contentsOf: url)
-            if archive.count > ExtensionArchive.maxArchiveBytes { throw installError("XPI exceeds the 32 MB limit") }
+            archive = try await Task.detached(priority: .userInitiated) { try ExtensionArchive.read(url) }.value
             source = ExtensionSource.localFile
+        case .update(let id, let originalSource):
+            // A saved download URL identifies one release, not the next one. Resolve by the installed GUID.
+            source = originalSource
+            let current = try await ExtensionSource.listing(for: id, configuration: packageNetworkConfiguration)
+            guard current.guid == id else { throw installError("Mozilla's listing no longer matches the installed extension") }
+            listing = current
+            archive = try await ExtensionSource.download(current.url, limit: ExtensionArchive.maxArchiveBytes, configuration: packageNetworkConfiguration)
         case .remote(let text):
             source = text
             switch ExtensionSource.kind(of: text) {
             case .page(let slug):
-                let current = try await ExtensionSource.listing(for: slug)
+                let current = try await ExtensionSource.listing(for: slug, configuration: packageNetworkConfiguration)
                 listing = current
-                archive = try await ExtensionSource.download(current.url, limit: ExtensionArchive.maxArchiveBytes)
+                archive = try await ExtensionSource.download(current.url, limit: ExtensionArchive.maxArchiveBytes, configuration: packageNetworkConfiguration)
             case .download:
-                archive = try await ExtensionSource.download(text, limit: ExtensionArchive.maxArchiveBytes)
+                archive = try await ExtensionSource.download(text, limit: ExtensionArchive.maxArchiveBytes, configuration: packageNetworkConfiguration)
             case .none:
                 throw installError("Use a Firefox Add-ons page URL, or choose an XPI file.")
             }
@@ -102,7 +108,7 @@ extension WebExtensionHost {
             // A direct link carries no listing: Mozilla's listing for the id the
             // package declares must vouch for exactly this file.
             if case .remote(let text) = origin, ExtensionSource.kind(of: text) == .download {
-                listing = try await ExtensionSource.listing(for: adapted.id)
+                listing = try await ExtensionSource.listing(for: adapted.id, configuration: packageNetworkConfiguration)
                 if sha256 != listing?.sha256 { throw installError("XPI is not the version Mozilla currently lists for this extension") }
             }
             if let listing, adapted.id != listing.guid { throw installError("XPI identity does not match Mozilla's listing") }
@@ -119,28 +125,42 @@ extension WebExtensionHost {
     }
 
     /// Replaces any previous version, keeping its storage (same unique
-    /// identifier and origin) and enabled state; a failed load restores it.
+    /// identifier and origin) and enabled state; a failed load or catalog write restores it.
     func install(_ candidate: ExtensionCandidate) async throws {
         closePage()
         let previous = installed.first { $0.id == candidate.id }
         let previousContext = contexts[candidate.id]
-        if let previousContext, previousContext.isLoaded { try controller.unload(previousContext) }
+        let wasLoaded = previousContext?.isLoaded == true
+        let previousFailure = failures[candidate.id]
+        let disabledKey = "once.extension.disabled.\(candidate.id)"
+        let previousDisabled = UserDefaults.standard.object(forKey: disabledKey)
         let context = makeContext(for: candidate.webExtension, identifier: candidate.id, host: WebExtensionHost.hostName(for: candidate.id))
-        contexts[candidate.id] = context
-        failures[candidate.id] = nil
-        do {
-            if previous == nil { UserDefaults.standard.removeObject(forKey: "once.extension.disabled.\(candidate.id)") }
-            if isEnabled(candidate.id) { try controller.load(context) }
-        } catch {
-            contexts[candidate.id] = previousContext
-            if let previousContext, isEnabled(candidate.id) { try? controller.load(previousContext) }
-            throw error
-        }
         let entry = InstalledExtension(id: candidate.id, directory: candidate.token, name: candidate.name, version: candidate.version,
                                        source: candidate.source, sha256: candidate.sha256, warnings: candidate.warnings,
                                        adaptations: candidate.adaptations, installedAt: Date())
-        if let index = installed.firstIndex(where: { $0.id == candidate.id }) { installed[index] = entry } else { installed.append(entry) }
-        try store.save(installed)
+        var nextInstalled = installed
+        if let index = nextInstalled.firstIndex(where: { $0.id == candidate.id }) { nextInstalled[index] = entry }
+        else { nextInstalled.append(entry) }
+        if let previousContext, wasLoaded { try controller.unload(previousContext) }
+        do {
+            if previous == nil { UserDefaults.standard.removeObject(forKey: disabledKey) }
+            if isEnabled(candidate.id) { try controller.load(context) }
+            // Commit the catalog before publishing the replacement or deleting the previous package.
+            try store.save(nextInstalled)
+        } catch {
+            if context.isLoaded { try? controller.unload(context) }
+            if let previousDisabled { UserDefaults.standard.set(previousDisabled, forKey: disabledKey) }
+            else { UserDefaults.standard.removeObject(forKey: disabledKey) }
+            failures[candidate.id] = previousFailure
+            if let previousContext, wasLoaded {
+                do { try controller.load(previousContext) }
+                catch { failures[candidate.id] = "Could not restore the previous extension: " + error.localizedDescription }
+            }
+            throw error
+        }
+        installed = nextInstalled
+        contexts[candidate.id] = context
+        failures[candidate.id] = nil
         if let previous, previous.directory != candidate.token { store.remove(previous.directory) }
         changed()
     }

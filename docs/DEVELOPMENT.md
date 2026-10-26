@@ -307,6 +307,7 @@ npm run test:mobile                       # adapter checks
 npm run test:mobile:web                   # phone-sized browser suite
 npm run test:mobile:e2e:android           # Appium; install the pinned driver from CI first
 npm run test:mobile:e2e:ios
+npm run test:mobile:e2e:ios:extension-management -- <simulator UUID>  # offline install/update/rollback regressions
 npm run test:mobile:e2e:ios:extension-compat -- <simulator UUID>  # installs popular AMO add-ons in a throwaway host app
 npm run test:mobile:e2e:android:local     # sets up SDK/JDK/driver, builds and runs
 npm run inspect:mobile:android            # manual visual pass with a fixture feed

@@ -15,6 +15,13 @@ extension InAppBrowserSurfacePlugin {
         return WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .page)
     }()
 
+    /// Permanent scripts must be restored both on creation and after replacing userscripts.
+    func installSurfaceScripts(_ controller: WKUserContentController) {
+        installMediaObserver(controller)
+        installContextMenuTracker(controller)
+        installAmoBridge(controller)
+    }
+
     func installAmoBridge(_ controller: WKUserContentController) {
         guard let script = Self.amoPageScript else { return }
         if !controller.userScripts.contains(where: { $0 === script }) { controller.addUserScript(script) }

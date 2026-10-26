@@ -28,9 +28,9 @@ enum ExtensionSource {
     struct Listing { let guid: String; let sha256: String; let url: String }
 
     /// Mozilla's current file for an add-on, by listing slug or by Gecko id.
-    static func listing(for key: String) async throws -> Listing {
+    static func listing(for key: String, configuration: URLSessionConfiguration = .ephemeral) async throws -> Listing {
         let encoded = key.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? key
-        let body = try await download("https://addons.mozilla.org/api/v5/addons/addon/\(encoded)/", limit: 2 * 1024 * 1024)
+        let body = try await download("https://addons.mozilla.org/api/v5/addons/addon/\(encoded)/", limit: 2 * 1024 * 1024, configuration: configuration)
         let metadata = try JSONSerialization.jsonObject(with: body) as? [String: Any] ?? [:]
         let file = (metadata["current_version"] as? [String: Any])?["file"] as? [String: Any]
         guard metadata["type"] as? String == "extension", let guid = metadata["guid"] as? String,
@@ -42,13 +42,13 @@ enum ExtensionSource {
     }
 
     /// Downloads from Mozilla Add-ons only, following redirects that stay there.
-    static func download(_ source: String, limit: Int) async throws -> Data {
+    static func download(_ source: String, limit: Int, configuration: URLSessionConfiguration = .ephemeral) async throws -> Data {
         guard let url = URL(string: source), isTrusted(url) else { throw installError("The download must come from Mozilla Add-ons.") }
         var request = URLRequest(url: url)
         request.timeoutInterval = 60
         request.httpShouldHandleCookies = false
-        let transfer = BoundedTransfer(limit: limit)
-        let session = URLSession(configuration: .ephemeral, delegate: transfer, delegateQueue: nil)
+        let transfer = try BoundedTransfer(limit: limit)
+        let session = URLSession(configuration: configuration, delegate: transfer, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
         return try await withCheckedThrowingContinuation { continuation in
             transfer.continuation = continuation
@@ -65,13 +65,26 @@ enum ExtensionSource {
     }
 }
 
-/// Accumulates a response up to a byte limit; redirects leaving Mozilla fail.
+/// Spools a bounded response to disk; mapping the result avoids keeping a 200 MB download in heap memory.
 private final class BoundedTransfer: NSObject, URLSessionDataDelegate {
     let limit: Int
     var continuation: CheckedContinuation<Data, Error>?
-    private var received = Data()
+    private let file: URL
+    private let output: FileHandle
+    private var received = 0
     private var redirects = 0
-    init(limit: Int) { self.limit = limit }
+    init(limit: Int) throws {
+        self.limit = limit
+        file = FileManager.default.temporaryDirectory.appendingPathComponent("once-xpi-" + UUID().uuidString)
+        guard FileManager.default.createFile(atPath: file.path, contents: nil) else { throw installError("Could not stage extension download") }
+        do { output = try FileHandle(forWritingTo: file) }
+        catch { try? FileManager.default.removeItem(at: file); throw error }
+    }
+
+    deinit {
+        try? output.close()
+        try? FileManager.default.removeItem(at: file)
+    }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
@@ -103,15 +116,24 @@ private final class BoundedTransfer: NSObject, URLSessionDataDelegate {
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        received.append(data)
-        if received.count > limit {
+        guard continuation != nil else { return }
+        guard data.count <= limit - received else {
             finish(.failure(installError("Extension download exceeds the size limit")))
             dataTask.cancel()
+            return
         }
+        do { try output.write(contentsOf: data); received += data.count }
+        catch { finish(.failure(error)); dataTask.cancel() }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        if let error { finish(.failure(error)) } else { finish(.success(received)) }
+        guard continuation != nil else { return }
+        if let error { finish(.failure(error)); return }
+        do {
+            try output.close()
+            // The mapping owns its bytes after the temporary pathname is removed.
+            finish(.success(try Data(contentsOf: file, options: .alwaysMapped)))
+        } catch { finish(.failure(error)) }
     }
 
     private func finish(_ result: Result<Data, Error>) {
