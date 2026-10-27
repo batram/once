@@ -143,10 +143,15 @@ export class SourceSettingsEditor {
       if (saveContent === "true") source.saveContent = true; else delete source.saveContent
       if (auth) source.auth = auth; else delete source.auth
       if (groupId === DEFAULT_GROUP_ID) delete source.groupId; else source.groupId = groupId
-      if (current && sourceIndex !== undefined) {
-        this.groups[groupIndex].sources.splice(sourceIndex, 1)
+      const targetGroup = this.groups.find((group) => group.id === groupId) ?? this.groups[0]
+      if (current && sourceIndex !== undefined && targetGroup === this.groups[groupIndex]) {
+        targetGroup.sources.splice(sourceIndex, 1, source)
+      } else {
+        if (current && sourceIndex !== undefined) {
+          this.groups[groupIndex].sources.splice(sourceIndex, 1)
+        }
+        targetGroup.sources.push(source)
       }
-      ;(this.groups.find((group) => group.id === groupId) ?? this.groups[0]).sources.push(source)
       this.save()
       // A typed token replaces the stored one; leaving token auth discards it,
       // so a source switched back to anonymous does not keep a secret around.

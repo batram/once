@@ -484,6 +484,59 @@ test("source editor reports the source whose form is open", () => {
   })
 })
 
+for (const scenario of [
+  { name: "editing the first default source", group: 0, index: 0, target: 0 },
+  { name: "editing a middle default source", group: 0, index: 1, target: 0 },
+  { name: "editing the first named-group source", group: 1, index: 0, target: 1 },
+  { name: "editing a middle named-group source", group: 1, index: 1, target: 1 },
+  { name: "moving a source to a named group", group: 0, index: 1, target: 1 },
+  { name: "moving a source to Default", group: 1, index: 1, target: 0 },
+  { name: "adding a source", group: 1, index: undefined, target: 1 }
+]) {
+  test(`source order survives saving and reloading after ${scenario.name}`, () => {
+    withDom("<main></main>", (window) => {
+      const root = window.document.querySelector("main")
+      let text = "https://a.test\nhttps://b.test\nhttps://c.test\n*Example\nhttps://d.test\nhttps://e.test\nhttps://f.test"
+      let submit, values, saved
+      const editor = new SourceSettingsEditor({
+        onTouch: () => false,
+        getText: () => text,
+        setText: (value) => { text = value },
+        render: () => {},
+        root: () => root,
+        saveSources: (value) => { saved = value },
+        saveSourceSecret: () => Promise.resolve(),
+        reloadSource: () => {},
+        showSourceError: () => {},
+        openMenu: () => {},
+        listActions: () => null,
+        showForm: (_root, _title, fields, save) => {
+          values = fields.map((field) => field[1])
+          submit = save
+        }
+      })
+      editor.read()
+      const expected = editor.groups.map((group) => group.sources.map((source) => source.id))
+      const original = editor.groups[scenario.group].sources[scenario.index]
+      editor.editSource(root, scenario.group, scenario.index)
+      values[0] = "https://edited.test"
+      values[1] = "Edited source"
+      values[5] = editor.groups[scenario.target].id
+      assert.equal(submit(values), true)
+      const edited = saved.sources.find((source) => source.url === values[0])
+      assert.equal(edited.label, "Edited source")
+      if (original) assert.equal(edited.id, original.id)
+      if (!original || scenario.group !== scenario.target) {
+        if (original) expected[scenario.group].splice(scenario.index, 1)
+        expected[scenario.target].push(edited.id)
+      }
+      assert.deepEqual(saved.sources.map((source) => source.id), expected.flat())
+      editor.read()
+      assert.deepEqual(editor.groups.map((group) => group.sources.map((source) => source.id)), expected)
+    })
+  })
+}
+
 test("source group title drop moves a row into an empty group", () => {
   withDom("<main></main>", (window) => {
     const root = window.document.querySelector("main")
