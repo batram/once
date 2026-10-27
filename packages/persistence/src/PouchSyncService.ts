@@ -15,6 +15,8 @@ import {
 
 export interface PouchEventChain {
   cancel?: () => void
+  push?: PouchEventChain
+  pull?: PouchEventChain
   on(event: string, handler: (...args: unknown[]) => void): PouchEventChain
 }
 
@@ -60,12 +62,12 @@ export interface PouchRemoteChange {
 
 export class PouchSyncService {
   private static readonly INITIAL_STORY_LIMIT = 50
-  // Story documents are small. Larger bounded batches avoid turning a stale
-  // checkpoint into hundreds of serial CouchDB round trips on higher-latency
-  // connections. Each direction keeps its checkpoint on the receiving side:
+  // Bounded batches reduce serial CouchDB round trips. 3,000 balances initial
+  // transfer speed with renderer responsiveness and saved-content payloads.
+  // Each direction keeps its checkpoint on the receiving side:
   // pull locally, push remotely.
   private static readonly REPLICATION_OPTIONS = {
-    batch_size: 1000,
+    batch_size: 3000,
     batches_limit: 2,
     checkpoint: "target"
   }
@@ -287,7 +289,11 @@ export class PouchSyncService {
         // back and accidentally become the remote winner.
         const maintenanceSucceeded = await new PouchMaintenanceService(
           this.db,
-          (status) => { if (this.generation === generation) this.updateStatus(status) },
+          (status) => {
+            if (this.generation === generation) this.updateStatus(status.state === "up-to-date"
+              ? { ...status, state: "syncing", message: "Preparing synchronization…" }
+              : status)
+          },
           (error) => this.report(
             "database.maintenance",
             "Local database maintenance failed",
@@ -504,13 +510,7 @@ export class PouchSyncService {
     syncOps: Record<string, unknown>,
     initialChanges: number
   ): void {
-    this.updateStatus({
-      state: "up-to-date",
-      message: initialChanges
-        ? `Up to date · ${initialChanges} remote changes received`
-        : "Up to date",
-      changes: initialChanges
-    })
+    this.updateStatus({ state: "syncing", message: "Checking for changes to upload…", changes: initialChanges })
     this.syncHandler = this.db.sync(remote, syncOps)
     const generation = this.generation
     listenLiveSync(this.syncHandler, () => this.generation === generation, event => {

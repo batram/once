@@ -16,8 +16,27 @@ export function watchSyncCompatibility(remote: PouchSyncDatabase, check: () => P
 export function listenLiveSync(chain: PouchEventChain, current: () => boolean, changed: (event: unknown) => void,
   status: (busy: boolean) => void, failed: (error: unknown) => void): void {
   chain.on("change", event => { if (current()) changed(event) })
-    .on("active", () => { if (current()) status(true) })
-    .on("paused", error => { if (current()) { if (error) failed(error); else status(false) } })
     .on("error", error => { if (current()) failed(error) })
     .on("denied", error => { if (current()) failed(error) })
+  // PouchDB starts both aggregate paused flags as true. An empty pull can
+  // therefore emit aggregate "paused" before push has even read its changes.
+  // Require each direction to report its own idle state before declaring sync done.
+  if (chain.push && chain.pull) {
+    const idle = [false, false]
+    for (const [index, direction] of [chain.push, chain.pull].entries()) {
+      direction.on("active", () => {
+        if (!current()) return
+        idle[index] = false
+        status(true)
+      }).on("paused", error => {
+        if (!current()) return
+        if (error) { idle[index] = false; failed(error); return }
+        idle[index] = true
+        status(!idle.every(Boolean))
+      })
+    }
+  } else {
+    chain.on("active", () => { if (current()) status(true) })
+      .on("paused", error => { if (current()) { if (error) failed(error); else status(false) } })
+  }
 }
