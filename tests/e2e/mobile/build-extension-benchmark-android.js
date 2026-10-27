@@ -32,11 +32,11 @@ fs.writeFileSync(path.join(out, "settings.gradle"), "pluginManagement { reposito
 fs.writeFileSync(path.join(out, "build.gradle"), "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:9.4.0' } }\n")
 fs.writeFileSync(path.join(out, "gradle.properties"), "android.useAndroidX=true\norg.gradle.jvmargs=-Xmx2048m\n")
 fs.writeFileSync(path.join(out, "app/build.gradle"), `apply plugin: 'com.android.application'
-android { namespace='com.zmarn.once'; compileSdk=37; compileSdkMinor=1
+android { namespace='com.zmarn.once'; compileSdk=37; compileSdkMinor=2
  defaultConfig { applicationId='com.zmarn.once.extensionbenchmark'; minSdk=26; targetSdk=36; versionCode=1; versionName='1.0'; ndk { abiFilters 'arm64-v8a' }; aaptOptions { ignoreAssetsPattern='!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~' } }
  sourceSets { main { assets.srcDirs += ['${bridgeAssets}','${root}/vendor/extensions']; assets.exclude 'ublock-origin-lite/**','ios/**' } }
 }
-dependencies { implementation 'org.mozilla.geckoview:geckoview:155.0.20260903215306' }
+dependencies { implementation 'org.mozilla.geckoview:geckoview:159.0.20261022150525' }
 `)
 fs.writeFileSync(path.join(out, "app/src/main/AndroidManifest.xml"), "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"><uses-permission android:name=\"android.permission.INTERNET\"/><application android:label=\"Once Extension Benchmark\" android:usesCleartextTraffic=\"true\" android:theme=\"@android:style/Theme.Material.Light.NoActionBar\"><activity android:name=\".ExtensionBenchmarkActivity\" android:exported=\"true\"><intent-filter><action android:name=\"android.intent.action.MAIN\"/><category android:name=\"android.intent.category.LAUNCHER\"/></intent-filter></activity></application></manifest>")
 console.log(out)

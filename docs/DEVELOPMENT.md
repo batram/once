@@ -9,7 +9,7 @@ rules are in [ARCHITECTURE.md](ARCHITECTURE.md).
 - Node.js 24 (`.nvmrc`) and npm
 - Firefox for Firefox extension testing; Chrome 120+ for Chrome extension testing
 - Windows for Electron packaging and end-to-end tests
-- Android Studio 2025.2.1+, Android SDK platform 37.1 with build-tools 37,
+- Android Studio 2025.2.1+, Android SDK platform 37.2 with build-tools 37,
   Android Gradle plugin 9 and JDK 21 for Android (pinned in
   `apps/mobile/android/variables.gradle`)
 - macOS with Xcode 26+ for iOS

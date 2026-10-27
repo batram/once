@@ -15,7 +15,7 @@ enter/leave events. A ready video and user activation are required, and Android
 permission failures reject the promise. The original video stays attached and
 keeps its playback position. Returning to Once restores the inline page.
 
-GeckoView 155 deliberately disables its unfinished Android web PiP API. Once
+GeckoView (155 at the time of writing) deliberately disables its unfinished Android web PiP API. Once
 supplies a compatibility bridge to Android's native PiP rather than enabling that
 preference. The bridge currently covers top-level reading documents. Videos in
 cross-origin iframes still use the existing native fullscreen/Home path; this is

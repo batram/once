@@ -172,6 +172,42 @@ androidComponents {
     }
 }
 
+// variables.gradle tracks the newest GeckoView release by hand. Every gecko
+// build asks Mozilla's Maven for the current one and warns when the pin trails
+// it; no network (or -PonceSkipGeckoViewCheck, or --offline) keeps quiet.
+def checkGeckoViewVersion = tasks.register('checkGeckoViewVersion') {
+    group = 'verification'
+    description = "Warns when geckoViewVersion is behind the newest GeckoView release"
+    def pinned = rootProject.ext.geckoViewVersion
+    def metadata = 'https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview/maven-metadata.xml'
+    def skip = providers.gradleProperty('onceSkipGeckoViewCheck').isPresent() || gradle.startParameter.offline
+    outputs.upToDateWhen { false }
+    onlyIf { !skip }
+    doLast {
+        String latest
+        try {
+            def connection = new URL(metadata).openConnection()
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
+            def xml = new groovy.xml.XmlSlurper().parse(connection.inputStream)
+            latest = xml.versioning.latest.text()
+        } catch (Exception e) {
+            logger.lifecycle("GeckoView: could not read the release list ($e.message); pinned $pinned")
+            return
+        }
+        if (!latest) {
+            logger.warn("GeckoView: release list at $metadata names no latest version; pinned $pinned")
+        } else if (latest != pinned) {
+            logger.warn("WARNING: GeckoView $pinned is pinned in variables.gradle but $latest is the newest release; bump geckoViewVersion")
+        } else {
+            logger.lifecycle("GeckoView $pinned is the newest release")
+        }
+    }
+}
+tasks.configureEach { task ->
+    if (task.name ==~ /preGecko\w+Build/) task.dependsOn(checkGeckoViewVersion)
+}
+
 dependencies {
     implementation "androidx.sqlite:sqlite-bundled:2.6.2"
     implementation fileTree(include: ['*.jar'], dir: 'libs')

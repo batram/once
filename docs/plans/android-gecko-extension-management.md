@@ -2,7 +2,8 @@
 
 The Android app shell remains a Capacitor WebView. Remote browsing uses a
 GeckoView beside it. Since 2026-09-10 the toolchain (AGP 9.4, Gradle 9.6, platform
-37.1) tracks the newest GeckoView release; `variables.gradle` carries the version.
+37.2) tracks the newest GeckoView release; `variables.gradle` carries the version,
+and every gecko build warns when that pin trails Mozilla's newest release.
 
 ## Ownership
 
