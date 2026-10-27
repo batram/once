@@ -25,6 +25,7 @@ import { StoryWriteQueue } from "./StoryWriteQueue"
 import { StoryIngestionQueue } from "./StoryIngestionQueue"
 import { mergeIngestionTags } from "./storyIngestionTags"
 import { refilterStory } from "./refilterStory"
+import { filterLoadedStories, findLoadedStory, loadWorkingStories } from "./loadedStoryFilters"
 import { StoryWorkingSet } from "./StoryWorkingSet"
 import { AppSettings } from "./AppSettings"
 import { settingsClientMethods } from "./settingsClient"
@@ -131,7 +132,8 @@ export class AppRuntime {
       undefined,
       platform.secretStore
     )
-    this.reconciler = new StoryChangeReconciler(this.workingSet, platform.storyStore)
+    this.reconciler = new StoryChangeReconciler(this.workingSet, platform.storyStore,
+      story => this.filterLoadedStories([story]).then(stories => stories[0]))
     this.content = new StoryContentService(platform.storyStore, {
       findStoryByUrl: (url) => this.findStoryByUrl(url),
       workingStory: (href) => this.workingSet.get(href),
@@ -195,7 +197,7 @@ export class AppRuntime {
 
     await Promise.all([
       this.waitForStartupStorage("stared stories", async () => {
-        const staredStories = await this.platform.storyStore.getStaredStories()
+        const staredStories = await this.filterLoadedStories(await this.platform.storyStore.getStaredStories())
         staredStories.forEach((story) => this.workingSet.add(story))
       }),
       this.waitForStartupStorage("animation", async () => {
@@ -303,6 +305,10 @@ export class AppRuntime {
         snapshot => this.queueStoryWrite(story.href, () => this.platform.storyStore.saveStory(snapshot, { derivedFilter: true })),
         (value, previous) => this.emitDataChange([story.href, "filter"], value, previous, null))
     }
+  }
+
+  private filterLoadedStories(stories: Story[]): Promise<Story[]> {
+    return filterLoadedStories(stories, () => this.settings.getFilterList())
   }
 
   /**
@@ -514,36 +520,19 @@ export class AppRuntime {
       }
     )
 
-    return await this.content.mergeFeedContent(oldStory, newStory) ?? oldStory
+    const merged = await this.content.mergeFeedContent(oldStory, newStory) ?? oldStory
+    const [current] = await this.filterLoadedStories([merged])
+    if (current.filter === (merged.filter || "")) return merged
+    return this.workingSet.set(current.href, current)
   }
 
   private async getWorkingStories(): Promise<Story[]> {
-    const [stored, stared] = await Promise.all([
-      this.platform.storyStore.getStories(500),
-      this.platform.storyStore.getStaredStories()
-    ])
-    stored
-      .concat(stared)
-      .forEach((story) => this.workingSet.set(story.href, story, true))
-    return this.workingSet.snapshot()
+    return loadWorkingStories(this.platform.storyStore, this.workingSet, stories => this.filterLoadedStories(stories))
   }
 
   private async findStoryByUrl(url: string): Promise<Story | null> {
-    const story = this.workingSet.lookup(url)
-    if (story) {
-      return story
-    }
-    //the url might be the rewritten form of a story href
-    const original = URLRedirect.original_url(url)
-    if (original !== url) {
-      const rewritten = this.workingSet.lookup(original)
-      if (rewritten) return rewritten
-    }
-    const stored = await this.platform.storyStore.getStory(original)
-    if (stored) return this.workingSet.set(stored.href, stored, true)
-    await this.getWorkingStories()
-    return this.workingSet.lookup(url) ??
-      this.workingSet.lookup(URLRedirect.original_url(url))
+    return findLoadedStory(url, this.platform.storyStore, this.workingSet,
+      stories => this.filterLoadedStories(stories), () => this.getWorkingStories())
   }
 
   private async persistStoryChange(
@@ -554,7 +543,10 @@ export class AppRuntime {
     let story = this.workingSet.get(href)
     if (!story) {
       const stored = await this.platform.storyStore.getStory(href)
-      if (stored) story = this.workingSet.set(stored.href, stored, true)
+      if (stored) {
+        const [current] = await this.filterLoadedStories([stored])
+        story = this.workingSet.get(href) ?? this.workingSet.set(stored.href, current, true)
+      }
     }
     if (!story) return undefined
 

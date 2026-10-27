@@ -471,11 +471,11 @@ test("does not erase newer offline edits during a foreground remote refresh", as
   const accepted = await app.client.findStoryByUrl(story.href)
   assert.equal(accepted.read_state, "read")
   assert.equal(accepted.stared, true)
-  assert.equal(accepted.filter, "local")
+  assert.equal(accepted.filter, "")
   assert.deepEqual(accepted.sync_updated_at, {
     read_state: 300,
     stared: 300,
-    filter: 300
+    filter: 0
   })
 })
 

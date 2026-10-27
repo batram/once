@@ -11,7 +11,8 @@ import { DatabaseChange, StoryStorePort } from "./types"
 export class StoryChangeReconciler {
   constructor(
     private readonly workingSet: StoryWorkingSet,
-    private readonly storyStore: StoryStorePort
+    private readonly storyStore: StoryStorePort,
+    private readonly prepareStory: (story: Story) => Promise<Story> = async story => story
   ) {}
 
   async observed(change: DatabaseChange): Promise<void> {
@@ -40,6 +41,7 @@ export class StoryChangeReconciler {
     if (!sameStorySyncState(reconciled, storedStory)) {
       effectiveStory = await this.storyStore.saveStory(reconciled)
     }
+    effectiveStory = await this.prepareStory(effectiveStory)
     if (
       currentStory._rev !== effectiveStory._rev ||
       !sameStorySyncState(currentStory, effectiveStory)
@@ -84,6 +86,9 @@ export class StoryChangeReconciler {
       effectiveStory = await this.storyStore.saveStory(merged)
     }
 
+    if (currentStory || change.presentation !== "background") {
+      effectiveStory = await this.prepareStory(effectiveStory)
+    }
     if (currentStory) {
       if (
         currentStory._rev !== effectiveStory._rev ||
