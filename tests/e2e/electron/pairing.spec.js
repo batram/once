@@ -50,12 +50,17 @@ test("a pairing code shows behind a warning, and its link connects another profi
     await expect(other.getByTestId("pair-status")).toHaveText("Connected")
     await expect(other.getByTestId("pair-link")).toHaveValue("")
 
-    // The profile is now bound to that database: a link to another one is refused.
+    // Confirming another pairing link switches the existing profile's destination.
     const elsewhere = link.replace(/u=[\w-]+/, `u=${Buffer.from(`http://${origin}/other`).toString("base64url")}`)
     await other.getByTestId("pair-link").fill(elsewhere)
     await other.getByTestId("pair-connect").click()
+    await expect(other.getByTestId("pair-confirm")).toContainText(`Connect to ${origin}/other?`)
     await other.getByTestId("pair-confirm").getByRole("button", { name: "Connect" }).click()
-    await expect(other.getByTestId("pair-status")).toContainText("separate Once profile")
+    await expect(other.getByTestId("pair-status")).toHaveText("Connected")
+    await expect(other.getByTestId("pair-link")).toHaveValue("")
+    await expect(other.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
+    await other.locator("#settings_section_back").click()
+    await expect(other.getByTestId("sync-url")).toHaveValue(`http://${origin}/other`)
   } finally {
     if (second) await closeApp(second.electronApp, second.userData)
     await closeApp(first.electronApp, first.userData)
