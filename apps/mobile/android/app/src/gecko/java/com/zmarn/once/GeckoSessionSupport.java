@@ -9,6 +9,15 @@ final class GeckoSessionSupport {
     private GeckoSessionSupport() {}
 
     /**
+     * A session for web pages. Tracking protection is off per session by default,
+     * so Gecko's lists (see the runtime's ContentBlocking defaults) only apply
+     * when asked for; uBlock Origin is not the only blocker then.
+     */
+    static GeckoSession newPageSession() {
+        return new GeckoSession(new GeckoSessionSettings.Builder().useTrackingProtection(true).build());
+    }
+
+    /**
      * Gecko can report a snapshot with no history entries (seen right after a
      * restored page starts); restoring one loads only about:blank. Only a
      * snapshot that ends at the page being recovered is restored.

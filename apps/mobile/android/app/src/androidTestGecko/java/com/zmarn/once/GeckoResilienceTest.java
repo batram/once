@@ -200,10 +200,10 @@ public class GeckoResilienceTest {
 
     private List<Integer> children(GeckoTestSupport t) {
         List<Integer> ids = new ArrayList<>();
-        String prefix = t.instrumentation.getTargetContext().getPackageName() + ":tab";
+        Context target = t.instrumentation.getTargetContext();
         ActivityManager manager = (ActivityManager)t.activity.getSystemService(Context.ACTIVITY_SERVICE);
         for (ActivityManager.RunningAppProcessInfo p : manager.getRunningAppProcesses())
-            if (p.uid == Process.myUid() && p.processName.startsWith(prefix) && GeckoEngine.hasContentThread(p.pid)) ids.add(p.pid);
+            if (p.uid == Process.myUid() && GeckoEngine.isContentProcess(target, p.processName) && GeckoEngine.hasContentThread(p.pid)) ids.add(p.pid);
         return ids;
     }
 

@@ -42,7 +42,11 @@ final class GeckoEngine {
             .remoteDebuggingEnabled(WebInspectorPlugin.allowed(context))
             // Avoid per-site subframe process fan-out on memory-constrained
             // devices. Content processes can still be shared between sessions.
-            .fissionEnabled(false);
+            .fissionEnabled(false)
+            // Gecko's default keeps extensions in the parent process. The built-in
+            // ones hold <all_urls>, webRequestBlocking and native messaging, so
+            // they run in their own process, as Firefox for Android runs them.
+            .extensionsProcessEnabled(true);
         String config = writeConfig(context);
         if (config != null) settings.configFilePath(config);
         runtime = GeckoRuntime.create(context, settings.build());
@@ -115,13 +119,9 @@ final class GeckoEngine {
         List<ActivityManager.RunningAppProcessInfo> processes = manager.getRunningAppProcesses();
         List<Integer> killed = new ArrayList<>();
         if (processes == null) return killed;
-        String prefix = context.getPackageName() + ":tab";
         for (ActivityManager.RunningAppProcessInfo process : processes) {
             if (process.uid != Process.myUid() || process.pid == Process.myPid() ||
-                process.processName == null || !process.processName.startsWith(prefix)) continue;
-            // Only Gecko's numbered tab services, including ART-image suffixes.
-            String suffix = process.processName.substring(prefix.length());
-            if (!suffix.matches("(?:_disable_art_image_)?[0-9]+")) continue;
+                !isContentProcess(context, process.processName)) continue;
             // Do not interrupt a service while Gecko is still binding/starting
             // its preallocated process. It has no page event loop to be hung.
             if (!hasContentThread(process.pid)) continue;
@@ -157,6 +157,17 @@ final class GeckoEngine {
             resetWaiters.clear();
             for (java.util.function.Consumer<Boolean> callback : callbacks) callback.accept(stopped);
         }, 500);
+    }
+
+    /**
+     * Gecko's numbered tab services, including ART-image suffixes: `:tab_N` up to
+     * GeckoView 158, `:sandboxed_tab_N` from 159 (a name OEM memory cleaners skip).
+     */
+    static boolean isContentProcess(Context context, String processName) {
+        if (processName == null) return false;
+        String prefix = context.getPackageName() + ":";
+        if (!processName.startsWith(prefix)) return false;
+        return processName.substring(prefix.length()).matches("(?:sandboxed_)?tab(?:_disable_art_image_)?[0-9]+");
     }
 
     static boolean hasContentThread(int pid) {

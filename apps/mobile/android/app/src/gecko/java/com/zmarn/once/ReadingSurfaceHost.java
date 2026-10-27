@@ -295,7 +295,7 @@ abstract class ReadingSurfaceHost extends Plugin implements TabRecency.Tab {
     protected void createReadingSession() { createReadingSession(true); }
 
     protected void createReadingSession(boolean open) {
-        GeckoSession created = new GeckoSession();
+        GeckoSession created = GeckoSessionSupport.newPageSession();
         GeckoSessionSupport.applyDesktopSite(created, desktopSite.isEnabled());
         session = created;
         killedWhileHidden = false;
@@ -571,7 +571,7 @@ abstract class ReadingSurfaceHost extends Plugin implements TabRecency.Tab {
             rebuilding = false;
             if ((exhausted && requestAtRecovery == requestedSequence.get()) || !stopped) {
                 // Keep a closed session as the reload entry point; no retry storm.
-                session = new GeckoSession();
+                session = GeckoSessionSupport.newPageSession();
                 recoveryFailed = true;
                 failed(target, -1, reason + ". Retry the page or choose another story.");
                 showRecovery(reason + ". You can retry or choose another story.");
