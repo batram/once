@@ -63,6 +63,8 @@
 .icon--filter { --icon: url("../../imgs/filter.svg"); }
 .icon--chevron-down { --icon: url("../../imgs/chevron-down.svg"); }
 .icon--desktop { --icon: url("../../imgs/desktop.svg"); }
+.icon--eye { --icon: url("../../imgs/eye.svg"); }
+.icon--eye-off { --icon: url("../../imgs/eye-off.svg"); }
 .icon--gear { --icon: url("../../imgs/gear.svg"); }
 .icon--help { --icon: url("../../imgs/help.svg"); }
 .icon--media-pause { --icon: url("../../imgs/media-pause.svg"); }

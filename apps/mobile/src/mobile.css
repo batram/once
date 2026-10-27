@@ -3304,34 +3304,72 @@
     font-size: var(--fs-title);
   }
 
-  #couch_input,
-  .couch-highlights {
+  #couch_input {
     min-height: var(--touch);
     border-width: var(--m-bw);
+    border-radius: var(--m-radius);
+    font-family: var(--m-mono);
+    font-size: var(--fs-title);
   }
 
+  /* The eye is a finger-sized strip inside the field; the text keeps clear
+     of exactly that strip. */
   .couch-container {
-    --couch-toggle-inset: calc(var(--touch) + var(--sp-1));
+    --couch-toggle-inset: var(--touch);
   }
 
-  #couch_toggle {
-    top: 0;
-    right: 0;
-    bottom: 0;
+  /* The .button reset above gives every button a margin, a border and the
+     page colour; inside the field the eye is a bare glyph on the input. */
+  #settings_panel .couch_toggle {
+    position: absolute;
+    inset: 0 0 0 auto;
     width: var(--touch);
     height: auto;
     min-height: 0;
     margin: 0;
     padding: 0;
     border: 0;
-    border-left: var(--m-bw) solid var(--m-ink);
-    border-radius: 0;
-    box-shadow: none;
-    background: none;
+    border-radius: 0 var(--m-radius) var(--m-radius) 0;
+    background: transparent;
+    color: var(--text-muted-color);
   }
 
-  #couch_toggle:active {
-    background: none;
+  #settings_panel .couch_toggle > .icon {
+    --icon-size: 20px;
+  }
+
+  #settings_panel .couch_toggle:active {
+    background: var(--m-pressed-bg);
+  }
+
+  /* ---------- Phone-width settings: one control per line ----------
+     settings.css stacks a name over its control only below 420px, which
+     splits phones by a few points of width: an iPhone Pro Max kept the
+     two-column layout a narrower Android phone had already lost. Every phone
+     stacks; a tablet's wider panel keeps the columns. */
+  @container settings-panel (max-width: 640px) {
+    #settings_panel .field:not(.cache_timing_row),
+    .structured_form {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    #settings_panel .field > .field_hint {
+      grid-column: auto;
+    }
+
+    .settings_row:not(.settings_row_inline) {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas:
+        "name"
+        "control"
+        "hint";
+    }
+
+    .settings_row:not(.settings_row_inline, :has(> .settings_row_hint)) {
+      grid-template-areas:
+        "name"
+        "control";
+    }
   }
 
   /* ---------- Reader overlay ---------- */

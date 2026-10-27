@@ -492,11 +492,6 @@
   color: transparent; /* Hide mirrored text */
 }
 
-.settings_highlights--interactive {
-  pointer-events: auto;
-  cursor: pointer;
-}
-
 .settings_highlight_icon {
   pointer-events: auto;
   cursor: pointer;
@@ -2111,6 +2106,11 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* A hint keyed to the control column would open a second column here. */
+  #settings_panel .field > .field_hint {
+    grid-column: auto;
+  }
+
   /* A feed name would be an ellipsis beside its window and its button, so it
      takes the first line and they share the second. */
   .cache_source_row {
@@ -2149,76 +2149,84 @@
   }
 }
 
+/* The sync URL (settings/syncSettingsControls.ts): one input, with the eye
+   that shows or hides the username and password standing inside it at the
+   trailing edge. The text keeps clear of the strip the eye occupies. */
 .couch-container {
   position: relative;
   width: 100%;
   display: block;
-  margin-bottom: var(--sp-1-5);
-  /* Runway #couch_toggle occupies on the trailing edge. The highlight overlay
-     and the input must reserve exactly the same amount or the highlights stop
-     tracking the text, so both read it from here. */
-  --couch-toggle-inset: 35px;
+  --couch-toggle-inset: 36px;
 }
 
-.couch-highlights,
 #couch_input {
   font-family: "Courier New", Courier, monospace;
   font-size: var(--fs-dense);
   line-height: normal;
   padding: var(--sp-1-5) var(--couch-toggle-inset) var(--sp-1-5) var(--sp-3);
-  border: 1px solid black;
+  border: 1px solid var(--border-high-color);
   border-radius: var(--radius-md);
   width: 100%;
   box-sizing: border-box;
+  color: var(--text-high-color);
   background: var(--input-bg-color);
 }
 
-.couch-highlights {
+/* Not .button--icon: that primitive's square aspect ratio would fight the
+   field's height. The eye fills the field's height so a tap anywhere in the
+   strip hits it. */
+#settings_panel .couch_toggle {
   position: absolute;
+  z-index: 3;
   top: 0;
-  right: var(--couch-toggle-inset);
-  left: 0;
-  width: auto;
-  height: 100%;
-  padding-right: 0;
-  pointer-events: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  border-color: transparent;
-  background-color: transparent;
-  color: #ccc;
+  right: 0;
+  bottom: 0;
+  left: auto;
   display: flex;
   align-items: center;
-  z-index: 2;
-  visibility: hidden;
-}
-
-.couch-container.masked .couch-highlights {
-  visibility: visible;
-}
-
-.couch-container.masked #couch_input {
-  color: transparent;
-  caret-color: initial; /* Keep caret visible */
-}
-
-#couch_toggle {
-  position: absolute;
-  right: 5px;
-  background: none;
-  border: none;
-  border-left: thin solid black;
+  justify-content: center;
+  width: var(--couch-toggle-inset);
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text-muted-color);
   cursor: pointer;
-  z-index: 3;
-  padding: var(--sp-0-5) var(--sp-1-5);
-  opacity: 0.6;
-  height: 26px;
-  padding-left: var(--sp-2);
 }
 
-#couch_toggle:hover {
-  opacity: 1;
+/* base.css paints any icon in an active section green; the eye takes the
+   button's own colour. */
+#settings_panel .couch_toggle > .icon {
+  --icon-size: var(--icon-md);
+  color: inherit;
+}
+
+#settings_panel .couch_toggle:is(:hover, [aria-pressed="true"]) {
+  color: var(--text-high-color);
+}
+
+#settings_panel .couch_toggle:focus-visible {
+  outline: 2px solid var(--cursor-color);
+  outline-offset: -2px;
+}
+
+/* The sync action row is a row of its own rather than display:contents, so
+   the note on why the URL shows no credentials can sit at its far end. */
+#sync_page_overview > .settings_actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.couch_hint {
+  margin: 0 0 0 auto;
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
 }
 
 /* Sync's state at the trailing end of the titlebar while Settings › Sync or

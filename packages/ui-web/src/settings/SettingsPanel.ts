@@ -14,7 +14,7 @@ import { updateSettingsSummaries } from "./settingsSummaries"
 import { highlightStorySourceTextarea, highlightTextareaContent,
   scrollTextareaSelectionIntoView } from "./textareaHighlight"
 import * as settingsControls from "./settingsControlBindings"
-import { bindSyncSettingsControls } from "./syncSettingsControls"
+import { bindSyncSettingsControls, type SyncUrlField } from "./syncSettingsControls"
 import { bindTabSyncControls } from "./tabSyncControls"
 import { bindPairingControls } from "./pairingControls"
 import { bindSyncSettingsPages } from "./syncSettingsPages"
@@ -35,6 +35,7 @@ export class SettingsPanel {
   private sourcesSaveChain = Promise.resolve()
   private sourcesReloadPending = false
   private persistence: SettingsPersistence
+  private syncUrl: SyncUrlField
   /** Connects from a pairing link, after asking: a deep link or a scanned code. */
   readonly connectPairingLink: (link: string) => void
 
@@ -79,9 +80,9 @@ export class SettingsPanel {
       (enabled) => this.save_animation(enabled)
     )
 
-    bindSyncSettingsControls(
-      () => this.reset_couch_settings(),
-      () => this.save_couch_settings()
+    this.syncUrl = bindSyncSettingsControls(
+      () => this.persistence.loadSyncUrl(),
+      (url) => this.persistence.saveSync(url)
     )
     bindTabSyncControls(client)
     this.connectPairingLink = bindPairingControls(client, options.scanPairingCode)
@@ -533,11 +534,7 @@ export class SettingsPanel {
   }
 
   async reset_couch_settings(): Promise<void> {
-    await this.persistence.restoreSync()
-  }
-
-  save_couch_settings(): void {
-    this.persistence.saveSync()
+    this.syncUrl.set(await this.persistence.loadSyncUrl())
   }
 
   async restore_theme_settings(): Promise<void> {

@@ -33,22 +33,18 @@ export class SettingsPersistence {
     })
   }
 
-  async restoreSync(): Promise<void> {
-    const input = requireElement<HTMLInputElement>("#couch_input")
-    input.value = await this.client.getSyncUrl()
-    input.dispatchEvent(new Event("input"))
+  loadSyncUrl(): Promise<string> {
+    return this.client.getSyncUrl()
   }
 
-  saveSync(): void {
-    const input = requireElement<HTMLInputElement>("#couch_input")
+  saveSync(url: string): void {
     const status = requireElement<HTMLElement>("#couch_status")
-    status.dataset.state = input.value.trim() ? "connecting" : "disabled"
-    status.textContent = input.value.trim()
+    status.dataset.state = url.trim() ? "connecting" : "disabled"
+    status.textContent = url.trim()
       ? "Saving and connecting…"
       : "Turning sync off…"
-    this.client.setSyncUrl(input.value).then(
+    this.client.setSyncUrl(url).then(
       () => {
-        input.dispatchEvent(new Event("input"))
         const current = this.client.getSyncStatus()
         status.dataset.state = current.state
         status.textContent = current.message

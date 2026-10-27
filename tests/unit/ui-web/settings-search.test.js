@@ -112,8 +112,8 @@ test("never indexes the CouchDB URL or its masking presentation", () => {
       CouchDB Sync
       <div class="couch-container">
         <input id="couch_input" value="https://user:secret@example.test/db">
-        <div class="couch-highlights">https://user:••••••@example.test/db</div>
       </div>
+      <p id="couch_hint">Credentials hidden</p>
       <span id="couch_status">Failed to connect to secret-status.example.test</span>
       <span>Connection settings</span>
     </section>

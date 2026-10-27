@@ -350,8 +350,10 @@
                   <div class="sync_page" id="sync_page_overview" data-sync-page="overview">
                   <div class="field">
                     <label class="field_label" for="couch_input">Database URL</label>
-                    <div class="couch-container masked">
-                      <div class="couch-highlights"></div>
+                    <!-- Hidden, the input holds the URL without its username and
+                         password; settings/syncSettingsControls.ts keeps those
+                         and puts them back when the URL is saved. -->
+                    <div class="couch-container">
                       <input
                         id="couch_input"
                         data-testid="sync-url"
@@ -359,15 +361,17 @@
                         spellcheck="false"
                         autocapitalize="none"
                         autocorrect="off"
+                        autocomplete="off"
                         placeholder="https://cred:entials@couchdb.example.org/once"
                       />
                       <button
                         id="couch_toggle"
                         type="button"
-                        class="button button--icon"
-                        aria-label="Toggle password visibility"
+                        class="button couch_toggle"
+                        aria-label="Show username and password"
+                        aria-pressed="false"
                       >
-                        👁️
+                        <span class="icon icon--eye" aria-hidden="true"></span>
                       </button>
                     </div>
                   </div>
@@ -376,6 +380,7 @@
                       Save
                     </button>
                     <button type="button" class="button" data-action="cancel">Cancel</button>
+                    <p class="couch_hint" id="couch_hint" hidden>Credentials hidden</p>
                   </div>
                   <section class="settings_rows" id="sync_consent" data-testid="sync-consent-settings" hidden>
                     <div class="settings_row">

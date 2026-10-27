@@ -66,7 +66,7 @@ export function settingsSearchSegments(section: HTMLElement): SearchSegment[] {
   // including masking and connection-status layers, from the search document.
   copy
     .querySelectorAll(
-      ".couch-container, #couch_input, #couch_status, .highlights, .backdrop, " +
+      ".couch-container, #couch_input, #couch_hint, #couch_status, .highlights, .backdrop, " +
       ".structured_settings"
     )
     .forEach((element) => {
