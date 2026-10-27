@@ -301,8 +301,9 @@ test("tokenized shared and mobile geometry resolves to the public scale", async 
     "width",
     "9px"
   )
-  await expect(page.locator("#couch_input")).toHaveCSS("padding-right", "35px")
-  await expect(page.locator(".couch-highlights")).toHaveCSS("right", "35px")
+  // The sync URL keeps clear of exactly the strip the eye occupies.
+  await expect(page.locator("#couch_input")).toHaveCSS("padding-right", "36px")
+  await expect(page.locator("#couch_toggle")).toHaveCSS("width", "36px")
   await expect.poll(async () => {
     const scope = await page.locator("#search_scope").boundingBox()
     const field = await page.locator("#searchfield").boundingBox()
@@ -343,8 +344,7 @@ test("tokenized shared and mobile geometry resolves to the public scale", async 
     "width",
     "16px"
   )
-  await expect(page.locator("#couch_input")).toHaveCSS("padding-right", "48px")
-  await expect(page.locator(".couch-highlights")).toHaveCSS("right", "48px")
+  await expect(page.locator("#couch_input")).toHaveCSS("padding-right", "44px")
   await expect(page.locator("#couch_toggle")).toHaveCSS("width", "44px")
 })
 
