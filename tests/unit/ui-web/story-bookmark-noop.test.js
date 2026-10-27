@@ -17,13 +17,17 @@ test("the bookmark button sends a real transition before the app's no-op check",
   const { setOnceClient } = require("../../../packages/ui-web/dist/client")
   const story = new Story("RSS", "https://example.test/bookmark", "Bookmark")
   const fake = createFakePlatform([story]), app = new AppRuntime(fake.ports)
-  setOnceClient(app.client)
+  let pendingChange
+  setOnceClient({ ...app.client, persistStoryChange(...parameters) {
+    pendingChange = app.client.persistStoryChange(...parameters)
+    return pendingChange
+  } })
   const row = { story, star_btn: document.createElement("button") }
   StoryListItem.prototype.toggleBookmark.call(row)
-  await app.client.settledStoryWrites()
+  await pendingChange
   assert.equal((await fake.ports.storyStore.getStory(story.href)).stared, true)
   assert.ok(story.sync_updated_at.stared > 0)
   StoryListItem.prototype.toggleBookmark.call(row)
-  await app.client.settledStoryWrites()
+  await pendingChange
   assert.equal((await fake.ports.storyStore.getStory(story.href)).stared, false)
 })
