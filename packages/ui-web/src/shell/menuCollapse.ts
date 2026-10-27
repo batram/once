@@ -1,8 +1,9 @@
 // The sidebar menu's width and fold. Its right edge is a drag handle: the
 // reader sets the width, it is remembered, and dragging it under the minimum
-// folds the menu to its icon rail. Only dragging it back unfolds the menu.
+// folds the menu to its icon rail. Dragging it back unfolds the menu.
 // The desktop also keeps the collapse buttons in the panel title bars,
 // which fold the menu and tell the shell, so it can hide the whole sidebar.
+// Double-clicking empty menu space toggles both together on the desktop.
 
 const WIDTH_KEY = "once:menu-width"
 const COLLAPSED_KEY = "once:menu-collapsed"
@@ -51,6 +52,18 @@ export function bindMenuCollapseControls(
     const target = event.target
     if (!(target instanceof Element) || !target.closest(".sidebar_panel")) return
     expandMenu()
+  }
+
+  menu.ondblclick = (event) => {
+    // Only the Electron host supplies this callback. Ignore bubbled events
+    // from menu entries, filters, and status controls.
+    if (!announceCollapsed || event.target !== menu) return
+    if (collapsedByButton) expand(menu)
+    else {
+      collapsedByButton = true
+      setMenuCollapsed(menu, true)
+      announceCollapsed(true)
+    }
   }
 
   if (options.resizable) bindMenuResize(menu)
