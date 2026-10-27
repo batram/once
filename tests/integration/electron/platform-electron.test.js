@@ -194,7 +194,7 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
   replications[1].chain.emit("complete", {})
   await nextTurn()
   assert.deepEqual(replications[2].options, {
-    batch_size: 1000,
+    batch_size: 3000,
     batches_limit: 2,
     checkpoint: "target",
     selector: { _id: { $nin: ["once_sync_compat", "once_sync_epoch", "_design/once-epoch-freeze"] } }
@@ -204,7 +204,7 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
   await eventually(() => syncs.length === 1)
   assert.equal(syncs.length, 1)
   assert.equal(syncs[0].target.remote, "https://two.example/db")
-  assert.equal(statuses.at(-1).state, "up-to-date")
+  assert.equal(statuses.at(-1).state, "syncing")
 
   syncs[0].chain.emit("change", {
     direction: "pull",
@@ -318,7 +318,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async t =
     "save_bookmarked_content",
     "tabsync"
   ])
-  assert.equal(replications[0].options.batch_size, 1000)
+  assert.equal(replications[0].options.batch_size, 3000)
   assert.equal(replications[0].options.batches_limit, 2)
   assert.equal(replications[0].options.checkpoint, "target")
 
@@ -357,7 +357,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async t =
   replications[2].chain.emit("complete", {})
   await nextTurn()
   assert.deepEqual(replications[3].options, {
-    batch_size: 1000,
+    batch_size: 3000,
     batches_limit: 2,
     checkpoint: "target",
     selector: { _id: { $nin: ["once_sync_compat", "once_sync_epoch", "_design/once-epoch-freeze"] } }
@@ -379,15 +379,18 @@ test("syncs settings, newest stories, backlog, then starts live sync", async t =
   ])
   assert.equal(syncs[0].target, remote)
   assert.deepEqual(syncs[0].options, {
-    batch_size: 1000,
+    batch_size: 3000,
     batches_limit: 2,
     checkpoint: "target",
     live: true,
     retry: false,
     selector: { _id: { $nin: ["once_sync_compat", "once_sync_epoch", "_design/once-epoch-freeze"] } }
   })
-  assert.equal(statuses.at(-1).state, "up-to-date")
+  assert.equal(statuses.some(status => status.state === "up-to-date"), false)
+  assert.equal(statuses.at(-1).state, "syncing")
   assert.equal(statuses.at(-1).changes, 4)
+  syncs[0].chain.emit("paused")
+  assert.equal(statuses.at(-1).state, "up-to-date")
   assert.deepEqual(
     remoteChanges.map(({ id, presentation }) => ({ id, presentation })),
     [
