@@ -15,6 +15,21 @@ import org.mozilla.geckoview.WebExtension;
 final class GeckoEngine {
     static final String BRIDGE_ID = "once-surface@zmarn.com";
     static final String VIOLENTMONKEY_ID = "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}";
+    /**
+     * Whether the built-in extensions run in their own content process, as
+     * Firefox for Android runs them, rather than in this parent process, which
+     * is Gecko's default. Separate is the safer arrangement: uBlock Origin,
+     * Violentmonkey and the bridge hold &lt;all_urls&gt;, webRequestBlocking and
+     * native messaging, and Firefox 156-158 fixed privilege escalations in the
+     * extension framework. Off for now for memory: on a Galaxy S20 FE running
+     * GeckoResilienceTest with GeckoView 159 (2026-10-27), main + extension
+     * process measured 722 MB median and 1383 MB p90 with it on against 541 MB
+     * and 702 MB with it off, the extension process idling near 340 MB and
+     * reaching about 1 GB while pages were killed or starved. Flip this to turn
+     * it on; nothing else needs to change (hang recovery already leaves the
+     * WebExtensions process alone, see {@link #hasContentThread}).
+     */
+    static final boolean EXTENSION_PROCESS = false;
     private static GeckoEngine instance;
     final GeckoRuntime runtime;
     private final Context context;
@@ -43,10 +58,7 @@ final class GeckoEngine {
             // Avoid per-site subframe process fan-out on memory-constrained
             // devices. Content processes can still be shared between sessions.
             .fissionEnabled(false)
-            // Gecko's default keeps extensions in the parent process. The built-in
-            // ones hold <all_urls>, webRequestBlocking and native messaging, so
-            // they run in their own process, as Firefox for Android runs them.
-            .extensionsProcessEnabled(true);
+            .extensionsProcessEnabled(EXTENSION_PROCESS);
         String config = writeConfig(context);
         if (config != null) settings.configFilePath(config);
         runtime = GeckoRuntime.create(context, settings.build());

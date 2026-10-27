@@ -76,7 +76,14 @@ adapter's contract in `@once/platform-mobile` is unchanged. Users can install
 further Mozilla-signed extensions through GeckoView's own installer, and an
 opt-in setting keeps media on the reading page playing in the background
 behind an Android media notification; see
-[Android reading media](android-background-playback.md).
+[Android reading media](android-background-playback.md). The engine runs
+without Fission, and the extensions share the parent process: GeckoView's
+extension process (`GeckoEngine.EXTENSION_PROCESS`, what Firefox for
+Android uses, and the safer arrangement for extensions holding `<all_urls>`
+and native messaging) is off because it cost about 180 MB more at the median
+and peaked near 1 GB under process churn on a mid-range phone with
+GeckoView 159; the constant's comment carries the numbers, and flipping it
+is the whole change.
 
 Once Lite is the second Android app: Gradle's `engine` flavour dimension
 (`gecko`, `lite`; `apps/mobile/android/app/build.gradle`) pairs with the
