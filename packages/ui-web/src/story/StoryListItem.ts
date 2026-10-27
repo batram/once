@@ -268,8 +268,10 @@ export class StoryListItem extends HTMLElement {
       this.toggleReadState()
     })
 
-    //open story with middle click on "skip reading"
-    this.read_btn.addEventListener("mouseup", (e: MouseEvent) => {
+    // Open the story with a middle click on "skip reading". The action runs on
+    // auxclick (press and release on this button), not on a stray mouseup; see
+    // bindLinkBehavior in storyLinks.ts.
+    this.read_btn.addEventListener("auxclick", (e: MouseEvent) => {
       if (e.button == 1) {
         open_story(this.story.href, "blank")
 
@@ -279,13 +281,15 @@ export class StoryListItem extends HTMLElement {
       }
     })
 
-    this.read_btn.addEventListener("mousedown", (e: MouseEvent) => {
-      if (e.button == 1) {
-        e.stopPropagation()
-        e.preventDefault()
-        return true
-      }
-    })
+    for (const type of ["mousedown", "mouseup"] as const) {
+      this.read_btn.addEventListener(type, (e: MouseEvent) => {
+        if (e.button == 1) {
+          e.stopPropagation()
+          e.preventDefault()
+          return true
+        }
+      })
+    }
 
     this.star_btn.addEventListener("animationend", () => {
       this.star_btn.classList.remove("user_interaction")

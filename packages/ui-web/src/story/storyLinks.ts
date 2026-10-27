@@ -8,6 +8,12 @@ import { getOnceClient } from "../client"
  * left to the browser's default navigation: the click has to be claimed before
  * it reaches the row, and the middle-click path has to be claimed across
  * mousedown, mouseup, and auxclick or the browser opens its own tab as well.
+ *
+ * The middle-click action runs on auxclick, never on mouseup: the browser only
+ * fires auxclick when the press and the release land on the same element. A
+ * mouse whose wheel registers a middle press while scrolling releases it on
+ * whatever title has scrolled under the pointer, and a mouseup handler opened
+ * that story.
  */
 export function bindLinkBehavior(
   el: HTMLAnchorElement,
@@ -37,7 +43,6 @@ export function bindLinkBehavior(
       if (e.button === 1) {
         e.preventDefault()
         e.stopPropagation()
-        onMiddleClick()
       }
     })
 
@@ -45,6 +50,7 @@ export function bindLinkBehavior(
       if (e.button === 1) {
         e.preventDefault()
         e.stopPropagation()
+        onMiddleClick()
       }
     })
   }
