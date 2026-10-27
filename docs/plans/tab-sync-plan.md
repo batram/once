@@ -609,20 +609,20 @@ and screenshots from database A would therefore be uploaded to database B.
     under a shared initialization lock. Do not wait for a tab document to appear locally: the
     background publisher may never open PouchDB, and unfiltered replication may import tab documents
     immediately. Persisting the binding must succeed before any network operation is allowed.
-  - This conservatively binds all v1 sync connections, including a connection currently used only for
-    stories. Switching databases within one profile is no longer offered after the first connection.
-    Clearing the URL, disabling sharing or revoking consent does not clear the binding.
+  - The destination is remembered for all sync connections, including story-only connections.
+    An explicit URL change replaces it and syncs the existing local data with the new database.
+    Clearing the URL, disabling sharing or revoking consent stops sync.
   - On upgrade, migrate an existing vault destination first, or bind the previously configured URL
     before starting the new sync code. If existing local data has no trustworthy destination, require
-    a separate profile rather than infer its source from a newly received browser-synced URL. Migration
+    confirmation through Save rather than infer its source from a newly received browser-synced URL. Migration
     must not silently rebind data from a known destination to the latest value of `sync_url`.
 - Every requested URL is classified, whether it comes from settings, pairing, startup or browser sync:
   - **Initial pairing**: no binding and no data requiring a known previous destination. Allowed;
     create the binding before connecting. A saved URL alone is not authorization to bypass migration.
   - **Same destination, new credentials**: same origin and path. Allowed.
-  - **Different destination while bound**: rejected with "Use a separate Once profile for another sync
-    database". This includes after clearing the URL, because the binding persists, matching vault
-    behavior.
+  - **Different destination while bound** (updated 2026-10-27): saving a URL explicitly replaces the
+    destination and starts sync with the existing local data. Device-local saved URLs are authoritative
+    on restart. Automatically received browser-synced URLs wait for confirmation through Save.
 - **Enforcement is at the transport boundary**, not just `client.setSyncUrl`:
   - `AppSettings.startSync`/`PouchSyncService.syncFrom` must pass the gate on startup, resume and
     replacement of a replication. The same gate covers initial pull and live replication.
@@ -798,8 +798,8 @@ and screenshots from database A would therefore be uploaded to database B.
   passphrase only when asked, after `verifyAddonVaultPassphrase` checks it (nothing is unlocked or
   stored); the code (`qrcode-generator`, MIT, drawn as SVG) is blurred until clicked and hides after a
   minute; "Copy pairing link" gives the same text. Connecting from a pasted link, a scanned code or a
-  `once://` link names the database and user and asks first; the destination binding still refuses
-  another database; a passphrase in the link unlocks add-on sync once the vault has arrived.
+  `once://` link names the database and user and asks first; confirming another database switches
+  the destination; a passphrase in the link unlocks add-on sync once the vault has arrived.
 - Scanner: **`@capacitor/barcode-scanner`** instead of the ML Kit plugin picked earlier, because the
   ML Kit plugin ships only CocoaPods support and this iOS project uses Swift Package Manager. The
   official plugin supports SPM (Apple Vision on iOS) and bundles its Android models, so it also works
@@ -1005,7 +1005,7 @@ tab sync, because it uses the same consent mechanism.
 
 | Finding | Resolution |
 |---|---|
-| P1 QR pairing via `setSyncUrl` leaks A's docs to B | §9 destination binding with initial, same-destination and different-destination cases; v1 keeps the separate-profile rule; A→B test. |
+| P1 QR pairing via `setSyncUrl` redirects data | §9 explicit URL selection permits switching with existing local data; automatically received browser URLs require confirmation; A→B test. |
 | P1 Forget has no durable meaning; disable races | §3 `tret_` retirement with epochs, reader filtering and owner self-retire; serial `PublishQueue` and `publishGeneration` for disable; offline-return and in-flight tests. |
 | P1 Active-only capture loses positions | §5 `TabStateCache`, event and sampled triggers, outgoing-tab capture, `navSeq` binding; flush is best effort. |
 | P2 `revs_limit: 20` conflicts | §4 owner `seq`, `(epoch, seq)` winner, continuous reconciliation in live sync; >20-publish test. |

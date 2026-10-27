@@ -57,9 +57,9 @@ export type SyncEpochResolution =
 
 /**
  * Decides which remote this device replicates with, and moves its local
- * database first when that remote is a new epoch. The configured URL never
- * changes: it names the database a profile is bound to, and the markers
- * lead on from there. Never lets a local database replicate with an epoch
+ * database first when that remote is a new epoch. Remembered redirects apply
+ * only to the configured destination that originally led to them, so selecting
+ * another URL takes effect immediately. Never lets a local database replicate with an epoch
  * it was not rebuilt for, since it would hand the new database the losing
  * branches the move left behind.
  *
@@ -85,18 +85,24 @@ export async function resolveSyncEpoch(
     local?.restart()
     return { restarting: true }
   }
-  const start = state.destination ? epochSiblingUrl(configuredUrl, syncDatabaseName(state.destination)) : configuredUrl
+  const configuredDestination = syncDestination(configuredUrl)
+  if (state.destination && !state.configuredDestination) {
+    await local?.rememberConfiguredDestination(configuredDestination)
+  }
+  const savedDestination = state.destination
+  const followsSavedEpoch = savedDestination && (!state.configuredDestination || state.configuredDestination === configuredDestination)
+  const start = followsSavedEpoch ? epochSiblingUrl(configuredUrl, syncDatabaseName(savedDestination)) : configuredUrl
   const effective = await followSyncEpoch(start, url => {
     if (!isCurrent()) throw new Error("Sync session changed during epoch migration")
     return read(url)
   })
   if (!isCurrent()) throw new Error("Sync session changed during epoch migration")
   const destination = syncDestination(effective)
-  const legacy = Boolean(state.destination) && state.version !== LOCAL_EPOCH_VERSION
+  const legacy = Boolean(followsSavedEpoch) && state.version !== LOCAL_EPOCH_VERSION
   if (destination === syncDestination(start) && !legacy) return { url: effective }
   if (!local) throw new Error("Sync epoch metadata is unsupported here: this app cannot move its local data to the new database.")
   if (!open) throw new Error("Epoch reconciliation requires a database transport; local data is retained")
-  await local.rebuild(destination, progress, { canonical: await open(effective), previous: await open(legacy ? configuredUrl : start), isCurrent })
+  await local.rebuild(destination, progress, { canonical: await open(effective), previous: await open(legacy ? configuredUrl : start), isCurrent, configuredDestination })
   local.restart()
   return { restarting: true }
 }

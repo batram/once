@@ -93,9 +93,10 @@ history and backups may retain old encrypted snapshots; vault deletion is not a
 promise to erase every previous copy. A lost device may already know a token:
 rotate it at the provider when revocation is needed.
 
-The profile stays bound to its vault. Disabling/re-enabling sync to the same
-database is supported; use a separate Once profile for another sync database.
-This prevents accidentally merging two vaults by changing a URL.
+Changing the sync URL in Settings saves the new destination and reconnects
+immediately, keeping the existing local data. That data syncs with the new
+database. The vault retains its cryptographic identity: independently created
+vaults still cannot be merged by changing a URL.
 
 ## Storage and trust
 

@@ -1,4 +1,3 @@
-import { SEPARATE_PROFILE_MESSAGE } from "@once/core"
 import type { SyncStartOrigin } from "../AppSettings"
 import type { SyncConsentPort } from "../types"
 import { SyncDestinationBinding } from "./SyncDestinationBinding"
@@ -29,7 +28,7 @@ export class SyncGate {
     const previouslyConfigured = origin !== "user" && await this.hasLocalData()
     const decision = await this.binding.authorize(url, { userChosen: origin === "user", previouslyConfigured })
     switch (decision.kind) {
-      case "different": return SEPARATE_PROFILE_MESSAGE
+      case "different": return CONFIRM_DESTINATION_MESSAGE
       case "unknown-provenance": return CONFIRM_DESTINATION_MESSAGE
       default:
         // Consent may have been withdrawn while the binding was checked.

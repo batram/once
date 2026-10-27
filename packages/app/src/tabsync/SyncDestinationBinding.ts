@@ -14,10 +14,9 @@ const VAULT_DESTINATION_KEY = "once:addon-vault-destination"
 export type SyncUrlProvenance = "device" | "browser"
 
 /**
- * Pins a profile to the database it first connected to. Replication is
- * unfiltered, so connecting the same local database to a second remote would
- * copy everything from the first — other devices' tabs and screenshots
- * included — into the second. Every transport start passes `authorize` first.
+ * Remembers the selected database. Explicit URL changes and device-local
+ * settings may replace it; URLs arriving through browser sync need confirmation.
+ * Switching destinations keeps the local data and syncs it with the new remote.
  */
 export class SyncDestinationBinding {
   constructor(
@@ -51,6 +50,10 @@ export class SyncDestinationBinding {
         decision = classifySyncDestination(url, bound, needsProvenance)
       } catch {
         return { kind: "disabled" } as const
+      }
+      if (decision.kind === "different" && (options.userChosen || this.provenance === "device")) {
+        await this.secrets?.set(BINDING_KEY, decision.destination)
+        return { kind: "same", destination: decision.destination }
       }
       // Without device-local storage there is nothing to bind with; such a
       // client keeps the unbound behavior rather than refusing to sync.

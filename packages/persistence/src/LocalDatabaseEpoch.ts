@@ -24,6 +24,8 @@ export interface LocalEpochState {
   version?: number
   /** The remote destination this database was rebuilt for; absent for the original database. */
   destination?: string
+  /** Configured URL destination whose epoch redirect this state remembers. */
+  configuredDestination?: string
   /** Set on a database that was replaced: it must never sync again. */
   retired?: { database: string; destination: string }
   synchronized_at?: number
@@ -104,6 +106,16 @@ export class LocalDatabaseEpoch {
     return (await readLocal(this.db, STATE_ID) ?? {}) as LocalEpochState
   }
 
+  /** Older epoch records did not store the URL that led to their destination. */
+  async rememberConfiguredDestination(destination: string): Promise<void> {
+    await epochLock(this.base, async () => {
+      const state = await this.state()
+      if (state.destination && !state.configuredDestination) {
+        await writeLocal(this.db, STATE_ID, { ...state, configuredDestination: destination })
+      }
+    })
+  }
+
   async reviewSetting(id: string): Promise<SyncSettingReview> {
     if (!this.reviewRemote || (await this.state()).retired) throw new Error("Check sync again before reviewing settings")
     return reviewEpochSetting(this.db, this.reviewRemote, id)
@@ -122,7 +134,7 @@ export class LocalDatabaseEpoch {
 
   /** Copies this database into the one for `destination`, verifies it, and switches to it. */
   async rebuild(destination: string, progress: EpochMigrationProgress = () => undefined,
-    remote?: { canonical: EpochCopyDatabase; previous: EpochCopyDatabase; isCurrent?: () => boolean }): Promise<void> {
+    remote?: { canonical: EpochCopyDatabase; previous: EpochCopyDatabase; isCurrent?: () => boolean; configuredDestination?: string }): Promise<void> {
     if (typeof window !== "undefined" && !globalThis.navigator?.locks) throw new Error("Database migration requires Web Locks. Update this browser before moving; local data is retained.")
     await epochLock(this.base, async () => {
       this.reviewRemote = remote?.canonical
@@ -180,7 +192,8 @@ export class LocalDatabaseEpoch {
       await writeLocal(target, PouchMaintenanceService.CONFLICT_CHECKPOINT_ID, { last_seq: (await target.info()).update_seq ?? 0 })
       const format = await readLocal(this.db, SYNC_FORMAT_ID)
       if (format) await writeLocal(target, SYNC_FORMAT_ID, { minSyncProtocol: format.minSyncProtocol })
-      await writeLocal(target, STATE_ID, { destination, version: LOCAL_EPOCH_VERSION })
+      await writeLocal(target, STATE_ID, { destination, version: LOCAL_EPOCH_VERSION,
+        ...(remote?.configuredDestination ? { configuredDestination: remote.configuredDestination } : {}) })
       await writeLocal(this.db, STATE_ID, { retired: { database: targetName, destination } })
       await this.activate(targetName)
     })

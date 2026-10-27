@@ -21,11 +21,8 @@ export type SyncDestinationDecision =
   | { kind: "same"; destination: string }
   /** Another database than the one this profile's data came from. */
   | { kind: "different"; destination: string; bound: string }
-  /** Existing local data has no trustworthy destination; a separate profile is required. */
+  /** Existing local data has no trustworthy destination; confirmation is required. */
   | { kind: "unknown-provenance"; destination: string }
-
-export const SEPARATE_PROFILE_MESSAGE =
-  "Use a separate Once profile for another sync database"
 
 /**
  * Whether this profile may connect to `url`. `bound` is the persisted

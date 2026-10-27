@@ -240,8 +240,7 @@ export class AppSettings {
     }
     const changed = normalizedUrl !== await this.getSyncUrl()
     if (changed || this.syncBlocked) {
-      // Refuse before saving, so a URL this profile may not use never
-      // replaces the one it may.
+      // Check browser consent before saving the selected destination.
       const refusal = normalizedUrl ? await this.actions.authorizeSync(normalizedUrl, "user") : null
       if (refusal) throw new Error(refusal)
       if (changed) {
