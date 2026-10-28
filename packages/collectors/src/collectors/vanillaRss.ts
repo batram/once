@@ -69,7 +69,9 @@ function parse_atom(doc: Document) {
     main_link: [{ tag: "link", attr: "href" }],
     story_tag: "entry",
     title_tag: "title",
-    timestamp_tags: ["updated", "published"],
+    // A site rebuild touches every <updated>; <published> is when the post
+    // appeared, which is what the story list's age means.
+    timestamp_tags: ["published", "updated"],
     link_tags: [{ tag: "link", attr: "href" }],
     content_tags: [{ tag: "content", html: true }, { tag: "summary", html: true }]
   }

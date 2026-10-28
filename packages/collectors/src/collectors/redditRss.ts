@@ -22,13 +22,16 @@ export function parse(doc: Document): Story[] {
       "text/html"
     )
 
-    const updated = story.querySelector<HTMLElement>("updated")?.innerText
+    // An edit moves <updated>; the post's age is its <published> time.
+    const published =
+      story.querySelector<HTMLElement>("published")?.innerText ||
+      story.querySelector<HTMLElement>("updated")?.innerText
     const href = content.querySelector<HTMLAnchorElement>("span a")?.href
     const title = story.querySelector("title")?.innerText
-    if (!updated || !href || !title) {
+    if (!published || !href || !title) {
       return []
     }
-    const timestamp = storyTimestamp(updated)
+    const timestamp = storyTimestamp(published)
 
     return [
       new Story(options.type, href, title, story.querySelector("link")?.href ?? "", timestamp)

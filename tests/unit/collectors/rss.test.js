@@ -87,6 +87,45 @@ test("the store_content setting turns feed text off", () => {
   }
 })
 
+// Shaped like blog.orange.tw/atom.xml after a site rebuild: every entry's
+// <updated> is fresh, while <published> keeps the post's real date.
+function rebuiltAtom(published, updated) {
+  return "<?xml version=\"1.0\"?><feed xmlns=\"http://www.w3.org/2005/Atom\"><title>Blog</title>" +
+    "<link href=\"https://example.com/\"/><entry><title>Old post</title>" +
+    `<link href="https://example.com/old-post"/><published>${published}</published>` +
+    `<updated>${updated}</updated></entry></feed>`
+}
+
+test("dates Atom entries by published, not by a rebuild's updated", () => {
+  const collector = require("../../../packages/collectors/dist/collectors/vanillaRss")
+  const published = "2025-01-09T16:00:00.000Z"
+  const feed = parseDocument(rebuiltAtom(published, new Date().toISOString()), "text/xml")
+  withLongCutOff(collector, () => {
+    const [story] = collector.parse(feed)
+    assert.equal(story.timestamp, Date.parse(published))
+  })
+  // At the default cut-off the old post is old, however fresh its <updated>.
+  assert.deepEqual(collector.parse(feed), [])
+})
+
+test("falls back to updated when an Atom entry has no published", () => {
+  const collector = require("../../../packages/collectors/dist/collectors/vanillaRss")
+  withLongCutOff(collector, () => {
+    const stories = collector.parse(parseDocument(fixture("atom.xml"), "text/xml"))
+    assert.equal(stories[0].timestamp, Date.parse("2024-01-02T03:04:05Z"))
+  })
+})
+
+test("dates Reddit Atom entries by published", () => {
+  const collector = require("../../../packages/collectors/dist/collectors/redditRss")
+  const xml = "<?xml version=\"1.0\"?><feed xmlns=\"http://www.w3.org/2005/Atom\"><entry><title>Edited post</title>" +
+    "<published>2024-01-02T03:04:05Z</published><updated>2024-03-04T05:06:07Z</updated>" +
+    "<link href=\"https://old.reddit.com/r/netsec/comments/abc\"/><content type=\"html\">" +
+    "&lt;span&gt;&lt;a href=\"https://example.com/reddit-rss\"&gt;link&lt;/a&gt;&lt;/span&gt;</content></entry></feed>"
+  const [story] = collector.parse(parseDocument(xml, "text/xml"))
+  assert.equal(story.timestamp, Date.parse("2024-01-02T03:04:05Z"))
+})
+
 test("parses Reddit Atom entries", () => {
   const collector = require("../../../packages/collectors/dist/collectors/redditRss")
   const stories = collector.parse(parseDocument(fixture("reddit-atom.xml"), "text/xml"))
