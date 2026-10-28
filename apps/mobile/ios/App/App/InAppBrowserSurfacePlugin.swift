@@ -17,6 +17,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         CAPPluginMethod(name: "goBack", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "goForward", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "goToHistoryIndex", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "openExternalRedirect", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setHistoryGestures", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setContextMenuItems", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setBounds", returnType: CAPPluginReturnPromise),
@@ -689,7 +690,9 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
         guard let url = navigationAction.request.url else { return nil }
-        guard embeddable(url.absoluteString) != nil else { UIApplication.shared.open(url); return nil }
+        // WebKit already required a gesture for this window; a tapped link may
+        // still leave for its app, a script may only offer to, as in decidePolicy.
+        guard embeddable(url.absoluteString) != nil else { leaveForApp(url, navigationAction); return nil }
         let root = owner ?? self
         let tab = InAppBrowserSurfacePlugin()
         tab.owner = root

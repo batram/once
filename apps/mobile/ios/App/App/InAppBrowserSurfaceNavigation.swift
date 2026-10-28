@@ -1,3 +1,4 @@
+import Capacitor
 import UIKit
 import WebKit
 
@@ -49,6 +50,9 @@ extension InAppBrowserSurfacePlugin {
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard webView === surface, navigationState.isCurrent(navigation) else { return }
         finishRefresh()
+        // A document that sent the reader on to an app link has nothing more
+        // to show: the shell keeps its failed page and the offer to open the link.
+        if navigationState.offeredExternalURL != nil { history(webView); return }
         navigationState.finished(webView.url)
         pageEvent("navigationFinished", data: navigationState.payload(webView.url))
         history(webView)
@@ -160,10 +164,39 @@ extension InAppBrowserSurfacePlugin {
         switch extensions.navigationDisposition(for: url, targetIsMainFrame: navigationAction.targetFrame?.isMainFrame) {
         case .allow: decisionHandler(.allow)
         case .external:
-            UIApplication.shared.open(url)
+            leaveForApp(url, navigationAction)
             decisionHandler(.cancel)
         case .cancel: decisionHandler(.cancel)
         }
+    }
+
+    /// A tapped link may leave for its app (tel:, mailto:, an installed app's
+    /// scheme); a redirect, a script or a frame may not without asking, and
+    /// must not leave a loading page blank. Safari asks before leaving too.
+    /// WebKit reports no user gesture, so a link activation stands in for one.
+    func leaveForApp(_ url: URL, _ navigationAction: WKNavigationAction) {
+        guard navigationAction.targetFrame?.isMainFrame != false else { return }
+        if navigationAction.navigationType == .linkActivated {
+            UIApplication.shared.open(url)
+        } else if navigationState.isSettling {
+            offerExternal(url)
+        }
+    }
+
+    /// Opens the app link the page redirected to (see navigationFailed's externalUrl).
+    @objc func openExternalRedirect(_ call: CAPPluginCall) {
+        guard route(call, { $0.openExternalRedirect(call) }) else { return }
+        DispatchQueue.main.async {
+            guard let url = self.navigationState.offeredExternalURL else { call.resolve(["opened": false]); return }
+            UIApplication.shared.open(url) { call.resolve(["opened": $0]) }
+        }
+    }
+
+    private func offerExternal(_ url: URL) {
+        finishRefresh()
+        let message = url.scheme.map { "The page tried to open a \($0): link, which the browser cannot show." }
+            ?? "The page tried to open a link the browser cannot show."
+        pageEvent("navigationFailed", data: navigationState.failed(externalURL: url, message: message))
     }
 
     public func webView(
@@ -175,9 +208,12 @@ extension InAppBrowserSurfacePlugin {
            let response = navigationResponse.response as? HTTPURLResponse {
             navigationState.statusCode = response.statusCode
         }
-        if !navigationResponse.canShowMIMEType,
-           let url = navigationResponse.response.url {
-            UIApplication.shared.open(url)
+        if !navigationResponse.canShowMIMEType {
+            // Only the page itself may hand its document to another app; a
+            // frame's response is dropped, as a frame may never leave the app.
+            if navigationResponse.isForMainFrame, let url = navigationResponse.response.url {
+                UIApplication.shared.open(url)
+            }
             decisionHandler(.cancel)
             return
         }
