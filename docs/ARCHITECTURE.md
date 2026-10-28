@@ -411,7 +411,20 @@ unencrypted in the profile, warns once, and re-encrypts on the next save that
 succeeds.
 
 Electron reader mode fetches through the validated bridge and serves sanitized
-documents from the isolated `once-reader://` protocol.
+documents from the isolated `once-reader://` protocol. Each stored document is
+served at `once-reader://<random token>/<source URL>`, an origin of its own
+that nothing without the token can load, under a Content Security Policy that
+allows only the runtime and the article's pictures and media and lets no page
+frame it; the readable `once-reader://<source URL>` form is what the address
+bar shows and accepts, never what is served (`ReaderProtocol.ts`,
+`browser/reader-url.ts`).
+
+A tab a page opens by itself (`window.open`, a middle-clicked link) is page
+content whatever URL it names: it never receives an extension's session and
+API, so a link to an extension's own page loads only what the extension
+makes web-accessible. The native prompt to install a Mozilla Add-ons package
+that a download triggers follows the user's own input on the page, like a
+popup, and keeps Cancel as its default button.
 
 The reader reads aloud on every platform (`packages/ui-web/src/reader/readerTts.ts`).
 Its segmenter is inlined into the reader document, so it stays self-contained;

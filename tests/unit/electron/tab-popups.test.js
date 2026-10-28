@@ -86,6 +86,28 @@ test("activation expires and does not survive navigation", () => {
   assert.equal(h.contents.open(h.request).action, "deny")
 })
 
+// A download that follows the user's input may prompt (an extension install).
+// That reading is not spent by a popup and survives a navigation that only
+// starts (a clicked download link), but ends with the window and with a
+// document that commits.
+test("recent input can be read without being spent, until a new document commits", () => {
+  const h = harness()
+  assert.equal(h.policy.recentlyActivated(h.entry), false)
+  h.mouse("mouseDown")
+  assert.equal(h.policy.recentlyActivated(h.entry), true)
+  assert.equal(h.contents.open(h.request).action, "allow")
+  assert.equal(h.policy.recentlyActivated(h.entry), true)
+  h.contents.emit("did-start-navigation", { isMainFrame: true, isSameDocument: false })
+  assert.equal(h.policy.recentlyActivated(h.entry), true)
+  h.advance(4999)
+  assert.equal(h.policy.recentlyActivated(h.entry), true)
+  h.advance(1)
+  assert.equal(h.policy.recentlyActivated(h.entry), false)
+  h.mouse("mouseDown")
+  h.contents.emit("did-navigate", {}, "https://example.test/next", 200)
+  assert.equal(h.policy.recentlyActivated(h.entry), false)
+})
+
 test("keyboard activation excludes shell shortcuts, modifiers and repeats", () => {
   const h = harness()
   for (const [key, extra, event] of [

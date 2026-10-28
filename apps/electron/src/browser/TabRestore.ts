@@ -1,6 +1,6 @@
 import { ELECTRON_IPC } from "@once/platform-electron/bridge"
 import { parseExtensionUrl } from "@once/webext-runtime"
-import { hasReaderDocument } from "../ReaderProtocol"
+import { hasReaderDocument, readerUrlFor } from "../ReaderProtocol"
 import type { PageProfile } from "../extensions/runtimeTypes"
 import type { TabEntry, WindowEntry } from "./BrowserState"
 import type { ClosedTabRecord } from "./ClosedTabs"
@@ -40,7 +40,9 @@ export class TabRestore {
   ): Promise<string> {
     const readerSource = sourceUrlFromReaderUrl(record.url)
     const regenerate = readerSource !== null && !hasReaderDocument(readerSource)
-    const id = await this.actions.createTab(state, regenerate ? "about:blank" : record.url, active, after)
+    // A document still held is loaded at its served URL, whatever form the record kept.
+    const url = regenerate ? "about:blank" : (readerSource && readerUrlFor(readerSource)) || record.url
+    const id = await this.actions.createTab(state, url, active, after)
     if (regenerate) {
       state.window.webContents.send(ELECTRON_IPC.tabsRegenerateReader, readerSource, id)
     } else {

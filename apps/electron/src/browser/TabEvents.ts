@@ -419,4 +419,8 @@ export class TabEvents {
   showBlockedPopups(entry: TabEntry, point: import("@once/platform-electron/bridge").ElectronPoint): void {
     this.interaction.popups.showBlocked(entry, point)
   }
+
+  recentlyActivated(entry: TabEntry): boolean {
+    return this.interaction.popups.recentlyActivated(entry)
+  }
 }

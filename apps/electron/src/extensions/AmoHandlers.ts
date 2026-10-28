@@ -37,24 +37,40 @@ function reviewDetail(candidate: ElectronExtensionPreview): string {
   ].filter((line, index, lines) => line !== "" || lines[index - 1] !== "").join("\n")
 }
 
-/** Preview, review in a dialog on the tab's window, install on confirmation. */
-async function installFromSource(manager: ExtensionManager, shell: WebContents, source: string): Promise<AmoInstallOutcome> {
-  const candidate = await manager.preview(source)
-  const owner = BrowserWindow.fromWebContents(shell)
-  const options: Electron.MessageBoxOptions = {
-    type: "question",
-    title: candidate.update ? "Update extension" : "Install extension",
-    message: `${candidate.update ? "Update" : "Add"} ${candidate.name} ${candidate.update ? "in" : "to"} Once?`,
-    detail: reviewDetail(candidate),
-    buttons: [candidate.update ? "Update" : "Install", "Cancel"],
-    defaultId: 0,
-    cancelId: 1,
-    noLink: true
+/** Shells with an install prompt open: a page cannot stack a second one behind it. */
+const prompting = new WeakSet<WebContents>()
+
+/**
+ * Preview, review in a dialog on the tab's window, install on confirmation.
+ * Install is the default button only when the listing page's own button asked;
+ * a prompt that followed a download keeps Cancel there, so a keypress a page
+ * baited cannot confirm it.
+ */
+async function installFromSource(
+  manager: ExtensionManager, shell: WebContents, source: string, fromListingPage = false
+): Promise<AmoInstallOutcome> {
+  if (prompting.has(shell)) return { status: "failed", error: "An extension prompt is already open" }
+  prompting.add(shell)
+  try {
+    const candidate = await manager.preview(source)
+    const owner = BrowserWindow.fromWebContents(shell)
+    const options: Electron.MessageBoxOptions = {
+      type: "question",
+      title: candidate.update ? "Update extension" : "Install extension",
+      message: `${candidate.update ? "Update" : "Add"} ${candidate.name} ${candidate.update ? "in" : "to"} Once?`,
+      detail: reviewDetail(candidate),
+      buttons: [candidate.update ? "Update" : "Install", "Cancel"],
+      defaultId: fromListingPage ? 0 : 1,
+      cancelId: 1,
+      noLink: true
+    }
+    const { response } = owner ? await dialog.showMessageBox(owner, options) : await dialog.showMessageBox(options)
+    if (response !== 0) return { status: "cancelled" }
+    await manager.install(candidate.token)
+    return { status: "installed" }
+  } finally {
+    prompting.delete(shell)
   }
-  const { response } = owner ? await dialog.showMessageBox(owner, options) : await dialog.showMessageBox(options)
-  if (response !== 0) return { status: "cancelled" }
-  await manager.install(candidate.token)
-  return { status: "installed" }
 }
 
 async function confirmRemoval(manager: ExtensionManager, shell: WebContents, id: string): Promise<boolean> {
@@ -91,7 +107,7 @@ export function registerAmoHandlers({ coordinator, extensions, browserSession }:
     const { tab, shell } = amoPage(event, coordinator)
     if (command === "install") {
       try {
-        return await installFromSource(manager, shell, tab.getURL())
+        return await installFromSource(manager, shell, tab.getURL(), true)
       } catch (error) {
         return { status: "failed", error: error instanceof Error ? error.message : String(error) }
       }
@@ -110,13 +126,16 @@ export function registerAmoHandlers({ coordinator, extensions, browserSession }:
   })
   // An XPI from Mozilla is never saved as a file: it goes through the same
   // review. The listing page it was clicked on is the better source when
-  // there is one, since that is what the settings page accepts too.
+  // there is one, since that is what the settings page accepts too. Only a
+  // tab the user just acted on gets the prompt: a page that starts the
+  // download by itself, from a frame it added or a timer, gets nothing, the
+  // way the popup blocker treats a window it opens by itself.
   browserSession.on("will-download", (event, item, contents) => {
     const url = item.getURL()
     if (amoSourceKind(url) !== "download") return
     event.preventDefault()
     const shell = coordinator.shellOf(contents)
-    if (!shell) return
+    if (!shell || !coordinator.recentlyActivated(contents)) return
     const page = contents.getURL()
     const source = amoSourceKind(page) === "page" ? page : url
     void installFromSource(manager, shell, source).catch((error) => {

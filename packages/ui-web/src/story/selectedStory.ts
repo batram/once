@@ -68,12 +68,19 @@ export async function updateSelectedStory(
   }
 }
 
+// Mirrors the Electron shell's reader-url.ts: the readable form carries the
+// source's scheme as its host, the served form a token host and the whole
+// source as its path.
 function sourceUrlFromReaderUrl(url: string): string | null {
   if (!url.startsWith("once-reader://")) return null
   try {
     const parsed = new URL(url)
-    if (parsed.hostname !== "http" && parsed.hostname !== "https") return null
-    return new URL(`${parsed.hostname}:${parsed.pathname}${parsed.search}${parsed.hash}`).toString()
+    if (parsed.hostname === "http" || parsed.hostname === "https") {
+      return new URL(`${parsed.hostname}:${parsed.pathname}${parsed.search}${parsed.hash}`).toString()
+    }
+    if (!/^[a-f0-9]{32}$/.test(parsed.hostname)) return null
+    const source = new URL(`${parsed.pathname.slice(1)}${parsed.search}${parsed.hash}`)
+    return source.protocol === "http:" || source.protocol === "https:" ? source.toString() : null
   } catch {
     return null
   }

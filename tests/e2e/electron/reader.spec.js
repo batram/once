@@ -21,11 +21,11 @@ test.afterAll(async () => {
   await pageServer.close()
 })
 
-// Chromium parses once-reader:// as a standard scheme, so the source URL's own
-// scheme colon is dropped once the tab has navigated. The address bar still
-// shows the readable form.
+// A served reader document's URL carries its random token as the host and the
+// source as its path. The address bar still shows the readable form.
 function readerUrl(sourceUrl) {
-  return `once-reader://${sourceUrl.replace("://", "//")}`
+  const escaped = sourceUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return expect.stringMatching(new RegExp(`^once-reader://[a-f0-9]{32}/${escaped}$`))
 }
 
 test("a bookmarked story's saved article opens in the reader after its site is gone", async () => {

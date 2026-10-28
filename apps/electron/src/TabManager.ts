@@ -20,7 +20,7 @@ import {
   resolveOpenDisposition,
   TabOpenDisposition
 } from "@once/platform-electron/navigation"
-import { hasReaderDocument, storeReaderDocument } from "./ReaderProtocol"
+import { hasReaderDocument, readerUrlFor, storeReaderDocument } from "./ReaderProtocol"
 import { createTabView, PopupWindowOptions } from "./browser/TabView"
 import { isAddonConversationUrl } from "./AddonConversationRelay"
 import { isHistoryUrl } from "./HistoryPage"
@@ -215,6 +215,14 @@ export class BrowserCoordinator {
     return this.ownership.getAll(state)
   }
 
+  /** Whether the user acted on a tab's page in the last few seconds (the popup blocker's clock). */
+  recentlyActivated(contents: WebContents): boolean {
+    for (const entry of this.ownership.tabs.values()) {
+      if (entry.view.webContents === contents) return this.tabEvents.recentlyActivated(entry)
+    }
+    return false
+  }
+
   /** Every window's tabs and their change notices, for tab sync. */
   tabSync(): TabSyncFeed {
     return tabSyncFeed(this.ownership)
@@ -242,7 +250,11 @@ export class BrowserCoordinator {
     // everything else is a remote page in the browser session with the frame
     // preload registered on the session. Either preload needs the sub-frame
     // flag to reach iframes (it grants no Node access; the tab stays sandboxed).
-    const profile = this.pageProfile(normalized)
+    // A tab the page itself asked for (window.open, a middle-clicked link) is
+    // page content whatever URL it names: it never gets an extension's session
+    // and API. Firefox refuses such links; here the browser session serves the
+    // extension's web-accessible files and nothing else.
+    const profile = popupOptions ? null : this.pageProfile(normalized)
     const view = createTabView(normalized, profile, BROWSER_SESSION_PARTITION, popupOptions)
     view.setBackgroundColor(state.backgroundColor)
 
@@ -551,7 +563,8 @@ export class BrowserCoordinator {
         )
         return
       }
-      this.navigationErrors.load(entry, normalized)
+      // The readable form names the document; the served form carries its token.
+      this.navigationErrors.load(entry, (readerSource && readerUrlFor(readerSource)) || normalized)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       this.navigationErrors.handleFailure(entry, url.trim(), message, false)
