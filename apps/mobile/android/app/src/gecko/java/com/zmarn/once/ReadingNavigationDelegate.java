@@ -49,7 +49,11 @@ final class ReadingNavigationDelegate implements GeckoSession.NavigationDelegate
             else if (request.isRedirect && h.requestedLoadAccepted) h.requestedUrl = request.uri;
             else if (request.isDirectNavigation) return GeckoResult.deny();
         }
-        if (ReadingAddress.surface(request.uri)) return GeckoResult.fromValue(AllowOrDeny.ALLOW);
+        if (ReadingAddress.surface(request.uri)) {
+            // A redirect hop inherits the gesture of the request that began the load.
+            if (!request.isRedirect) h.loadRequestGesture = request.hasUserGesture;
+            return GeckoResult.fromValue(AllowOrDeny.ALLOW);
+        }
         // A tapped link may leave for its app; a redirect or script may not
         // without asking, and must not leave a loading page blank.
         if (request.hasUserGesture && !request.isRedirect) h.openExternal(request.uri);

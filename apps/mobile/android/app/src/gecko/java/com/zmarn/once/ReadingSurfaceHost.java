@@ -92,6 +92,8 @@ abstract class ReadingSurfaceHost extends Plugin implements TabRecency.Tab {
     protected TextView recoveryMessage;
     /** The app link the current page redirected to, until the next navigation. */
     protected String offeredExternalUrl;
+    /** Whether the latest load the surface accepted was a tap; see externalResponse. */
+    protected boolean loadRequestGesture;
     protected final AtomicLong navigationSequence = new AtomicLong();
     protected long activeNavigation;
     protected long committedNavigation;
@@ -308,7 +310,7 @@ abstract class ReadingSurfaceHost extends Plugin implements TabRecency.Tab {
         session.setPriorityHint(visible && resumed ? GeckoSession.PRIORITY_HIGH : GeckoSession.PRIORITY_DEFAULT);
         session.setNavigationDelegate(new ReadingNavigationDelegate(this));
         session.setProgressDelegate(new ReadingProgressDelegate(this));
-        session.setContentDelegate(new ReadingContentDelegate(url -> { if (session == created) openExternal(url); },
+        session.setContentDelegate(new ReadingContentDelegate(url -> { if (session == created) externalResponse(url); },
             message -> { if (session == created) processStopped(message); },
             () -> visible && resumed, () -> {
                 if (session != created) return;
@@ -601,15 +603,31 @@ abstract class ReadingSurfaceHost extends Plugin implements TabRecency.Tab {
      * instead of a document, so the surface would stay blank. The shell shows
      * this as a failed page and offers to open the link in its app.
      */
-    protected void offerExternal(String url) {
+    protected void offerExternal(String url) { offerExternal(url, ExternalLinks.describe(url)); }
+
+    protected void offerExternal(String url, String message) {
         Log.i(TAG, "external redirect offered: " + LogRedaction.redact(url));
         offeredExternalUrl = url;
         // The redirecting document is empty; its blank check must not replace this.
         blankWarning = true;
         if (loadStatus != null) loadStatus.hide();
-        failed(currentUrl, -1, ExternalLinks.describe(url), url);
+        // The offer's button would do nothing for a link a page may not hand out.
+        failed(currentUrl, -1, message, ExternalLinks.allowed(url) ? url : null);
     }
 
+    /**
+     * Gecko hands out a response it cannot render (a download, say) without the
+     * gesture of the request that fetched it, so the load request's is kept
+     * (loadRequestGesture) and judged as ReadingNavigationDelegate judges an
+     * app link: a tap opens it, anything else may only offer it.
+     */
+    protected void externalResponse(String url) {
+        boolean tapped = loadRequestGesture;
+        loadRequestGesture = false; // one tap, one hand-out
+        if (tapped) openExternal(url);
+        else if (!navigationCompleted) offerExternal(url, "The page sent a file the browser cannot show.");
+        else Log.i(TAG, "external response without a gesture dropped: " + LogRedaction.redact(url));
+    }
 
     protected abstract GeckoSession createWindow(String url);
     protected abstract boolean ownsForeground();

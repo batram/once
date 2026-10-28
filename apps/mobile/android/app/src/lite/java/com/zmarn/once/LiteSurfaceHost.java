@@ -69,6 +69,8 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
     protected long activeNavigation;
     protected long committedNavigation;
     protected boolean navigationCompleted;
+    /** Whether the latest main-frame load the surface accepted was a tap; see the download listener. */
+    protected boolean loadRequestGesture;
     protected long navigationDeadline;
     protected long loadStartedAt;
     protected boolean recoveryFailed;
@@ -245,9 +247,15 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
         view.setWebViewClient(new LiteNavigation(this, view));
         view.setWebChromeClient(new LiteChrome(this, view));
         view.setDownloadListener((url, agent, disposition, mime, length) -> {
-            // As Gecko's onExternalResponse: another app shows what the page cannot.
-            Log.i(TAG, "download handed out: " + LogRedaction.redact(url));
-            openExternal(url);
+            // As Gecko's onExternalResponse: another app shows what the page cannot,
+            // but only a tap may send it there without asking (LiteNavigation).
+            boolean tapped = loadRequestGesture;
+            loadRequestGesture = false; // one tap, one hand-out
+            if (tapped) {
+                Log.i(TAG, "download handed out: " + LogRedaction.redact(url));
+                openExternal(url);
+            } else if (!navigationCompleted) offerExternal(url, "The page sent a file the browser cannot show.");
+            else Log.i(TAG, "download without a gesture dropped: " + LogRedaction.redact(url));
         });
         view.setOnLongClickListener(ignored -> LiteContextMenu.longPressed(this, view));
         LiteExtensionEngine engine = engine();
@@ -531,11 +539,14 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
      * instead of a document, so the surface would stay blank. The shell shows
      * this as a failed page and offers to open the link in its app.
      */
-    protected void offerExternal(String url) {
+    protected void offerExternal(String url) { offerExternal(url, ExternalLinks.describe(url)); }
+
+    protected void offerExternal(String url, String message) {
         Log.i(TAG, "external redirect offered: " + LogRedaction.redact(url));
         offeredExternalUrl = url;
         if (loadStatus != null) loadStatus.hide();
-        failed(currentUrl, -1, ExternalLinks.describe(url), url);
+        // The offer's button would do nothing for a link a page may not hand out.
+        failed(currentUrl, -1, message, ExternalLinks.allowed(url) ? url : null);
     }
 
     protected boolean openExternal(String url) { return ExternalLinks.open(getActivity(), url); }
@@ -599,6 +610,8 @@ abstract class LiteSurfaceHost extends Plugin implements TabRecency.Tab {
     /** A new document started in the view: the GeckoView host's onPageStart bookkeeping. */
     protected void pageStarted(String url) {
         offeredExternalUrl = null;
+        // The tap that reached this document is spent; what the document fetches is its own doing.
+        loadRequestGesture = false;
         if (backgroundMedia != null) backgroundMedia.reset();
         failPendingEvaluations("The page navigated away");
         activeNavigation = navigationSequence.incrementAndGet();

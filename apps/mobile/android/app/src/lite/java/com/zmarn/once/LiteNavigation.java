@@ -74,7 +74,11 @@ final class LiteNavigation extends WebViewClient {
             if (request.isForMainFrame()) h.extensionPageRefused(url);
             return true;
         }
-        if (ReadingAddress.surface(url) || LiteExtensionPages.isExtensionUrl(url)) return false;
+        if (ReadingAddress.surface(url) || LiteExtensionPages.isExtensionUrl(url)) {
+            // A download listener hears nothing of the gesture; a redirect hop inherits the first request's.
+            if (request.isForMainFrame() && !request.isRedirect()) h.loadRequestGesture = request.hasGesture();
+            return false;
+        }
         // A frame may not leave for another app at all.
         if (!request.isForMainFrame()) return true;
         // A tapped link may leave for its app; a redirect or script may not

@@ -21,6 +21,8 @@ final class ReadingProgressDelegate implements GeckoSession.ProgressDelegate {
         if (h.awaitingRequestedStart && !ReadingAddress.same(h.requestedUrl, url)) return;
         h.awaitingRequestedStart = false;
         h.offeredExternalUrl = null;
+        // The tap that reached this document is spent; what the document fetches is its own doing.
+        h.loadRequestGesture = false;
         h.painted = false;
         h.documentPainted = false;
         h.repairVerified = false;
