@@ -8,7 +8,7 @@ import type { WindowSnapshot } from "./OpenTabs"
 import { sourceUrlFromReaderUrl } from "./reader-url"
 
 interface TabRestoreActions {
-  createTab(owner: WindowEntry, url: string, active: boolean, after: string | null): Promise<string>
+  createTab(owner: WindowEntry, url: string, active: boolean, after: string | null, asPage: boolean): Promise<string>
   get(id: string): TabEntry | undefined
   pageProfile(url: string): PageProfile | null
 }
@@ -42,7 +42,8 @@ export class TabRestore {
     const regenerate = readerSource !== null && !hasReaderDocument(readerSource)
     // A document still held is loaded at its served URL, whatever form the record kept.
     const url = regenerate ? "about:blank" : (readerSource && readerUrlFor(readerSource)) || record.url
-    const id = await this.actions.createTab(state, url, active, after)
+    // A tab that was page content comes back as page content, whatever its URL.
+    const id = await this.actions.createTab(state, url, active, after, !record.extensionPage)
     if (regenerate) {
       state.window.webContents.send(ELECTRON_IPC.tabsRegenerateReader, readerSource, id)
     } else {

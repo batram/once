@@ -423,11 +423,14 @@ main instead (`ReaderTtsRelay.ts`): one profile file, one reader speaking at a
 time. `readerSourceUrl` in core reads both URL forms for the shared UI.
 
 A tab a page opens by itself (`window.open`, a middle-clicked link) is page
-content whatever URL it names: it never receives an extension's session and
-API, so a link to an extension's own page loads only what the extension
-makes web-accessible. The native prompt to install a Mozilla Add-ons package
-that a download triggers follows the user's own input on the page, like a
-popup, and keeps Cancel as its default button.
+content whatever URL it names, and stays page content when it is duplicated,
+reopened or restored (its records say so): it never receives an extension's
+session and API, so a link to an extension's own page loads only what the
+extension makes web-accessible. The native prompt to install a Mozilla Add-ons
+package that a download triggers follows a trusted click on the link to that
+package, or the shell sending a tab there (`browser/DownloadGrants.ts`, spent
+once); a download a page starts by itself gets nothing, and the prompt keeps
+Cancel as its default button.
 
 The reader reads aloud on every platform (`packages/ui-web/src/reader/readerTts.ts`).
 Its segmenter is inlined into the reader document, so it stays self-contained;

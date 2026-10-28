@@ -16,6 +16,11 @@ export interface ClosedTabRecord {
   /** Position in the owner's tab strip, so a reopened tab lands back in place. */
   index: number
   history: TabHistorySnapshot | null
+  /**
+   * Whether the tab ran in an extension's session. Absent in older records,
+   * which reopen as page content: a URL alone never earns that session again.
+   */
+  extensionPage?: boolean
 }
 
 const CLOSED_TAB_LIMIT = 25
@@ -56,7 +61,8 @@ export class ClosedTabs {
       title: entry.title,
       windowId: owner.id,
       index,
-      history: entry.historySnapshot ?? null
+      history: entry.historySnapshot ?? null,
+      extensionPage: entry.extensionPage
     })
     if (this.records.length > CLOSED_TAB_LIMIT) this.records.shift()
     this.save()
@@ -107,7 +113,8 @@ export function isClosedTabRecord(value: unknown): value is ClosedTabRecord {
   const record = value as ClosedTabRecord
   if (typeof record.url !== "string" || typeof record.title !== "string"
     || !Number.isInteger(record.windowId)
-    || !Number.isInteger(record.index) || record.index < 0) return false
+    || !Number.isInteger(record.index) || record.index < 0
+    || (record.extensionPage !== undefined && typeof record.extensionPage !== "boolean")) return false
   const history = record.history
   return history === null || (typeof history === "object" && history !== null
     && Array.isArray(history.entries) && history.entries.length > 0

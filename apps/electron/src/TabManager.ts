@@ -38,7 +38,8 @@ import { isUntouchedBlank } from "./browser/ClosedTabs"
 import { profileTabStores, WindowSnapshot } from "./browser/OpenTabs"
 import { TabRestore } from "./browser/TabRestore"
 import { activeTabContentsId, createExtensionTabHooks } from "./browser/ExtensionTabHooks"
-import { parseExtensionUrl } from "@once/webext-runtime"
+import { amoSourceKind, parseExtensionUrl } from "@once/webext-runtime"
+import { DownloadGrants } from "./browser/DownloadGrants"
 import { ElectronShellHooks, PageProfile } from "./extensions/runtimeTypes"
 import { isModifiedChord } from "@once/core"
 
@@ -68,13 +69,14 @@ export class BrowserCoordinator {
   private readonly ownership: TabOwnership
   private readonly windowLifecycle: WindowLifecycle
   private readonly restore = new TabRestore({
-    createTab: (owner, url, active, after) => this.createTab(owner, url, active, after),
+    createTab: (owner, url, active, after, asPage) => this.createTab(owner, url, active, after, asPage),
     get: (id) => this.ownership.get(id),
     pageProfile: (url) => this.pageProfile(url)
   })
   readonly tabCreated = new Set<(contents: WebContents) => void>()
   private pageProfile: (url: string) => PageProfile | null = () => null
   private redirects: CompiledRedirect[] = []
+  private readonly downloadGrants = new DownloadGrants()
 
   constructor(
     private readonly createShellWindow: WindowFactory,
@@ -215,12 +217,13 @@ export class BrowserCoordinator {
     return this.ownership.getAll(state)
   }
 
-  /** Whether the user acted on a tab's page in the last few seconds (the popup blocker's clock). */
-  recentlyActivated(contents: WebContents): boolean {
-    for (const entry of this.ownership.tabs.values()) {
-      if (entry.view.webContents === contents) return this.tabEvents.recentlyActivated(entry)
-    }
-    return false
+  /** A download of this URL is the user's doing (see DownloadGrants). */
+  grantDownload(url: string): void {
+    this.downloadGrants.grant(url)
+  }
+
+  takeDownloadGrant(url: string): boolean {
+    return this.downloadGrants.take(url)
   }
 
   /** Every window's tabs and their change notices, for tab sync. */
@@ -232,18 +235,23 @@ export class BrowserCoordinator {
     this.tabEvents.showBlockedPopups(this.ownership.requireOwned(state, id), point)
   }
 
-  /** `after` anchors the new tab in the strip; by default it follows the active tab. */
+  /**
+   * `after` anchors the new tab in the strip; by default it follows the active
+   * tab. `asPage` recreates a tab that was page content (a duplicate, a
+   * reopened or restored tab) as page content again, whatever its URL.
+   */
   async createTab(
     state: WindowEntry,
     url = "about:blank",
-    active = true, after: string | null = state.activeId
+    active = true, after: string | null = state.activeId,
+    asPage = false
   ): Promise<string> {
-    return this.createTabEntry(state, url, active, after).id
+    return this.createTabEntry(state, url, active, after, undefined, asPage).id
   }
 
   private createTabEntry(
     state: WindowEntry, url: string, active: boolean, after: string | null,
-    popupOptions?: PopupWindowOptions
+    popupOptions?: PopupWindowOptions, asPage = false
   ): TabEntry {
     const normalized = this.normalizeTabUrl(url)
     // An extension page lives in that extension's session with its preload;
@@ -251,10 +259,14 @@ export class BrowserCoordinator {
     // preload registered on the session. Either preload needs the sub-frame
     // flag to reach iframes (it grants no Node access; the tab stays sandboxed).
     // A tab the page itself asked for (window.open, a middle-clicked link) is
-    // page content whatever URL it names: it never gets an extension's session
-    // and API. Firefox refuses such links; here the browser session serves the
+    // page content whatever URL it names, and stays so when it is duplicated,
+    // reopened or restored: it never gets an extension's session and API.
+    // Firefox refuses such links; here the browser session serves the
     // extension's web-accessible files and nothing else.
-    const profile = popupOptions ? null : this.pageProfile(normalized)
+    const trusted = !popupOptions && !asPage
+    const profile = trusted ? this.pageProfile(normalized) : null
+    // The shell opening a package link is the user asking for that download.
+    if (trusted && amoSourceKind(normalized) === "download") this.downloadGrants.grant(normalized)
     const view = createTabView(normalized, profile, BROWSER_SESSION_PARTITION, popupOptions)
     view.setBackgroundColor(state.backgroundColor)
 
@@ -445,7 +457,7 @@ export class BrowserCoordinator {
 
   async duplicate(state: WindowEntry, id: string): Promise<string> {
     const entry = this.ownership.requireOwned(state, id)
-    return this.createTab(state, entry.displayedUrl, true)
+    return this.createTab(state, entry.displayedUrl, true, state.activeId, !entry.extensionPage)
   }
 
   reorder(state: WindowEntry, id: string, beforeId?: string): void {
@@ -563,6 +575,8 @@ export class BrowserCoordinator {
         )
         return
       }
+      // The shell sending a tab to a package link is the user asking for that download.
+      if (amoSourceKind(normalized) === "download") this.downloadGrants.grant(normalized)
       // The readable form names the document; the served form carries its token.
       this.navigationErrors.load(entry, (readerSource && readerUrlFor(readerSource)) || normalized)
     } catch (error) {

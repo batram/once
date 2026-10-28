@@ -62,7 +62,8 @@ export class OpenTabs {
       title: tab.title,
       windowId: -1,
       index,
-      history: tab.historySnapshot ?? null
+      history: tab.historySnapshot ?? null,
+      extensionPage: tab.extensionPage
     }))
     const activeIndex = kept.findIndex(tab => tab.id === owner.activeId)
     const previous = this.windows.get(owner.id)

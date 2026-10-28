@@ -124,18 +124,25 @@ export function registerAmoHandlers({ coordinator, extensions, browserSession }:
   extensions.onInstalledChanged(() => {
     for (const tab of amoTabs(coordinator)) tab.send(ELECTRON_IPC.amoChanged)
   })
+  // A trusted click on a link to a package, reported by the tab frame
+  // preload, is the user asking for that download; the shell navigating to
+  // one is the same. Either grants the download that follows its prompt.
+  ipcMain.on(ELECTRON_IPC.amoDownloadLink, (event, href: unknown) => {
+    if (typeof href !== "string" || amoSourceKind(href) !== "download" || !coordinator.shellOf(event.sender)) return
+    coordinator.grantDownload(href)
+  })
   // An XPI from Mozilla is never saved as a file: it goes through the same
   // review. The listing page it was clicked on is the better source when
   // there is one, since that is what the settings page accepts too. Only a
-  // tab the user just acted on gets the prompt: a page that starts the
-  // download by itself, from a frame it added or a timer, gets nothing, the
-  // way the popup blocker treats a window it opens by itself.
+  // download the user asked for prompts: one a page starts by itself, from a
+  // frame it added, a timer, or after an unrelated click, finds no grant, and
+  // a grant is spent by the first download that takes it.
   browserSession.on("will-download", (event, item, contents) => {
     const url = item.getURL()
     if (amoSourceKind(url) !== "download") return
     event.preventDefault()
     const shell = coordinator.shellOf(contents)
-    if (!shell || !coordinator.recentlyActivated(contents)) return
+    if (!shell || ![url, ...item.getURLChain()].some((candidate) => coordinator.takeDownloadGrant(candidate))) return
     const page = contents.getURL()
     const source = amoSourceKind(page) === "page" ? page : url
     void installFromSource(manager, shell, source).catch((error) => {

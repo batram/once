@@ -19,14 +19,6 @@ const MAX_BLOCKED = 20
 
 export class TabPopups {
   private readonly activation = new WeakMap<TabEntry, number>()
-  /**
-   * When the page last saw native input, for what follows a click without
-   * being a popup (an extension install prompt after a download). Unlike
-   * `activation` it is neither spent by a popup nor ended by a navigation
-   * that merely starts: a clicked download link starts one and never
-   * commits, and the prompt must still count as the user's doing.
-   */
-  private readonly input = new WeakMap<TabEntry, number>()
 
   constructor(private readonly actions: PopupActions, private readonly now = () => performance.now()) {}
 
@@ -43,8 +35,6 @@ export class TabPopups {
         this.actions.notify(entry)
       }
     })
-    // A new document is not the one the user acted on.
-    contents.on("did-navigate", () => this.input.delete(entry))
     contents.setWindowOpenHandler((request) => this.open(entry, request))
   }
 
@@ -55,14 +45,7 @@ export class TabPopups {
   }
 
   private activate(entry: TabEntry): void {
-    const until = this.now() + ACTIVATION_MS
-    this.activation.set(entry, until)
-    this.input.set(entry, until)
-  }
-
-  /** Whether the page's current document saw native input within the activation window. */
-  recentlyActivated(entry: TabEntry): boolean {
-    return this.now() < (this.input.get(entry) ?? -Infinity)
+    this.activation.set(entry, this.now() + ACTIVATION_MS)
   }
 
   private open(entry: TabEntry, request: Electron.HandlerDetails): Electron.WindowOpenHandlerResponse {

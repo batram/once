@@ -1,6 +1,6 @@
 // What a web page may not get from the browser around it: an extension's own
-// pages with their API, the extension install prompt without having been
-// acted on, and another document's reader copy.
+// pages with their API, the extension install prompt for a download it
+// started itself, and another document's reader copy.
 const { test, expect, launchApp, closeApp, startPageServer } = require("./electron-harness")
 
 async function inPage(electronApp, url, script) {
@@ -23,7 +23,7 @@ async function focusPage(electronApp, url) {
     "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))")
 }
 
-/** A native click on the page, which is what the popup blocker and the install prompt count. */
+/** A native click on the page at (40, 30), which is what the popup blocker and the link report count. */
 async function clickPage(electronApp, url, button = "left") {
   await electronApp.evaluate(({ webContents }, { url, button }) => {
     const page = webContents.getAllWebContents().find(c => c.getURL() === url)
@@ -45,17 +45,40 @@ async function extensionHost(electronApp, window, name) {
   return host
 }
 
+/** Every loaded document at the URL: its session and whether `browser` is the privileged API. */
+async function describeAll(electronApp, url, host) {
+  return electronApp.evaluate(async ({ webContents, session }, { url, host }) => {
+    const extensionSession = session.fromPartition(`persist:once-ext:${host}`)
+    const found = []
+    for (const contents of webContents.getAllWebContents()) {
+      if (contents.getURL() !== url || contents.isLoading()) continue
+      found.push({
+        inExtensionSession: contents.session === extensionSession,
+        ...await contents.executeJavaScript("({ api: typeof browser, text: document.body.innerText })", true)
+      })
+    }
+    return found
+  }, { url, host })
+}
+
+const PAGE_CONTENT = { inExtensionSession: false, api: "undefined", text: "Not a web accessible resource" }
+
 // The runtime gives an extension's own pages their session and API when the
-// shell opens them. A link a page wrote must not get the same: Firefox refuses
-// such a navigation, and here the tab stays page content, which the browser
-// session answers with the extension's web-accessible files only.
-test("a middle-clicked link to an extension page opens it as page content, without the API", async () => {
+// shell opens them. A link a page wrote must not get the same, and neither
+// may the tab's later lives: Firefox refuses such a navigation, and here the
+// tab is page content, which the browser session answers with the extension's
+// web-accessible files only, when it is opened, duplicated, reopened and restored.
+test("a middle-clicked link to an extension page stays page content through duplicate, reopen and restore", async () => {
+  test.setTimeout(90_000)
   const server = await startPageServer()
-  const { electronApp, userData, window } = await launchApp()
+  const launched = await launchApp()
+  const { userData } = launched
+  let { electronApp, window } = launched
   try {
     const host = await extensionHost(electronApp, window, "uBlock Origin")
     const source = `${server.origin}/one`
     const target = `moz-extension://${host}/dashboard.html`
+    const tabsAt = async () => (await window.evaluate(() => window.onceElectron.tabs.getAll())).filter(tab => tab.url === target)
     await window.evaluate(url => window.onceElectron.tabs.create(url, true), source)
     await waitForPage(electronApp, source)
     await inPage(electronApp, source, `document.body.innerHTML =
@@ -63,31 +86,38 @@ test("a middle-clicked link to an extension page opens it as page content, witho
       'href=${JSON.stringify(target)}>Sample</a>'; void 0`)
     await focusPage(electronApp, source)
     await clickPage(electronApp, source, "middle")
-    await expect.poll(() => window.evaluate(async () =>
-      (await window.onceElectron.tabs.getAll()).map(tab => tab.url)
-    )).toContain(target)
-    await expect.poll(() => electronApp.evaluate(({ webContents }, target) =>
-      webContents.getAllWebContents().some(c => c.getURL() === target && !c.isLoading()), target)).toBe(true)
-    const opened = await electronApp.evaluate(async ({ webContents, session }, { target, host }) => {
-      const contents = webContents.getAllWebContents().find(c => c.getURL() === target)
-      return {
-        inExtensionSession: contents.session === session.fromPartition(`persist:once-ext:${host}`),
-        ...await contents.executeJavaScript("({ api: typeof browser, text: document.body.innerText })", true)
-      }
-    }, { target, host })
-    expect(opened).toEqual({ inExtensionSession: false, api: "undefined", text: "Not a web accessible resource" })
+    await expect.poll(() => describeAll(electronApp, target, host)).toEqual([PAGE_CONTENT])
+
+    // Duplicated: a fresh tab from the same URL.
+    const [opened] = await tabsAt()
+    await window.evaluate(id => window.onceElectron.tabs.duplicate(id), opened.id)
+    await expect.poll(() => describeAll(electronApp, target, host)).toEqual([PAGE_CONTENT, PAGE_CONTENT])
+
+    // Closed and reopened from the closed-tab stack.
+    const [, duplicate] = await tabsAt()
+    await window.evaluate(id => window.onceElectron.tabs.close(id), duplicate.id)
+    await expect.poll(() => describeAll(electronApp, target, host)).toEqual([PAGE_CONTENT])
+    await window.evaluate(() => window.onceElectron.tabs.restoreClosed())
+    await expect.poll(() => describeAll(electronApp, target, host)).toEqual([PAGE_CONTENT, PAGE_CONTENT])
+
+    // Restored with the window after a restart, if the records bring it back at all.
+    await closeApp(electronApp, userData, { keepUserData: true })
+    ;({ electronApp, window } = await launchApp({ userData, restored: true }))
+    await extensionHost(electronApp, window, "uBlock Origin")
+    await expect.poll(() => tabsAt(), { timeout: 15_000 }).toBeDefined()
+    for (const document of await describeAll(electronApp, target, host)) expect(document).toEqual(PAGE_CONTENT)
   } finally {
     await closeApp(electronApp, userData)
     await server.close()
   }
 })
 
-// A download of a Mozilla Add-ons package prompts to install it. The prompt
-// must follow the user's own input on the page: a download the page starts by
-// itself gets nothing, and the one that follows a click keeps Cancel as the
-// default button so a baited keypress cannot confirm it.
-test("the extension install prompt needs the user's input and defaults to Cancel", async () => {
-  test.setTimeout(120_000)
+// A download of a Mozilla Add-ons package prompts to install it, but only when
+// the user asked for that download: a click on the link to it. A download the
+// page starts by itself, even right after an unrelated click, gets nothing; the
+// prompt that does follow keeps Cancel as its default button.
+test("the extension install prompt follows a clicked package link, not a page's own download", async () => {
+  test.setTimeout(150_000)
   let fileUrl = null
   try {
     const listing = await (await fetch("https://addons.mozilla.org/api/v5/addons/addon/privacy-badger17/",
@@ -111,15 +141,25 @@ test("the extension install prompt needs the user's input and defaults to Cancel
     const download = fileUrl ?? "https://addons.mozilla.org/firefox/downloads/file/1/unreachable.xpi"
     await window.evaluate(url => window.onceElectron.tabs.create(url, true), source)
     await waitForPage(electronApp, source)
-    // Started by the page itself, in a frame it added: no input, no prompt.
-    await inPage(electronApp, source, `document.body.innerHTML = '<iframe src=${JSON.stringify(download)}></iframe>'; void 0`)
-    await new Promise(resolve => setTimeout(resolve, 6_000))
-    expect(await prompts()).toEqual([])
-    test.skip(!fileUrl, "Mozilla Add-ons unreachable; the prompt after a click is not checked")
-
+    // Started by the page itself, in a frame it added, right after an unrelated click.
+    await inPage(electronApp, source, "document.body.innerHTML = '<p style=\"position:fixed;left:0;top:0;width:200px;height:80px\">Nothing to click here</p>'; void 0")
     await focusPage(electronApp, source)
     await clickPage(electronApp, source)
+    await inPage(electronApp, source, `document.body.insertAdjacentHTML("beforeend", '<iframe src=${JSON.stringify(download)}></iframe>'); void 0`)
+    await new Promise(resolve => setTimeout(resolve, 6_000))
+    expect(await prompts()).toEqual([])
+    // Or by sending the tab there from script after that click.
+    await clickPage(electronApp, source)
     await inPage(electronApp, source, `location.href = ${JSON.stringify(download)}; void 0`)
+    await new Promise(resolve => setTimeout(resolve, 6_000))
+    expect(await prompts()).toEqual([])
+    test.skip(!fileUrl, "Mozilla Add-ons unreachable; the prompt after a clicked link is not checked")
+
+    // The user's own click on the link to the package.
+    await inPage(electronApp, source, `document.body.innerHTML =
+      '<a id="package" style="position:fixed;left:0;top:0;width:200px;height:80px" href=${JSON.stringify(download)}>Add</a>'; void 0`)
+    await focusPage(electronApp, source)
+    await clickPage(electronApp, source)
     await expect.poll(() => prompts(), { timeout: 90_000 }).toHaveLength(1)
     const [prompt] = await prompts()
     expect(prompt.error).toBeUndefined()

@@ -550,6 +550,8 @@ export const ELECTRON_IPC = {
   // manager through these, and hears about changes made elsewhere in Once.
   amoManage: "once:amo:manage",
   amoChanged: "once:amo:changed",
+  /** Tab frame → main: a trusted click on a link to a Mozilla Add-ons package. */
+  amoDownloadLink: "once:amo:download-link",
   addonsDevList: "once:addons:dev-list",
   addonsDevChanged: "once:addons:dev-changed",
   addonsPickDirectory: "once:addons:pick-directory",

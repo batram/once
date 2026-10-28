@@ -29,6 +29,25 @@ function badgeCss(): string {
   ].join("")
 }
 
+/**
+ * Called from the tab frame preload in every frame: a trusted click on a link
+ * to a Mozilla Add-ons package is the user asking for that download, which is
+ * what lets the download that follows prompt to install (AmoHandlers.ts).
+ * Nothing a page dispatches itself counts.
+ */
+export function reportDownloadLinks(): void {
+  const report = (event: MouseEvent): void => {
+    if (!event.isTrusted) return
+    const link = event.composedPath().find((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement)
+    const href = link?.href ?? ""
+    if (/^https:\/\/(addons\.mozilla\.org|addons\.cdn\.mozilla\.net)\//i.test(href)) {
+      ipcRenderer.send(ELECTRON_IPC.amoDownloadLink, href)
+    }
+  }
+  window.addEventListener("click", report, true)
+  window.addEventListener("auxclick", report, true)
+}
+
 /** Called from the tab frame preload; does nothing outside AMO's top frame. */
 export function installAmoBridge(): void {
   if (!process.isMainFrame || location.origin !== AMO_ORIGIN) return

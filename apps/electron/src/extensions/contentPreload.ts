@@ -9,7 +9,7 @@ import "../imageTextPreload"
 // the page API in its main world and nothing else.
 
 import { contextBridge, ipcRenderer, webFrame } from "electron"
-import { installAmoBridge } from "./amoBridge"
+import { installAmoBridge, reportDownloadLinks } from "./amoBridge"
 import {
   ADOPT_BRIDGE_SOURCE,
   BRIDGE_STAGING_KEY,
@@ -242,8 +242,10 @@ function createWorld(init: ContentFrameInit): ContentWorld {
   return world
 }
 
-// The Add-ons site's install button, independent of any extension's scripts.
+// The Add-ons site's install button, independent of any extension's scripts,
+// and the user's own clicks on links to its packages.
 installAmoBridge()
+reportDownloadLinks()
 
 // PDF responses keep their HTTP URL but use Chromium's native viewer. The MIME
 // type is available before <html>, so main can exclude them at document_start.
