@@ -388,13 +388,16 @@ async function openAiRow(selector, opened) {
 // The AI add-on uses the central AI settings: a connection whose token is kept
 // in this device's secret store, and the default model on that connection.
 async function configureCentralAi(baseUrl, platform) {
+  // iOS can retain AI connections in the Keychain between installs. A plain
+  // "Fixture AI" lookup may select an earlier run's now-closed server port.
+  const connectionName = `Fixture AI (${new URL(baseUrl).host})`
   for (let level = 0; level < 5 && !(await $("[data-settings-target='ai']").isDisplayed()); level++) {
     await clickWeb(await $("#settings_section_back"), platform)
   }
   await clickWeb(await $("[data-settings-target='ai']"), platform)
   const editor = "#ai_settings .ai_editor:not([hidden])"
   await openAiRow("#ai_settings .ai_add_row[data-ai-focus-key='Add connection']", `${editor} [data-testid='ai-connection-name']`)
-  await setWebValue(await $(`${editor} [data-testid='ai-connection-name']`), "Fixture AI")
+  await setWebValue(await $(`${editor} [data-testid='ai-connection-name']`), connectionName)
   // The provider's change handler clears the endpoint, so it goes first.
   await setWebValue(await $(`${editor} [data-testid='ai-connection-provider']`), "compatible")
   await setWebValue(await $(`${editor} [data-testid='ai-connection-endpoint']`), `${baseUrl}/ai-addon/v1/chat/completions`)
@@ -402,22 +405,32 @@ async function configureCentralAi(baseUrl, platform) {
   await clickWeb(await $(`${editor} [data-testid='ai-editor-save']`), platform)
   // The model picker lists the connections it opens with, so it waits for the
   // saved connection's row, which also says the token is kept on the device.
-  await $("#ai_settings .settings_link_row[aria-label='Fixture AI: Compatible server · Token set']").waitForDisplayed({ timeout: 10_000 })
+  await $(`#ai_settings .settings_link_row[aria-label='${connectionName}: Compatible server · Token set']`).waitForDisplayed({ timeout: 10_000 })
   await openAiRow("#ai_settings .settings_link_row[data-ai-focus-key='Default model']", `${editor} [data-testid='ai-model-connection']`)
   // Choosing the connection clears the model field, so the model follows it.
   const connection = await $(`${editor} [data-testid='ai-model-connection']`)
-  const connectionId = await browser.execute(select =>
-    Array.from(select.options).find(option => option.textContent === "Fixture AI")?.value ?? "", connection)
+  const connectionId = await browser.execute((select, name) =>
+    Array.from(select.options).find(option => option.textContent === name)?.value ?? "", connection, connectionName)
   expect(connectionId).not.toBe("")
   await setWebValue(connection, connectionId)
   await setWebValue(await $(`${editor} [data-testid='ai-model-id']`), "fixture")
   await clickWeb(await $(`${editor} [data-testid='ai-editor-save']`), platform)
-  await browser.waitUntil(async () => browser.execute(() =>
+  await browser.waitUntil(async () => browser.execute(name =>
     document.querySelector("#ai_settings .settings_link_row[data-ai-focus-key='Default model']")
-      ?.getAttribute("aria-label") === "Default model: Fixture AI · fixture"), {
+      ?.getAttribute("aria-label") === `Default model: ${name} · fixture`, connectionName), {
     timeout: 10_000,
     timeoutMsg: "The default AI model was not saved"
   })
+}
+
+async function waitForAiTrayText(text) {
+  let failure = ""
+  await browser.waitUntil(async () => {
+    failure = await browser.execute(() => document.querySelector(".addon_tray_status--error")?.textContent ?? "")
+    if (failure) return true
+    return (await $(".addon_tray").getText()).includes(text)
+  }, { timeout: 30_000, timeoutMsg: `The AI add-on did not show: ${text}` })
+  if (failure) throw new Error(`AI add-on failed: ${failure}`)
 }
 
 async function runAiAddon(baseUrl, platform) {
@@ -435,8 +448,8 @@ async function runAiAddon(baseUrl, platform) {
   const button = await $("[data-addon-tray-button='addon:what-wait-who-why/assistant']")
   expect(await button.isDisplayed()).toBe(false)
   await storyMenuAction(await $("[data-testid='story']"), "addon:what-wait-who-why/explain", platform)
-  await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("ExampleApp is software"), { timeout: 30000 })
+  await waitForAiTrayText("ExampleApp is software")
   await browser.waitUntil(async () => browser.execute(() => Array.from(document.querySelectorAll(".addon_tray summary")).some(fold => fold.textContent === "Summary")), { timeout: 30000 })
   await browser.execute(() => Array.from(document.querySelectorAll(".addon_tray summary")).find(fold => fold.textContent === "Summary").click())
-  await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("Its qualifications are preserved"), { timeout: 30000 })
+  await waitForAiTrayText("Its qualifications are preserved")
 }

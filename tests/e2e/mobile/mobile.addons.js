@@ -64,6 +64,7 @@ describe("Native AI addon", () => {
   it("extracts an article and sends authenticated explanation and summary requests through native HTTP", async () => {
     const platform = String(browser.capabilities.platformName).toLowerCase()
     const baseUrl = process.env.ONCE_MOBILE_TEST_URL || `http://${platform === "android" ? "10.0.2.2" : "127.0.0.1"}:${process.env.ONCE_MOBILE_TEST_PORT}`
+    const connectionName = `Fixture AI (${new URL(baseUrl).host})`
     await browser.waitUntil(async () => {
       const contexts = (await browser.getContexts()).map(context => typeof context === "string" ? context : context.id)
       const webview = contexts.find(context => context.includes(platform === "android" ? `WEBVIEW_${androidPackage}` : "WEBVIEW"))
@@ -86,16 +87,18 @@ describe("Native AI addon", () => {
     for (let level = 0; level < 5 && !(await $("[data-settings-target='ai']").isDisplayed()); level++) await click("#settings_section_back")
     await click("[data-settings-target='ai']")
     await browser.execute(() => [...document.querySelectorAll("#ai_settings button")].find(button => button.textContent === "Add connection").click())
-    await fill("[data-testid='ai-connection-name']", "Fixture AI")
+    await fill("[data-testid='ai-connection-name']", connectionName)
     await fill("[data-testid='ai-connection-provider']", "compatible")
     await fill("[data-testid='ai-connection-endpoint']", `${baseUrl}/ai-addon/v1/chat/completions`)
     await fill("[data-testid='ai-connection-token']", "fixture-token")
     await click("[data-testid='ai-editor-save']")
+    await $(`#ai_settings button[aria-label='${connectionName}: Compatible server · Token set']`).waitForDisplayed({ timeout: 10000 })
     await browser.execute(() => document.querySelector('#ai_settings button[aria-label^="Default model:"]').click())
-    const connectionId = await browser.execute(() => [...document.querySelector('[data-testid="ai-model-connection"]').options].find(option => option.textContent === "Fixture AI").value)
+    const connectionId = await browser.execute(name => [...document.querySelector('[data-testid="ai-model-connection"]').options].find(option => option.textContent === name).value, connectionName)
     await fill("[data-testid='ai-model-connection']", connectionId)
     await fill("[data-testid='ai-model-id']", "fixture")
     await click("[data-testid='ai-editor-save']")
+    await $(`#ai_settings button[aria-label='Default model: ${connectionName} · fixture']`).waitForDisplayed({ timeout: 10000 })
     await click("[data-testid='stories-menu']")
     await click("[data-testid='reload-stories']")
     await $("[data-testid='story']").waitForDisplayed({ timeout: 30000 })
