@@ -75,3 +75,46 @@ test("a relaunch restores each window with its own tabs, then reopens tabs close
     await closeApp(electronApp, userData)
   }
 })
+
+// A reader document lives in main's memory, so the next start cannot serve it
+// again: the restored tab must fetch and rebuild the article on its own.
+test("a relaunch brings a reader tab back with its article regenerated", async () => {
+  test.setTimeout(120_000)
+  const launch = (options = {}) => launchApp({ ...options, env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
+  const launched = await launch()
+  const { userData } = launched
+  let { electronApp, window } = launched
+  const tabsOf = () => window.evaluate(async () =>
+    (await window.onceElectron.tabs.getAll()).map((tab) => ({
+      url: tab.url, title: tab.title, active: tab.active, loadError: tab.loadError
+    })))
+  try {
+    const address = window.locator("#urlfield")
+    await address.fill(`once-reader://${origin}/article`)
+    await address.press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Regenerated Article")
+    // A plain page beside it, so the reader tab is not the only one restored.
+    await window.evaluate((url) => window.onceElectron.tabs.create(url, false), `${origin}/first-a`)
+    await expect.poll(tabsOf).toEqual([
+      { url: expect.stringMatching(/^once-reader:\/\/[a-f0-9]{32}\//), title: "Regenerated Article", active: true, loadError: null },
+      { url: `${origin}/first-a`, title: "First-a", active: false, loadError: null }
+    ])
+    await closeApp(electronApp, userData, { keepUserData: true })
+
+    ;({ electronApp, window } = await launch({ userData, restored: true }))
+    await expect.poll(tabsOf, { timeout: 30_000 }).toEqual([
+      { url: expect.stringMatching(/^once-reader:\/\/[a-f0-9]{32}\//), title: "Regenerated Article", active: true, loadError: null },
+      { url: `${origin}/first-a`, title: "First-a", active: false, loadError: null }
+    ])
+    await expect(window.locator("#urlfield")).toHaveValue(`once-reader://${origin}/article`)
+    await expect(window.locator("#url_error")).toBeHidden()
+    // The served document is really there, not just a tab that names it.
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+      const contents = webContents.getAllWebContents()
+        .find((candidate) => candidate.getURL().startsWith("once-reader://") && candidate.getURL().endsWith("/article"))
+      return contents ? contents.executeJavaScript("document.querySelector('h1')?.textContent ?? null") : null
+    })).toBe("Regenerated Article")
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
