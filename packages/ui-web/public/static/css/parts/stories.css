@@ -394,6 +394,21 @@ story-item.story:focus {
   font-size: var(--source-badge-font-size);
 }
 
+/* A local search that matched the URL shows it whole, the match marked. */
+.story .search_url {
+  padding-top: var(--sp-0-5);
+  overflow-wrap: anywhere;
+  color: var(--text-color);
+  font-size: var(--source-badge-font-size);
+}
+
+.story .search_url mark {
+  border-radius: var(--radius-sm);
+  padding: 0;
+  background: var(--highlight-bg-color, #ffe66d);
+  color: var(--highlight-color, #111);
+}
+
 .story .data {
   width: 100%;
   color: var(--text-color);

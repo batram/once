@@ -8,6 +8,7 @@ import { getKeyboardDispatcher } from "../keyboard"
 import { requireElement } from "../dom"
 import { searchableStoryElements } from "./storySearchScope"
 import { adoptStoredStoryState } from "./storySearchState"
+import { showUrlMatch } from "./storyUrlMatch"
 
 export function init(): void {
   const searchfield =
@@ -194,6 +195,7 @@ export async function searchStories(needle: string): Promise<void> {
   }
 
   if (Object.prototype.hasOwnProperty.call(specialk, needle)) {
+    clearUrlMatches()
     specialk[needle]()
     return
   }
@@ -211,6 +213,7 @@ export async function searchStories(needle: string): Promise<void> {
         global_search_results.innerHTML = ""
       }
 
+      clearUrlMatches()
       extra_search_providers[proto].func(needle)
       return
     }
@@ -239,6 +242,13 @@ export async function searchStories(needle: string): Promise<void> {
   }
 
   local_search(needle)
+}
+
+/** A search that does not match text leaves no URL lines behind. */
+function clearUrlMatches(): void {
+  searchableStoryElements<StoryListItem>(requireElement("#stories")).forEach(
+    (story_el) => showUrlMatch(story_el, "")
+  )
 }
 
 async function local_search(needle: string) {
@@ -282,6 +292,7 @@ async function local_search(needle: string) {
       } else {
         story_el.classList.add("nomatch")
       }
+      showUrlMatch(story_el, needle)
     }
   )
 

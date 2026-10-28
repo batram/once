@@ -21,6 +21,7 @@ import {
   createIconButton
 } from "./storyRowMarkup"
 import { renderSubstories } from "./storyRowSubstories"
+import { showUrlMatch } from "./storyUrlMatch"
 import { attachStorySwipe, SwipePreview } from "./swipe/gesture"
 import { clearRowOffset, springRowHome } from "./swipe/track"
 import { storyRowFingerprint } from "./storyRowFingerprint"
@@ -94,6 +95,7 @@ export class StoryListItem extends HTMLElement {
     data.appendChild(this.substories_el)
 
     this.appendChild(data)
+    showUrlMatch(this)
 
     this.button_group = document.createElement("div")
     this.button_group.classList.add("button_group")

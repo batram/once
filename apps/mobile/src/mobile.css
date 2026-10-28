@@ -346,6 +346,7 @@
 
   .story .hostname,
   .story .og_href,
+  .story .search_url,
   .story .comment_url {
     font-size: var(--fs-meta);
     font-family: var(--m-mono);
