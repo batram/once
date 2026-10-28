@@ -417,7 +417,10 @@ that nothing without the token can load, under a Content Security Policy that
 allows only the runtime and the article's pictures and media and lets no page
 frame it; the readable `once-reader://<source URL>` form is what the address
 bar shows and accepts, never what is served (`ReaderProtocol.ts`,
-`browser/reader-url.ts`).
+`browser/reader-url.ts`). What the documents used to share through one origin,
+the chosen voice and speeds and which reader is reading aloud, goes through
+main instead (`ReaderTtsRelay.ts`): one profile file, one reader speaking at a
+time. `readerSourceUrl` in core reads both URL forms for the shared UI.
 
 A tab a page opens by itself (`window.open`, a middle-clicked link) is page
 content whatever URL it names: it never receives an extension's session and

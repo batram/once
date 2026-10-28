@@ -1,4 +1,5 @@
 import { registerReaderAiRelay } from "./ReaderAiRelay"
+import { registerReaderTtsRelay } from "./ReaderTtsRelay"
 import { registerTextRecognition } from "./browser/NativeTextRecognition"
 import {
   app,
@@ -582,6 +583,7 @@ export function registerIpcHandlers(
   options: IpcHandlerOptions
 ): void {
   registerReaderAiRelay(options.coordinator)
+  registerReaderTtsRelay()
   registerAppHandlers(options)
   registerExtensionHandlers(options)
   registerAddonConversationHandlers(options)

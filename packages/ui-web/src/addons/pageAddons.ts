@@ -1,4 +1,4 @@
-import { AddonCondition, StoryView, URLRedirect, projectStoryView, sameStoryDocument } from "@once/core"
+import { AddonCondition, StoryView, URLRedirect, projectStoryView, readerSourceUrl, sameStoryDocument } from "@once/core"
 import type { StoryListItem } from "../story/StoryListItem"
 
 /**
@@ -69,10 +69,10 @@ export function canChooseConversationPlacement(): boolean { return placementAvai
 
 /** Reader wrappers keep the identity of their source article. */
 export function pageSourceUrl(href: string): string {
+  const reader = readerSourceUrl(href)
+  if (reader) return reader
   try {
-    const url = new URL(href)
-    if (url.protocol === "once-reader:" && ["http", "https"].includes(url.hostname)) return new URL(`${url.hostname}:${url.pathname}${url.search}${url.hash}`).href
-    if (href.startsWith("about:reader?")) return url.searchParams.get("url") || href
+    if (href.startsWith("about:reader?")) return new URL(href).searchParams.get("url") || href
   } catch { /* A loading or empty tab has no article identity. */ }
   return href
 }

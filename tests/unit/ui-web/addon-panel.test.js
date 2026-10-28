@@ -48,6 +48,12 @@ test("navigation keeps the subject and explicitly invokes the same tray for the 
     assert.equal(document.querySelector(".addon_panel_context button").textContent,"Open article")
     await h.navigate("once-reader://https/example.test/a")
     assert.equal(document.querySelectorAll(".addon_panel_context button").length,0)
+    // The served reader URL, a token host and the source as its path, names the same article.
+    const token="0123456789abcdef0123456789abcdef"
+    await h.navigate(`once-reader://${token}/https://example.test/a`)
+    assert.equal(document.querySelectorAll(".addon_panel_context button").length,0)
+    await h.navigate(`once-reader://${token}/https://example.test/b`)
+    assert.ok(Array.from(document.querySelectorAll(".addon_panel_context button")).some(button=>button.textContent === "Use current page"))
   } finally {release()}
 })
 

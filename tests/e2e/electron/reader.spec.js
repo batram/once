@@ -263,20 +263,22 @@ test("regenerates a missing reader document from its source URL", async () => {
 })
 
 test("reader speech remembers the chosen voice and a speed per voice", async () => {
-  const { electronApp, userData, window } = await launchApp({
-    env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" }
-  })
-  const inReader = (script) => electronApp.evaluate(async ({ webContents }, source) => {
+  const launch = (options = {}) => launchApp({ ...options, env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
+  const launched = await launch()
+  const { userData } = launched
+  let { electronApp, window } = launched
+  // One article's reader document; every article is an origin of its own.
+  const inReader = (script, page = "/article") => electronApp.evaluate(async ({ webContents }, { source, page }) => {
     const contents = webContents
       .getAllWebContents()
-      .find((candidate) => candidate.getURL().startsWith("once-reader://"))
+      .find((candidate) => candidate.getURL().startsWith("once-reader://") && candidate.getURL().endsWith(page))
     if (!contents) return null
     return contents.executeJavaScript(source)
-  }, script)
-  const controls = () => inReader(`document.documentElement.dataset.onceTtsInstalled === "true" && ({
+  }, { source: script, page })
+  const controls = (page) => inReader(`document.documentElement.dataset.onceTtsInstalled === "true" && ({
     voice: document.querySelector("[data-tts-voice]").value,
     rate: document.querySelector("[data-tts-rate]").value
-  })`)
+  })`, page)
   const choose = (selector, value) => inReader(`(() => {
     const control = document.querySelector(${JSON.stringify(selector)});
     control.value = ${JSON.stringify(value)};
@@ -301,6 +303,18 @@ test("reader speech remembers the chosen voice and a speed per voice", async () 
 
     await inReader("location.reload()")
     await expect.poll(controls).toEqual({ voice: "once-wafli-slt", rate: "1.5" })
+
+    // Another article is another origin; the settings are the device's, not the origin's.
+    await address.fill(`once-reader://${origin}/article.xhtml`)
+    await address.press("Enter")
+    await expect.poll(() => controls("/article.xhtml")).toEqual({ voice: "once-wafli-slt", rate: "1.5" })
+
+    // They also outlive the app, whose next start gives every document a new token.
+    await closeApp(electronApp, userData, { keepUserData: true })
+    ;({ electronApp, window } = await launch({ userData, restored: true }))
+    await window.locator("#urlfield").fill(`once-reader://${origin}/article`)
+    await window.locator("#urlfield").press("Enter")
+    await expect.poll(() => controls(), { timeout: 15_000 }).toEqual({ voice: "once-wafli-slt", rate: "1.5" })
   } finally {
     await closeApp(electronApp, userData)
   }
