@@ -80,6 +80,9 @@ extension InAppBrowserSurfacePlugin {
             mediaDocumentLoaded(webView, navigation: navigation)
             return
         }
+        // Cancelling a redirect to an app link ends that navigation with
+        // "Frame load interrupted"; the offer already made stands.
+        if navigationState.offeredExternalURL != nil, (error as NSError).code == 102 { return }
         guard let value = navigationState.failed(navigation, url: webView.url, error: error) else { return }
         finishRefresh()
         pageEvent("navigationFailed", data: value)
@@ -173,14 +176,31 @@ extension InAppBrowserSurfacePlugin {
     /// A tapped link may leave for its app (tel:, mailto:, an installed app's
     /// scheme); a redirect, a script or a frame may not without asking, and
     /// must not leave a loading page blank. Safari asks before leaving too.
-    /// WebKit reports no user gesture, so a link activation stands in for one.
+    /// WebKit reports a scripted click as a link activation too, so a link
+    /// counts as tapped only while a finger was just on the screen; anything
+    /// else on a page that has settled asks first, as Safari does.
     func leaveForApp(_ url: URL, _ navigationAction: WKNavigationAction) {
         guard navigationAction.targetFrame?.isMainFrame != false else { return }
-        if navigationAction.navigationType == .linkActivated {
+        if navigationAction.navigationType == .linkActivated, LastTouchRecorder.recentlyTouched {
             UIApplication.shared.open(url)
         } else if navigationState.isSettling {
             offerExternal(url)
+        } else {
+            confirmLeaving(for: url)
         }
+    }
+
+    /// One question per document: a page that keeps asking is answered once.
+    private func confirmLeaving(for url: URL) {
+        guard let host = bridge?.viewController, host.presentedViewController == nil,
+              navigationState.mayAskToLeave else { return }
+        navigationState.askedToLeave()
+        let app = url.scheme.map { "a \($0): link" } ?? "a link"
+        let alert = UIAlertController(title: "Open in another app?",
+                                      message: "This page wants to open \(app):\n\(url.absoluteString)", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Open", style: .default) { _ in UIApplication.shared.open(url) })
+        host.present(alert, animated: true)
     }
 
     /// Opens the app link the page redirected to (see navigationFailed's externalUrl).

@@ -384,11 +384,19 @@ private extension UIColor {
     }
 }
 
-/// Remembers where the user last touched the window, so a menu that has no
-/// element to open from (the device picker after a sheet row) opens there.
+/// Remembers where and when the user last touched the window, so a menu that
+/// has no element to open from (the device picker after a sheet row) opens
+/// there, and so a page's link activation can be told from a scripted click.
 final class LastTouchRecorder: UIGestureRecognizer {
     /// In window coordinates.
     private(set) static var location: CGPoint?
+    private static var touchedAt: Date?
+
+    /// A finger was on the screen within the last moment: the transient user
+    /// activation a page needs before it may hand the reader to another app.
+    static var recentlyTouched: Bool {
+        touchedAt.map { Date().timeIntervalSince($0) < 1.5 } ?? false
+    }
 
     static func install(on window: UIWindow) {
         guard !(window.gestureRecognizers ?? []).contains(where: { $0 is LastTouchRecorder }) else { return }
@@ -400,9 +408,18 @@ final class LastTouchRecorder: UIGestureRecognizer {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         if let touch = touches.first { Self.location = touch.location(in: nil) }
+        Self.touchedAt = Date()
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) { Self.touchedAt = Date() }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        Self.touchedAt = Date()
         // Only watches: never recognizes, so every other gesture runs as before.
         state = .failed
     }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { state = .failed }
 }
 
 /// The shell's short menus (send to which device, a tab card's actions) as a

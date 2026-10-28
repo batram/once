@@ -18,6 +18,7 @@ final class BrowserNavigationState {
     /// The app link the page sent the reader to instead of a document, held
     /// for the shell's "open in app" offer (see navigationFailed's externalUrl).
     private(set) var offeredExternalURL: URL?
+    private var askedToLeaveDocument = false
 
     func load(_ url: URL, in view: WKWebView) {
         if let navigation = view.load(URLRequest(url: url)) {
@@ -36,6 +37,7 @@ final class BrowserNavigationState {
         phase = .started
         failure = nil
         offeredExternalURL = nil
+        askedToLeaveDocument = false
         statusCode = nil
         failedURL = nil
         let requested = navigation.flatMap { requestedURLs.removeValue(forKey: ObjectIdentifier($0)) } ?? url
@@ -56,6 +58,10 @@ final class BrowserNavigationState {
         phase = .finished
         finishedAt = Date()
     }
+
+    /// Whether the document may still put "open in another app?" to the user.
+    var mayAskToLeave: Bool { !askedToLeaveDocument }
+    func askedToLeave() { askedToLeaveDocument = true }
 
     /// Still arriving, or a redirect stub: WebKit finishes a document that
     /// only scripts `location = …` before it decides that navigation.
