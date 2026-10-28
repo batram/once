@@ -173,21 +173,37 @@ extension InAppBrowserSurfacePlugin {
         }
     }
 
-    /// A tapped link may leave for its app (tel:, mailto:, an installed app's
-    /// scheme); a redirect, a script or a frame may not without asking, and
-    /// must not leave a loading page blank. Safari asks before leaving too.
-    /// WebKit reports a scripted click as a link activation too, so a link
-    /// counts as tapped only while a finger was just on the screen; anything
-    /// else on a page that has settled asks first, as Safari does.
+    /// Trusted app-link clicks are handled by ExternalLinkHandler. WebKit's
+    /// navigation type cannot distinguish a tap from anchor.click(), so all
+    /// remaining navigations need an offer or confirmation.
     func leaveForApp(_ url: URL, _ navigationAction: WKNavigationAction) {
         guard navigationAction.targetFrame?.isMainFrame != false else { return }
-        if navigationAction.navigationType == .linkActivated, LastTouchRecorder.recentlyTouched {
-            UIApplication.shared.open(url)
-        } else if navigationState.isSettling {
+        if navigationState.isSettling {
             offerExternal(url)
         } else {
             confirmLeaving(for: url)
         }
+    }
+
+    func installExternalLinkHandler(_ controller: WKUserContentController) {
+        let script = ExternalLinkHandler.script
+        if !controller.userScripts.contains(where: { $0 === script }) { controller.addUserScript(script) }
+        // A popup shares its opener's controller; route its messages by web view.
+        guard !ExternalLinkHandler.controllers.contains(controller) else { return }
+        ExternalLinkHandler.controllers.add(controller)
+        controller.add(ExternalLinkHandler(owner ?? self), contentWorld: ExternalLinkHandler.world, name: "onceExternalLink")
+    }
+
+    func openTappedExternalLink(_ message: WKScriptMessage) {
+        guard message.frameInfo.isMainFrame,
+              let view = message.webView,
+              ([self] + Array(tabs.values)).contains(where: { $0.surface === view }),
+              !view.isHidden, view.window?.isKeyWindow == true,
+              UIApplication.shared.applicationState == .active,
+              bridge?.viewController?.presentedViewController == nil,
+              let raw = message.body as? String, let url = URL(string: raw),
+              ExternalLinkHandler.isAppURL(url) else { return }
+        UIApplication.shared.open(url)
     }
 
     /// One question per document: a page that keeps asking is answered once.
@@ -243,5 +259,41 @@ extension InAppBrowserSurfacePlugin {
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         if webView === surface { resetMedia() }
         webView.reload()
+    }
+}
+
+/// Only this isolated world's trusted click listener can request a direct
+/// handoff. No timestamp or activation token is left for page scripts to reuse.
+final class ExternalLinkHandler: NSObject, WKScriptMessageHandler {
+    static let world = WKContentWorld.world(name: "OnceExternalLinks")
+    static let controllers = NSHashTable<WKUserContentController>.weakObjects()
+    static let source = """
+    (() => {
+      window.addEventListener('click', event => {
+        if (!event.isTrusted || event.defaultPrevented || event.button !== 0) return;
+        const link = event.composedPath().find(node => node instanceof HTMLAnchorElement && node.hasAttribute('href'));
+        if (!link) return;
+        const target = (link.target || document.querySelector('base[target]')?.target || '').toLowerCase();
+        if (!['', '_self', '_top', '_parent', '_blank'].includes(target)) return;
+        const url = new URL(link.href, document.baseURI);
+        if (['http:', 'https:', 'about:', 'webkit-extension:', 'javascript:', 'blob:', 'data:', 'file:'].includes(url.protocol)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        window.webkit.messageHandlers.onceExternalLink.postMessage(url.href);
+      }, true);
+    })();
+    """
+    static let script = WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: world)
+
+    static func isAppURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased() else { return false }
+        return !["http", "https", "about", "webkit-extension", "javascript", "blob", "data", "file"].contains(scheme)
+    }
+
+    private weak var root: InAppBrowserSurfacePlugin?
+    init(_ root: InAppBrowserSurfacePlugin) { self.root = root }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        root?.openTappedExternalLink(message)
     }
 }
