@@ -9,6 +9,8 @@ import { sourceUrlFromReaderUrl } from "./reader-url"
 
 interface TabRestoreActions {
   createTab(owner: WindowEntry, url: string, active: boolean, after: string | null, asPage: boolean): Promise<string>
+  createWindow(session: WindowSnapshot): Promise<unknown>
+  createBlank(owner: WindowEntry): Promise<unknown>
   get(id: string): TabEntry | undefined
   pageProfile(url: string): PageProfile | null
 }
@@ -16,6 +18,31 @@ interface TabRestoreActions {
 /** Opens tabs again from saved records: a closed tab, or a whole window of the previous session. */
 export class TabRestore {
   constructor(private readonly actions: TabRestoreActions) {}
+
+  /** Restore saved windows once extension profiles are available. */
+  async restoreWindows(snapshots: WindowSnapshot[], initial: WindowEntry | undefined): Promise<boolean> {
+    let restored = false
+    for (const snapshot of snapshots) {
+      const tabs = snapshot.tabs.filter((record) => this.canReopen(record))
+      if (tabs.length === 0) continue
+      const activeIndex = snapshot.tabs[snapshot.activeIndex]
+        ? tabs.indexOf(snapshot.tabs[snapshot.activeIndex]) : -1
+      try {
+        const session = { ...snapshot, tabs, activeIndex }
+        if (initial) {
+          await this.openSession(initial, session)
+          initial = undefined
+        } else {
+          await this.actions.createWindow(session)
+        }
+        restored = true
+      } catch (error) {
+        console.error("Could not restore a window of the previous session", error)
+      }
+    }
+    if (initial) await this.actions.createBlank(initial)
+    return restored
+  }
 
   /** A page of an extension that has since been removed cannot load anywhere. */
   canReopen(record: ClosedTabRecord): boolean {

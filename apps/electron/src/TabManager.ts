@@ -51,6 +51,8 @@ interface CreateWindowOptions {
   tabId?: string
   /** A previous session's window to bring back as this one. */
   session?: WindowSnapshot
+  /** Start the shell before extensions load, then fill it from the saved session. */
+  deferTabs?: boolean
   point?: ElectronPoint
 }
 
@@ -70,6 +72,8 @@ export class BrowserCoordinator {
   private readonly windowLifecycle: WindowLifecycle
   private readonly restore = new TabRestore({
     createTab: (owner, url, active, after, asPage) => this.createTab(owner, url, active, after, asPage),
+    createWindow: (session) => this.createWindow({ session }),
+    createBlank: (owner) => this.createTab(owner, "about:blank", true),
     get: (id) => this.ownership.get(id),
     pageProfile: (url) => this.pageProfile(url)
   })
@@ -144,23 +148,12 @@ export class BrowserCoordinator {
    * Brings back the windows of the previous session, each with its tabs and
    * where it stood, like Firefox and Chrome do. Tabs closed before the quit
    * stay on the reopen stack, where Reopen closed tab reaches them once the
-   * session is back. Returns false when there was nothing to restore.
+   * session is back. An initial shell can be filled after extensions load.
+   * Returns false when there was nothing to restore.
    */
-  async restoreSession(): Promise<boolean> {
-    let restored = false
-    for (const snapshot of this.ownership.takeSession()) {
-      const tabs = snapshot.tabs.filter((record) => this.restore.canReopen(record))
-      if (tabs.length === 0) continue
-      const activeIndex = snapshot.tabs[snapshot.activeIndex]
-        ? tabs.indexOf(snapshot.tabs[snapshot.activeIndex]) : -1
-      try {
-        await this.createWindow({ session: { ...snapshot, tabs, activeIndex } })
-        restored = true
-      } catch (error) {
-        console.error("Could not restore a window of the previous session", error)
-      }
-    }
-    return restored
+  async restoreSession(initialWindow?: BrowserWindow): Promise<boolean> {
+    const initial = initialWindow ? this.windowOf(initialWindow.webContents) : undefined
+    return this.restore.restoreWindows(this.ownership.takeSession(), initial)
   }
 
   async createWindow(options: CreateWindowOptions = {}): Promise<BrowserWindow> {
@@ -180,7 +173,7 @@ export class BrowserCoordinator {
         this.ownership.move(state, options.tabId)
       } else if (options.session) {
         await this.restore.openSession(state, options.session)
-      } else {
+      } else if (!options.deferTabs) {
         await this.createTab(state, options.url || "about:blank", true)
       }
       this.windowLifecycle.focus(state)

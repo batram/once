@@ -354,8 +354,9 @@ app
     )
     startAutoUpdates()
     // Installed before the first window so its webRequest hooks see every
-    // request a tab ever makes; the extensions themselves load after the
-    // window is up so startup is not held for their background pages.
+    // request a tab ever makes. Load extensions before restoring tabs: their
+    // profiles decide which saved extension pages may reopen, and which
+    // session and preload those pages receive.
     const extensions = new ExtensionRuntime({
       browserSession,
       storageRoot: path.join(app.getPath("userData"), "extensions"),
@@ -414,14 +415,18 @@ app
         }
       }
     })
-    // The previous session's windows come back as they were; a first start,
-    // or one after a quit with nothing open, gets a fresh window.
-    if (!await browserCoordinator.restoreSession()) await browserCoordinator.createWindow()
-    void extensions.loadBundled(resolveBundledExtensions(bundledExtensionRoot({
+    // Background pages may use the shell while starting, so show it before
+    // loading extensions. Fill it from the saved session once their profiles
+    // are available; otherwise it receives its usual blank tab.
+    const initialWindow = await browserCoordinator.createWindow({ deferTabs: true })
+    await extensions.loadBundled(resolveBundledExtensions(bundledExtensionRoot({
       isPackaged: app.isPackaged,
       resourcesPath: process.resourcesPath,
       appPath: app.getAppPath()
     })))
+    // The previous session's windows come back as they were; a first start,
+    // or one after a quit with nothing open, gets a blank tab in this window.
+    await browserCoordinator.restoreSession(initialWindow)
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {

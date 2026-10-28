@@ -548,7 +548,7 @@ test("TabOwnership caps the reopen stack and prefers the asking window", () => {
   assert.equal(ownership.closedTabs.take(second).url, "https://example.com/other")
 })
 
-test("TabOwnership records every tab of a closed window", () => {
+test("TabOwnership records every closed-window tab with its extension session provenance", () => {
   const ownership = new TabOwnership(
     { backTargetIndex: () => -1 },
     { createBlankTab: async () => {} }
@@ -558,6 +558,9 @@ test("TabOwnership records every tab of a closed window", () => {
   const first = navigated("first", 1, "https://example.com/one")
   const second = navigated("second", 1, "https://example.com/two")
   const third = navigated("third", 1, "https://example.com/three")
+  first.extensionPage = true
+  second.extensionPage = false
+  third.extensionPage = true
   for (const tab of [first, second, third]) {
     tab.view.webContents.close = () => {}
     ownership.addTab(window, tab)
@@ -568,9 +571,15 @@ test("TabOwnership records every tab of a closed window", () => {
 
   // The active tab comes back first, then the rest left to right.
   assert.equal(ownership.closedTabs.size, 3)
-  assert.equal(ownership.closedTabs.take(window).url, "https://example.com/two")
-  assert.equal(ownership.closedTabs.take(window).url, "https://example.com/one")
-  assert.equal(ownership.closedTabs.take(window).url, "https://example.com/three")
+  assert.deepEqual(
+    [ownership.closedTabs.take(window), ownership.closedTabs.take(window), ownership.closedTabs.take(window)]
+      .map(({ url, extensionPage }) => ({ url, extensionPage })),
+    [
+      { url: "https://example.com/two", extensionPage: false },
+      { url: "https://example.com/one", extensionPage: true },
+      { url: "https://example.com/three", extensionPage: true }
+    ]
+  )
 })
 
 function sessionOwnership(directory) {

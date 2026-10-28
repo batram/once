@@ -1,7 +1,7 @@
 // What a web page may not get from the browser around it: an extension's own
 // pages with their API, the extension install prompt for a download it
 // started itself, and another document's reader copy.
-const { test, expect, launchApp, closeApp, startPageServer } = require("./electron-harness")
+const { test, expect, launchApp, closeApp, getOnceWindows, startPageServer, transferTab } = require("./electron-harness")
 
 async function inPage(electronApp, url, script) {
   return electronApp.evaluate(async ({ webContents }, { url, script }) =>
@@ -100,15 +100,44 @@ test("a middle-clicked link to an extension page stays page content through dupl
     await window.evaluate(() => window.onceElectron.tabs.restoreClosed())
     await expect.poll(() => describeAll(electronApp, target, host)).toEqual([PAGE_CONTENT, PAGE_CONTENT])
 
-    // Restored with the window after a restart, if the records bring it back at all.
+    // Both page-opened tabs must return after a restart, still without the API.
     await closeApp(electronApp, userData, { keepUserData: true })
     ;({ electronApp, window } = await launchApp({ userData, restored: true }))
     await extensionHost(electronApp, window, "uBlock Origin")
-    await expect.poll(() => tabsAt(), { timeout: 15_000 }).toBeDefined()
-    for (const document of await describeAll(electronApp, target, host)) expect(document).toEqual(PAGE_CONTENT)
+    await expect.poll(() => tabsAt(), { timeout: 15_000 }).toHaveLength(2)
+    await expect.poll(() => describeAll(electronApp, target, host)).toEqual([PAGE_CONTENT, PAGE_CONTENT])
   } finally {
     await closeApp(electronApp, userData)
     await server.close()
+  }
+})
+
+test("an extension tab reopened after its window closes keeps its extension session", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    const host = await extensionHost(electronApp, window, "uBlock Origin")
+    const target = `moz-extension://${host}/dashboard.html`
+    const firstWindowId = await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].id)
+    const tabId = await window.evaluate(url => window.onceElectron.tabs.create(url, true), target)
+    await expect.poll(async () => (await describeAll(electronApp, target, host))
+      .map(({ inExtensionSession, api }) => ({ inExtensionSession, api })))
+      .toEqual([{ inExtensionSession: true, api: "object" }])
+
+    await transferTab(electronApp, firstWindowId, "detach", tabId)
+    await expect.poll(() => getOnceWindows(electronApp)).toHaveLength(2)
+    const detached = (await getOnceWindows(electronApp)).find(candidate => candidate.id !== firstWindowId)
+    expect(detached.tabs.map(tab => tab.url)).toContain(target)
+    // uBlock's dashboard can block an ordinary close with beforeunload. Destroy
+    // this test window so the closed event exercises the bulk-record path.
+    await electronApp.evaluate(({ BrowserWindow }, id) => BrowserWindow.fromId(id).destroy(), detached.id)
+    await expect.poll(() => getOnceWindows(electronApp)).toHaveLength(1)
+
+    expect(await window.evaluate(() => window.onceElectron.tabs.restoreClosed())).toBeTruthy()
+    await expect.poll(async () => (await describeAll(electronApp, target, host))
+      .map(({ inExtensionSession, api }) => ({ inExtensionSession, api })))
+      .toEqual([{ inExtensionSession: true, api: "object" }])
+  } finally {
+    await closeApp(electronApp, userData)
   }
 })
 
