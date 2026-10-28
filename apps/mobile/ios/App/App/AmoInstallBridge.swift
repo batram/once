@@ -19,6 +19,7 @@ extension InAppBrowserSurfacePlugin {
     func installSurfaceScripts(_ controller: WKUserContentController) {
         installMediaObserver(controller)
         installContextMenuTracker(controller)
+        installExternalLinkHandler(controller)
         installAmoBridge(controller)
     }
 

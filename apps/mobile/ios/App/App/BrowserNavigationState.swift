@@ -13,7 +13,12 @@ final class BrowserNavigationState {
     /// How far the current navigation got, so a late listener can be caught up.
     enum Phase { case idle, started, committed, finished, failed }
     private(set) var phase = Phase.idle
+    private var finishedAt: Date?
     private(set) var failure: JSObject?
+    /// The app link the page sent the reader to instead of a document, held
+    /// for the shell's "open in app" offer (see navigationFailed's externalUrl).
+    private(set) var offeredExternalURL: URL?
+    private var askedToLeaveDocument = false
 
     func load(_ url: URL, in view: WKWebView) {
         if let navigation = view.load(URLRequest(url: url)) {
@@ -31,6 +36,8 @@ final class BrowserNavigationState {
         active = navigation
         phase = .started
         failure = nil
+        offeredExternalURL = nil
+        askedToLeaveDocument = false
         statusCode = nil
         failedURL = nil
         let requested = navigation.flatMap { requestedURLs.removeValue(forKey: ObjectIdentifier($0)) } ?? url
@@ -49,6 +56,21 @@ final class BrowserNavigationState {
     func finished(_ url: URL?) {
         documentURL = url
         phase = .finished
+        finishedAt = Date()
+    }
+
+    /// Whether the document may still put "open in another app?" to the user.
+    var mayAskToLeave: Bool { !askedToLeaveDocument }
+    func askedToLeave() { askedToLeaveDocument = true }
+
+    /// Still arriving, or a redirect stub: WebKit finishes a document that
+    /// only scripts `location = …` before it decides that navigation.
+    var isSettling: Bool {
+        switch phase {
+        case .started, .committed: return true
+        case .finished: return finishedAt.map { Date().timeIntervalSince($0) < 3 } ?? false
+        case .idle, .failed: return false
+        }
     }
 
     func isCurrent(_ navigation: WKNavigation?) -> Bool { navigation === active }
@@ -73,6 +95,20 @@ final class BrowserNavigationState {
         return value
     }
 
+    /// The loading page sent the reader on to an app link instead of a
+    /// document; the shell shows that as a failed page it can offer to open.
+    func failed(externalURL: URL, message: String) -> JSObject {
+        offeredExternalURL = externalURL
+        failedURL = sourceURL ?? documentURL
+        var value = payload(failedURL)
+        value["code"] = -1
+        value["message"] = message
+        value["externalUrl"] = externalURL.absoluteString
+        phase = .failed
+        failure = value
+        return value
+    }
+
     func reset() {
         active = nil
         documentURL = nil
@@ -80,7 +116,9 @@ final class BrowserNavigationState {
         failedURL = nil
         statusCode = nil
         phase = .idle
+        finishedAt = nil
         failure = nil
+        offeredExternalURL = nil
         requestedURLs.removeAll()
     }
 }

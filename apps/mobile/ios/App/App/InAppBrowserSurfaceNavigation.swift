@@ -1,3 +1,4 @@
+import Capacitor
 import UIKit
 import WebKit
 
@@ -49,6 +50,9 @@ extension InAppBrowserSurfacePlugin {
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard webView === surface, navigationState.isCurrent(navigation) else { return }
         finishRefresh()
+        // A document that sent the reader on to an app link has nothing more
+        // to show: the shell keeps its failed page and the offer to open the link.
+        if navigationState.offeredExternalURL != nil { history(webView); return }
         navigationState.finished(webView.url)
         pageEvent("navigationFinished", data: navigationState.payload(webView.url))
         history(webView)
@@ -76,6 +80,9 @@ extension InAppBrowserSurfacePlugin {
             mediaDocumentLoaded(webView, navigation: navigation)
             return
         }
+        // Cancelling a redirect to an app link ends that navigation with
+        // "Frame load interrupted"; the offer already made stands.
+        if navigationState.offeredExternalURL != nil, (error as NSError).code == 102 { return }
         guard let value = navigationState.failed(navigation, url: webView.url, error: error) else { return }
         finishRefresh()
         pageEvent("navigationFailed", data: value)
@@ -160,10 +167,72 @@ extension InAppBrowserSurfacePlugin {
         switch extensions.navigationDisposition(for: url, targetIsMainFrame: navigationAction.targetFrame?.isMainFrame) {
         case .allow: decisionHandler(.allow)
         case .external:
-            UIApplication.shared.open(url)
+            leaveForApp(url, navigationAction)
             decisionHandler(.cancel)
         case .cancel: decisionHandler(.cancel)
         }
+    }
+
+    /// Trusted app-link clicks are handled by ExternalLinkHandler. WebKit's
+    /// navigation type cannot distinguish a tap from anchor.click(), so all
+    /// remaining navigations need an offer or confirmation.
+    func leaveForApp(_ url: URL, _ navigationAction: WKNavigationAction) {
+        guard navigationAction.targetFrame?.isMainFrame != false else { return }
+        if navigationState.isSettling {
+            offerExternal(url)
+        } else {
+            confirmLeaving(for: url)
+        }
+    }
+
+    func installExternalLinkHandler(_ controller: WKUserContentController) {
+        let script = ExternalLinkHandler.script
+        if !controller.userScripts.contains(where: { $0 === script }) { controller.addUserScript(script) }
+        // A popup shares its opener's controller; route its messages by web view.
+        guard !ExternalLinkHandler.controllers.contains(controller) else { return }
+        ExternalLinkHandler.controllers.add(controller)
+        controller.add(ExternalLinkHandler(owner ?? self), contentWorld: ExternalLinkHandler.world, name: "onceExternalLink")
+    }
+
+    func openTappedExternalLink(_ message: WKScriptMessage) {
+        guard message.frameInfo.isMainFrame,
+              let view = message.webView,
+              ([self] + Array(tabs.values)).contains(where: { $0.surface === view }),
+              !view.isHidden, view.window?.isKeyWindow == true,
+              UIApplication.shared.applicationState == .active,
+              bridge?.viewController?.presentedViewController == nil,
+              let raw = message.body as? String, let url = URL(string: raw),
+              ExternalLinkHandler.isAppURL(url) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    /// One question per document: a page that keeps asking is answered once.
+    private func confirmLeaving(for url: URL) {
+        guard let host = bridge?.viewController, host.presentedViewController == nil,
+              navigationState.mayAskToLeave else { return }
+        navigationState.askedToLeave()
+        let app = url.scheme.map { "a \($0): link" } ?? "a link"
+        let alert = UIAlertController(title: "Open in another app?",
+                                      message: "This page wants to open \(app):\n\(url.absoluteString)", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Open", style: .default) { _ in UIApplication.shared.open(url) })
+        host.present(alert, animated: true)
+    }
+
+    /// Opens the app link the page redirected to (see navigationFailed's externalUrl).
+    @objc func openExternalRedirect(_ call: CAPPluginCall) {
+        guard route(call, { $0.openExternalRedirect(call) }) else { return }
+        DispatchQueue.main.async {
+            guard let url = self.navigationState.offeredExternalURL else { call.resolve(["opened": false]); return }
+            UIApplication.shared.open(url) { call.resolve(["opened": $0]) }
+        }
+    }
+
+    private func offerExternal(_ url: URL) {
+        finishRefresh()
+        let message = url.scheme.map { "The page tried to open a \($0): link, which the browser cannot show." }
+            ?? "The page tried to open a link the browser cannot show."
+        pageEvent("navigationFailed", data: navigationState.failed(externalURL: url, message: message))
     }
 
     public func webView(
@@ -175,9 +244,12 @@ extension InAppBrowserSurfacePlugin {
            let response = navigationResponse.response as? HTTPURLResponse {
             navigationState.statusCode = response.statusCode
         }
-        if !navigationResponse.canShowMIMEType,
-           let url = navigationResponse.response.url {
-            UIApplication.shared.open(url)
+        if !navigationResponse.canShowMIMEType {
+            // Only the page itself may hand its document to another app; a
+            // frame's response is dropped, as a frame may never leave the app.
+            if navigationResponse.isForMainFrame, let url = navigationResponse.response.url {
+                UIApplication.shared.open(url)
+            }
             decisionHandler(.cancel)
             return
         }
@@ -187,5 +259,41 @@ extension InAppBrowserSurfacePlugin {
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         if webView === surface { resetMedia() }
         webView.reload()
+    }
+}
+
+/// Only this isolated world's trusted click listener can request a direct
+/// handoff. No timestamp or activation token is left for page scripts to reuse.
+final class ExternalLinkHandler: NSObject, WKScriptMessageHandler {
+    static let world = WKContentWorld.world(name: "OnceExternalLinks")
+    static let controllers = NSHashTable<WKUserContentController>.weakObjects()
+    static let source = """
+    (() => {
+      window.addEventListener('click', event => {
+        if (!event.isTrusted || event.defaultPrevented || event.button !== 0) return;
+        const link = event.composedPath().find(node => node instanceof HTMLAnchorElement && node.hasAttribute('href'));
+        if (!link) return;
+        const target = (link.target || document.querySelector('base[target]')?.target || '').toLowerCase();
+        if (!['', '_self', '_top', '_parent', '_blank'].includes(target)) return;
+        const url = new URL(link.href, document.baseURI);
+        if (['http:', 'https:', 'about:', 'webkit-extension:', 'javascript:', 'blob:', 'data:', 'file:'].includes(url.protocol)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        window.webkit.messageHandlers.onceExternalLink.postMessage(url.href);
+      }, true);
+    })();
+    """
+    static let script = WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: world)
+
+    static func isAppURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased() else { return false }
+        return !["http", "https", "about", "webkit-extension", "javascript", "blob", "data", "file"].contains(scheme)
+    }
+
+    private weak var root: InAppBrowserSurfacePlugin?
+    init(_ root: InAppBrowserSurfacePlugin) { self.root = root }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        root?.openTappedExternalLink(message)
     }
 }

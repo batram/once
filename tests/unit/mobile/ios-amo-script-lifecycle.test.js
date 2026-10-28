@@ -36,6 +36,7 @@ final class Plugin {
     var extensionUserScripts: [WKUserScript] = []
     func installMediaObserver(_ c: WKUserContentController) { c.addUserScript(WKUserScript(source: "MEDIA", injectionTime: .atDocumentStart, forMainFrameOnly: true)) }
     func installContextMenuTracker(_ c: WKUserContentController) { c.addUserScript(WKUserScript(source: "MENU", injectionTime: .atDocumentStart, forMainFrameOnly: true)) }
+    func installExternalLinkHandler(_ c: WKUserContentController) { c.addUserScript(WKUserScript(source: "EXTERNAL", injectionTime: .atDocumentStart, forMainFrameOnly: true)) }
 ${install}
 ${reset}
     func refresh(_ script: String?) { installUserscripts(["scripts": script.map { [["source": $0]] } ?? []]) }
@@ -48,8 +49,8 @@ for script in [Optional("FIRST"), Optional("REPLACEMENT"), nil] {
     root.refresh(script)
     for plugin in [root, tab] {
         let scripts = plugin.surface!.configuration.userContentController.userScripts.map(\\.source)
-        precondition(Set(scripts) == Set(["AMO", "MEDIA", "MENU"] + (script.map { [$0] } ?? [])))
-        precondition(scripts.count == 3 + (script == nil ? 0 : 1))
+        precondition(Set(scripts) == Set(["AMO", "MEDIA", "MENU", "EXTERNAL"] + (script.map { [$0] } ?? [])))
+        precondition(scripts.count == 4 + (script == nil ? 0 : 1))
         plugin.installAmoBridge(plugin.surface!.configuration.userContentController)
         precondition(plugin.surface!.configuration.userContentController.userScripts.count == scripts.count)
     }
