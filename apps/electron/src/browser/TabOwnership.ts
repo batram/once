@@ -229,7 +229,8 @@ export class TabOwnership {
       title: entry.title,
       windowId: owner.id,
       index,
-      history: entry.historySnapshot ?? null
+      history: entry.historySnapshot ?? null,
+      extensionPage: entry.extensionPage
     }] : [])
     const active = entries.findIndex((entry) => entry?.id === owner.activeId)
     this.closedTabs.adopt(stackOrder(records, records.findIndex((record) => record.index === active)))
