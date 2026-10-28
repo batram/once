@@ -116,7 +116,9 @@ test("an extension tab reopened after its window closes keeps its extension sess
   const { electronApp, userData, window } = await launchApp()
   try {
     const host = await extensionHost(electronApp, window, "uBlock Origin")
-    const target = `moz-extension://${host}/dashboard.html`
+    // The dashboard selects a pane by replacing its fragment on load.
+    // Request that pane explicitly so the URL remains stable across reopening.
+    const target = `moz-extension://${host}/dashboard.html#settings.html`
     const firstWindowId = await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].id)
     const tabId = await window.evaluate(url => window.onceElectron.tabs.create(url, true), target)
     await expect.poll(async () => (await describeAll(electronApp, target, host))

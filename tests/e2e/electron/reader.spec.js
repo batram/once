@@ -312,6 +312,10 @@ test("reader speech remembers the chosen voice and a speed per voice", async () 
     // They also outlive the app, whose next start gives every document a new token.
     await closeApp(electronApp, userData, { keepUserData: true })
     ;({ electronApp, window } = await launch({ userData, restored: true }))
+    // Shell readiness precedes session restoration. Wait for the saved article
+    // and its preferences before typing into the restored tab's address bar.
+    await expect.poll(() => controls("/article.xhtml"), { timeout: 15_000 })
+      .toEqual({ voice: "once-wafli-slt", rate: "1.5" })
     await window.locator("#urlfield").fill(`once-reader://${origin}/article`)
     await window.locator("#urlfield").press("Enter")
     await expect.poll(() => controls(), { timeout: 15_000 }).toEqual({ voice: "once-wafli-slt", rate: "1.5" })
