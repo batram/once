@@ -372,10 +372,11 @@ export class AppSettings {
   }
 
   async setAnimation(animated: AnimationSetting): Promise<void> {
+    // Story updates carry this value while the save is still being written.
+    this.animated = animated
     if (animated !== await this.getAnimation()) {
       await this.setList("animation", animated)
     }
-    this.animated = animated
     this.actions.publishChanged("animation")
   }
 

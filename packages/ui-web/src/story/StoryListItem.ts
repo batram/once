@@ -212,8 +212,11 @@ export class StoryListItem extends HTMLElement {
       throw new TypeError("Story update requires a Story instance")
     }
 
+    // Only this row's exit animation follows the update; body[animated] is the
+    // setting itself, kept by the settings panel. A story update writing it
+    // undid an unchecked switch until the save landed, and an update sent
+    // with animated: false turned animations off for the whole list.
     this.animated = event.detail.animated
-    document.body.setAttribute("animated", event.detail.animated.toString())
     this.story = event.detail.story
 
     console.debug("update_story_el", event.detail)
