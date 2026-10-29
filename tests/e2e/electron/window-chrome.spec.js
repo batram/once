@@ -102,7 +102,7 @@ test("keeps browser contents within the window after restoring from maximized @i
     })
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0].isMaximized()
-    ), { timeout: 10_000 }).toBe(true)
+    ), { timeout: 15_000 }).toBe(true)
 
     const viewportWidth = await window.evaluate(() => window.innerWidth)
     const splitter = await window.locator("#sep_slider").boundingBox()

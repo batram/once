@@ -41,7 +41,7 @@ test("AI addon uses authenticated requests, host trays, article text and session
     }, script)
     const pageText = () => conversation('document.querySelector(\'[data-testid="addon-conversation"]\')?.textContent ?? "no conversation root"')
     await expect.poll(pageText, {
-      timeout: 10000,
+      timeout: 15_000,
       message: await conversation("JSON.stringify({ bridge: typeof window.onceConversation, html: document.documentElement.outerHTML.slice(0, 1200) })")
     }).toContain("Its qualifications are preserved")
     await expect.poll(pageText).toContain(storyFixture.STORY_TITLES.alpha)
@@ -70,14 +70,14 @@ test("AI addon uses authenticated requests, host trays, article text and session
     await window.evaluate(([id, url]) => window.onceElectron.tabs.navigate(id, url), [conversationTab.id, server.origin])
     await expect.poll(pageText).toContain("no conversation page")
     await window.evaluate(id => window.onceElectron.tabs.back(id), conversationTab.id)
-    await expect.poll(pageText, { timeout: 10000 }).toContain("Developers use it")
+    await expect.poll(pageText, { timeout: 15_000 }).toContain("Developers use it")
     await expect.poll(() => conversation('document.querySelector(\'[data-testid="addon-conversation"]\')?.dataset.connected')).toBe("true")
     // The page is named by its story, not by the tab: closing it and opening the
     // same URL in a fresh tab shows the same conversation.
     await window.evaluate(id => window.onceElectron.tabs.close(id), conversationTab.id)
     await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll().then(tabs => tabs.length))).toBe(1)
     await window.evaluate(url => window.onceElectron.tabs.create(url, true), conversationTab.url)
-    await expect.poll(pageText, { timeout: 10000 }).toContain("Developers use it")
+    await expect.poll(pageText, { timeout: 15_000 }).toContain("Developers use it")
     const reopened = (await window.evaluate(() => window.onceElectron.tabs.getAll())).find(tab => tab.url.startsWith("once-addon://conversation/"))
     await window.evaluate(id => window.onceElectron.tabs.close(id), reopened.id)
     await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll().then(tabs => tabs.length))).toBe(1)
@@ -88,7 +88,8 @@ test("AI addon uses authenticated requests, host trays, article text and session
     await expect.poll(() => aiFixture.calls.length).toBe(previousCalls + 1)
     const delayed = aiFixture.calls.at(-1)
     await tray.getByRole("button", { name: "Stop", exact: true }).click()
-    await expect.poll(() => delayed.closed, { timeout: 1500 }).toBe(true)
+    // The fixture holds this request forever, so only the Stop can close it.
+    await expect.poll(() => delayed.closed).toBe(true)
     await expect(tray).toContainText("Request cancelled")
     // A link in the answer opens as a tab in the shell, never as a bare popup window.
     await tray.getByRole("link", { name: "the beta story" }).click()
@@ -113,7 +114,7 @@ test("AI addon uses authenticated requests, host trays, article text and session
     await showAllStories(window)
     await expect(window.getByTestId("addon-tray")).toHaveCount(0)
     await window.getByTestId("reload-stories").click()
-    await expect(row).toBeVisible({ timeout: 10000 })
+    await expect(row).toBeVisible({ timeout: 15_000 })
     await row.locator("[data-addon-tray-button]").click()
     await expect(row.getByTestId("addon-tray")).toContainText("ExampleApp is software")
     // A reload starts a fresh session: the summary is generated again, the question is gone.

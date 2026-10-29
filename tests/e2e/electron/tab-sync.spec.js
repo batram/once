@@ -218,7 +218,7 @@ test("a media position is read when its tab is left, and restored when another d
 
     await page.getByTestId("tab-sync-button").click()
     await expect.poll(() => app.electronApp.evaluate(({ webContents }) => webContents.getAllWebContents()
-      .some((candidate) => candidate.getURL().startsWith("once-tabs://"))), { timeout: 10000 }).toBe(true)
+      .some((candidate) => candidate.getURL().startsWith("once-tabs://"))), { timeout: 15_000 }).toBe(true)
     const tabsPage = await app.electronApp.evaluate(({ webContents }) => webContents.getAllWebContents()
       .find((candidate) => candidate.getURL().startsWith("once-tabs://")).id)
     await expect.poll(() => app.electronApp.evaluate(({ webContents }, id) =>

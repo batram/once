@@ -46,7 +46,7 @@ test("two Electron clients sync an imported package and AI token after one vault
     await controls.getByTestId("addon-vault-secret").fill("test passphrase for two devices")
     await controls.getByLabel("Confirm sync passphrase").fill("test passphrase for two devices")
     await controls.getByTestId("addon-vault-submit").click()
-    await expect(controls.getByTestId("addon-vault-status")).toContainText("Ready", { timeout: 10000 })
+    await expect(controls.getByTestId("addon-vault-status")).toContainText("Ready", { timeout: 15_000 })
     await expect(controls.getByTestId("addon-vault-recovery-key")).toHaveValue(/^[a-f0-9]{64}$/)
     await controls.getByRole("button", { name: "I saved my recovery key" }).click()
     await expect.poll(async () => (await remote.get("addon_vault").catch(() => null))?.list?.version).toBe(1)

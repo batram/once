@@ -1,10 +1,14 @@
 const fs = require("node:fs/promises")
-const { test, expect, launchApp, closeApp } = require("./electron-harness")
+const { test, expect, launchApp, closeApp, warmUpTextRecognition } = require("./electron-harness")
 const { startImageTextServer } = require("../shared/image-text-fixture")
 
 test.skip(!["darwin", "win32"].includes(process.platform), "Native OCR uses Apple Vision (macOS) or Windows.Media.Ocr (Windows)")
 let server
-test.beforeAll(async () => { server = await startImageTextServer() })
+test.beforeAll(async () => {
+  test.setTimeout(150_000)
+  await warmUpTextRecognition()
+  server = await startImageTextServer()
+})
 test.beforeEach(() => server.setText(null))
 test.afterAll(async () => { await server?.close() })
 
@@ -20,6 +24,37 @@ async function inPage(app, script) {
  * Runs a script in the selection's words frame: the app's cross-origin frame
  * anchored to the image (see browser/ImageTextOverlay.ts); null while none is open.
  */
+/**
+ * Records the reading flourish from inside the words frame: it lives for about
+ * half a second, shorter than polling it across processes can be trusted to
+ * catch. The main process installs the recorder the moment the frame exists,
+ * which is before the recognition result that starts the flourish arrives.
+ */
+async function watchScan(app) {
+  return app.evaluate(async ({ webContents }) => {
+    const recorder = `(() => {
+      const log = window.__onceScan = { seen: false, gone: false }
+      const tick = () => {
+        const canvas = document.querySelector('[data-once-image-text]')?.shadowRoot?.querySelector('canvas.scan')
+        if (canvas) log.seen = true
+        else if (log.seen) log.gone = true
+        if (!log.gone) requestAnimationFrame(tick)
+      }
+      tick()
+      return true
+    })()`
+    const deadline = Date.now() + 30_000
+    while (Date.now() < deadline) {
+      for (const contents of webContents.getAllWebContents()) {
+        const frame = contents.mainFrame?.framesInSubtree.find(f => f.url.startsWith("once-image-text:"))
+        if (frame) return frame.executeJavaScript(recorder)
+      }
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    throw new Error("The image text frame never appeared")
+  })
+}
+
 async function inOverlay(app, script) {
   return app.evaluate(({ webContents }, script) => {
     for (const contents of webContents.getAllWebContents()) {
@@ -214,11 +249,14 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     await window.locator("#urlfield").fill(`${server.origin}/`)
     await window.locator("#urlfield").press("Enter")
     await expect(window.locator(".electron-tab-title")).toHaveText("Image text selection fixture")
+    const recording = watchScan(app)
     await startRecognition(app)
+    await recording
     // The reading flourish plays once over the found words, then removes itself.
-    const scanning = "Boolean(document.querySelector('[data-once-image-text]').shadowRoot.querySelector('canvas.scan'))"
-    await expect.poll(() => inOverlay(app, scanning)).toBe(true)
-    await expect.poll(() => inOverlay(app, scanning), { timeout: 8_000 }).toBe(false)
+    await expect.poll(() => inOverlay(app, "window.__onceScan.seen")).toBe(true)
+    await expect.poll(() => inOverlay(app, "window.__onceScan.gone")).toBe(true)
+    expect(await inOverlay(app,
+      "Boolean(document.querySelector('[data-once-image-text]').shadowRoot.querySelector('canvas.scan'))")).toBe(false)
     expect(await selectAndCopy(app)).toBe("Select these words")
     await expect.poll(async () => (await geometry(app)).highlight?.match(/M/g)?.length).toBe(1)
     const initial = await geometry(app)
@@ -706,11 +744,18 @@ test("the overlay stays out of the page's way: covered edges, keys and autoscrol
       return state.frame.top + state.frame.height - (await inPage(app, "innerHeight"))
     }).toBeGreaterThan(20)
     const scrolledTo = await inPage(app, "scrollY")
-    const { words: first, viewport } = await geometry(app)
-    const start = { x: first[0].left + 2, y: first[0].top + first[0].height / 2 }
-    await overlayInput(app, [{ type: "mouseMove", ...start }, { type: "mouseDown", ...start, button: "left", clickCount: 1 },
-      { type: "mouseMove", x: start.x + 40, y: viewport.height - 4, button: "left", modifiers: ["leftButtonDown"] }])
-    await expect.poll(() => inPage(app, "scrollY")).toBeGreaterThan(scrolledTo + 10)
+    let start, viewport
+    // On a slow runner the press could reach the words frame before its words
+    // settled, and no sweep started: release and sweep again from fresh geometry.
+    await expect(async () => {
+      if (start) await overlayInput(app, [{ type: "mouseUp", x: start.x + 40, y: viewport.height - 4, button: "left", clickCount: 1 }])
+      const current = await geometry(app)
+      viewport = current.viewport
+      start = { x: current.words[0].left + 2, y: current.words[0].top + current.words[0].height / 2 }
+      await overlayInput(app, [{ type: "mouseMove", ...start }, { type: "mouseDown", ...start, button: "left", clickCount: 1 },
+        { type: "mouseMove", x: start.x + 40, y: viewport.height - 4, button: "left", modifiers: ["leftButtonDown"] }])
+      await expect.poll(() => inPage(app, "scrollY"), { timeout: 5_000 }).toBeGreaterThan(scrolledTo + 10)
+    }).toPass({ timeout: 30_000 })
     // It scrolls as far as the image's end, which comes to rest at the viewport's.
     await expect.poll(() => inPage(app, `new Promise(resolve => { const y=scrollY; setTimeout(() =>
       resolve(scrollY === y && Math.abs(document.querySelector('img').getBoundingClientRect().bottom - innerHeight) < 1), 200) })`))

@@ -1,8 +1,12 @@
 const fs = require("node:fs/promises")
-const { test, expect, launchApp, closeApp } = require("./electron-harness")
+const { test, expect, launchApp, closeApp, warmUpTextRecognition } = require("./electron-harness")
 const { startImageTextServer } = require("../shared/image-text-fixture")
 
 test.skip(!["darwin", "win32"].includes(process.platform), "Native OCR uses Apple Vision (macOS) or Windows.Media.Ocr (Windows)")
+test.beforeAll(async () => {
+  test.setTimeout(150_000)
+  await warmUpTextRecognition()
+})
 
 test("Reader extracts image text through the native retrieval API", async () => {
   const server = await startImageTextServer()

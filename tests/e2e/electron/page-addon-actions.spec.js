@@ -116,6 +116,10 @@ test("a page menu conversation opens in the Once panel when the add-on is set to
     await expect(panel.getByRole("textbox")).toHaveValue("Remember my Alpha question")
     await panel.getByRole("button", { name: "Open article", exact: true }).click()
     await expect(window.locator("#selected_container story-item")).toHaveAttribute("data-href", urls.alpha)
+    // The story is selected before its tab has loaded it; a restart sent in
+    // between finds no open page yet and fetches the article instead.
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+      .some((contents) => contents.getURL() === url && !contents.isLoading()), urls.alpha)).toBe(true)
     await panel.getByRole("button", { name: "Refresh source and restart", exact: true }).click()
     // The article's page is open in a tab, so the restart reads it from there rather than fetching it.
     await expect(panel).toContainText("Read from the open page.", { timeout: 15000 })

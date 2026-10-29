@@ -72,7 +72,7 @@ test("a site's data from tabs closed before a restart is still cleared, and the 
     const oddOrigin = `http://127.0.0.1:${odd.port}`
     const mainOrigin = `http://localhost:${main.port}`
     // The iframe's origin is recorded as well as the pages', and it reaches disk.
-    await expect.poll(recorded, { timeout: 10_000 }).toEqual([oddOrigin, mainOrigin].sort())
+    await expect.poll(recorded, { timeout: 15_000 }).toEqual([oddOrigin, mainOrigin].sort())
 
     // Nothing open names the odd port any more, not even after a restart.
     await closeTabs()

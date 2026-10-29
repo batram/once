@@ -45,7 +45,7 @@ test("a bookmarked story's saved article opens in the reader after its site is g
     await alpha.locator(".star_btn").click()
     await expect(alpha).toHaveClass(/stared/)
     await expect(alpha.locator(".outline_btn .icon--stored-content")).toHaveCount(1, {
-      timeout: 10_000
+      timeout: 15_000
     })
 
     await server.close()
@@ -316,8 +316,15 @@ test("reader speech remembers the chosen voice and a speed per voice", async () 
     // and its preferences before typing into the restored tab's address bar.
     await expect.poll(() => controls("/article.xhtml"), { timeout: 15_000 })
       .toEqual({ voice: "once-wafli-slt", rate: "1.5" })
-    await window.locator("#urlfield").fill(`once-reader://${origin}/article`)
-    await window.locator("#urlfield").press("Enter")
+    // The restored tab's address can still land in the field after the typed
+    // one, and Enter then goes nowhere new: type again until the article opens.
+    const field = window.locator("#urlfield")
+    await expect(field).toHaveValue(/article\.xhtml/)
+    await expect(async () => {
+      await field.fill(`once-reader://${origin}/article`)
+      await field.press("Enter")
+      await expect.poll(() => controls(), { timeout: 5_000 }).not.toBeNull()
+    }).toPass({ timeout: 30_000 })
     await expect.poll(() => controls(), { timeout: 15_000 }).toEqual({ voice: "once-wafli-slt", rate: "1.5" })
   } finally {
     await closeApp(electronApp, userData)

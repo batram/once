@@ -145,7 +145,7 @@ test("a failed request serves the cached copy with a warning", async () => {
     await window.getByTestId("reload-stories").dblclick()
 
     await expect(window.locator("#status_bar_warnings .status_indicator_count"))
-      .toHaveText("1", { timeout: 10_000 })
+      .toHaveText("1", { timeout: 15_000 })
     await expect(
       window.locator(`#stories story-item[data-href="${urls.alpha}"]`)
     ).toBeVisible()

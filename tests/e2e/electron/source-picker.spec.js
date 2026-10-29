@@ -44,8 +44,8 @@ test("builds a geny source from picked selectors and saves it", async () => {
     `)).toBe(true)
 
     // Fill the selectors as if typed manually and save.
-    const preview = await evaluateInPage(electronApp, `${origin}/stories`, `
-      (async () => {
+    await evaluateInPage(electronApp, `${origin}/stories`, `
+      (() => {
         const shadow = document.querySelector("once-source-picker").shadowRoot
         const inputs = shadow.querySelectorAll(".row input[type=text]")
         const values = ["li.story", "a.title", "a.title", "", "span.tag"]
@@ -53,7 +53,12 @@ test("builds a geny source from picked selectors and saves it", async () => {
           input.value = values[index]
           input.dispatchEvent(new Event("input"))
         })
-        await new Promise((resolve) => setTimeout(resolve, 400))
+      })()
+    `)
+    // The preview follows the fields after a debounce: wait for it, not for a guess at it.
+    const readPreview = () => evaluateInPage(electronApp, `${origin}/stories`, `
+      (() => {
+        const shadow = document.querySelector("once-source-picker").shadowRoot
         const stories = shadow.querySelectorAll("#preview .story")
         return {
           parsed: shadow.querySelector("#preview .summary").textContent,
@@ -62,6 +67,8 @@ test("builds a geny source from picked selectors and saves it", async () => {
         }
       })()
     `)
+    await expect.poll(async () => (await readPreview()).parsed).toContain("3 stories parsed")
+    const preview = await readPreview()
     expect(preview.parsed).toContain("3 stories parsed")
     expect(preview.first).toContain("Story One")
     expect(preview.first).toContain("tag-one")
@@ -129,9 +136,13 @@ test("picks stories, link, and title by clicking page elements", async () => {
             bubbles: true
           }))
         }
+        // Each click fills the field pick mode is on, then moves to the next.
+        const field = (index) => shadow.querySelectorAll(".row input[type=text]")[index]
         for (let i = 0; i < 3; i++) {
           clickTitle()
-          await new Promise((resolve) => setTimeout(resolve, 250))
+          for (const deadline = Date.now() + 10_000; !field(i).value && Date.now() < deadline;) {
+            await new Promise((resolve) => setTimeout(resolve, 25))
+          }
         }
         return Array.from(
           shadow.querySelectorAll(".row input[type=text]"),
@@ -176,17 +187,17 @@ test("cross updates the selector fields and the editable source line", async () 
     `)).toBe(true)
 
     // Fields feed the source line.
-    const lineFromFields = await evaluateInPage(electronApp, `${origin}/stories`, `
-      (async () => {
+    await evaluateInPage(electronApp, `${origin}/stories`, `
+      (() => {
         const shadow = document.querySelector("once-source-picker").shadowRoot
         const input = shadow.querySelectorAll(".row input[type=text]")[0]
         input.value = "li.story"
         input.dispatchEvent(new Event("input"))
-        await new Promise((resolve) => setTimeout(resolve, 400))
-        return shadow.querySelector("#source textarea").value
       })()
     `)
-    expect(lineFromFields).toContain('"stories":{"all":true,"sel":"li.story"}')
+    await expect.poll(() => evaluateInPage(electronApp, `${origin}/stories`, `
+      document.querySelector("once-source-picker").shadowRoot.querySelector("#source textarea").value
+    `)).toContain('"stories":{"all":true,"sel":"li.story"}')
 
     // Pasted config feeds the fields, the preview, and keeps extras
     // (comment_href has no form field) through the save round trip.
@@ -197,14 +208,18 @@ test("cross updates the selector fields and the editable source line", async () 
       comment_href: { sel: "a.title", component: "href" },
       tags: [{ elements: { text: { sel: "span.tag", component: "innerText" } } }]
     }
-    const state = await evaluateInPage(electronApp, `${origin}/stories`, `
-      (async () => {
+    await evaluateInPage(electronApp, `${origin}/stories`, `
+      (() => {
         const shadow = document.querySelector("once-source-picker").shadowRoot
         const textarea = shadow.querySelector("#source textarea")
         textarea.focus()
         textarea.value = ${JSON.stringify(JSON.stringify(pastedConf))}
         textarea.dispatchEvent(new Event("input"))
-        await new Promise((resolve) => setTimeout(resolve, 700))
+      })()
+    `)
+    const readState = () => evaluateInPage(electronApp, `${origin}/stories`, `
+      (() => {
+        const shadow = document.querySelector("once-source-picker").shadowRoot
         return {
           fields: Array.from(
             shadow.querySelectorAll(".row input[type=text]"),
@@ -215,6 +230,8 @@ test("cross updates the selector fields and the editable source line", async () 
         }
       })()
     `)
+    await expect.poll(async () => (await readState()).summary).toContain("3 stories parsed")
+    const state = await readState()
     expect(state.fields).toEqual([
       "ul.stories > li", "a.title", "a.title", "", "span.tag"
     ])

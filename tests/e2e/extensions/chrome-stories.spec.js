@@ -317,7 +317,7 @@ test("a bookmarked story's saved article opens in the extension's reader page of
     await alpha.locator(storyFixture.SELECTORS.starBtn).click()
     await expect(alpha).toHaveClass(/stared/)
     await expect(alpha.locator(".outline_btn .icon--stored-content")).toHaveCount(1, {
-      timeout: 10_000
+      timeout: 15_000
     })
 
     // The site is gone: the reader still opens from the stored copy.

@@ -56,7 +56,9 @@ test("a pairing code shows behind a warning, and its link connects another profi
     await other.getByTestId("pair-connect").click()
     await expect(other.getByTestId("pair-confirm")).toContainText(`Connect to ${origin}/other?`)
     await other.getByTestId("pair-confirm").getByRole("button", { name: "Connect" }).click()
-    await expect(other.getByTestId("pair-status")).toHaveText("Connected")
+    // "Connected" follows the first sync with the new destination, which gets
+    // the same allowance as the sync status: a hosted runner took over 15s.
+    await expect(other.getByTestId("pair-status")).toHaveText("Connected", { timeout: 20000 })
     await expect(other.getByTestId("pair-link")).toHaveValue("")
     await expect(other.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
     await other.locator("#settings_section_back").click()
@@ -90,7 +92,7 @@ test("a pairing code can carry the add-on sync passphrase, which unlocks add-on 
     await vault.getByTestId("addon-vault-secret").fill("pairing passphrase for tests")
     await vault.getByLabel("Confirm sync passphrase").fill("pairing passphrase for tests")
     await vault.getByTestId("addon-vault-submit").click()
-    await expect(vault.getByTestId("addon-vault-status")).toContainText("Ready", { timeout: 10000 })
+    await expect(vault.getByTestId("addon-vault-status")).toContainText("Ready", { timeout: 15_000 })
     await vault.getByRole("button", { name: "I saved my recovery key" }).click()
 
     await page.locator("#settings_section_back").click()

@@ -1,9 +1,13 @@
-const { test, expect, launchApp, closeApp } = require("./electron-harness")
+const { test, expect, launchApp, closeApp, warmUpTextRecognition } = require("./electron-harness")
 const { startImageTextServer } = require("../shared/image-text-fixture")
 
 test.skip(!["darwin", "win32"].includes(process.platform), "Native OCR uses Apple Vision (macOS) or Windows.Media.Ocr (Windows)")
 let server
-test.beforeAll(async () => { server = await startImageTextServer() })
+test.beforeAll(async () => {
+  test.setTimeout(150_000)
+  await warmUpTextRecognition()
+  server = await startImageTextServer()
+})
 test.afterAll(async () => { await server?.close() })
 
 const READY = `Drag to select text · ${process.platform === "darwin" ? "⌘C" : "Ctrl+C"} to copy`

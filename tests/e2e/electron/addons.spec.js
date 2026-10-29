@@ -298,7 +298,7 @@ test("capabilities: a panel action fetches within its grant and stores, and opti
     await expect(panelButton).toBeVisible()
     await panelButton.click()
     await openSettingsSection(window, "addons", "#addons_area")
-    await expect(editor).toHaveValue(/"storage": \{\s*"count": 2\s*\}/, { timeout: 10_000 })
+    await expect(editor).toHaveValue(/"storage": \{\s*"count": 2\s*\}/, { timeout: 15_000 })
     expect(await originalFrame.evaluate(frame => frame.isConnected)).toBe(true)
 
     const suffix = window.getByTestId("addon-option-harness-capable-suffix")
@@ -306,7 +306,7 @@ test("capabilities: a panel action fetches within its grant and stores, and opti
     await expect(suffix).toBeVisible()
     await suffix.fill("!")
     await suffix.dispatchEvent("change")
-    await expect(editor).toHaveValue(/"options": \{\s*"suffix": "!"/, { timeout: 10_000 })
+    await expect(editor).toHaveValue(/"options": \{\s*"suffix": "!"/, { timeout: 15_000 })
     await showAllStories(window)
     await expect(alpha.locator('.addon_badge[data-addon-badge="len"]')).toHaveText(`len ${title.length}!`)
     expect(await originalFrame.evaluate(frame => frame.isConnected)).toBe(true)

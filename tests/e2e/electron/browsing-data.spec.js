@@ -56,7 +56,7 @@ test("clearing one site leaves the others, clearing all leaves Once's own data",
     const empty = { cookie: false, local: false, idb: false }
     const expectStorage = async (url, expected) => {
       await inTab(url, "reload")
-      await expect.poll(() => inTab(url, READ), { timeout: 10_000 }).toEqual(expected)
+      await expect.poll(() => inTab(url, READ), { timeout: 15_000 }).toEqual(expected)
     }
     for (const url of pages) await expectStorage(url, stored)
 

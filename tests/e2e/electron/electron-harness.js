@@ -560,18 +560,22 @@ async function openSettingsSection(window, target, controlSelector) {
     await expect(
       back,
       "settings index was hidden but its back button was not visible"
-    ).toBeVisible({ timeout: 5_000 })
+    ).toBeVisible()
     await back.click()
   }
-  await row.click({
-    timeout: 5_000
-  })
   const section = window.locator(
     `.settings_section[data-settings-section="${target}"]`
   )
-  await expect(section, `${target} settings section did not open`).toBeVisible({
-    timeout: 5_000
-  })
+  // The configured budgets scale for hosted runners; the five seconds these
+  // steps once had did not. A cold Windows runner can stall the renderer long
+  // enough that the click lands but its acknowledgement does not: the section
+  // is then open, which is all this setup step is for.
+  try {
+    await row.click()
+  } catch (error) {
+    if (error?.name !== "TimeoutError" || !(await section.isVisible())) throw error
+  }
+  await expect(section, `${target} settings section did not open`).toBeVisible()
   if (!controlSelector) return section
   if (target === "addons") {
     const navigation = require("../shared/addon-settings-ui")
@@ -591,7 +595,7 @@ async function openSettingsSection(window, target, controlSelector) {
   await expect(
     control,
     `${target} settings control ${controlSelector} was not visible`
-  ).toBeVisible({ timeout: 5_000 })
+  ).toBeVisible()
   return control
 }
 
@@ -633,7 +637,7 @@ async function seedLocalSource(window, sourceLine, expectedStoryHref) {
   await showAllStories(window)
   await expect(
     window.locator(`#stories story-item[data-href="${expectedStoryHref}"]`)
-  ).toBeVisible({ timeout: 10_000 })
+  ).toBeVisible({ timeout: 15_000 })
 }
 
 async function saveFilters(window, text) {
@@ -733,8 +737,43 @@ async function transferTab(electronApp, windowId, action, tabId) {
   }, { windowId, action, tabId })
 }
 
+let textRecognitionWarmUp
+
+// The app gives one recognition 20 seconds, the helper's launch included. The
+// first launch of a freshly built helper is the OS scanning it (Gatekeeper,
+// Defender), which alone took that long: run it once, outside the app, before
+// the specs that read images. Started the way the app starts it.
+function warmUpTextRecognition() {
+  if (!["darwin", "win32"].includes(process.platform)) return Promise.resolve()
+  textRecognitionWarmUp ??= (async () => {
+    const { spawn } = require("node:child_process")
+    const name = process.platform === "win32" ? "once-image-text.exe" : "once-image-text"
+    const executable = path.resolve(__dirname, "../../../apps/electron/.native", name)
+    // A line of real text, so the recognizer loads too; a blank image ends sooner.
+    const image = await fs.readFile(path.join(__dirname, "../shared/ocr-warm-up.png"))
+    const directory = process.platform === "win32"
+      ? await fs.mkdtemp(path.join(os.tmpdir(), "once-ocr-warm-up-"))
+      : null
+    try {
+      await new Promise((resolve) => {
+        const child = spawn(executable, directory ? ["--sandbox-directory", directory] : [], {
+          stdio: ["pipe", "ignore", "ignore"], windowsHide: true, timeout: 120_000
+        })
+        child.on("error", resolve)
+        child.on("close", resolve)
+        child.stdin.on("error", () => {})
+        child.stdin.end(image)
+      })
+    } finally {
+      if (directory) await fs.rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }).catch(() => {})
+    }
+  })()
+  return textRecognitionWarmUp
+}
+
 module.exports = {
   ADDON_SCRIPT,
+  warmUpTextRecognition,
   closeApp,
   expect,
   test,
