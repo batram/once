@@ -29,6 +29,13 @@ public class MainActivity extends BridgeActivity {
     @Override public void onResume() {
         super.onResume();
         if (keyboardSpace != null) keyboardSpace.schedule();
+        ThemeTrace.record(this, "resume");
+        if (getBridge() != null) ThemeTrace.recordShell(this, getBridge().getWebView());
+    }
+
+    @Override public void onConfigurationChanged(android.content.res.Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        ThemeTrace.record(this, "config");
     }
 
     @Override public boolean dispatchTouchEvent(MotionEvent event) {
