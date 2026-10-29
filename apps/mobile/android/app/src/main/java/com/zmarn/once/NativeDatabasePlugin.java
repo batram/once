@@ -334,13 +334,24 @@ public class NativeDatabasePlugin extends Plugin {
         }
     }
 
+    /**
+     * The shell page restarted in a new renderer (ShellRenderRecovery). What the
+     * dead page opened is closed, queued ahead of anything the new page sends,
+     * so its own open does not find the database already open.
+     */
+    void shellRestarted() {
+        worker.execute(this::closeAll);
+    }
+
+    private void closeAll() {
+        for (String id : new ArrayList<>(snapshots.keySet())) endSnapshot(id);
+        for (SQLiteConnection db : databases.values()) db.close();
+        databases.clear();
+    }
+
     @Override
     protected void handleOnDestroy() {
-        worker.execute(() -> {
-            for (String id : new ArrayList<>(snapshots.keySet())) endSnapshot(id);
-            for (SQLiteConnection db : databases.values()) db.close();
-            databases.clear();
-        });
+        worker.execute(this::closeAll);
         worker.shutdown();
     }
 }

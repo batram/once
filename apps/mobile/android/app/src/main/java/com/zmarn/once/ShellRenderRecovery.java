@@ -134,6 +134,7 @@ final class ShellRenderRecovery extends WebViewListener {
             fresh.setWebChromeClient(chrome);
             // Capacitor's WebView setup resets inspection to its config default.
             if (WebInspectorPlugin.allowed(activity)) WebView.setWebContentsDebuggingEnabled(true);
+            databaseShellRestarted(bridge);
             fresh.loadUrl(bridge.getAppUrl());
             surfacesShellRestarted(bridge);
             return true;
@@ -165,6 +166,11 @@ final class ShellRenderRecovery extends WebViewListener {
         ViewGroup parent = (ViewGroup) view.getParent();
         if (parent != null) parent.removeView(view);
         view.destroy();
+    }
+
+    private static void databaseShellRestarted(Bridge bridge) {
+        PluginHandle handle = bridge.getPlugin("NativeDatabase");
+        if (handle != null) ((NativeDatabasePlugin) handle.getInstance()).shellRestarted();
     }
 
     private static void surfacesShellRestarted(Bridge bridge) {
