@@ -2,7 +2,7 @@ import { createPdfTextPort } from "@once/platform-web/pdf"
 import PouchDB from "pouchdb-browser"
 import PouchDBFind from "pouchdb-find"
 import { Browser } from "@capacitor/browser"
-import { Capacitor, registerPlugin } from "@capacitor/core"
+import { Capacitor, registerPlugin, SystemBars, SystemBarsStyle } from "@capacitor/core"
 import { mobileAddonFetch } from "./addonFetch"
 import { openMobileDatabase } from "./nativeStorage"
 export { prepareMobileDatabase } from "./nativeStorage"
@@ -115,9 +115,16 @@ export function createDefaultMobileNativeBridge(): MobileNativeBridge {
       const dark = theme === "dark" || (
         theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches
       )
-      // Capacitor Style.Dark = dark background (light text), Style.Light = light background
-      await StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light })
+      // Capacitor Style.Dark = dark background (light text), Style.Light = light background.
+      // "system" stays Default so native code resolves it from the uiMode on each
+      // configuration change, before (or without) this page's listener running.
+      const style = theme === "system" ? Style.Default : dark ? Style.Dark : Style.Light
+      await StatusBar.setStyle({ style })
       if (Capacitor.getPlatform() === "android") {
+        // Capacitor's own SystemBars writes the same bar appearance, and re-applies
+        // its last style on every configuration change; left on its default it
+        // overrode an explicit theme with the system's.
+        await SystemBars.setStyle({ style: style as string as SystemBarsStyle })
         await StatusBar.setBackgroundColor({ color: dark ? "#282a36" : "#f6f6ef" })
       }
     }
