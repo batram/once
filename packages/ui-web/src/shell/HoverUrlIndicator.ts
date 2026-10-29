@@ -44,7 +44,7 @@ export class HoverUrlIndicator {
     if (!(target instanceof Element)) return
 
     const anchor = target.closest<HTMLAnchorElement>("a[href]")
-    if (!anchor || !this.root.contains(anchor) || anchor === this.hoveredAnchor) {
+    if (!anchor || !this.watches(anchor) || anchor === this.hoveredAnchor) {
       return
     }
 
@@ -71,6 +71,12 @@ export class HoverUrlIndicator {
 
     this.hoveredAnchor = null
     this.setUrl("")
+  }
+
+  // Electron can move the matched story (#selected_container) out of the
+  // stories panel to sit above the browser view; its links still count.
+  private watches(anchor: HTMLAnchorElement): boolean {
+    return this.root.contains(anchor) || !!anchor.closest("#selected_container")
   }
 
   private setUrl(url: string): void {

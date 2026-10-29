@@ -82,6 +82,34 @@ test("hover URL indicator delays, cancels, and completes dismissal", (t) => {
   }
 })
 
+test("hover URL indicator covers the matched story moved beside the browser", () => {
+  const dom = installDom(`
+    <section id="stories_panel"></section>
+    <section id="right_panel">
+      <div id="selected_container">
+        <a id="matched" href="https://example.com/matched">Matched</a>
+      </div>
+      <a id="elsewhere" href="https://example.com/elsewhere">Elsewhere</a>
+    </section>
+  `)
+  try {
+    const { HoverUrlIndicator } = require(
+      "../../../packages/ui-web/dist/shell/HoverUrlIndicator"
+    )
+    const indicator = HoverUrlIndicator.mount()
+    const output = document.querySelector("#hover_url")
+
+    dispatch(dom.window, document.querySelector("#elsewhere"), "mouseover")
+    assert.ok(!output.classList.contains("visible"))
+    dispatch(dom.window, document.querySelector("#matched"), "mouseover")
+    assert.equal(output.textContent, "https://example.com/matched")
+    assert.ok(output.classList.contains("visible"))
+    indicator.destroy()
+  } finally {
+    dom.restore()
+  }
+})
+
 test("status issues stack, dismiss, restore, and reset per reload", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] })
   const dom = installDom(`
