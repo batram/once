@@ -38,6 +38,15 @@ android {
     buildFeatures {
         resValues = true
     }
+    // minSdk 26 makes AGP deflate the dex. An install that ART has not compiled
+    // yet (adb, cap run, Android Studio) then inflates its own ~35-40 MB copy
+    // in every app process, Gecko's helpers included; stored dex is mapped
+    // straight from the APK and shared. The APK grows by about 25 MB.
+    packaging {
+        dex {
+            useLegacyPackaging = false
+        }
+    }
     // engine: the browsing surface (GeckoView, or Once Lite's system WebView);
     // environment: dev or production identity. Variant ids are
     // com.zmarn.once[.lite][.dev]; engine comes first in task names
