@@ -1,6 +1,8 @@
 package com.zmarn.once;
 
+import android.content.ComponentCallbacks;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.app.ActivityManager;
 import android.os.Process;
 import android.util.Log;
@@ -62,6 +64,24 @@ final class GeckoEngine {
         String config = writeConfig(context);
         if (config != null) settings.configFilePath(config);
         runtime = GeckoRuntime.create(context, settings.build());
+        followSystemTheme();
+    }
+
+    /**
+     * Gecko keeps its own copy of the night mode, and GeckoView only updates it
+     * from a GeckoView that holds a session when the configuration changes. The
+     * reading surface releases its session while hidden or stopped, so a switch
+     * made while the app sat in the background, or on the story list, left every
+     * page in the old colour scheme. The process hears each change regardless.
+     */
+    private void followSystemTheme() {
+        context.registerComponentCallbacks(new ComponentCallbacks() {
+            @Override public void onConfigurationChanged(Configuration configuration) {
+                runtime.configurationChanged(configuration);
+            }
+
+            @SuppressWarnings("deprecation") @Override public void onLowMemory() {}
+        });
     }
 
     /**
