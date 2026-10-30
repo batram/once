@@ -64,8 +64,14 @@
   animation-duration: 1s;
 }
 
+/* Never shrinks (a shrinkable scroller collapsed the row to nothing), but an
+   open tray can outgrow the panel, so it scrolls past half of it and leaves
+   the list below its share. */
 #selected_container {
-  overflow: initial;
+  flex: 0 0 auto;
+  max-height: 50%;
+  overflow-x: hidden;
+  overflow-y: auto;
   border-bottom: 1px solid var(--sep-color);
   border-top: 1px solid var(--sep-color);
 }

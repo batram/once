@@ -135,8 +135,9 @@ body.menu-resizing iframe {
 }
 
 /* The title bar is always first. Only a row belonging to this conversation
-   may appear beneath it; unrelated browser stories remain in the Stories panel. */
-#left_panel[active_panel="addon"] #stories_panel {
+   may appear beneath it; unrelated browser stories remain in the Stories panel.
+   The row (with any open tray) scrolls rather than pushing the body away. */
+#left_panel:is([active_panel="addon"], [active_panel="comments"]) #stories_panel {
   max-height: 30%;
   overflow: auto;
 }
