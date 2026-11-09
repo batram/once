@@ -2,9 +2,12 @@ import {
   classifyReaderLink,
   isReaderLinkRequest,
   isReaderMenuRequest,
+  isReaderRetryRequest,
   READER_LINK_CHANNEL,
   READER_LINK_VERSION,
   readerLinkRequest,
+  readerRetryRequest,
+  retriesPage,
   type ReaderMenuRequest
 } from "./readerLinkProtocol"
 
@@ -23,6 +26,8 @@ export function installReaderLinks(target: Window): void {
       else if (action.id === "" || action.id.toLowerCase() === "top") target.scrollTo(0, 0)
     } else if (action.kind === "open") {
       target.parent.postMessage(readerLinkRequest(action.url), "*")
+    } else if (action.kind === "retry") {
+      target.parent.postMessage(readerRetryRequest(action.url), "*")
     }
   })
 }
@@ -79,5 +84,28 @@ export function installReaderLinkHost(
     if (!isReaderLinkRequest(event.data) || !isReaderWindow(event.source)) return
     const action = classifyReaderLink(event.data.url)
     if (action.kind === "open") open(action.url)
+  })
+}
+
+/** What the retry host needs of a tab's reading session. */
+export interface RetryableReading {
+  snapshot(): { mode: string; currentUrl: string }
+  retry(): void
+}
+
+/**
+ * Host half of "Try again" on the reader's error page: the tab whose reader
+ * frame asked reads its page afresh, and only while it still shows that page.
+ */
+export function installReaderRetryHost(
+  readingFor: (source: MessageEventSource | null) => RetryableReading | undefined,
+  host: Pick<Window, "addEventListener"> = window
+): void {
+  host.addEventListener("message", (event) => {
+    if (!isReaderRetryRequest(event.data)) return
+    const reading = readingFor(event.source)
+    const state = reading?.snapshot()
+    if (!reading || state?.mode !== "reader" || !retriesPage(event.data.url, state.currentUrl)) return
+    reading.retry()
   })
 }

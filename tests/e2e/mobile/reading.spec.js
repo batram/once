@@ -268,7 +268,7 @@ test("reader speech remembers the chosen voice and a speed per voice", async ({ 
   await expect(rateLabel).toHaveText("2×")
 })
 
-test("Reader mode explains failures and offers clean recovery", async ({ page }) => {
+test("Reader mode explains failures and reads the page again on Try again", async ({ page }) => {
   let attempts = 0
   await page.route("**/fixtures/reader-failure*", async (route) => {
     attempts += 1
@@ -297,26 +297,19 @@ test("Reader mode explains failures and offers clean recovery", async ({ page })
   await page.getByTestId("reading-url-input").press("Enter")
   await page.locator("#reading_reader_toggle").click()
 
+  // A failed read opens the reader's own error page; its link reads the page again.
   const status = page.getByTestId("reading-reader-status")
-  await expect(status).toBeVisible()
-  await expect(page.getByTestId("reading-reader-error")).toBeVisible()
-  await expect(page.locator("#reading_reader_error_message"))
-    .toContainText("HTTP 503")
-  await expect(page.getByTestId("reader-tts-bar")).toBeHidden()
-
-  await page.locator("#reading_reader_open_page").click()
-  await expect(page.locator("#reading_content")).toHaveAttribute(
-    "data-mode",
-    "browser"
-  )
-  await expect(status).toBeHidden()
-
-  await page.locator("#reading_reader_toggle").click()
-  await expect(page.getByTestId("reading-reader-error")).toBeVisible()
-  await page.locator("#reading_reader_retry").click()
-  await expect(page.getByTestId("reading-reader-loading")).toBeVisible()
-
   const reader = page.locator(".once-reader-host-frame").contentFrame()
+  await expect(reader.locator("[data-reader-error]")).toContainText("HTTP 503")
+  await expect(status).toBeHidden()
+  expect(attempts).toBe(1)
+
+  await reader.getByRole("link", { name: "Try again" }).click()
+  await expect.poll(() => attempts).toBe(2)
+  await expect(reader.locator("[data-reader-error]")).toContainText("HTTP 503")
+  await expect(page.locator("#reading_content")).toHaveAttribute("data-mode", "reader")
+
+  await reader.getByRole("link", { name: "Try again" }).click()
   await expect(reader.getByRole("heading", { name: "Recovered article" }))
     .toBeVisible()
   await expect(status).toBeHidden()

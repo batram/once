@@ -18,9 +18,12 @@ export interface ReaderLinkRequest {
 export type ReaderLinkAction =
   | { kind: "fragment"; id: string }
   | { kind: "open"; url: string }
+  | { kind: "retry"; url: string }
   | { kind: "ignore" }
 
 const OPENABLE_PROTOCOLS = ["http:", "https:", "mailto:"]
+// "Try again" on the reader's error page links to the reader address of its own page.
+const READER_ADDRESS = "once-reader://"
 
 /**
  * What a tap on an anchor with this raw href attribute should do. The reader
@@ -34,6 +37,10 @@ export function classifyReaderLink(href: string | null): ReaderLinkAction {
     try { id = decodeURIComponent(id) } catch { /* keep the raw fragment */ }
     return { kind: "fragment", id }
   }
+  if (value.startsWith(READER_ADDRESS)) {
+    const url = webUrl(value.slice(READER_ADDRESS.length))
+    return url ? { kind: "retry", url } : { kind: "ignore" }
+  }
   try {
     const url = new URL(value)
     return OPENABLE_PROTOCOLS.includes(url.protocol)
@@ -42,6 +49,42 @@ export function classifyReaderLink(href: string | null): ReaderLinkAction {
   } catch {
     return { kind: "ignore" }
   }
+}
+
+function webUrl(value: string): string | null {
+  try {
+    const url = new URL(value)
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null
+  } catch {
+    return null
+  }
+}
+
+/** The error page asking for its page to be read afresh, in the tab that shows it. */
+export interface ReaderRetryRequest {
+  channel: typeof READER_LINK_CHANNEL
+  version: typeof READER_LINK_VERSION
+  type: "retry"
+  url: string
+}
+
+export function readerRetryRequest(url: string): ReaderRetryRequest {
+  return { channel: READER_LINK_CHANNEL, version: READER_LINK_VERSION, type: "retry", url }
+}
+
+export function isReaderRetryRequest(value: unknown): value is ReaderRetryRequest {
+  if (!value || typeof value !== "object") return false
+  const candidate = value as Partial<ReaderRetryRequest>
+  return candidate.channel === READER_LINK_CHANNEL &&
+    candidate.version === READER_LINK_VERSION &&
+    candidate.type === "retry" &&
+    typeof candidate.url === "string"
+}
+
+/** Whether a retry for `url` is for the page a tab is reading at `currentUrl`. */
+export function retriesPage(url: string, currentUrl: string): boolean {
+  const current = webUrl(currentUrl)
+  return current !== null && current === webUrl(url)
 }
 
 /**

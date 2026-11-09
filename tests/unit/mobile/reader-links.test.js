@@ -85,6 +85,55 @@ test("the host opens only what the reader frame itself sent", () => {
   assert.deepEqual(opened, ["https://example.com/a"])
 })
 
+test("the error page's Try again link is a retry of its own page", () => {
+  const { classifyReaderLink } = protocol
+  assert.deepEqual(
+    classifyReaderLink("once-reader://https://example.com/a?x=1#y"),
+    { kind: "retry", url: "https://example.com/a?x=1#y" }
+  )
+  assert.deepEqual(classifyReaderLink("once-reader://https://example.com"), { kind: "retry", url: "https://example.com/" })
+  assert.deepEqual(classifyReaderLink("once-reader://javascript:alert(1)"), { kind: "ignore" })
+  assert.deepEqual(classifyReaderLink("once-reader://"), { kind: "ignore" })
+})
+
+test("tapping Try again on the shared error page asks the host to read the page afresh", () => {
+  require("../../helpers/raw-assets").installRawAssetLoader()
+  const { readerErrorDocument } = require("../../../packages/ui-web/dist/reader/readerErrorDocument")
+  const page = readerErrorDocument("https://example.com/a?x=1&y=2", new Error("HTTP 503"))
+  const link = page.match(/<a data-reader-retry[^>]*>.*?<\/a>/)[0]
+  const { posted, tap } = readerFrame(`<p>${link}</p>`)
+  const event = tap("a")
+  assert.equal(event.defaultPrevented, true)
+  assert.deepEqual(posted, [protocol.readerRetryRequest("https://example.com/a?x=1&y=2")])
+})
+
+test("a retry re-reads the tab that owns the frame, while it still reads that page", () => {
+  const listeners = []
+  const tab = (mode, currentUrl) => {
+    const reading = { retries: 0, snapshot: () => ({ mode, currentUrl }), retry: () => { reading.retries += 1 } }
+    return { window: {}, reading }
+  }
+  const failed = tab("reader", "https://example.com")
+  const other = tab("reader", "https://example.com/other")
+  const browsing = tab("browser", "https://example.com/page")
+  const tabs = [failed, other, browsing]
+  links.installReaderRetryHost(
+    (source) => tabs.find((candidate) => candidate.window === source)?.reading,
+    { addEventListener: (_type, listener) => listeners.push(listener) }
+  )
+  const send = (data, source) => listeners.forEach((listener) => listener({ data, source }))
+  const retries = () => tabs.map((candidate) => candidate.reading.retries)
+
+  send(protocol.readerRetryRequest("https://example.com/"), failed.window)
+  assert.deepEqual(retries(), [1, 0, 0], "only the tab whose frame asked reads again")
+  send(protocol.readerRetryRequest("https://example.com/"), {})
+  send(protocol.readerRetryRequest("https://example.com/"), other.window)
+  send(protocol.readerRetryRequest("https://example.com/page"), browsing.window)
+  send(protocol.readerLinkRequest("https://example.com/"), failed.window)
+  send({ type: "retry", url: "https://example.com/" }, failed.window)
+  assert.deepEqual(retries(), [1, 0, 0], "unknown frames, other pages, browser mode and other messages are ignored")
+})
+
 test("the sanitizer keeps same-article fragments bare and resolves the rest", () => {
   const { window } = parseHTML("<html><body></body></html>")
   globalThis.DOMParser = window.DOMParser

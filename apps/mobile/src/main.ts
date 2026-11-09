@@ -33,7 +33,7 @@ import { mobileAddonConversations } from "./addonConversations"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import { installReaderTtsControls } from "./readerTtsControls"
 import { installReaderMediaSession, nativeReaderSpeechEngine } from "./readerMediaSession"
-import { installReaderLinkHost, installReaderLinkMenuHost } from "./readerLinks"
+import { installReaderLinkHost, installReaderLinkMenuHost, installReaderRetryHost } from "./readerLinks"
 import { installReaderEdgeSwipeHost } from "./readerEdgeSwipe"
 import { MobileReadingController } from "./readingController"
 import { livePageHtml, livePagePdf } from "./readingLivePage"
@@ -233,6 +233,16 @@ function installMobileTestHooks(
   }
 }
 
+// Web links leave the reader for the browser surface; mail goes to the system.
+// "Try again" on the reader's error page reads the page afresh in its own tab.
+function installReaderLinkHosts(reading: MobileReadingController, openExternal: (url: string) => unknown): void {
+  installReaderLinkHost((source) => reading.reader.isReaderWindow(source), (url) => {
+    if (url.startsWith("mailto:")) void openExternal(url)
+    else reading.openBrowserUrl(url)
+  })
+  installReaderRetryHost((source) => reading.runtime.tabForReaderWindow(source)?.session)
+}
+
 // A saved tab keeps its story even when the feed removes it; refresh metadata
 // whenever the working set changes.
 function bindTabStories(reading: MobileReadingController, client: ReturnType<typeof createOnceApp>["client"]): void {
@@ -312,11 +322,7 @@ async function startMobileApp(): Promise<void> {
   await reading.install()
   await installMobileImageText(browserSurface)
   bindTabStories(reading, app.client)
-  // Web links leave the reader for the browser surface; mail goes to the system.
-  installReaderLinkHost((source) => reading.reader.isReaderWindow(source), (url) => {
-    if (url.startsWith("mailto:")) void nativeBridge.openExternal(url)
-    else reading.openBrowserUrl(url)
-  })
+  installReaderLinkHosts(reading, url => nativeBridge.openExternal(url))
   // Android's WebView draws no long-press menu for the Reader frame; the native one does.
   if (Capacitor.getPlatform() === "android") {
     installReaderLinkMenuHost((source) => reading.runtimeReaderWindow(source), (request) => {
