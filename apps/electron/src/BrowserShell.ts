@@ -16,6 +16,7 @@ import { FindBar } from "./browser/FindBar"
 import { bindBlockedPopups } from "./browser/BlockedPopups"
 import { PageAddonActions } from "./browser/PageAddonActions"
 import { bindShellToolbar } from "./browser/ShellToolbar"
+import { bindReaderButton } from "./browser/ReaderButton"
 import { TabHoverPreview } from "./browser/TabHoverPreview"
 import {
   displayBrowserUrl,
@@ -63,6 +64,9 @@ export class BrowserShell {
       deliver: (tabId, html, sourceUrl) =>
         this.bridge.tabs.openReader(html, sourceUrl, "current", tabId),
       fail: (tabId, url, error) => this.showReaderError(tabId, url, error),
+      // Ctrl or middle click: a background tab of its own, carrying an error page if it fails.
+      openBeside: (html, sourceUrl) => this.bridge.tabs.openReader(html, sourceUrl, "middle"),
+      failBeside: (url, error) => this.bridge.tabs.openReader(this.readerErrorHtml(url, error), url, "middle"),
       changed: () => this.renderControls()
     })
     const windowContent = required<HTMLElement>("#window_content")
@@ -169,21 +173,12 @@ export class BrowserShell {
     this.forwardButton.onclick = steer((tab) => this.bridge.tabs.forward(tab.id))
     this.reloadButton.onclick = steer((tab) =>
       tab.loading ? this.bridge.tabs.stop(tab.id) : this.bridge.tabs.reload(tab.id))
-    this.readerButton.onclick = () => {
-      const active = this.activeTab()
-      if (!active) return
-      this.address.setError("")
-      const readerSource = sourceUrlFromReaderUrl(active.url)
-      if (readerSource) {
-        this.readerRequests.cancel(active.id)
-        void this.bridge.tabs.navigate(active.id, readerSource).catch((error) => {
-          this.address.setError(readerErrorMessage(error))
-        })
-        return
-      }
-      if (!isReadableUrl(active.url)) return
-      this.readerRequests.start(active.id, active.url)
-    }
+    bindReaderButton(this.readerButton, {
+      bridge: this.bridge,
+      requests: this.readerRequests,
+      active: () => this.activeTab(),
+      setError: (message) => this.address.setError(message)
+    })
   }
 
   private bindTabs(): void {
@@ -653,10 +648,14 @@ export class BrowserShell {
     this.tabStrip.style.setProperty("--electron-tab-width", `${tabWidth}px`)
   }
 
+  private readerErrorHtml(sourceUrl: string, error: unknown): string {
+    return readerErrorDocument(sourceUrl, readerErrorMessage(error), document.body.getAttribute("data-theme") === "dark" ? "dark" : "light")
+  }
+
   private showReaderError(tabId: string, sourceUrl: string, error: unknown): void {
     this.address.setError("")
     void this.bridge.tabs
-      .openReader(readerErrorDocument(sourceUrl, readerErrorMessage(error), document.body.getAttribute("data-theme") === "dark" ? "dark" : "light"), sourceUrl, "current", tabId)
+      .openReader(this.readerErrorHtml(sourceUrl, error), sourceUrl, "current", tabId)
       .catch((reportError) => {
         console.error("Failed to display the reader error page", reportError)
       })

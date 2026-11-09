@@ -12,6 +12,9 @@ export interface ReaderRequestHost {
   hasTab(tabId: string): boolean
   deliver(tabId: string, html: string, sourceUrl: string): Promise<void>
   fail(tabId: string, url: string, error: unknown): void
+  /** A reader opened beside the page, in a background tab of its own. */
+  openBeside(html: string, sourceUrl: string): Promise<void>
+  failBeside(url: string, error: unknown): Promise<void>
   /** Called whenever the set of pending requests changed. */
   changed(): void
 }
@@ -55,6 +58,17 @@ export class ReaderRequests {
         if (!this.settle(tabId, id)) return
         this.host.fail(tabId, url, error)
       })
+  }
+
+  /**
+   * A reader for `url` in a new background tab (Ctrl or middle click). It
+   * replaces nothing on screen, so it is not tied to the tab that asked: that
+   * tab may move on meanwhile, and the reader still arrives.
+   */
+  openBeside(url: string): void {
+    void this.run(url, (html, sourceUrl) => this.host.openBeside(html, sourceUrl))
+      .catch((error) => this.host.failBeside(url, error))
+      .catch((reportError) => console.error("Failed to open the reader beside the page", reportError))
   }
 
   cancel(tabId: string): void {
