@@ -122,6 +122,18 @@ export class ReadingTabRuntime {
     return this.runtimes.get(this.selectedId ?? "")?.surface ?? this.surface
   }
 
+  /**
+   * The surface of a tab whose page has finished loading `url`, the selected
+   * tab's before any other; null when no tab holds that page.
+   */
+  surfaceShowing(url: string): InAppBrowserSurface | null {
+    const selected = this.runtimes.get(this.selectedId ?? "")
+    for (const runtime of [...(selected ? [selected] : []), ...this.runtimes.values()]) {
+      if (runtime.coordinator.showsPage(url)) return runtime.surface
+    }
+    return null
+  }
+
   setPanelVisible(visible: boolean): void {
     this.panelVisible = visible
     this.sync()

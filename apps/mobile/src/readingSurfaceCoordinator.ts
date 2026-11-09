@@ -4,6 +4,7 @@ import type {
   ReadingSession,
   ReadingSessionState
 } from "@once/ui-web"
+import { sameDocumentUrl } from "@once/app/livePage"
 import type { HistoryDirection, HistoryEntry, ReadingHistory } from "./readingHistory"
 
 export interface ReadingDocumentLoader {
@@ -295,6 +296,15 @@ export class ReadingSurfaceCoordinator {
 
   isBrowserReady(): boolean {
     return this.browserReady
+  }
+
+  /**
+   * Whether the tab's own page has finished loading `url`, on screen or hidden
+   * behind the reader: Reader mode covers the page it was asked for, and that
+   * page's events keep these current while it is covered.
+   */
+  showsPage(url: string): boolean {
+    return this.browserOpened && this.browserReady && sameDocumentUrl(this.browserUrl, url)
   }
 
   /** The full link (any scheme the surface refused) the failed page redirected to. */

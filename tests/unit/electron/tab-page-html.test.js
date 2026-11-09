@@ -11,23 +11,39 @@ function load() {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
   }).outputText
   const module = { exports: {} }
-  Function("exports", "require", compiled)(module.exports, () => { throw Error("no imports") })
+  Function("exports", "require", compiled)(module.exports, (name) => {
+    if (name === "@once/app/livePage") return livePage
+    throw Error(`no import of ${name}`)
+  })
   return module.exports
 }
+
+const livePage = require("../../../packages/app/dist/livePage")
 
 const ARTICLE = "https://example.com/article"
 
 // One tab whose contents load until told otherwise.
-function tabWindow({ loading }) {
+function tabWindow({ loading, answer }) {
+  const scripts = []
   const contents = Object.assign(new EventEmitter(), {
     loading,
     isLoading() { return this.loading },
     getURL: () => ARTICLE,
-    executeJavaScript: async () => "<html><body>The article</body></html>"
+    executeJavaScript: async (script) => {
+      scripts.push(script)
+      return answer === undefined ? { html: "<html><body>The article</body></html>", url: `${ARTICLE}#top` } : answer
+    }
   })
   const tab = { id: "t1", url: ARTICLE, loadError: null }
-  return { tab, contents, tabs: { getAll: () => [tab], tabContents: () => contents } }
+  return { tab, contents, scripts, tabs: { getAll: () => [tab], tabContents: () => contents } }
 }
+
+test("a tab's page is read with the shared page script, under the tab's own address", async () => {
+  const { tabPageHtml } = load()
+  const { tabs, scripts } = tabWindow({ loading: false })
+  assert.deepEqual(await tabPageHtml(tabs, null, ARTICLE), { html: "<html><body>The article</body></html>", url: ARTICLE })
+  assert.deepEqual(scripts, [livePage.LIVE_PAGE_SCRIPT])
+})
 
 test("a tab still loading the page is read once it finishes, not passed over for a fetch", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] })
@@ -56,7 +72,7 @@ test("only an HTML document's markup is read; an image, PDF or text file in its 
   const { tabs, contents } = tabWindow({ loading: false })
   for (const [contentType, expected] of [["text/html", "<html>page</html>"], ["application/xhtml+xml", "<html>page</html>"], ["image/png", null], ["application/pdf", null], ["text/plain", null]]) {
     // The script the tab runs, run here against a document of that type.
-    contents.executeJavaScript = async (script) => Function("document", `return ${script}`)({ contentType, documentElement: { outerHTML: "<html>page</html>" } })
+    contents.executeJavaScript = async (script) => Function("document", "location", `return ${script}`)({ contentType, documentElement: { outerHTML: "<html>page</html>" } }, { href: ARTICLE })
     const read = await tabPageHtml(tabs, null, ARTICLE)
     assert.equal(read?.html ?? null, expected, contentType)
   }

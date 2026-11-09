@@ -2,7 +2,7 @@ import { bindMobileBrowserHistory } from "./browserHistory"
 import { installReaderAiHost } from "./readerAiHost"
 import { App } from "@capacitor/app"
 import { Capacitor } from "@capacitor/core"
-import { createOnceApp, MAX_DOCUMENT_BYTES } from "@once/app"
+import { createOnceApp } from "@once/app"
 import { bindMobileExtensionSettings } from "./mobileExtensionSettings"
 import { gateBrowserStartup } from "./browserStartupGate"
 import {
@@ -36,6 +36,7 @@ import { installReaderMediaSession, nativeReaderSpeechEngine } from "./readerMed
 import { installReaderLinkHost, installReaderLinkMenuHost } from "./readerLinks"
 import { installReaderEdgeSwipeHost } from "./readerEdgeSwipe"
 import { MobileReadingController } from "./readingController"
+import { livePageHtml, livePagePdf } from "./readingLivePage"
 import { installMobileImageText } from "./mobileImageText"
 import { setUpPairing } from "./pairing"
 import { mountTabSyncInTabView, readingTabOpener, readingTabSource } from "./readingTabSync"
@@ -232,31 +233,6 @@ function installMobileTestHooks(
   }
 }
 
-/**
- * The selected tab's page as the reading view shows it, only while it is the
- * page asked for and has loaded. Never opens or navigates anything: what is
- * not already there is not there.
- */
-async function livePageHtml(reading: MobileReadingController, url: string): Promise<{ html: string; url: string } | null> {
-  const state = reading.tabs.selected?.session.snapshot()
-  const samePage = state && state.currentUrl.replace(/#.*$/, "") === url.replace(/#.*$/, "")
-  if (!state || !samePage || state.mode !== "browser" || state.loadState !== "ready") return null
-  const html = await reading.runtime.pageSurface.evaluateJavaScript("document.documentElement.outerHTML")
-  return html ? { html, url: state.currentUrl } : null
-}
-
-/**
- * The PDF the selected tab's viewer shows. A site behind a bot challenge
- * serves the tab and refuses the reader's own download, so the viewer's copy
- * is the one the reader can get. Unlike the HTML read this is asked while
- * Reader mode already covers the page, so the session's mode says nothing; the
- * native side checks that the page behind it finished loading this URL as a PDF.
- */
-async function livePagePdf(reading: MobileReadingController, url: string): Promise<{ bytes: Uint8Array; url: string } | null> {
-  if (!reading.tabs.selected) return null
-  return await reading.runtime.pageSurface.pdfBytes?.(url, MAX_DOCUMENT_BYTES) ?? null
-}
-
 // A saved tab keeps its story even when the feed removes it; refresh metadata
 // whenever the working set changes.
 function bindTabStories(reading: MobileReadingController, client: ReturnType<typeof createOnceApp>["client"]): void {
@@ -301,8 +277,8 @@ async function startMobileApp(): Promise<void> {
   // The reading controller is built below; the closure only runs on a tap.
   const platform = createMobilePlatform(nativeBridge, undefined, {
     openInApp: (url) => reading.openBrowserUrl(url),
-    livePageHtml: (url) => livePageHtml(reading, url),
-    livePagePdf: (url) => livePagePdf(reading, url),
+    livePageHtml: (url) => livePageHtml(reading.runtime, url),
+    livePagePdf: (url) => livePagePdf(reading.runtime, url),
     appVersion: __ONCE_APP_VERSION__,
     // The reading controller exists before the app starts, which is when these first run.
     tabSource: readingTabSource(() => reading.tabs, () => reading.runtime.capturePreview(), (tabId, script) => reading.runtime.evaluate(tabId, script)),

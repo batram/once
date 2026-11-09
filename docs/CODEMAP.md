@@ -48,6 +48,7 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | Settings UI | `packages/ui-web/src/settings` | Panel, persistence, structured editors, search, and form helpers |
 | Reader extraction and display | `packages/ui-web/src/reader` | Shared reader runtime |
 | Stored articles, offline copies | `packages/core/src/story/storyContent.ts`, `packages/persistence/src/PouchStoryStore.ts`, `packages/ui-web/src/reader/storedContent.ts`, `packages/webext-shell/src/readerPage.ts` | Core decides what counts as an article; the store owns the attachment; ui-web fetches and extracts; the extensions' reader page shows a stored copy |
+| Reading a page from its open tab | `packages/app/src/documentRetrievalMethods.ts`, `livePage.ts`, `apps/electron/src/tabPageHtml.ts`, `apps/mobile/src/readingLivePage.ts` | The fetch the reader, the AI and Save for offline share asks the open tab first; one page script says what counts as a page; each shell finds the tab holding it, on mobile also the one hidden behind its reader |
 | Source picker | `packages/ui-web/src/picker` | Shared picker plus platform injection |
 | Electron tabs and windows | `apps/electron/src/TabManager.ts`, `apps/electron/src/browser/TabOwnership.ts`, `WindowLifecycle.ts` | Main-process orchestration and ownership |
 | Recently closed Electron tabs | `apps/electron/src/browser/ClosedTabs.ts`, `OpenTabs.ts` | Bounded main-process history used by the command layer; the open-tabs session store that leads it after a killed session |

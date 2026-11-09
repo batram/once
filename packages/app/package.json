@@ -29,6 +29,10 @@
       "types": "./dist/fetchDocument.d.ts",
       "default": "./dist/fetchDocument.js"
     },
+    "./livePage": {
+      "types": "./dist/livePage.d.ts",
+      "default": "./dist/livePage.js"
+    },
     "./browsingSite": {
       "types": "./dist/browsingSite.d.ts",
       "default": "./dist/browsingSite.js"
