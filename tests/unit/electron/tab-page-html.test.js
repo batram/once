@@ -51,6 +51,38 @@ test("a load that keeps going is waited for, then given up for a fetch", async (
   assert.equal(contents.listenerCount("did-stop-loading"), 0)
 })
 
+const PDF = "https://example.com/report.pdf"
+
+function pdfTab(result) {
+  const scripts = []
+  const contents = Object.assign(new EventEmitter(), {
+    isLoading: () => false,
+    getURL: () => PDF,
+    executeJavaScript: async (script) => { scripts.push(script); return result }
+  })
+  const tab = { id: "p1", url: PDF, loadError: null }
+  return { scripts, tabs: { getAll: () => [tab], tabContents: () => contents } }
+}
+
+test("a PDF tab's bytes are read as the tab, from its HTTP cache before asking again", async () => {
+  const { tabPdfBytes } = load()
+  const bytes = new TextEncoder().encode("%PDF-1.7\n%body")
+  const { tabs, scripts } = pdfTab(bytes)
+  assert.deepEqual(await tabPdfBytes(tabs, null, `${PDF}#page=2`), { bytes, url: PDF })
+  assert.match(scripts[0], /document\.contentType !== "application\/pdf"/)
+  assert.match(scripts[0], /credentials: "include"/)
+  assert.match(scripts[0], /read\("only-if-cached"\) \?\? await read\("no-cache"\)/)
+})
+
+test("a cached challenge page, a non-PDF tab or no tab is not taken for the PDF", async () => {
+  const { tabPdfBytes } = load()
+  const challenge = pdfTab(new TextEncoder().encode("<!DOCTYPE html><title>Just a moment...</title>"))
+  assert.equal(await tabPdfBytes(challenge.tabs, null, PDF), null)
+  assert.equal(await tabPdfBytes(pdfTab(null).tabs, null, PDF), null)
+  assert.equal(await tabPdfBytes(pdfTab(null).tabs, null, "https://example.com/other.pdf"), null)
+  assert.equal(await tabPdfBytes(pdfTab(null).tabs, null, "file:///C:/report.pdf"), null)
+})
+
 test("a tab that fails or moves on while it loads is not read", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] })
   const { tabPageHtml } = load()

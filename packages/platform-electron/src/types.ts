@@ -276,6 +276,8 @@ export interface ElectronBridge {
     openUrl(url: string, target: ElectronOpenTarget): Promise<void>
     /** The serialized DOM of this window's tab showing `url` (fragment ignored), or null when none does. */
     pageHtml(url: string): Promise<{ html: string; url: string } | null>
+    /** The cached bytes of the PDF this window's tab shows for `url`, or null when none does. */
+    pdfBytes(url: string): Promise<{ bytes: Uint8Array; url: string } | null>
     /**
      * `tabId` names the tab that asked for the document. Without it the active
      * tab is used, which is only correct when nothing can have moved on since.
@@ -477,6 +479,7 @@ export const ELECTRON_IPC = {
   tabsGetAll: "once:tabs:get-all",
   tabsOpenUrl: "once:tabs:open-url",
   tabsPageHtml: "once:tabs:page-html",
+  tabsPdfBytes: "once:tabs:pdf-bytes",
   tabsOpenReader: "once:tabs:open-reader",
   tabsCreate: "once:tabs:create",
   tabsActivate: "once:tabs:activate",

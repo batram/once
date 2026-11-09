@@ -106,7 +106,8 @@ export function createElectronPlatform(
       }
     },
     livePage: {
-      html: (url) => bridge.tabs.pageHtml(url)
+      html: (url) => bridge.tabs.pageHtml(url),
+      pdf: (url) => bridge.tabs.pdfBytes(url)
     },
     activeTab: {
       openUrl(url, target) {

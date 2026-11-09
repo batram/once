@@ -71,6 +71,7 @@ const bridge: ElectronBridge = {
     openUrl: (url, target) =>
       ipcRenderer.invoke(ELECTRON_IPC.tabsOpenUrl, url, target),
     pageHtml: (url) => ipcRenderer.invoke(ELECTRON_IPC.tabsPageHtml, url),
+    pdfBytes: (url) => ipcRenderer.invoke(ELECTRON_IPC.tabsPdfBytes, url),
     openReader: (html, sourceUrl, target, tabId) =>
       ipcRenderer.invoke(
         ELECTRON_IPC.tabsOpenReader,

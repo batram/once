@@ -572,6 +572,11 @@ export interface ActiveTabPort {
 export interface LivePagePort {
   /** The serialized DOM of an open page showing `url` (fragment ignored), or null when none is open or ready. */
   html(url: string): Promise<{ html: string; url: string } | null>
+  /**
+   * The bytes of a PDF an open page shows for `url`, as that page received them, or null.
+   * A site that challenges every request but a navigation serves the page and refuses a fetch.
+   */
+  pdf?(url: string): Promise<{ bytes: Uint8Array; url: string } | null>
 }
 
 export interface DatabaseChange {

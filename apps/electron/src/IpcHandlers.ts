@@ -40,7 +40,7 @@ import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
 import { showExtensionMenu } from "./extensions/ExtensionMenu"
 import { registerAmoHandlers } from "./extensions/AmoHandlers"
 import { checkLatestRelease } from "./ManualReleaseCheck"
-import { tabPageHtml } from "./tabPageHtml"
+import { tabPageHtml, tabPdfBytes } from "./tabPageHtml"
 
 interface IpcHandlerOptions {
   buildChannel: "release" | "dev"
@@ -327,6 +327,7 @@ function registerTabNavigation(coordinator: BrowserCoordinator): void {
     return coordinator.openUrl(current.window, url, target)
   })
   ipcMain.handle(ELECTRON_IPC.tabsPageHtml, (event, url: unknown) => tabPageHtml(coordinator, browser(event, coordinator).window, url))
+  ipcMain.handle(ELECTRON_IPC.tabsPdfBytes, (event, url: unknown) => tabPdfBytes(coordinator, browser(event, coordinator).window, url))
   ipcMain.handle(
     ELECTRON_IPC.tabsOpenReader,
     (event, html: string, sourceUrl: string, target: string, tabId?: string) => {

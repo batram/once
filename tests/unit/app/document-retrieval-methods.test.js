@@ -17,3 +17,30 @@ test("documents are fetched through the platform's bounded document fetch when i
   await documentRetrievalMethods({ fetch: async (url) => { plain.push(url); return html(url) } }).fetchDocument("https://example.test/article")
   assert.deepEqual(plain, ["https://example.test/article"])
 })
+
+test("a PDF an open tab shows is read from that tab instead of fetched again", async () => {
+  const used = []
+  const bytes = new TextEncoder().encode("%PDF-1.7")
+  const platform = {
+    fetch: async (url) => { used.push(["fetch", url]); return html(url) },
+    livePage: {
+      html: async () => null,
+      pdf: async (url) => { used.push(["tab", url]); return url.endsWith(".pdf") ? { bytes, url } : null }
+    },
+    pdfText: { extract: async (received) => {
+      used.push(["extract", new TextDecoder().decode(received)])
+      return { pages: [{ method: "embedded", lines: ["Page text"] }] }
+    } }
+  }
+  const methods = documentRetrievalMethods(platform)
+  const pdf = await methods.retrieveDocument("https://example.test/report.pdf")
+  assert.equal(pdf.kind, "text")
+  assert.equal(pdf.url, "https://example.test/report.pdf")
+  await methods.fetchDocument("https://example.test/article")
+  assert.deepEqual(used, [
+    ["tab", "https://example.test/report.pdf"],
+    ["extract", "%PDF-1.7"],
+    ["tab", "https://example.test/article"],
+    ["fetch", "https://example.test/article"]
+  ])
+})
