@@ -496,7 +496,8 @@ test("button semantics, accessible names, keyboard focus, and layout primitives 
   await expect(page.getByTestId("cluster-contract")).toHaveCSS("flex-flow", "row wrap")
   await expect(page.getByTestId("cluster-contract")).toHaveCSS("align-items", "center")
   await expect(page.getByTestId("toolbar-contract")).toHaveCSS("align-items", "center")
-  await expect(page.getByTestId("toolbar-contract")).toHaveCSS("justify-content", "flex-start")
+  // Chromium 158 serializes a computed `flex-start` as `flow-start`; Electron's older Chromium still says `flex-start`.
+  await expect(page.getByTestId("toolbar-contract")).toHaveCSS("justify-content", /^(flex|flow)-start$/)
 })
 
 test("ordinary desktop Settings actions share the dense button skin", async ({ page }) => {
