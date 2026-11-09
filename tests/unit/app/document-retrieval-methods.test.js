@@ -36,6 +36,25 @@ test("the open-tab fetch prefers the tab and otherwise uses the bounded document
   assert.equal(openDocumentFetch({ fetch: platform.fetch }), platform.fetch, "no tab port, no wrapper")
 })
 
+test("a page an open tab shows is read as the tab rendered it, without asking the network", async () => {
+  const used = []
+  const platform = {
+    fetch: async (url) => { used.push(["fetch", url]); return new Response("Forbidden", { status: 403 }) },
+    livePage: {
+      html: async (url) => url.endsWith("/article") ? { html: "<!doctype html><title>Open</title><p>As the tab shows it</p>", url: `${url}?redirected` } : null,
+      pdf: async () => null
+    }
+  }
+  const methods = documentRetrievalMethods(platform)
+  const page = await methods.retrieveDocument("https://example.test/article")
+  assert.equal(page.kind, "html")
+  assert.match(page.html, /As the tab shows it/)
+  assert.equal(page.url, "https://example.test/article?redirected", "the tab's own address, redirects included")
+  assert.deepEqual(used, [], "a site refusing other requests (HTTP 403) is never asked")
+  await assert.rejects(methods.fetchDocument("https://example.test/elsewhere"), /HTTP 403/, "without an open tab the download goes ahead")
+  assert.deepEqual(used, [["fetch", "https://example.test/elsewhere"]])
+})
+
 test("a PDF an open tab shows is read from that tab instead of fetched again", async () => {
   const used = []
   const bytes = new TextEncoder().encode("%PDF-1.7")
