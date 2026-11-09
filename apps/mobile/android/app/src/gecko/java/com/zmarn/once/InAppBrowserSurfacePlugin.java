@@ -264,13 +264,8 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost implements Rea
             call.resolve(new JSObject().put("cancelled", true));
             return;
         }
-        android.net.Uri uri = result.getData().getData();
-        new Thread(() -> {
-            try {
-                java.io.File file = GeckoExtensionFiles.copy(getContext(), uri);
-                handler.post(() -> extensions.installFile(call, file));
-            } catch (Exception error) { handler.post(() -> call.reject("Could not read extension file", error)); }
-        }, "once-extension-file").start();
+        GeckoExtensionFiles.copyInBackground(getContext(), result.getData().getData(), handler,
+            file -> extensions.installFile(call, file), error -> call.reject("Could not read extension file", error));
     }
 
     @PluginMethod
@@ -516,6 +511,13 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost implements Rea
     public void evaluateJavaScript(PluginCall call) {
         if (!route(call, Missing.REJECT, tab -> tab.evaluateJavaScript(call))) return;
         getActivity().runOnUiThread(() -> scripts.evaluate(call, session != null, bridgePort));
+    }
+
+    /** The PDF this tab's viewer shows for the call's url, for a reader the site refuses; see ReadingPdfBytes. */
+    @PluginMethod
+    public void pdfBytes(PluginCall call) {
+        if (!route(call, Missing.RESOLVE, tab -> tab.pdfBytes(call))) return;
+        getActivity().runOnUiThread(() -> ReadingPdfBytes.read(call, session, currentUrl, navigationCompleted, h -> { if (backgroundMedia != null) backgroundMedia.hold(h); }));
     }
 
     @PluginMethod

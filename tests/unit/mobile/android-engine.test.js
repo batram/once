@@ -82,7 +82,7 @@ test("Once Lite registers the shell's plugin names on the system WebView and kee
   for (const method of ["open", "navigate", "reload", "goBack", "goForward", "goToHistoryIndex", "capturePreview", "setBounds", "setVisible",
     "showMenu", "closeBrowserMenu", "showContextMenu", "setContextMenuItems", "showPrompt", "evaluateJavaScript", "applyExtensionSettings",
     "findInPage", "clearFind", "presentFind", "close", "selectTab", "extensionCommand", "extensionPage", "clearSiteData", "clearAllData",
-    "fetchDocument", "recognizeImage", "imageTextOverlay", "openExternalRedirect"]) {
+    "fetchDocument", "recognizeImage", "imageTextOverlay", "openExternalRedirect", "pdfBytes"]) {
     assert.match(surface, new RegExp(`public void ${method}\\(PluginCall call\\)`), method)
   }
   assert.match(fs.readFileSync(path.join(lite, "LiteViolentmonkeyPlugin.java"), "utf8"), /@CapacitorPlugin\(name = "GeckoViolentmonkey"\)[\s\S]*"NOT_RUNNING"/)

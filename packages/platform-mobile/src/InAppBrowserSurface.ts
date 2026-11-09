@@ -3,6 +3,7 @@ import { Capacitor, PluginListenerHandle, registerPlugin } from "@capacitor/core
 import type { FilterListsDocument, UserscriptsDocument } from "@once/core"
 import { parseUserscript } from "@once/core"
 import type { NativeExtensions } from "./BrowserExtensions"
+import { decodeBase64 } from "./base64"
 
 export interface BrowserSurfaceBounds {
   /** CSS viewport pixels. Native implementations perform scale conversion. */
@@ -298,6 +299,8 @@ export interface InAppBrowserSurface {
   /** Clears every site's data; add-on storage and the shell's own data stay. */
   clearAllData?(): Promise<void>
   evaluateJavaScript(script: string): Promise<string | null>
+  /** The PDF this page's viewer shows for `url`, without a request, or null (Android GeckoView). */
+  pdfBytes?(url: string, maxBytes: number): Promise<{ bytes: Uint8Array; url: string } | null>
   /** Recognizes an image of this page, fetched natively with its cookies and referrer (Android). */
   recognizeImageUrl?(url: string, referrer?: string): Promise<NativeImageText>
   /** Drives the app's out-of-page image text overlay over this page (Android). */
@@ -350,6 +353,7 @@ interface NativeInAppBrowserPlugin {
   clearSiteData(options: { site: string }): Promise<{ cleared?: boolean }>
   clearAllData(): Promise<void>
   evaluateJavaScript(options: { script: string }): Promise<{ value?: string }>
+  pdfBytes(options: { url: string; maxBytes: number }): Promise<{ base64?: string; url?: string } | undefined>
   recognizeImage(options: { url: string; referrer?: string }): Promise<NativeImageText>
   imageTextOverlay(options: ImageTextOverlayCommand): Promise<void>
   findInPage(options: { query: string; forward: boolean }): Promise<PageFindResult>
@@ -439,6 +443,9 @@ function normalizeBounds(bounds: BrowserSurfaceBounds): BrowserSurfaceBounds {
 }
 
 /** Each scoped adapter owns one native page, including all asynchronous commands. */
+/** How long the reader waits for a viewer's PDF before it downloads the document itself. */
+const PDF_BYTES_WAIT_MS = 20_000
+
 export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): InAppBrowserSurface {
   let selectedIdentity: BrowserTabIdentity | undefined
   const plugin = new Proxy(NativeInAppBrowser, {
@@ -501,6 +508,15 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
     async evaluateJavaScript(script) {
       const result = await plugin.evaluateJavaScript({ script })
       return result?.value ?? null
+    },
+    async pdfBytes(url, maxBytes) {
+      // The lite engine has no PDF viewer and no such method; either way there is nothing to read.
+      // A viewer that never answers must not hold the reader: past the wait it downloads instead.
+      let timer: number | undefined
+      const gaveUp = new Promise<undefined>(resolve => { timer = window.setTimeout(resolve, PDF_BYTES_WAIT_MS) })
+      const result = await Promise.race([plugin.pdfBytes({ url, maxBytes }).catch(() => undefined), gaveUp])
+      window.clearTimeout(timer)
+      return result?.base64 ? { bytes: decodeBase64(result.base64), url: result.url || url } : null
     },
     recognizeImageUrl: (url, referrer) => plugin.recognizeImage({ url, referrer }),
     imageTextOverlay: (command) => plugin.imageTextOverlay(command),

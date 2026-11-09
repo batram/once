@@ -620,6 +620,10 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
      * answers with its JSON-encoded result, as the GeckoView bridge extension
      * does; without DevTools (Tier 2) the page's main world runs it.
      */
+    /** The system WebView shows no PDF, so no page here holds one; the reader downloads it. */
+    @PluginMethod
+    public void pdfBytes(PluginCall call) { call.resolve(); }
+
     @PluginMethod
     public void evaluateJavaScript(PluginCall call) {
         if (!route(call, Missing.REJECT, tab -> tab.evaluateJavaScript(call))) return;

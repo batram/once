@@ -64,8 +64,25 @@ final class BackgroundMedia implements MediaSession.Delegate, BackgroundMediaSer
 
     void setActive(boolean active) {
         this.active = active;
-        if (session != null && session.isOpen()) session.setActive(active);
+        applyActive();
         if (!active && !allowsBackground() && playing != null) playing.pause();
+    }
+
+    /** Work that needs the session active whatever covers the page; media still follows `active`. */
+    private int holds;
+
+    /**
+     * Keeps the session active from a hold until its release: an inactive
+     * session never answers Gecko's PDF save (ReadingPdfBytes), and Reader
+     * mode hides the page before it asks.
+     */
+    void hold(boolean holding) {
+        holds = Math.max(0, holds + (holding ? 1 : -1));
+        applyActive();
+    }
+
+    private void applyActive() {
+        if (session != null && session.isOpen()) session.setActive(active || holds > 0);
     }
 
     private void updateService() {

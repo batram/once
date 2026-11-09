@@ -170,6 +170,8 @@ export interface MobilePlatformOptions {
   openInApp?: (url: string) => void
   /** The serialized DOM of the page the reading view shows, when it is the one asked for; otherwise null. */
   livePageHtml?: (url: string) => Promise<{ html: string; url: string } | null>
+  /** The PDF the reading view shows, when it is the one asked for; otherwise null. */
+  livePagePdf?: (url: string) => Promise<{ bytes: Uint8Array; url: string } | null>
   /** The app's version, which other devices show for this one. */
   appVersion?: string
   /** The PDF sandbox page (`pdf-sandbox.html` beside the app); without it PDFs are not extracted. */
@@ -227,7 +229,7 @@ export function createMobilePlatform(
         return () => undefined
       }
     },
-    ...(options.livePageHtml ? { livePage: { html: options.livePageHtml } } : {}),
+    ...(options.livePageHtml ? { livePage: { html: options.livePageHtml, ...(options.livePagePdf ? { pdf: options.livePagePdf } : {}) } } : {}),
     tabDocs: pouchTabDocs(onceDb as unknown as PouchTabDocsDatabase),
     tabSource: options.tabSource,
     tabOpener: options.tabOpener,

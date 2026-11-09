@@ -2,7 +2,7 @@ import { bindMobileBrowserHistory } from "./browserHistory"
 import { installReaderAiHost } from "./readerAiHost"
 import { App } from "@capacitor/app"
 import { Capacitor } from "@capacitor/core"
-import { createOnceApp } from "@once/app"
+import { createOnceApp, MAX_DOCUMENT_BYTES } from "@once/app"
 import { bindMobileExtensionSettings } from "./mobileExtensionSettings"
 import { gateBrowserStartup } from "./browserStartupGate"
 import {
@@ -245,6 +245,18 @@ async function livePageHtml(reading: MobileReadingController, url: string): Prom
   return html ? { html, url: state.currentUrl } : null
 }
 
+/**
+ * The PDF the selected tab's viewer shows. A site behind a bot challenge
+ * serves the tab and refuses the reader's own download, so the viewer's copy
+ * is the one the reader can get. Unlike the HTML read this is asked while
+ * Reader mode already covers the page, so the session's mode says nothing; the
+ * native side checks that the page behind it finished loading this URL as a PDF.
+ */
+async function livePagePdf(reading: MobileReadingController, url: string): Promise<{ bytes: Uint8Array; url: string } | null> {
+  if (!reading.tabs.selected) return null
+  return await reading.runtime.pageSurface.pdfBytes?.(url, MAX_DOCUMENT_BYTES) ?? null
+}
+
 // A saved tab keeps its story even when the feed removes it; refresh metadata
 // whenever the working set changes.
 function bindTabStories(reading: MobileReadingController, client: ReturnType<typeof createOnceApp>["client"]): void {
@@ -290,6 +302,7 @@ async function startMobileApp(): Promise<void> {
   const platform = createMobilePlatform(nativeBridge, undefined, {
     openInApp: (url) => reading.openBrowserUrl(url),
     livePageHtml: (url) => livePageHtml(reading, url),
+    livePagePdf: (url) => livePagePdf(reading, url),
     appVersion: __ONCE_APP_VERSION__,
     // The reading controller exists before the app starts, which is when these first run.
     tabSource: readingTabSource(() => reading.tabs, () => reading.runtime.capturePreview(), (tabId, script) => reading.runtime.evaluate(tabId, script)),

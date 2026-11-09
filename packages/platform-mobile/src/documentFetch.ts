@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core"
 import { MAX_DOCUMENT_BYTES } from "@once/app"
+import { decodeBase64 } from "./base64"
 import { hasNullBody, isCrossOriginHttp, nativeFetch } from "./nativeFetch"
 
 export interface DocumentDownloadPlugin {
@@ -38,11 +39,4 @@ export function createDocumentFetch(plugin: DocumentDownloadPlugin, maxBytes = M
     Object.defineProperty(response, "url", { value: result.url || request.url })
     return response
   }
-}
-
-function decodeBase64(encoded: string): Uint8Array<ArrayBuffer> {
-  const binary = atob(encoded)
-  const bytes = new Uint8Array(new ArrayBuffer(binary.length))
-  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
-  return bytes
 }
