@@ -144,7 +144,7 @@ extension WebExtensionHost {
         if let previousContext, wasLoaded { try controller.unload(previousContext) }
         do {
             if previous == nil { UserDefaults.standard.removeObject(forKey: disabledKey) }
-            if isEnabled(candidate.id) { try controller.load(context) }
+            if isEnabled(candidate.id) { try controller.load(context); Self.markRun(candidate.id) }
             // Commit the catalog before publishing the replacement or deleting the previous package.
             try store.save(nextInstalled)
         } catch {
@@ -180,6 +180,7 @@ extension WebExtensionHost {
         failures[entry.id] = nil
         ExtensionLoadRecord.forget(entry.id)
         UserDefaults.standard.removeObject(forKey: "once.extension.disabled.\(entry.id)")
+        UserDefaults.standard.removeObject(forKey: "once.extension.ran.\(entry.id)")
         installed.removeAll { $0.id == entry.id }
         try store.save(installed)
         await store.remove(entry.directory)

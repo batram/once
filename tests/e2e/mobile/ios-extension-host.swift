@@ -99,6 +99,8 @@ final class HostTest: UIResponder, UIApplicationDelegate, WKScriptMessageHandler
   }
   if disk.count != live.count { mismatches.append("disk rows \(disk.count) live rows \(live.count)") }
   results["diskCatalogMismatches"] = mismatches
+  // This fresh controller identity has never run the bundles, so they load once WebKit's relaunch window closes.
+  await host.firstRunLoads?.value
   if CommandLine.arguments.contains("--ubol-only") { try await testUBlockTools(); return }
   web.loadHTMLString("<html><head><meta name='viewport' content='width=device-width'><style>body{background:white;color:black}article{padding:24px}</style></head><body><article><h1>Extension test</h1><p>Dark Reader should theme this page using the upstream extension.</p></article></body></html>", baseURL:URL(string:"https://example.com/once-test"))
   await pause()

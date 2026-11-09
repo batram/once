@@ -5,7 +5,16 @@ import WebKit
 @available(iOS 18.4, *)
 @MainActor
 final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebExtensionWindow {
-    let controller: WKWebExtensionController
+    /// Created on first use, not with the host: listing extensions from disk
+    /// must not start WebKit's relaunch window (see `prepare()`).
+    private(set) lazy var controller: WKWebExtensionController = {
+        let controller = WKWebExtensionController(configuration: controllerConfiguration ?? .default())
+        controller.delegate = self
+        controllerCreated = .now
+        return controller
+    }()
+    private let controllerConfiguration: WKWebExtensionController.Configuration?
+    private var controllerCreated = ContinuousClock.now
     var contexts: [String: WKWebExtensionContext] = [:]
     var failures: [String: String] = [:]
     /// User-installed packages, in install order, as the catalog file records them.
@@ -28,6 +37,10 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
     /// Set once `prepare()` has loaded every bundle and package; until then the
     /// plugin lists extensions from disk instead of starting the host.
     private(set) var isPrepared = false
+    /// Extensions on their first run here, loaded once WebKit's relaunch window
+    /// closes; `firstRunLoads` finishes when they are (see `loadAtLaunch`).
+    private var pendingFirstRuns = Set<String>()
+    private(set) var firstRunLoads: Task<Void, Never>?
     static let bundles: [(id: String, directory: String, name: String)] = [
         ("ublock-origin-lite", "ublock-origin-lite", "uBlock Origin Lite"),
         ("addon@darkreader.org", "darkreader", "Dark Reader"),
@@ -37,26 +50,32 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
 
     init(configuration: WKWebExtensionController.Configuration? = nil, store: ExtensionPackageStore = .default,
          packageNetworkConfiguration: URLSessionConfiguration = .ephemeral) {
-        controller = WKWebExtensionController(configuration: configuration ?? .default())
+        controllerConfiguration = configuration
         self.store = store
         self.packageNetworkConfiguration = packageNetworkConfiguration
         super.init()
-        controller.delegate = self
     }
 
     func prepare() async {
         if let loading { await loading.value; return }
         let task = Task { @MainActor in
+            // WebKit fires runtime.onStartup for a context loaded within 5 s of
+            // creating the controller and runtime.onInstalled "install" for any
+            // later load, whatever version it saw last. So every package is read
+            // first and loaded back to back after, and uBO's background starts
+            // last; otherwise Dark Reader opens its install page on every launch.
+            var order: [String] = []
             for bundle in Self.bundles {
-                do { try await loadBundle(bundle) }
+                do { try await makeBundleContext(bundle); order.append(bundle.id) }
                 catch { failures[bundle.id] = error.localizedDescription }
             }
             installed = store.load()
             await store.prune(keeping: installed)
             for entry in installed {
-                do { try await loadInstalled(entry) }
+                do { try await makeInstalledContext(entry); order.append(entry.id) }
                 catch { failures[entry.id] = error.localizedDescription }
             }
+            await loadAtLaunch(order)
             recordFailures()
             isPrepared = true
             changed()
@@ -74,7 +93,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
     /// The disk catalog shows the host's last load failures until the host runs again.
     func recordFailures() { ExtensionLoadRecord.record(failures, for: Self.bundles.map(\.id) + installed.map(\.id)) }
 
-    private func loadBundle(_ bundle: (id: String, directory: String, name: String)) async throws {
+    private func makeBundleContext(_ bundle: (id: String, directory: String, name: String)) async throws {
         if let reason = Self.unavailableReason(forBundle: bundle.directory) { throw hostError(reason) }
         guard let url = Bundle.main.url(forResource: bundle.directory, withExtension: nil,
                                         subdirectory: "public/extensions") else {
@@ -88,24 +107,56 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
             context.setPermissionStatus(.grantedExplicitly, for: all)
         }
         contexts[bundle.id] = context
-        if isEnabled(bundle.id) {
-            try controller.load(context)
-            // uBO installs its rules before the first navigation. Other event-page
-            // backgrounds wake through WebKit when content scripts or tools need them.
-            if bundle.directory == "ublock-origin-lite" {
-                try await context.loadBackgroundContent()
-            }
-        }
     }
 
     /// A user-installed package from the catalog; its enabled state is the same switch bundles use.
-    private func loadInstalled(_ entry: InstalledExtension) async throws {
+    private func makeInstalledContext(_ entry: InstalledExtension) async throws {
         guard !contexts.keys.contains(entry.id) else { throw hostError("\(entry.name) is included with Once") }
         let ext = try await WKWebExtension(resourceBaseURL: store.directory(entry.directory))
-        let context = makeContext(for: ext, identifier: entry.id, host: WebExtensionHost.hostName(for: entry.id))
-        contexts[entry.id] = context
-        if isEnabled(entry.id) { try controller.load(context) }
+        contexts[entry.id] = makeContext(for: ext, identifier: entry.id, host: WebExtensionHost.hostName(for: entry.id))
     }
+
+    /// Loads the enabled contexts inside WebKit's relaunch window. One this
+    /// controller identity has never run waits until the window closes, so it
+    /// still gets its one "install" event (Dark Reader's welcome page, as on
+    /// Android); uBO never waits, its rules gate the first navigation.
+    private func loadAtLaunch(_ order: [String]) async {
+        let stored = Set(await controller.dataRecords(ofTypes: WKWebExtensionController.allExtensionDataTypes).map(\.uniqueIdentifier))
+        var firstRuns: [String] = []
+        for id in order where isEnabled(id) {
+            guard let context = contexts[id] else { continue }
+            if id != "ublock-origin-lite", !Self.hasRun(id), !stored.contains(context.uniqueIdentifier) {
+                firstRuns.append(id)
+                continue
+            }
+            do { try controller.load(context); Self.markRun(id) }
+            catch { failures[id] = error.localizedDescription }
+        }
+        // uBO installs its rules before the first navigation. Other event-page
+        // backgrounds wake through WebKit when content scripts or tools need them.
+        if let ubo = contexts["ublock-origin-lite"], ubo.isLoaded {
+            do { try await ubo.loadBackgroundContent() }
+            catch { failures["ublock-origin-lite"] = error.localizedDescription }
+        }
+        guard !firstRuns.isEmpty else { return }
+        pendingFirstRuns = Set(firstRuns)
+        let opens = controllerCreated + .seconds(6)
+        firstRunLoads = Task { @MainActor in
+            try? await Task.sleep(until: opens, clock: .continuous)
+            for id in firstRuns where pendingFirstRuns.remove(id) != nil && isEnabled(id) {
+                guard let context = contexts[id], !context.isLoaded else { continue }
+                do { try controller.load(context); Self.markRun(id) }
+                catch { failures[id] = error.localizedDescription }
+            }
+            recordFailures()
+            changed()
+        }
+    }
+
+    /// Whether an extension ever loaded here; the stored data records cover
+    /// extensions that ran before this flag existed.
+    static func hasRun(_ id: String) -> Bool { UserDefaults.standard.bool(forKey: "once.extension.ran.\(id)") }
+    static func markRun(_ id: String) { UserDefaults.standard.set(true, forKey: "once.extension.ran.\(id)") }
 
     /// The packaged icon as the small PNG the settings rows and the browser sheet
     /// draw, as Android sends it; rendered once per version, kept for the catalog.
@@ -190,7 +241,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
         row["name"] = ext.displayName ?? name
         row["description"] = ext.displayDescription ?? ""
         row["version"] = ext.version ?? version
-        row["enabled"] = context.isLoaded
+        row["enabled"] = context.isLoaded || pendingFirstRuns.contains(id)
         row["hasOptions"] = context.optionsPageURL != nil
         row["hasAction"] = ext.manifest["action"] != nil || ext.manifest["browser_action"] != nil
         row["permissions"] = ext.requestedPermissions.map(\.rawValue).sorted()
@@ -209,7 +260,8 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
         switch action {
         case "enable":
             closePage()
-            if enabled && !context.isLoaded { try controller.load(context) }
+            pendingFirstRuns.remove(id)
+            if enabled && !context.isLoaded { try controller.load(context); Self.markRun(id) }
             if !enabled && context.isLoaded { try controller.unload(context) }
             UserDefaults.standard.set(!enabled, forKey: "once.extension.disabled.\(id)")
             changed()
