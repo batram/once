@@ -299,7 +299,7 @@ export interface InAppBrowserSurface {
   /** Clears every site's data; add-on storage and the shell's own data stay. */
   clearAllData?(): Promise<void>
   evaluateJavaScript(script: string): Promise<string | null>
-  /** The PDF this page's viewer shows for `url`, without a request, or null (Android GeckoView). */
+  /** The PDF this page shows for `url` as the page holds it (Android GeckoView), or fetched as the page (iOS), or null. */
   pdfBytes?(url: string, maxBytes: number): Promise<{ bytes: Uint8Array; url: string } | null>
   /** Recognizes an image of this page, fetched natively with its cookies and referrer (Android). */
   recognizeImageUrl?(url: string, referrer?: string): Promise<NativeImageText>

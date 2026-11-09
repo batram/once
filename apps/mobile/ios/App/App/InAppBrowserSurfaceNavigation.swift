@@ -5,6 +5,14 @@ import WebKit
 // Navigation reporting for a tab's surface: the WKNavigationDelegate callbacks
 // and the history/replay events they send to the shell.
 extension InAppBrowserSurfacePlugin {
+    /// Only http(s) pages open in a tab; anything else is left to the system.
+    func embeddable(_ raw: String?) -> URL? {
+        guard let raw, let url = URL(string: raw),
+              url.scheme?.lowercased() == "http" || url.scheme?.lowercased() == "https"
+        else { return nil }
+        return url
+    }
+
     /// A popup's tab navigates before JS has created the tab and installed its
     /// listeners, so open() replays where that navigation has got to.
     func replayNavigation(_ view: WKWebView) {

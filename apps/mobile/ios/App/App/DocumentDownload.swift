@@ -41,6 +41,62 @@ extension InAppBrowserSurfacePlugin {
             }
         }
     }
+
+    /// The PDF this tab shows for the call's url, read as the tab itself. A
+    /// site behind a bot challenge (Cloudflare's "Just a moment...") lets the
+    /// tab through once it solved the challenge and answers the reader's own
+    /// download with 403; the clearance cookie is tied to the tab's user agent,
+    /// so only a request from the tab carries it. Its HTTP cache comes first
+    /// and makes no request at all. WebKit's web archive and createPDF are no
+    /// substitute: the archive's main resource is the viewer's HTML wrapper,
+    /// and createPDF renders the pages anew. Resolves { base64, url }, or with
+    /// nothing when the page is not that PDF, still loading, or too large.
+    @objc func pdfBytes(_ call: CAPPluginCall) {
+        guard route(call, { $0.pdfBytes(call) }) else { return }
+        let requested = call.getString("url") ?? ""
+        let limit = min(max(call.getInt("maxBytes") ?? 0, 1), 256 * 1024 * 1024)
+        DispatchQueue.main.async {
+            guard let surface = self.surface, !surface.isLoading, let current = surface.url,
+                  Self.samePage(current.absoluteString, requested) else { call.resolve(); return }
+            // The client world keeps the page's own scripts from replacing fetch.
+            surface.callAsyncJavaScript(Self.tabPdfScript, arguments: ["limit": limit], in: nil, in: .defaultClient) { result in
+                guard case .success(let value) = result, let encoded = value as? String,
+                      let bytes = Data(base64Encoded: encoded), bytes.count <= limit, Self.isPdf(bytes) else {
+                    call.resolve()
+                    return
+                }
+                call.resolve(["base64": encoded, "url": current.absoluteString])
+            }
+        }
+    }
+
+    /// Electron's tab read (tabPageHtml.ts), answering in base64 since the
+    /// bridge carries no bytes; a cached error page fails the signature check.
+    private static let tabPdfScript = """
+    if (document.contentType !== "application/pdf") return null
+    const read = async (cache) => {
+      try {
+        const response = await fetch(location.href, { cache, mode: "same-origin", credentials: "include" })
+        if (!response.ok || Number(response.headers.get("content-length") || 0) > limit) return null
+        const bytes = new Uint8Array(await response.arrayBuffer())
+        return bytes.length <= limit && String.fromCharCode(...bytes.subarray(0, 1024)).includes("%PDF-") ? bytes : null
+      } catch { return null }
+    }
+    const bytes = await read("only-if-cached") ?? await read("no-cache")
+    if (!bytes) return null
+    let binary = ""
+    for (let index = 0; index < bytes.length; index += 32768) binary += String.fromCharCode(...bytes.subarray(index, index + 32768))
+    return btoa(binary)
+    """
+
+    private static func samePage(_ a: String, _ b: String) -> Bool {
+        let strip = { (raw: String) in raw.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? raw }
+        return !b.isEmpty && strip(a) == strip(b)
+    }
+
+    private static func isPdf(_ bytes: Data) -> Bool {
+        String(decoding: bytes.prefix(1024), as: UTF8.self).contains("%PDF-")
+    }
 }
 
 struct DownloadFailure: Error { let message: String }

@@ -9,6 +9,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "recognizeImage", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "fetchDocument", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "pdfBytes", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "capturePreview", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "selectTab", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "open", returnType: CAPPluginReturnPromise),
@@ -197,13 +198,6 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         else { return nil }
         return try? String(contentsOf: url, encoding: .utf8)
     }()
-
-    func embeddable(_ raw: String?) -> URL? {
-        guard let raw, let url = URL(string: raw),
-              url.scheme?.lowercased() == "http" || url.scheme?.lowercased() == "https"
-        else { return nil }
-        return url
-    }
 
     private func ensureSurface(configuration supplied: WKWebViewConfiguration? = nil) -> WKWebView? {
         if let surface { return surface }
