@@ -1,6 +1,7 @@
 import { AI_CONTENT_PARTS, AI_IMAGE_LIMIT, AiContent, AiError, AiImage, ReaderPages } from "@once/core"
 import { OnceClient, OncePlatformPorts } from "../types"
 import { extractPdf } from "../pdfRetrieval"
+import { openDocumentFetch } from "../documentRetrievalMethods"
 import { hasPdfSignature, isGenericBinaryType, isPdfByHeaders, mediaTypeOf } from "../pdfMediaType"
 import { MAX_DOCUMENT_BYTES, readResponseBytes } from "../responseBytes"
 
@@ -57,8 +58,14 @@ function partInstructions(pages: ReaderPages, from: number, previous?: string): 
 /** The source's own content: raw page text, the image, or a PDF's text and page pictures. */
 async function sourceParts(platform: OncePlatformPorts, url: string, signal: AbortSignal | undefined, progress?: (text: string) => void, range?: PageRange): Promise<{ parts: AiContent[]; pages?: ReaderPages }> {
   progress?.("Reading the source…")
-  const response = await (platform.documentFetch ?? platform.fetch)(url, { credentials: "omit", signal })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  const response = await openDocumentFetch(platform)(url, { credentials: "omit", signal })
+  if (!response.ok) {
+    // A challenged page refuses this request but still shows in the user's tab.
+    const open = await platform.livePage?.html(url).catch(() => null)
+    signal?.throwIfAborted()
+    if (open) return { parts: [{ type: "text", text: `Source raw text:\n${pageText(open.html).slice(0, SOURCE_CHARS)}` }] }
+    throw new Error(`HTTP ${response.status}`)
+  }
   const contentType = response.headers.get("content-type")
   const mediaType = mediaTypeOf(contentType)
   const finalUrl = response.url || url
@@ -94,7 +101,7 @@ async function pdfParts(platform: OncePlatformPorts, bytes: Uint8Array, url: str
 }
 
 async function pdfSource(platform: OncePlatformPorts, url: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; url: string }> {
-  const response = await (platform.documentFetch ?? platform.fetch)(url, { credentials: "omit", signal })
+  const response = await openDocumentFetch(platform)(url, { credentials: "omit", signal })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   const bytes = await readResponseBytes(response, MAX_DOCUMENT_BYTES, "Document")
   if (!hasPdfSignature(bytes)) throw new Error("Only PDFs are read in parts")

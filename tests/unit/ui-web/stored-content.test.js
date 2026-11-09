@@ -61,6 +61,30 @@ test("a failure is reported once and does not stop the queue", async () => {
   assert.match(reported[0].details, /Story: https:\/\/a.test\/bad/)
 })
 
+test("a page the fetch is refused is saved from an open tab showing it", async () => {
+  const { window } = require("linkedom").parseHTML("<html><body></body></html>")
+  const names = ["window", "document", "DOMParser", "Element", "HTMLElement"]
+  const previous = names.map(name => globalThis[name])
+  Object.assign(globalThis, { window, document: window.document, DOMParser: window.DOMParser, Element: window.Element, HTMLElement: window.HTMLElement })
+  try {
+    const { saveStoryContentFromPage } = require("../../../packages/ui-web/dist/reader/storedContent")
+    const saved = []
+    const article = `<html><head><title>Tab story</title></head><body><article><h1>Tab story</h1>${"<p>The words the open tab shows, long enough to count as an article for the extractor.</p>".repeat(8)}</article></body></html>`
+    const client = {
+      async fetchDocument() { throw new Error("HTTP 403") },
+      async livePageHtml(url) { return { html: article, url } },
+      async saveStoryContent(href, html, meta) { saved.push({ href, html, meta }) }
+    }
+    await saveStoryContentFromPage(client, "https://a.test/story")
+    assert.equal(saved.length, 1)
+    // linkedom keeps a parsed fragment out of <body>, so the title shows the tab's page was read.
+    assert.equal(saved[0].meta.title, "Tab story")
+    await assert.rejects(saveStoryContentFromPage({ ...client, livePageHtml: async () => null }, "https://a.test/story"), /HTTP 403/)
+  } finally {
+    names.forEach((name, index) => { globalThis[name] = previous[index] })
+  }
+})
+
 test("serves the app's requests and extracts through the client", async () => {
   const handlers = new Map()
   const saved = []

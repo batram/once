@@ -76,6 +76,53 @@ test("an image source is sent as a picture, and a page as text without its marku
   assert.doesNotMatch(raw, /secret|<b>|p\{\}/)
 })
 
+test("a PDF an open tab shows is read from that tab, and without one the network is asked", async () => {
+  const pdf = new TextEncoder().encode("%PDF-1.7")
+  const used = []
+  const pdfText = { async extract(bytes) { used.push(["extract", new TextDecoder().decode(bytes)]); return { pages: [{ lines: ["Tab text"], method: "embedded" }] } } }
+  const challenged = async (url) => { used.push(["fetch", url]); return new Response("Just a moment...", { status: 403, headers: { "content-type": "text/html" } }) }
+  const tab = readerAiMethods({
+    fetch: challenged,
+    documentFetch: challenged,
+    livePage: { html: async () => null, pdf: async (url) => { used.push(["tab", url]); return { bytes: pdf, url } } },
+    pdfText
+  }, answer([]))
+  await tab.rewriteReaderAi({ sourceUrl: "https://example.test/report.pdf", title: "report.pdf" })
+  const read = await tab.readReaderPages("https://example.test/report.pdf", { from: 1, to: 5 })
+  assert.deepEqual(read.paragraphs, ["Tab text"])
+  assert.deepEqual(used, [
+    ["tab", "https://example.test/report.pdf"], ["extract", "%PDF-1.7"],
+    ["tab", "https://example.test/report.pdf"], ["extract", "%PDF-1.7"]
+  ], "the challenged network is never asked")
+
+  used.length = 0
+  const signal = new AbortController().signal
+  const network = readerAiMethods({
+    fetch: async (url, init) => { used.push(["fetch", url]); assert.equal(init.signal, signal); return new Response(pdf, { headers: { "content-type": "application/pdf" } }) },
+    livePage: { html: async () => null, pdf: async (url) => { used.push(["tab", url]); return null } },
+    pdfText
+  }, answer([]))
+  await network.readReaderPages("https://example.test/report.pdf", { from: 1, to: 5 }, signal)
+  assert.deepEqual(used, [["tab", "https://example.test/report.pdf"], ["fetch", "https://example.test/report.pdf"], ["extract", "%PDF-1.7"]])
+})
+
+test("a challenged page is read from an open tab, and an aborted tab read stops the request", async () => {
+  const calls = []
+  const client = readerAiMethods({
+    fetch: async () => new Response("Just a moment...", { status: 403 }),
+    livePage: { html: async (url) => ({ html: "<p>Tab <b>words</b></p>", url }) }
+  }, answer(calls))
+  await client.rewriteReaderAi({ sourceUrl: "https://example.test/", html: "" })
+  assert.match(parts(calls[0]).at(-1).text, /Source raw text:\nTab words/)
+
+  const controller = new AbortController()
+  const aborting = readerAiMethods({
+    fetch: async () => { throw new Error("not reached") },
+    livePage: { html: async () => null, pdf: async () => { controller.abort(); return null } }
+  }, answer(calls))
+  await assert.rejects(aborting.readReaderPages("https://example.test/report.pdf", { from: 1, to: 5 }, controller.signal), { name: "AbortError" })
+})
+
 test("an unreadable source still sends the extraction, but nothing at all is refused", async () => {
   const calls = []
   const client = readerAiMethods({ fetch: async () => new Response("", { status: 503 }) }, answer(calls))

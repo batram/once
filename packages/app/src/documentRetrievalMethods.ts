@@ -2,8 +2,7 @@ import { fetchDocument, fetchText, retrieveDocument } from "./fetchDocument"
 import type { OncePlatformPorts } from "./types"
 
 export function documentRetrievalMethods(platform: OncePlatformPorts) {
-  const network = platform.documentFetch ?? platform.fetch
-  const fetch = openPdfFirst(platform, network)
+  const fetch = openDocumentFetch(platform)
   return {
     livePageHtml: async (url: string) => await platform.livePage?.html(url) ?? null,
     retrieveDocument: (url: string) => retrieveDocument(fetch, url, platform.textRecognition, platform.pdfText),
@@ -13,12 +12,13 @@ export function documentRetrievalMethods(platform: OncePlatformPorts) {
 }
 
 /**
- * Answers a document request with the PDF an open page already shows for that
- * URL, when there is one. A site behind a bot challenge lets the page's own
- * navigation through and refuses the reader's separate request with 403, so
- * the bytes the page holds are the only copy the reader can get.
+ * The platform's document fetch, answering with the PDF an open page already
+ * shows for that URL when there is one. A site behind a bot challenge lets the
+ * page's own navigation through and refuses any separate request with 403, so
+ * the bytes the page holds are the only copy the reader or the AI can get.
  */
-function openPdfFirst(platform: OncePlatformPorts, network: typeof globalThis.fetch): typeof globalThis.fetch {
+export function openDocumentFetch(platform: OncePlatformPorts): typeof globalThis.fetch {
+  const network = platform.documentFetch ?? platform.fetch
   const live = platform.livePage
   if (!live?.pdf) return network
   return async (input, init) => {

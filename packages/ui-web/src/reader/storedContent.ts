@@ -5,12 +5,19 @@
 import { OnceClient } from "@once/app"
 import { extractArticle } from "./extractArticle"
 
-/** Fetches the story's page, extracts the article, and stores it on the story. */
+/**
+ * Fetches the story's page, extracts the article, and stores it on the story.
+ * A page a bot challenge refuses to fetch is taken from an open tab showing it.
+ */
 export async function saveStoryContentFromPage(
   client: OnceClient,
   href: string
 ): Promise<void> {
-  const fetched = await client.fetchDocument(href)
+  const fetched = await client.fetchDocument(href).catch(async (error: unknown) => {
+    const live = await client.livePageHtml(href).catch(() => null)
+    if (!live) throw error
+    return { ...live, mediaType: "text/html" }
+  })
   const article = extractArticle(fetched.html, fetched.url, fetched.mediaType)
   await client.saveStoryContent(href, article.content, {
     source: "page",
