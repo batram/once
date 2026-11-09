@@ -6,18 +6,28 @@ export class AiRequestRunner {
   private total = 0
   private readonly waiting: { consumer: string; start: () => void }[] = []
   constructor(private readonly timeoutMs = 120_000, private readonly perConsumer = 12, private readonly overall = 24) {}
-  async run<T>(consumer: string, external: AbortSignal | undefined, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  /**
+   * `stillWorking` restarts the timeout: work that shows progress (a streamed
+   * answer still being written) runs as long as it keeps showing it, and only
+   * a request that goes quiet for the whole timeout is given up.
+   */
+  async run<T>(consumer: string, external: AbortSignal | undefined, work: (signal: AbortSignal, stillWorking: () => void) => Promise<T>): Promise<T> {
     external?.throwIfAborted()
     await this.acquire(consumer, external)
     const controller = new AbortController()
     const abort = () => controller.abort()
     // The timeout counts from the start of the work, not from the time spent waiting for a slot.
-    const timer = setTimeout(abort, this.timeoutMs)
+    let timer = setTimeout(abort, this.timeoutMs)
+    const stillWorking = () => {
+      if (controller.signal.aborted) return
+      clearTimeout(timer)
+      timer = setTimeout(abort, this.timeoutMs)
+    }
     try {
       if (external?.aborted) throw new AiError("Request cancelled", "cancelled")
       external?.addEventListener("abort", abort, { once: true })
       const cancelled = new Promise<never>((_resolve, reject) => controller.signal.addEventListener("abort", () => reject(new AiError(external?.aborted ? "Request cancelled" : "AI request timed out", external?.aborted ? "cancelled" : "timeout")), { once: true }))
-      return await Promise.race([work(controller.signal), cancelled])
+      return await Promise.race([work(controller.signal, stillWorking), cancelled])
     } finally {
       clearTimeout(timer); external?.removeEventListener("abort", abort)
       // A native transport can finish after the race. Its callbacks must remain revoked.

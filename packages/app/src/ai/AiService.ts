@@ -63,9 +63,11 @@ export class AiService {
     return readAddonModels(response.text)
   }
   generate(consumer: string, raw: AiRequest, signal?: AbortSignal, onText?: (text: string) => void): Promise<AiResult> {
-    return this.runner.run(consumer, signal, active => this.generateNow(consumer, raw, active, onText && (text => { if (!active.aborted) onText(text) })))
+    return this.runner.run(consumer, signal, (active, stillWorking) =>
+      this.generateNow(consumer, raw, active, onText && (text => { if (!active.aborted) onText(text) }), stillWorking))
   }
-  private async generateNow(consumer: string, raw: AiRequest, signal?: AbortSignal, onText?: (text: string) => void): Promise<AiResult> {
+  /** `stillWorking` is told of every streamed chunk, so an answer still being written never times out. */
+  private async generateNow(consumer: string, raw: AiRequest, signal?: AbortSignal, onText?: (text: string) => void, stillWorking?: () => void): Promise<AiResult> {
     const request = readAiRequest(raw)
     const snapshot = await this.store.read()
     const model = await this.resolveFrom(snapshot, consumer, request.selection)
@@ -76,7 +78,7 @@ export class AiService {
     if (request.search && model.provider === "compatible") throw new AiError("This connection does not offer native search", "unsupported-search")
     if (request.fetchPage && model.provider !== "anthropic") throw new AiError("This connection does not offer page fetching", "unsupported-fetch")
     const payload = providerRequest({ ...connection, model: model.model, effort: request.effort ?? connection.effort, maxOutputTokens: request.maxOutputTokens }, request.instructions, "", request.messages, request.search, !!onText, request.fetchPage)
-    const response = await aiTransport(this.platform.addonFetch ?? this.platform.fetch, connection, this.token(secrets, connection.id, connection.endpoint), payload, signal, onText ? streamReader(model.provider, onText) : undefined)
+    const response = await aiTransport(this.platform.addonFetch ?? this.platform.fetch, connection, this.token(secrets, connection.id, connection.endpoint), payload, signal, onText ? streamProgress(streamReader(model.provider, onText), stillWorking) : undefined)
     if (response.status === 400 && /tool|search|fetch/i.test(response.text)) {
       if (request.fetchPage) throw new AiError("The model does not support page fetching", "unsupported-fetch")
       if (request.search) throw new AiError("The model does not support native search", "unsupported-search")
@@ -100,4 +102,9 @@ export class AiService {
     const results = data.results
     return safeSources(results).slice(0, 5).map((source: { title: string; url: string }, index: number) => ({ ...source, id: `S${index + 1}`, snippet: String(results.find(item => item.url === source.url)?.content ?? "").slice(0, 2000) }))
   }
+}
+
+/** Each chunk off the wire counts as progress, thinking and keep-alive events too, before the text reader sees it. */
+function streamProgress(read: (chunk: string) => void, stillWorking?: () => void): (chunk: string) => void {
+  return chunk => { stillWorking?.(); read(chunk) }
 }
