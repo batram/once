@@ -4,9 +4,9 @@ const { parseHTML, DOMParser: LinkedomParser } = require("linkedom")
 
 const model = { connection: "c", provider: "anthropic", name: "Fixture", model: "vision", revision: "a".repeat(64) }
 
-/** A reader page for a 12-page scan whose first 5 pages were read on the device. */
-function readerPage() {
-  const { window } = parseHTML(`<html data-reader-pages="5/12"><head><title>scan.pdf</title></head><body>
+/** A reader page for a 12-page scan whose first 5 pages were read on the device; `whole` shows a text PDF read entirely. */
+function readerPage(whole = false) {
+  const { window } = parseHTML(`<html${whole ? "" : " data-reader-pages=\"5/12\""}><head><title>scan.pdf</title></head><body>
     <header class="toolbar"><a class="reader-original" href="https://example.test/scan.pdf">Original</a></header>
     <main><h1>scan.pdf</h1><article><p>Garbled page one</p></article></main></body></html>`)
   globalThis.window = window
@@ -61,6 +61,27 @@ test("read to end takes part after part to the last page, and stops when asked",
   assert.equal(stopped.requests.length, 1, "no further part is asked for")
   assert.deepEqual(stopped.paragraphs(), ["Garbled page one"], "the stopped part is not shown")
   assert.equal(stopped.end().textContent, "Read to end")
+})
+
+test("a long PDF the reader showed whole gets Next and Undo once the model answers its first part", async () => {
+  const page = readerPage(true)
+  assert.equal(page.footer().hidden, true, "nothing is paged before AI")
+  page.answers.push(() => ({ html: "<h1>Report</h1><p>Clean pages one to five</p>", model, generatedAt: "now", pages: { through: 5, total: 40 } }))
+  page.ai().click(); await page.settle()
+  assert.equal(page.requests.at(-1).pages, undefined, "the host decides the first part")
+  assert.deepEqual(page.paragraphs(), ["Clean pages one to five"])
+  assert.match(page.footer().textContent, /Pages 1–5 of 40 · AI/)
+  assert.equal(page.next().textContent, "Next 5")
+
+  page.answers.push(() => ({ html: "<p>Clean pages six to ten.</p>", model, generatedAt: "now", pages: { through: 10, total: 40 } }))
+  page.next().click(); await page.settle()
+  assert.deepEqual(page.requests.at(-1).pages, { from: 6, to: 10 })
+  assert.equal(page.requests.at(-1).action, "rewrite", "the model continues: the whole text is already on the device")
+  assert.deepEqual(page.paragraphs(), ["Clean pages one to five", "Clean pages six to ten."])
+
+  page.undo().click(); page.undo().click()
+  assert.deepEqual(page.paragraphs(), ["Garbled page one"], "undo returns to the reader's whole text")
+  assert.equal(page.footer().hidden, true, "and the page row goes with it")
 })
 
 test("a long scan continues on the device five pages at a time, then with the model after AI", async () => {

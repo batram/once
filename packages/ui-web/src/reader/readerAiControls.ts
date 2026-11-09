@@ -31,12 +31,13 @@ export function installReaderAi(send: ReaderAiSend, sourceUrl?: string, external
   const documentId = document.documentElement.dataset.onceReaderSession ?? crypto.randomUUID()
   // Every rewrite starts from the reader's own extraction, never from a previous answer.
   const extraction = withoutSpeechMarkup(article), extractedTitle = heading?.textContent?.trim().slice(0, 500) ?? document.title.slice(0, 500)
-  const total = readPages(document.documentElement.dataset.readerPages)?.total
+  // A scan the reader read in parts says so; a long PDF the reader showed whole learns it from the first AI part.
+  let total = readPages(document.documentElement.dataset.readerPages)?.total
   // How far the shown text reaches: on-device pages, or the model's once AI took over (undefined until then).
   let localThrough = readPages(document.documentElement.dataset.readerPages)?.through ?? 0, aiThrough: number | undefined
   let controller: AbortController | undefined, generation = 0, statusText = "", madeBy = "", toEnd = false
   // One entry per AI step, so repeated rewrites undo step by step back to the extraction.
-  const history: { content: Node[]; heading: string | null; title: string; madeBy: string; localThrough: number; aiThrough?: number }[] = []
+  const history: { content: Node[]; heading: string | null; title: string; madeBy: string; localThrough: number; aiThrough?: number; total?: number }[] = []
   const paging = (): ReaderAiPaging | undefined => total ? { through: aiThrough ?? localThrough, total, ai: aiThrough !== undefined, toEnd } : undefined
   const state = (): ReaderAiState => ({ running: !!controller, canUndo: history.length > 0, status: statusText, madeBy, ...(total ? { pages: paging() } : {}) })
   const update = external ? () => external.onState(state()) : toolbarControls(action => act(action), state)
@@ -44,12 +45,12 @@ export function installReaderAi(send: ReaderAiSend, sourceUrl?: string, external
   const changing = () => { document.querySelector<HTMLButtonElement>("[data-tts-stop]")?.click(); window.speechSynthesis?.cancel(); document.dispatchEvent(new Event("once-reader-content-changing")) }
   const changed = () => document.dispatchEvent(new Event("once-reader-content-changed"))
   // A copy of the nodes, not markup: Undo never sends the page back through the HTML parser.
-  const snapshot = () => ({ content: Array.from(article.childNodes, node => node.cloneNode(true)), heading: heading?.textContent ?? null, title: document.title, madeBy, localThrough, aiThrough })
+  const snapshot = () => ({ content: Array.from(article.childNodes, node => node.cloneNode(true)), heading: heading?.textContent ?? null, title: document.title, madeBy, localThrough, aiThrough, total })
   function restore(): void {
     const previous = controller ? undefined : history.pop()
     if (!previous) return
     changing(); article.replaceChildren(...previous.content); if (heading) heading.textContent = previous.heading; document.title = previous.title; changed()
-    madeBy = previous.madeBy; localThrough = previous.localThrough; aiThrough = previous.aiThrough; setStatus("")
+    madeBy = previous.madeBy; localThrough = previous.localThrough; aiThrough = previous.aiThrough; total = previous.total; setStatus("")
   }
   /** Stops the running request, and reading on to the end with it. */
   function cancel(): void { toEnd = false; controller?.abort(); update() }
@@ -80,6 +81,7 @@ export function installReaderAi(send: ReaderAiSend, sourceUrl?: string, external
       history.push(snapshot())
       changing(); article.replaceChildren(template); if (title && heading) { heading.textContent = title; document.title = title }; changed()
       madeBy = `${result.model.name} / ${result.model.model}`
+      if (!total && result.pages) total = result.pages.total
       if (total) aiThrough = result.pages?.through ?? pages?.to
     })
   }

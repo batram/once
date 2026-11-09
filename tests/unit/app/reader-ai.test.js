@@ -15,7 +15,8 @@ test("a PDF sends the extraction, its embedded text and pictures of its pages", 
     fetch: async (_url, init) => { assert.equal(init.signal, signal); return new Response(new TextEncoder().encode("%PDF-1.7"), { headers: { "content-type": "application/pdf" } }) },
     pdfText: { async extract(_bytes, local, options) {
       assert.equal(local, textRecognition, "pages past the pictures use on-device OCR")
-      assert.equal(options.pageImages, 47)
+      assert.deepEqual(options.pages, { from: 1, to: 5 }, "the first request reads the first part only")
+      assert.equal(options.pageImages, 5)
       options.onPage(1, 2); options.onPageImage(1, jpeg); options.onPageImage(2, new Uint8Array([1, 2, 3]))
       return { pages: [{ lines: ["Embedded text."], method: "embedded" }, { lines: [], method: "embedded" }], title: "Meta" }
     } }
@@ -29,10 +30,29 @@ test("a PDF sends the extraction, its embedded text and pictures of its pages", 
   assert.match(content[1].text, /<p>Extracted<\/p>/)
   assert.match(content[2].text, /Embedded text\./)
   assert.match(content[2].text, /Meta/)
-  assert.match(content[2].text, /pages 1 to 1 of 2 follow in order; later pages are only in the text/)
+  assert.match(content[2].text, /pages 1 to 1 of 2 follow in order\./)
+  assert.equal(result.pages, undefined, "a PDF that fits in one part is not paged")
   assert.deepEqual(content.slice(3).map(part => [part.type, part.mediaType]), [["image", "image/jpeg"]], "an unknown picture format is skipped")
   assert.ok(progress.some(text => /page 1 of 2/.test(text)))
   assert.ok(progress.some(text => /Writing/.test(text)))
+})
+
+test("a long PDF the reader showed whole is still rewritten five pages at a time", async () => {
+  const calls = []
+  const client = readerAiMethods({
+    fetch: async () => new Response(new TextEncoder().encode("%PDF-1.7"), { headers: { "content-type": "application/pdf" } }),
+    pdfText: { async extract(_bytes, _local, options) {
+      assert.deepEqual(options.pages, { from: 1, to: 5 })
+      return { pages: [{ lines: ["Pages one to five."], method: "embedded" }], total: 40, through: 5 }
+    } }
+  }, answer(calls))
+  // 40 pages of text in the extraction: sent whole, the answer would not fit the model's output limit.
+  const result = await client.rewriteReaderAi({ sourceUrl: "https://example.test/report.pdf", html: "<p>All forty pages</p>", title: "report.pdf" })
+  assert.deepEqual(result.pages, { through: 5, total: 40 })
+  const request = calls[0].request
+  assert.match(request.instructions, /only PDF pages 1 to 5 of 40/)
+  assert.doesNotMatch(request.instructions, /do not begin with an h1/, "the first part keeps its title")
+  assert.ok(!parts(calls[0]).some(part => /All forty pages/.test(part.text ?? "")), "the whole extraction is not sent with a part")
 })
 
 test("a long scan is rewritten one page range at a time and read further on the device", async () => {
