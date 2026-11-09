@@ -25,10 +25,14 @@ const LOAD_WAIT_MS = 5_000
 export async function tabPageHtml<Entry>(tabs: TabWindow<Entry>, window: Entry, url: unknown): Promise<{ html: string; url: string } | null> {
   const contents = await showingTab(tabs, window, url)
   if (!contents) return null
-  const html: unknown = await contents.executeJavaScript("document.contentType === 'application/pdf' ? null : document.documentElement.outerHTML", true)
+  // Only a real page: an image, PDF or text file shows in a wrapper Chromium builds,
+  // and reading that markup would hide the image from text recognition.
+  const html: unknown = await contents.executeJavaScript(PAGE_HTML_SCRIPT, true)
   if (typeof html !== "string" || !html || html.length > MAX_PAGE_HTML) return null
   return { html, url: contents.getURL() }
 }
+
+const PAGE_HTML_SCRIPT = "/^(text\\/html|application\\/xhtml\\+xml)$/.test(document.contentType) ? document.documentElement.outerHTML : null"
 
 /** The reader's own cap on a document; a larger PDF is left to the fetch that reports it. */
 const MAX_PDF_BYTES = 64 * 1024 * 1024

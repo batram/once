@@ -51,6 +51,17 @@ test("a load that keeps going is waited for, then given up for a fetch", async (
   assert.equal(contents.listenerCount("did-stop-loading"), 0)
 })
 
+test("only an HTML document's markup is read; an image, PDF or text file in its wrapper is not", async () => {
+  const { tabPageHtml } = load()
+  const { tabs, contents } = tabWindow({ loading: false })
+  for (const [contentType, expected] of [["text/html", "<html>page</html>"], ["application/xhtml+xml", "<html>page</html>"], ["image/png", null], ["application/pdf", null], ["text/plain", null]]) {
+    // The script the tab runs, run here against a document of that type.
+    contents.executeJavaScript = async (script) => Function("document", `return ${script}`)({ contentType, documentElement: { outerHTML: "<html>page</html>" } })
+    const read = await tabPageHtml(tabs, null, ARTICLE)
+    assert.equal(read?.html ?? null, expected, contentType)
+  }
+})
+
 const PDF = "https://example.com/report.pdf"
 
 function pdfTab(result) {

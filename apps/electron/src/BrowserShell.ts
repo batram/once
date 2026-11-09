@@ -176,7 +176,7 @@ export class BrowserShell {
     bindReaderButton(this.readerButton, {
       bridge: this.bridge,
       requests: this.readerRequests,
-      active: () => this.activeTab(),
+      active: () => this.activeTab() ?? null,
       setError: (message) => this.address.setError(message)
     })
   }
