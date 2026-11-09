@@ -3,6 +3,7 @@ import { copyWinningRevisions, EpochCopyDatabase, EpochCopyDivergedError, EpochM
 import { PouchMaintenanceService } from "./PouchMaintenanceService"
 import { epochLock, guardEpochWrites, withEpochDocumentWrites } from "./LocalEpochWrites"
 import { reconcileEpoch } from "./ReconcileEpoch"
+import { guardMissingAttachments } from "./missingAttachments"
 import { reviewEpochSetting } from "./EpochSettingReview"
 import { resolveEpochSettingBatch } from "./EpochSettingBatch"
 import type { SyncSettingResolution, SyncSettingReview } from "@once/core"
@@ -76,9 +77,10 @@ export function openLocalDatabase<T>(
   storage = defaultStorage()
 ): { db: T; epoch: LocalDatabaseEpoch } {
   const name = activeLocalDatabaseName(base, storage)
-  const db = open(name)
+  const openGuarded = (dbName: string) => guardMissingAttachments(open(dbName))
+  const db = openGuarded(name)
   const epoch = new LocalDatabaseEpoch(base, name, db as unknown as EpochLocalDatabase,
-    (other) => open(other) as unknown as EpochLocalDatabase, restart, storage)
+    (other) => openGuarded(other) as unknown as EpochLocalDatabase, restart, storage)
   epoch.watchSwitches()
   return { db, epoch }
 }

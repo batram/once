@@ -344,3 +344,37 @@ test("getStoryContent reads null for a story without an attachment or a database
   const plain = new PouchStoryStore({ get: async () => { throw { status: 404 } } }, Story.from_obj.bind(Story))
   assert.equal(await plain.getStoryContent("https://example.com/story"), null)
 })
+
+test("a stored article whose bytes are gone is saved again instead of hanging the save", async () => {
+  const { db, state } = createAttachmentDatabase()
+  // PouchDB's IndexedDB adapter never settles a read whose digest has no body.
+  let bytesGone = false
+  const readAttachment = db.getAttachment
+  db.getAttachment = (id, name) => bytesGone
+    ? (state.calls.push(["getAttachment", id, name]), new Promise(() => {}))
+    : readAttachment(id, name)
+  const store = new PouchStoryStore(db, Story.from_obj.bind(Story))
+  const diagnostics = []
+  store.onDiagnostic(error => diagnostics.push(error))
+  const story = new Story("rss", "https://example.com/story", "A story")
+  story.attachContent(ARTICLE, { source: "feed", saved_at: 7 })
+  await store.saveStory(story)
+  state.calls.length = 0
+
+  bytesGone = true
+  const previous = RealPouchStoryStore.attachmentReadTimeoutMs
+  RealPouchStoryStore.attachmentReadTimeoutMs = 20
+  try {
+    const again = Story.from_obj(story.to_obj())
+    again.attachContent(ARTICLE, { source: "feed", saved_at: 7 })
+    await store.saveStory(again)
+  } finally {
+    RealPouchStoryStore.attachmentReadTimeoutMs = previous
+  }
+
+  assert.deepEqual(state.calls.map(([name]) => name), ["get", "getAttachment", "put", "get"])
+  const putDoc = state.calls[2][1]
+  assert.equal(Buffer.from(putDoc._attachments.content.data, "base64").toString(), ARTICLE, "the bytes are written back")
+  assert.deepEqual(diagnostics.map(({ severity, operation, storyUrl }) => ({ severity, operation, storyUrl })),
+    [{ severity: "warning", operation: "story.content", storyUrl: story.href }])
+})

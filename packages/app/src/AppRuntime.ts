@@ -339,10 +339,11 @@ export class AppRuntime {
         loads.push(() => {
           processingSources.set(source.id, sourceInfo)
           this.emitLoader(processingSources)
-          return this.sourceLoader.load(source, { policy, cacheMinutes: cacheWindow(source) })
+          const pass = this.sourceLoader.load(source, { policy, cacheMinutes: cacheWindow(source) })
             .then(async (stories) => {
               await this.processStoryInput(stories, group.name, source)
             })
+          return SourceLoader.withinPass(pass)
             .catch((error) => {
               this.sourceLoader.reportLoadFailure(source, error)
             })

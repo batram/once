@@ -18,6 +18,7 @@ export interface SourceLoadOptions {
 
 export class SourceLoader {
   private static readonly requestTimeoutMs = 30_000
+  private static readonly passTimeoutMs = 120_000
   /** Further mirrors a collector may move to before the failure stands. */
   private static readonly failoverRetries = 2
   constructor(
@@ -29,6 +30,23 @@ export class SourceLoader {
     /** Where source tokens live; absent in shells that cannot keep one. */
     private readonly secrets?: SecretStorePort
   ) {}
+
+  /**
+   * The request has its own timeout, but parsing and saving the stories do
+   * not, and a save that never settles (a storage callback that threw) would
+   * keep the source spinning and hold one of the load workers for good. The
+   * pass carries on in the background; the source just stops counting as loading.
+   */
+  static withinPass(pass: Promise<void>): Promise<void> {
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    return Promise.race([
+      pass,
+      new Promise<void>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(
+          `Source did not finish loading within ${SourceLoader.passTimeoutMs / 1000} seconds`)), SourceLoader.passTimeoutMs)
+      })
+    ]).finally(() => clearTimeout(timeout))
+  }
 
   async load(
     source: StorySource,

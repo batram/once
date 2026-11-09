@@ -290,6 +290,41 @@ test("publishes story persistence failures as source errors", async (t) => {
   assert.match(diagnostic.details, /disk full/)
 })
 
+test("a source whose stories never finish saving fails instead of loading forever", async (t) => {
+  t.mock.method(console, "error", () => {})
+  t.mock.timers.enable({ apis: ["setTimeout"] })
+
+  const sourceUrl = "https://old.reddit.com/r/netsec/.json"
+  const fake = createFakePlatform([], {
+    storySources: [sourceUrl],
+    fetch: async () =>
+      new Response(JSON.stringify(cachedRedditSource), { status: 200 })
+  })
+  // What a storage callback that threw looks like from here: a save that never settles.
+  let saving
+  const saveStarted = new Promise((resolve) => { saving = resolve })
+  fake.ports.storyStore.saveStory = () => {
+    saving()
+    return new Promise(() => {})
+  }
+  const app = createOnceApp(fake.ports)
+  const sourceErrors = []
+  const loaders = []
+  app.client.subscribe("sourceErrorsChanged", ({ errors }) => sourceErrors.push(errors))
+  app.client.subscribe("loaderChanged", ({ visible }) => loaders.push(visible))
+
+  await app.start()
+  const reload = app.client.reloadStories("network-only")
+  await saveStarted
+  t.mock.timers.tick(120_000)
+  await reload
+
+  const error = sourceErrors.at(-1)[0]
+  assert.equal(error.title, "Failed")
+  assert.match(error.message, /did not finish loading within 120 seconds/)
+  assert.equal(loaders.at(-1), false, "the loader stops")
+})
+
 test("disabled sources are neither loaded nor exposed through the menu", async () => {
   let requests = 0
   const fake = createFakePlatform([], { fetch: async () => {

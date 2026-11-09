@@ -1,5 +1,6 @@
 import { mergeStoryAssociations, mergeStorySyncState, Story } from "@once/core"
 import { sha256 } from "./EpochContent"
+import { isMissingAttachmentBytes } from "./missingAttachments"
 import { starredStoryDocuments } from "./StarredStoryIndex"
 
 export interface PouchStoryDatabase {
@@ -52,6 +53,8 @@ async function attachmentText(attachment: unknown): Promise<string> {
 }
 
 export class PouchStoryStore<TStory extends Story> {
+  /** A local attachment read takes milliseconds; one this slow is not coming back. */
+  static attachmentReadTimeoutMs = 10_000
   private staredIndex?: Promise<unknown>
   private starredReads: Promise<void> = Promise.resolve()
   private diagnosticHandlers = new Set<(error: {
@@ -288,16 +291,46 @@ export class PouchStoryStore<TStory extends Story> {
     return response
   }
 
-  /** The stored article html, or null when the story has none. */
+  /**
+   * The stored article html, or null when the story has none — or when its
+   * bytes are gone (see guardMissingAttachments). That is reported, and the
+   * next content save writes the bytes back, which repairs the record. The
+   * read is bounded too, for a database the guard does not cover.
+   */
   async getStoryContent(url: string): Promise<string | null> {
-    if (!this.db.getAttachment) return null
+    const getAttachment = this.db.getAttachment?.bind(this.db)
+    if (!getAttachment) return null
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    const unreadable = new Promise<"unreadable">((resolve) => {
+      timeout = setTimeout(() => resolve("unreadable"), PouchStoryStore.attachmentReadTimeoutMs)
+    })
     try {
-      const attachment = await this.db.getAttachment(this.storyId(url), "content")
+      const attachment = await Promise.race([getAttachment(this.storyId(url), "content"), unreadable])
+      if (attachment === "unreadable") {
+        this.reportUnreadableContent(url)
+        return null
+      }
       return attachment == null ? null : await attachmentText(attachment)
     } catch (error) {
+      if (isMissingAttachmentBytes(error)) this.reportUnreadableContent(url)
       if ((error as { status?: number }).status === 404) return null
       throw error
+    } finally {
+      clearTimeout(timeout)
     }
+  }
+
+  private reportUnreadableContent(url: string): void {
+    const message = "Stored article is missing from local storage"
+    console.warn(`${message}: ${url}`)
+    this.diagnosticHandlers.forEach((handler) => handler({
+      severity: "warning",
+      operation: "story.content",
+      message,
+      details: `The bytes of attachment "content" of ${this.storyId(url)} are missing from local storage.`,
+      storyUrl: url,
+      documentId: this.storyId(url)
+    }))
   }
 
   async deleteStory(url: string): Promise<void> {
