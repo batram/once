@@ -127,7 +127,8 @@ function bridgeLog() {
 // Resolves to the pages the bridge lists, or to a reason it found none.
 async function startBridge(kind) {
   const log = fs.openSync(logFile, "w")
-  const bridge = spawn(bridgeExecutable(), ["webinspector", "cdp", "--port", String(port), ...TRANSPORTS[kind].flags], {
+  const executable = bridgeExecutable()
+  const bridge = spawn(executable, ["webinspector", "cdp", "--port", String(port), ...TRANSPORTS[kind].flags], {
     detached: true,
     stdio: ["ignore", log, log]
   })
@@ -138,6 +139,11 @@ async function startBridge(kind) {
     bridge.on("error", (error) => resolve(error))
     bridge.on("spawn", () => resolve(null))
   })
+  // A venv whose Python was removed (a Homebrew upgrade) still has the
+  // script; spawning it fails with ENOENT for the missing interpreter.
+  if (started?.code === "ENOENT" && fs.existsSync(executable)) {
+    fail(`${executable} exists but its Python interpreter is gone (likely a Homebrew Python upgrade); recreate the venv as described in docs/DEVELOPMENT.md ("Debug a running release build").`)
+  }
   if (started) fail(`Could not start pymobiledevice3 (${started.message}); install it as described in docs/DEVELOPMENT.md ("Debug a running release build").`)
   bridge.unref()
   fs.writeFileSync(pidFile, String(bridge.pid))
