@@ -49,7 +49,6 @@ test("mouse navigation returns to Stories and repeatedly restores redirect draft
       })
       expect(layout.ratio).toBeGreaterThan(0.95)
       expect(layout.overflow).toBe(false)
-      if (cycle === 0) await window.locator("#settings_panel").screenshot({ path: "test-results/redirect-editor-layout.png" })
       if (cycle === 2) {
         await form.getByTestId("structured-save").click()
         await expect(window.getByTestId("redirect-row").first()).toContainText(draft)

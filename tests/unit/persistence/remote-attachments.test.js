@@ -29,7 +29,15 @@ test("replication preserves HTML attachment bytes when an intermediary rewrites 
     await remote.close()
     await new Promise(resolve => server.close(resolve))
     await source.destroy(); await target.destroy()
-    // express-pouchdb retains its catalog handle until this test worker exits.
+    // The server opened the database it served and a catalog. Close those
+    // before removing the directory, the catalog last: destroying it would
+    // register it again, because this constructor has a prefix.
+    await Db.allDbs()
+    for (const store of await fs.readdir(directory, { withFileTypes: true })) {
+      if (store.isDirectory() && store.name !== "pouch__all_dbs__") await new Db(store.name).close()
+    }
+    await new Db("pouch__all_dbs__").close()
+    await fs.rm(directory, { recursive: true, force: true })
   })
   assert.notEqual((await remote.getAttachment("story", "content")).toString(), original)
   protectRemoteAttachments(remote)

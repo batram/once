@@ -168,15 +168,26 @@ test("the PDF port runs each document in a fresh opaque frame and validates what
 })
 
 test("a sandbox that never starts, or never finishes, is torn down on its deadline", async t => {
-  const { frames } = frameHarness(t, { fetched: { "https://shell.test/app/pdf/pdf.worker.js": workerSource } })
+  const { frames, send } = frameHarness(t, { fetched: { "https://shell.test/app/pdf/pdf.worker.js": workerSource } })
   t.mock.timers.enable({ apis: ["setTimeout"] })
-  const port = createPdfTextPort({ sandboxUrl: "https://shell.test/app/pdf-sandbox.html", workerUrl, timeoutMs: 1000 })
-  const extraction = port.extract(new Uint8Array([1]))
+  const port = createPdfTextPort({ sandboxUrl: "https://shell.test/app/pdf-sandbox.html", workerUrl })
+  const silent = port.extract(new Uint8Array([1]))
   await tick()
-  const rejected = assert.rejects(extraction, /timed out/)
-  t.mock.timers.tick(1000)
-  await rejected
+  const notStarted = assert.rejects(silent, /did not start/)
+  t.mock.timers.tick(15_000)
+  await notStarted
   assert.equal(frames[0].removed, true)
+
+  // A frame that started is given the whole extraction deadline, and no longer.
+  const stalled = port.extract(new Uint8Array([1]))
+  await tick()
+  send(frames[1], { type: "ready", protocol: PDF_SANDBOX_PROTOCOL })
+  t.mock.timers.tick(119_999)
+  assert.equal(frames[1].removed, undefined)
+  const timedOut = assert.rejects(stalled, /timed out/)
+  t.mock.timers.tick(1)
+  await timedOut
+  assert.equal(frames[1].removed, true)
 })
 
 test("page pictures arrive with their page numbers, and abort removes the parser", async t => {

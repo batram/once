@@ -41,7 +41,6 @@ function harness(storeOverrides = {}) {
     },
     ...storeOverrides
   }
-  const states = []
   let localChanges = 0
   const owner = new SwipeSettingsPersistence(settings(), store, {
     schedule(callback) {
@@ -52,17 +51,12 @@ function harness(storeOverrides = {}) {
     cancel(id) {
       timers.delete(id)
     },
-    onStateChanged(state) {
-      states.push(state)
-    },
     onLocalChange() {
       localChanges += 1
     }
   })
   return {
     owner,
-    states,
-    store,
     writes,
     get localChanges() {
       return localChanges

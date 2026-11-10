@@ -476,7 +476,6 @@ test("diagnoses Electron story loading and interactions", async ({
     await runStep("09-open-stories", () =>
       window
         .getByTestId("stories-menu")
-        .locator(":scope > .heading")
         .click({ timeout: OPERATION_TIMEOUT })
     )
     await runStep("10-clear-search", () =>

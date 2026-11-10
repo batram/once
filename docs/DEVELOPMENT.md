@@ -36,7 +36,7 @@ boundaries, and makes development builds of every target. It runs no test
 suites; see [Test harness](#test-harness).
 
 The pre-commit hook runs staged-file checks; the pre-push hook builds packages
-and runs static checks and the unit suite against the pushed commit. On macOS two
+and runs static checks and the unit suite against the pushed commit. On macOS seven
 unit tests compile Swift harnesses with `xcrun --sdk macosx swiftc`; don't work
 around SDK mismatches by setting `SDKROOT` or skipping them.
 
@@ -305,11 +305,16 @@ Never enable WebView debugging in a store-signed build.
 ```bash
 npm run test:mobile                       # adapter checks
 npm run test:mobile:web                   # phone-sized browser suite
-npm run test:mobile:e2e:android           # Appium; install the pinned driver from CI first
+npm run test:mobile:e2e:android           # Appium smoke suite; install the pinned driver from CI first
+npm run test:mobile:e2e:android:lite      # the same suite against Once Lite
+npm run test:mobile:e2e:android:addons    # AI add-on in the Reading view (also :ios:addons)
+npm run test:mobile:e2e:android:lite:extensions  # Once Lite extension acceptance suite
 npm run test:mobile:e2e:ios
+npm run test:mobile:e2e:ios:extension-host -- <simulator UUID>  # bundled extensions in a throwaway host app (after `node scripts/fetch-ios-extensions.js`)
 npm run test:mobile:e2e:ios:extension-management -- <simulator UUID>  # offline install/update/rollback regressions
 npm run test:mobile:e2e:ios:extension-compat -- <simulator UUID>  # installs popular AMO add-ons in a throwaway host app
-npm run test:mobile:e2e:android:local     # sets up SDK/JDK/driver, builds and runs
+npm run test:mobile:e2e:android:local     # sets up SDK/JDK/driver, builds and runs; also :lite:local, :addons:local, :lite:extensions:local
+npm run test:mobile:e2e:android:lite:tier2:local  # Once Lite smoke with DevTools off (Tier 2)
 npm run inspect:mobile:android            # manual visual pass with a fixture feed
 npm run inspect:mobile:ios
 ```
@@ -322,6 +327,12 @@ Physical and network ADB devices work through `adb reverse`; with several
 devices, set `ONCE_ANDROID_UDID`. iOS honours `ONCE_MOBILE_DEVICE`,
 `ONCE_IOS_VERSION` and `ONCE_IOS_UDID`. `ONCE_MOBILE_TEST_PORT` and
 `ONCE_MOBILE_TEST_DATA_DIR` pin the test server's port and keep its database.
+The Android and iOS runners take `--suite smoke|addons|lite-extensions` and,
+on Android, `--engine lite` (append after `--`, e.g.
+`npm run test:mobile:e2e:android:addons:local -- --engine lite`).
+`ONCE_MOBILE_E2E_TIMEOUT_MS` changes the 10 minute limit after which a run is
+stopped. For the visual pass, `ONCE_MOBILE_VISUAL_OPEN_STORY=1` leaves the
+first story open and `ONCE_MOBILE_VISUAL_READER=1` shows it in reader mode.
 The visual pass keeps running to serve its fixtures; press Ctrl-C when done.
 
 The test server's `express-pouchdb@4.2.0` needs the scoped `uuid@3.4.0`

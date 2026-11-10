@@ -82,6 +82,9 @@ test("a sharing desktop publishes the tabs of both windows, and can remove anoth
     http.closeAllConnections()
     await new Promise((resolve) => http.close(resolve))
     await remote.destroy()
+    // The server's own catalog database stays behind, and on Windows stays
+    // open until the worker exits: there the directory is left to the OS.
+    await fs.rm(directory, { recursive: true, force: true }).catch(() => undefined)
   }
 })
 
@@ -123,15 +126,10 @@ test("the tab bar button opens other devices' tabs as a page; the side panel can
     await page.getByTestId("tab-sync-button").click()
     await expect(page.getByTestId("tab-sync-button")).toHaveAttribute("aria-pressed", "true")
     await expect(page.locator("#electron_tabs .electron-tab", { hasText: "Tabs from other devices" })).toHaveCount(0)
-    const view = await (async () => {
-      for (let attempt = 0; attempt < 50; attempt++) {
-        const contents = await app.electronApp.evaluate(({ webContents }) => webContents.getAllWebContents()
-          .filter((candidate) => candidate.getURL().startsWith("once-tabs://")).map((candidate) => candidate.id))
-        if (contents.length) return contents[0]
-        await new Promise((resolve) => setTimeout(resolve, 100))
-      }
-      throw new Error("The tabs page did not open")
-    })()
+    const tabsPageId = () => app.electronApp.evaluate(({ webContents }) => webContents.getAllWebContents()
+      .find((candidate) => candidate.getURL().startsWith("once-tabs://"))?.id ?? null)
+    await expect.poll(tabsPageId, { message: "the tabs page opens", timeout: 15_000 }).not.toBeNull()
+    const view = await tabsPageId()
     const pageText = () => app.electronApp.evaluate(({ webContents }, id) =>
       webContents.fromId(id).executeJavaScript("document.body.innerText"), view)
     await expect.poll(pageText, { timeout: 15000 }).toContain("Gamma on the phone")
@@ -168,6 +166,7 @@ test("the tab bar button opens other devices' tabs as a page; the side panel can
     http.closeAllConnections()
     await new Promise((resolve) => http.close(resolve))
     await remote.destroy()
+    await fs.rm(directory, { recursive: true, force: true }).catch(() => undefined)
   }
 })
 
@@ -233,6 +232,7 @@ test("a media position is read when its tab is left, and restored when another d
     http.closeAllConnections()
     await new Promise((resolve) => http.close(resolve))
     await remote.destroy()
+    await fs.rm(directory, { recursive: true, force: true }).catch(() => undefined)
   }
 })
 
@@ -290,5 +290,6 @@ test("a tab sent here shows as a toast and opens; the tab just used on another d
     http.closeAllConnections()
     await new Promise((resolve) => http.close(resolve))
     await remote.destroy()
+    await fs.rm(directory, { recursive: true, force: true }).catch(() => undefined)
   }
 })

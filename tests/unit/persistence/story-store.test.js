@@ -186,48 +186,6 @@ test("recovers a corrupted story and reports its stored document", async (t) => 
   assert.match(diagnostics[0].details, /Stored document/)
 })
 
-test("loads stared stories through an indexed query", async () => {
-  const stared = new Story("rss", "https://example.com/stared", "Stared")
-  stared.stared = true
-  const calls = []
-  const store = new PouchStoryStore(
-    {
-      createIndex: async (options) => calls.push(["createIndex", options]),
-      find: async (options) => {
-        calls.push(["find", options])
-        return { docs: [stared.to_obj()] }
-      }
-    },
-    Story.from_obj.bind(Story)
-  )
-
-  const stories = await store.getStaredStories()
-  await store.getStaredStories()
-
-  assert.deepEqual(calls.filter(([name]) => name === "createIndex"), [[
-    "createIndex",
-    {
-      index: {
-        fields: ["stared"],
-        partial_filter_selector: { stared: { $eq: true } }
-      },
-      ddoc: "once-stared",
-      name: "stared-only"
-    }
-  ]])
-  assert.deepEqual(calls.filter(([name]) => name === "find"), [
-    ["find", {
-      selector: { stared: { $eq: true } },
-      use_index: ["once-stared", "stared-only"]
-    }],
-    ["find", {
-      selector: { stared: { $eq: true } },
-      use_index: ["once-stared", "stared-only"]
-    }]
-  ])
-  assert.deepEqual(stories.map((story) => story.href), [stared.href])
-})
-
 const ARTICLE = "<p>Stored article — with a non-Latin-1 character: ✓</p>"
 
 // A PouchDB stand-in that holds one document and its attachment the way the

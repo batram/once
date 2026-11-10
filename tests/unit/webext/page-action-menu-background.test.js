@@ -145,14 +145,19 @@ test("execution rechecks the live addon and its condition", async () => {
   h.panel(state([{ id: "example", label: "Example", when: { domain: ["example.test"] } }]))
   h.click({ menuItemId: "once_page_example", pageUrl: "https://other.test/" }, {})
   h.click({ menuItemId: "once_page_removed", pageUrl: "https://example.test/" }, {})
+  // The one click that still applies shows the refused ones had their chance to run.
+  h.click({ menuItemId: "once_page_example", pageUrl: "https://example.test/" }, {})
   await tick()
-  assert.equal(h.sent.filter(message => message.onceCommand === "page-addon-action").length, 0)
+  assert.deepEqual(h.sent.filter(message => message.onceCommand === "page-addon-action").map(message => message.href), ["https://example.test/"])
 })
 
 // An add-on whose page conversations the reader put in the panel: the click
 // opens the panel before anything asynchronous (the browser refuses it later),
 // then hands the action over once the starting panel has registered it.
-test("a panel entry opens the panel inside the click and runs there once it is ready", async () => {
+test("a panel entry opens the panel inside the click and runs there once it is ready", async context => {
+  // The click asks for the panel again every 250 ms until it lists the action.
+  context.mock.timers.enable({ apis: ["setTimeout", "Date"] })
+  const nextQuery = async () => { context.mock.timers.tick(250); await tick() }
   const windows = []
   const h = harness({ openPanel: tab => windows.push(tab?.windowId) })
   await h.receive(state([{ id: "addon:wwww/explain", label: "Explain", place: "panel" }]))
@@ -161,12 +166,14 @@ test("a panel entry opens the panel inside the click and runs there once it is r
   h.panel(undefined)
   h.click({ menuItemId: "once_page_panel:addon:wwww/explain", pageUrl: "https://a.test/page" }, { title: "A page", windowId: 4 })
   assert.deepEqual(windows, [4], "opened synchronously, inside the user gesture")
-  await new Promise(resolve => setTimeout(resolve, 300))
+  await tick()
+  await nextQuery()
   h.panel(state([], "starting")) // up, but its add-ons are not registered yet
-  await new Promise(resolve => setTimeout(resolve, 300))
+  await nextQuery()
+  assert.equal(h.sent.filter(message => message.onceCommand === "page-actions-query").length, 3)
   assert.equal(h.sent.filter(message => message.onceCommand === "page-addon-action").length, 0)
   h.panel(state([{ id: "addon:wwww/explain", label: "Explain", place: "panel" }], "ready"))
-  await new Promise(resolve => setTimeout(resolve, 600))
+  await nextQuery()
   assert.deepEqual(h.sent.filter(message => message.onceCommand === "page-addon-action"),
     [{ onceCommand: "page-addon-action", action: "addon:wwww/explain", contextId: "ready", href: "https://a.test/page", title: "A page" }])
   assert.equal(h.opened.length, 0, "no conversation tab")
@@ -229,5 +236,6 @@ test("rejects menu state from a content script or another extension page", async
   const untrusted = state([{ id: "injected", label: "Injected" }])
   assert.equal(h.receive(untrusted, { tab: { id: 1 }, url: "https://example.test/" }), undefined)
   assert.equal(h.receive(untrusted, { url: "moz-extension://other/static/sidepanel.html" }), undefined)
-  assert.equal(h.entries.size, 0)
+  await h.receive(state([]))
+  assert.deepEqual([...h.entries.keys()].sort(), ["once_reader_link", "once_reader_page"])
 })

@@ -26,7 +26,6 @@ test("new stories normalize time representations and never serialize local obser
   const unknown = new Story("RSS", "https://example.test/unknown", "Unknown")
   assert.equal(unknown.timestamp, 0)
   assert.equal(storyDisplayTime(unknown), 0)
-  assert.equal(storyDisplayTime(unknown), storyDisplayTime(unknown))
   assert.equal(unknown.to_obj().timestamp, 0)
 })
 

@@ -612,7 +612,7 @@ abstract class ReadingSurfaceHost extends Plugin implements TabRecency.Tab {
         blankWarning = true;
         if (loadStatus != null) loadStatus.hide();
         // The offer's button would do nothing for a link a page may not hand out.
-        failed(currentUrl, -1, message, ExternalLinks.allowed(url) ? url : null);
+        failed(currentUrl, -1, message, ExternalLinks.allowed(url) ? url : null, false);
     }
 
     /**
@@ -668,9 +668,10 @@ abstract class ReadingSurfaceHost extends Plugin implements TabRecency.Tab {
         notifyListeners("historyChanged", payload);
     }
 
-    protected void failed(String url, int code, String message) { failed(url, code, message, null); }
+    protected void failed(String url, int code, String message) { failed(url, code, message, null, false); }
 
-    protected void failed(String url, int code, String message, String externalUrl) {
+    /** `live`: the document stays loaded and watched, so the shell keeps it on screen with its recovery view. */
+    protected void failed(String url, int code, String message, String externalUrl, boolean live) {
         navigationDeadline = 0;
         finishRefresh();
         JSObject payload = new JSObject();
@@ -679,6 +680,7 @@ abstract class ReadingSurfaceHost extends Plugin implements TabRecency.Tab {
         payload.put("code", code);
         payload.put("message", message);
         if (externalUrl != null) payload.put("externalUrl", externalUrl);
+        if (live) payload.put("live", true);
         notifyListeners("navigationFailed", payload);
     }
 

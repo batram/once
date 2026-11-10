@@ -51,12 +51,17 @@ test("double-clicking an image selects its text; a page's own dblclick does not"
     await inPage(app, "(() => { const link = document.querySelector('img').closest('a'); link.replaceWith(...link.childNodes) })()")
     const center = await inPage(app, "(() => { const r = document.querySelector('img').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })()")
 
-    // Script cannot start it: only trusted input counts.
+    // Script cannot start it: only trusted input counts. A frame's requests
+    // arrive in the order it sent them, so one the page's own event had made
+    // would be counted before the real one's selection is ready.
+    await app.evaluate(({ ipcMain }) => {
+      globalThis.imageTextRequests = 0
+      ipcMain.on("once:image-text:request", () => { globalThis.imageTextRequests += 1 })
+    })
     await inPage(app, "document.querySelector('img').dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: 10, clientY: 10 }))")
-    await new Promise(resolve => setTimeout(resolve, 500))
-    expect(await barText(app)).toBeNull()
 
     await doubleClick(app, center.x, center.y)
     await expect.poll(() => barText(app), { timeout: 30_000 }).toContain(READY)
+    expect(await app.evaluate(() => globalThis.imageTextRequests)).toBe(1)
   } finally { await closeApp(app, userData) }
 })

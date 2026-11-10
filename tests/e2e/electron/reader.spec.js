@@ -182,8 +182,7 @@ test("keeps a reader request on the tab that asked for it", async () => {
     // user moves to another tab before the article has been extracted.
     await window.locator("#browser_reader").click()
     await expect(window.locator("#browser_reader")).toHaveClass(/pending/)
-    const second = await window.evaluate(() =>
-      window.onceElectron.tabs.create("about:blank", true))
+    await window.evaluate(() => window.onceElectron.tabs.create("about:blank", true))
 
     await expect.poll(() => window.evaluate(async () =>
       (await window.onceElectron.tabs.getAll()).map((tab) => ({
@@ -199,7 +198,6 @@ test("keeps a reader request on the tab that asked for it", async () => {
       },
       { url: "about:blank", active: true, loadError: null }
     ])
-    expect(second).toBeTruthy()
     await expect(window.locator("#url_error")).toBeHidden()
   } finally {
     await closeApp(electronApp, userData)
@@ -316,15 +314,10 @@ test("reader speech remembers the chosen voice and a speed per voice", async () 
     // and its preferences before typing into the restored tab's address bar.
     await expect.poll(() => controls("/article.xhtml"), { timeout: 15_000 })
       .toEqual({ voice: "once-wafli-slt", rate: "1.5" })
-    // The restored tab's address can still land in the field after the typed
-    // one, and Enter then goes nowhere new: type again until the article opens.
     const field = window.locator("#urlfield")
     await expect(field).toHaveValue(/article\.xhtml/)
-    await expect(async () => {
-      await field.fill(`once-reader://${origin}/article`)
-      await field.press("Enter")
-      await expect.poll(() => controls(), { timeout: 5_000 }).not.toBeNull()
-    }).toPass({ timeout: 30_000 })
+    await field.fill(`once-reader://${origin}/article`)
+    await field.press("Enter")
     await expect.poll(() => controls(), { timeout: 15_000 }).toEqual({ voice: "once-wafli-slt", rate: "1.5" })
   } finally {
     await closeApp(electronApp, userData)

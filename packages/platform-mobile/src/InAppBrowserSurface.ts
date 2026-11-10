@@ -83,6 +83,8 @@ export interface BrowserNavigationFailedEvent extends BrowserNavigationEvent {
   message: string
   /** The app link (an intent:// URL, say) the page redirected to instead of loading. */
   externalUrl?: string
+  /** The page stays loaded and watched (a blank document that may yet fill in), and may still finish. */
+  live?: boolean
 }
 
 export interface BrowserHistoryEvent extends BrowserNavigationEvent {

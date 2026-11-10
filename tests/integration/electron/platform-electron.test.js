@@ -115,8 +115,6 @@ test("a streamed bridge fetch reads its body as main sends it, even a piece that
   await assert.rejects(failing.text(), /too large/)
 })
 
-const nextTurn = () => new Promise((resolve) => setImmediate(resolve))
-
 test("rejects a local-looking sync target before constructing PouchDB", () => {
   let remoteCreations = 0
   const statuses = []
@@ -192,7 +190,7 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
     changes: 2
   })
   replications[1].chain.emit("complete", {})
-  await nextTurn()
+  await eventually(() => replications.length === 3)
   assert.deepEqual(replications[2].options, {
     batch_size: 3000,
     batches_limit: 2,
@@ -200,9 +198,7 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
     selector: { _id: { $nin: ["once_sync_compat", "once_sync_epoch", "_design/once-epoch-freeze"] } }
   })
   replications[2].chain.emit("complete", {})
-  await nextTurn()
   await eventually(() => syncs.length === 1)
-  assert.equal(syncs.length, 1)
   assert.equal(syncs[0].target.remote, "https://two.example/db")
   assert.equal(statuses.at(-1).state, "syncing")
 
@@ -323,11 +319,11 @@ test("syncs settings, newest stories, backlog, then starts live sync", async t =
   assert.equal(replications[0].options.checkpoint, "target")
 
   replications[0].chain.emit("complete", {})
-  await nextTurn()
+  await eventually(() => replications.length === 2)
+  // Subscribed after the settings arrived: the announcement is replayed.
   let replayed = 0
   service.onSettingsReplicated(() => { replayed += 1 })
-  await nextTurn()
-  assert.equal(replayed, 1)
+  await eventually(() => replayed === 1)
   assert.deepEqual(replications[1].options.doc_ids, [
     "sto_loaded",
     "sto_visible"
@@ -339,7 +335,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async t =
     docs: [{ _id: "sto_loaded", href: "loaded" }]
   })
   replications[1].chain.emit("complete", {})
-  await nextTurn()
+  await eventually(() => replications.length === 3)
   assert.deepEqual(replications[2].options.doc_ids, [
     "sto_newest",
     "sto_next"
@@ -355,7 +351,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async t =
   })
   assert.equal(statuses.at(-1).message, "Loading newest stories (2/2)…")
   replications[2].chain.emit("complete", {})
-  await nextTurn()
+  await eventually(() => replications.length === 4)
   assert.deepEqual(replications[3].options, {
     batch_size: 3000,
     batches_limit: 2,
@@ -369,9 +365,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async t =
   })
   assert.equal(statuses.at(-1).message, "Loading older stories (1 received)…")
   replications[3].chain.emit("complete", {})
-  await nextTurn()
   await eventually(() => syncs.length === 1)
-  assert.equal(syncs.length, 1)
   assert.deepEqual(lifecycle, [
     "conflicts-checked",
     "compacted",

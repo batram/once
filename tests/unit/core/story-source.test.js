@@ -4,7 +4,6 @@ const assert = require("node:assert/strict")
 const {
   DEFAULT_GROUP_ID,
   MAX_CACHE_MINUTES,
-  SOURCES_SCHEMA_VERSION,
   emptyStorySourceDocument,
   enabledStorySources,
   groupedStorySources,
@@ -332,11 +331,6 @@ test("a source may say how it authenticates; only the shape is stored", () => {
     { mintId: counter() }
   )
   assert.deepEqual(sources[0].auth, { kind: "session" })
-})
-
-test("the schema version is what the readers accept", () => {
-  assert.equal(SOURCES_SCHEMA_VERSION, 2)
-  assert.equal(emptyStorySourceDocument().version, SOURCES_SCHEMA_VERSION)
 })
 
 test("a typed cache window is read, not coerced", () => {

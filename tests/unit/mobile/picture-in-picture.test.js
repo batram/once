@@ -46,10 +46,11 @@ function fixture() {
 
 test("a standard request enters native PiP without fullscreen and resolves its window", async () => {
   const f = fixture()
-  let entered = 0, resized = 0
+  let entered = 0, handled = 0, resized = 0
   f.video.addEventListener("enterpictureinpicture", event => { entered++; assert.ok(event.pictureInPictureWindow) })
   f.video.onenterpictureinpicture = () => assert.fail("Replaced handler must not run")
   f.video.onenterpictureinpicture = event => {
+    handled++
     assert.equal(f.document.pictureInPictureElement, f.video)
     assert.equal(event.pictureInPictureWindow.width, 192)
     assert.equal(event.pictureInPictureWindow.height, 108)
@@ -66,6 +67,7 @@ test("a standard request enters native PiP without fullscreen and resolves its w
   assert.equal(window.width, 192)
   assert.equal(window.height, 108)
   assert.equal(entered, 1)
+  assert.equal(handled, 1, "the onenterpictureinpicture handler runs too")
   assert.equal(f.presentations, 1)
   window.addEventListener("resize", () => resized++)
   let handlerSize

@@ -18,14 +18,11 @@ test("parses Hacker News stories, users, times, and job filtering", () => {
 
 test("takes Hacker News times from the age title so every device stores the same time", () => {
   const collector = require("../../../packages/collectors/dist/collectors/hackerNewsHtml")
-  const titled = ["2026-10-09T13:03:48 1791637428", "2026-10-09T13:16:33"]
-  const html = fixture("hackernews.html")
-    .replace(/<span class="age">/g, (span) => titled.length ? `<span class="age" title="${titled.shift()}">` : span)
-  const stories = collector.parse(parseDocument(html))
+  const stories = collector.parse(parseDocument(fixture("hackernews.html")))
   assert.equal(stories[0].timestamp, 1791637428000, "Unix seconds win when present")
   assert.equal(stories[1].timestamp, Date.parse("2026-10-09T13:16:33Z"), "the ISO time is UTC")
-  const before = Date.now()
-  assert.ok(stories[2].timestamp <= before - 3 * 3600 * 1000 + 60_000, "an untitled age still parses relatively")
+  // "3 hours ago" depends on when the page was read, so it is never used.
+  assert.equal(stories[2].timestamp, 0, "an untitled age gives no time")
 })
 
 test("parses Lobsters stories and skips entries without links", () => {

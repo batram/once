@@ -50,7 +50,7 @@ func transferFixture(_ count: Int, limit: Int, declared: Int?) async throws -> D
   const swift = path.join(directory, "main.swift")
   const binary = path.join(directory, "download-test")
   fs.writeFileSync(swift, source + driver)
-  execFileSync("xcrun", ["--sdk", "macosx", "swiftc", "-O", "-parse-as-library", "-target",
+  execFileSync("xcrun", ["--sdk", "macosx", "swiftc", "-parse-as-library", "-target",
     `${process.arch === "arm64" ? "arm64" : "x86_64"}-apple-macos15.4`, swift, "-o", binary], { stdio: "pipe" })
   const result = JSON.parse(execFileSync(binary, { encoding: "utf8" }))
   assert.deepEqual(result, {

@@ -321,21 +321,23 @@ test("a userscript's GM API stays out of the page's reach: no caller arguments, 
   assert.equal(page.document.documentElement.dataset.callerArgs, "0", "the GM API is no argument a page function can read")
   assert.equal(page.window.leaked, undefined, "the page's later JSON.stringify never sees a value")
   assert.equal(page.store.get("once.userscript.guarded.secret"), "41")
-  await new Promise((resolve) => setTimeout(resolve, 20))
+  // The request settles through promises alone: all of them have run by the next task.
+  await new Promise((resolve) => setImmediate(resolve))
   assert.equal(page.document.documentElement.dataset.failed, "1", "a body that is not JSON fails the request through onerror")
   assert.equal(page.document.documentElement.dataset.loaded, undefined)
 })
 
 test("an older settings application finishing after a newer one does not replace its state", async () => {
   const { java } = await startTier2({ ubolite: false })
-  let releaseSlow
+  let releaseSlow, slowRequested
   const slow = new Promise((resolve) => { releaseSlow = resolve })
+  const requested = new Promise((resolve) => { slowRequested = resolve })
   java.handlers["tier2.fetchList"] = async ({ url }) => {
-    if (url.endsWith("slow.txt")) { await slow; return { status: 200, text: "||slow.example^" } }
+    if (url.endsWith("slow.txt")) { slowRequested(); await slow; return { status: 200, text: "||slow.example^" } }
     return { status: 200, text: "||fast.example^" }
   }
   const older = java.request("settings.apply", { filterLists: { version: 1, lists: [{ url: "http://10.0.2.2:8080/slow.txt", enabled: true }] }, userscripts: { version: 1, scripts: [] } })
-  await new Promise((resolve) => setTimeout(resolve, 10))
+  await requested
   await java.request("settings.apply", { filterLists: { version: 1, lists: [{ url: "http://10.0.2.2:8080/fast.txt", enabled: true }] }, userscripts: { version: 1, scripts: [] } })
   releaseSlow()
   await older

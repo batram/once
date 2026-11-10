@@ -207,23 +207,31 @@ test("mobile extension subpages and install drafts share Back and Forward histor
   assert.ok([...ui.document.querySelectorAll("button")].some(button => button.textContent === "Remove extension and data"))
 })
 
-
-test("hidden catalog notifications are coalesced and a later change refreshes again", async () => {
+// Catalog notifications are debounced by 100 ms; the mocked clock passes it.
+test("hidden catalog notifications are coalesced and a later change refreshes again", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] })
   let queries = 0
   const ui = harness(async () => { queries++; return { extensions: [] } }, false)
   for (let i = 0; i < 8; i++) ui.changed()
-  await new Promise(resolve => setTimeout(resolve, 140))
+  t.mock.timers.tick(99)
+  await settle()
+  assert.equal(queries, 0, "still collecting notifications")
+  t.mock.timers.tick(1)
+  await settle()
   assert.equal(queries, 1)
   ui.changed()
-  await new Promise(resolve => setTimeout(resolve, 140))
+  t.mock.timers.tick(100)
+  await settle()
   assert.equal(queries, 2)
 })
 
-test("catalog changes during a slow refresh cause one trailing refresh", async () => {
+test("catalog changes during a slow refresh cause one trailing refresh", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] })
   const replies = []
   const ui = harness(() => new Promise(resolve => replies.push(resolve)), false)
   ui.changed()
-  await new Promise(resolve => setTimeout(resolve, 140))
+  t.mock.timers.tick(100)
+  await settle()
   assert.equal(replies.length, 1)
   for (let i = 0; i < 8; i++) ui.changed()
   replies[0]({ extensions: [] })

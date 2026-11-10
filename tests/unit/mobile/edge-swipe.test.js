@@ -5,10 +5,9 @@ const { parseHTML } = require("linkedom")
 async function withDom(run) {
   const { window } = parseHTML("<!doctype html><html><body><div id=\"left_panel\" active_panel=\"reading\"></div></body></html>")
   window.innerWidth = 400
-  const previous = { document: globalThis.document, window: globalThis.window, Element: globalThis.Element }
+  const previous = { document: globalThis.document, window: globalThis.window }
   globalThis.document = window.document
   globalThis.window = window
-  globalThis.Element = window.Element
   try {
     const { attachEdgeSwipe } = await import("../../../apps/mobile/src/edgeSwipe.ts")
     return await run(window, attachEdgeSwipe)

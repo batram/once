@@ -4,11 +4,12 @@ const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
 const { execFileSync } = require("node:child_process")
+const { readSwift, swiftSlice } = require("./swift-source")
 
 test("iOS keeps the PiP source attached and sized while Stories or another tab is shown", { skip: process.platform !== "darwin" }, () => {
-  const source = fs.readFileSync(path.resolve(__dirname, "../../../apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift"), "utf8")
-  const bounds = source.slice(source.indexOf("    private func applyBounds("), source.indexOf("    @objc func open("))
-  const visibility = source.slice(source.indexOf("    func updateSurfaceVisibility()"), source.indexOf("    @objc func showMenu("))
+  const source = readSwift("InAppBrowserSurfacePlugin.swift")
+  const bounds = swiftSlice(source, "    private func applyBounds(", "    @objc func open(")
+  const visibility = swiftSlice(source, "    func updateSurfaceVisibility()", "    @objc func showMenu(")
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "once-ios-pip-surface-"))
   const harness = `
 import Foundation

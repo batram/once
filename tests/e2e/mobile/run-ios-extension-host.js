@@ -1,4 +1,7 @@
-// Usage: node tests/e2e/mobile/run-ios-extension-host.js <booted simulator UUID>
+// Usage: npm run test:mobile:e2e:ios:extension-host -- <booted simulator UUID> [--ubol-only]
+// Builds a throwaway host app from the production WebExtensionHost sources and
+// runs the bundled extensions in it: Dark Reader, SponsorBlock, Violentmonkey
+// and uBlock Origin Lite's zapper and picker.
 // Run `node scripts/fetch-ios-extensions.js` first. No changes to the Once app's data.
 const fs = require("node:fs")
 const path = require("node:path")
@@ -14,8 +17,7 @@ const bundleID = "com.once.hosttest"
 // The production host and the installer it now depends on (no UIKit prompts: the harness confirms silently).
 const hostSources = ["WebExtensionHost.swift", "WebExtensionManagement.swift", "WebExtensionInstaller.swift", "ExtensionArchive.swift", "ExtensionCatalogSnapshot.swift"]
 
-async function main() {
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "once-extension-host-"))
+async function exercise(temporary) {
   const app = path.join(temporary, "Host.app")
   const extensions = path.join(app, "public/extensions")
   fs.mkdirSync(extensions, { recursive: true })
@@ -79,7 +81,6 @@ async function main() {
   }
   if (process.argv.includes("--ubol-only")) {
     console.log(`Native uBlock tools passed. Report: ${output}`)
-    fs.rmSync(temporary, { recursive: true, force: true })
     return
   }
   assert.ok(result.darkPage.styles > 0)
@@ -101,6 +102,15 @@ async function main() {
   const contentId = result.vmExport.items.find(item => item.script.meta.name === "Once VM content fixture").script.props.id
   assert.deepEqual(result.vmExport.values[contentId], { afterWake: "n43" })
   console.log(`Native extension behavior passed. Report: ${output}`)
-  fs.rmSync(temporary, { recursive: true, force: true })
+}
+
+async function main() {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "once-extension-host-"))
+  // The build and the host app are removed however the run ends; the report stays in artifacts/.
+  try { await exercise(temporary) } finally {
+    try { run("xcrun", ["simctl", "terminate", device, bundleID]) } catch { /* May not have launched. */ }
+    try { run("xcrun", ["simctl", "uninstall", device, bundleID]) } catch { /* May not have installed. */ }
+    fs.rmSync(temporary, { recursive: true, force: true })
+  }
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

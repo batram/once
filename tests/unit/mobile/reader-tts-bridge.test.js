@@ -79,15 +79,19 @@ function createFakeEngine() {
 
 const preferencesModule = loadModule("packages/ui-web/src/reader/readerTtsPreferences.ts")
 
-async function setUp(preferenceStore) {
+function loadPolyfill() {
   const protocol = loadModule("apps/mobile/src/readerTtsProtocol.ts")
   const adapter = loadModule("apps/mobile/src/ReaderTtsAdapter.ts", {
     "./readerTtsProtocol": protocol
   })
-  const { installReaderTtsPolyfill } = loadModule("apps/mobile/src/readerTtsPolyfill.ts", {
+  return loadModule("apps/mobile/src/readerTtsPolyfill.ts", {
     "./ReaderTtsAdapter": adapter
-  })
-  const { installReaderTtsHostBridge } = loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
+  }).installReaderTtsPolyfill
+}
+
+function loadHostBridge() {
+  const protocol = loadModule("apps/mobile/src/readerTtsProtocol.ts")
+  return loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
     "./readerTtsFrames": loadModule("apps/mobile/src/readerTtsFrames.ts", { "./readerTtsProtocol": protocol }),
     "./readerTtsProtocol": protocol,
     "@once/ui-web/reader/readerTtsPreferences": preferencesModule,
@@ -96,18 +100,20 @@ async function setUp(preferenceStore) {
       QueueStrategy: { Flush: 0, Add: 1 }
     }
   })
+}
+
+async function setUp() {
+  const { installReaderTtsHostBridge } = loadHostBridge()
   const pair = createBridgePair()
   const { engine, requests } = createFakeEngine()
-  installReaderTtsPolyfill(pair.frameWindow)
+  loadPolyfill()(pair.frameWindow)
   installReaderTtsHostBridge(
     (source) => source === pair.frameHandle,
     engine,
-    pair.hostWindow,
-    undefined,
-    preferenceStore
+    pair.hostWindow
   )
   await pair.settle()
-  return { ...pair, engine, requests, protocol }
+  return { ...pair, engine, requests }
 }
 
 function trackedUtterance(frameWindow, text) {
@@ -129,13 +135,7 @@ test("polyfill installs bridged speech synthesis and reports host voices", async
 })
 
 test("force replaces a present-but-broken Web Speech implementation", async () => {
-  const protocol = loadModule("apps/mobile/src/readerTtsProtocol.ts")
-  const adapter = loadModule("apps/mobile/src/ReaderTtsAdapter.ts", {
-    "./readerTtsProtocol": protocol
-  })
-  const { installReaderTtsPolyfill } = loadModule("apps/mobile/src/readerTtsPolyfill.ts", {
-    "./ReaderTtsAdapter": adapter
-  })
+  const installReaderTtsPolyfill = loadPolyfill()
   const posts = []
   const native = { native: true }
   const frameWindow = {
@@ -183,6 +183,17 @@ test("versioned protocol rejects malformed and unscoped messages", () => {
     sessionId: "reader-test",
     type: "cancel"
   }), false)
+  assert.equal(protocol.isReaderTtsRequest({
+    channel: "once-reader-tts",
+    version: 1,
+    type: "cancel"
+  }), false, "a request names its session")
+  assert.equal(protocol.isReaderTtsRequest({
+    channel: "once-reader-link",
+    version: 1,
+    sessionId: "reader-test",
+    type: "cancel"
+  }), false, "another channel's message is not a speech request")
 })
 
 test("queued utterances speak natively in order with start/end callbacks", async () => {
@@ -425,14 +436,8 @@ test("adapter reports active errors but cancellation resets state and ignores la
   assert.deepEqual(errors, ["native-failure"])
 })
 
-test("background tab readers keep speaking; a new speaker preempts the owner and controls follow the selected tab", async () => {
-  const protocol = loadModule("apps/mobile/src/readerTtsProtocol.ts")
-  const { installReaderTtsHostBridge } = loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
-    "./readerTtsFrames": loadModule("apps/mobile/src/readerTtsFrames.ts", { "./readerTtsProtocol": protocol }),
-    "./readerTtsProtocol": protocol,
-    "@once/ui-web/reader/readerTtsPreferences": preferencesModule,
-    "@capacitor-community/text-to-speech": { TextToSpeech: {}, QueueStrategy: { Flush: 0, Add: 1 } }
-  })
+test("background tab readers keep speaking; a new speaker preempts the owner and controls follow the selected tab", () => {
+  const { installReaderTtsHostBridge } = loadHostBridge()
   let hostListener
   const frame = () => ({ posted: [], postMessage(message) { this.posted.push(message) } })
   const a = frame(), b = frame()
@@ -476,14 +481,8 @@ test("background tab readers keep speaking; a new speaker preempts the owner and
   assert.deepEqual(audible, [["a", true]])
 })
 
-test("system media commands reach the speaking reader, even when another tab is selected", async () => {
-  const protocol = loadModule("apps/mobile/src/readerTtsProtocol.ts")
-  const { installReaderTtsHostBridge } = loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
-    "./readerTtsFrames": loadModule("apps/mobile/src/readerTtsFrames.ts", { "./readerTtsProtocol": protocol }),
-    "./readerTtsProtocol": protocol,
-    "@once/ui-web/reader/readerTtsPreferences": preferencesModule,
-    "@capacitor-community/text-to-speech": { TextToSpeech: {}, QueueStrategy: { Flush: 0, Add: 1 } }
-  })
+test("system media commands reach the speaking reader, even when another tab is selected", () => {
+  const { installReaderTtsHostBridge } = loadHostBridge()
   let hostListener
   const frame = () => ({ posted: [], postMessage(message) { this.posted.push(message) } })
   const a = frame(), b = frame()
@@ -525,12 +524,7 @@ test("the host keeps reader voice and speeds in its own storage", async () => {
     getItem: (key) => items.get(key) ?? null,
     setItem: (key, value) => items.set(key, value)
   }
-  const { installReaderTtsHostBridge, localReaderTtsPreferenceStore } = loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
-    "./readerTtsFrames": { ReaderTtsFrames: class { receive() {} } },
-    "./readerTtsProtocol": loadModule("apps/mobile/src/readerTtsProtocol.ts"),
-    "@once/ui-web/reader/readerTtsPreferences": preferencesModule,
-    "@capacitor-community/text-to-speech": { TextToSpeech: {}, QueueStrategy: { Flush: 0, Add: 1 } }
-  })
+  const { installReaderTtsHostBridge, localReaderTtsPreferenceStore } = loadHostBridge()
   const pair = createBridgePair()
   const replies = []
   pair.frameWindow.addEventListener("message", (event) => replies.push(event.data))

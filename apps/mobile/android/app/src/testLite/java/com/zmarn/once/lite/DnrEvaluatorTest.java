@@ -243,7 +243,8 @@ public class DnrEvaluatorTest {
     public void uboLiteDefaultRulesetsCompile() throws Exception {
         File base = new File("../../../../vendor/extensions/ublock-origin-lite/rulesets");
         if (!base.isDirectory()) base = new File(System.getProperty("user.dir"), "../../../../vendor/extensions/ublock-origin-lite/rulesets");
-        if (!base.isDirectory()) return; // vendor bundle not fetched in this checkout
+        // Reported as skipped, not passed, when the vendor bundle is not fetched in this checkout.
+        org.junit.Assume.assumeTrue("vendor/extensions/ublock-origin-lite is not fetched", base.isDirectory());
         List<DnrEvaluator.Compiled> parts = new ArrayList<>();
         int total = 0;
         for (String id : new String[] { "ublock-filters", "easylist", "easyprivacy" }) {

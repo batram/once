@@ -52,7 +52,8 @@ test("an installed client keeps local preferences and its old database through a
     if (app) await closeApp(app.electronApp, app.userData)
     http.closeAllConnections()
     await new Promise(resolve => http.close(resolve))
-    // express-pouchdb retains its catalog handle until worker exit on Windows.
     await source.destroy(); await target.destroy()
+    // express-pouchdb retains its catalog handle until worker exit on Windows.
+    await fs.rm(directory, { recursive: true, force: true }).catch(() => undefined)
   }
 })

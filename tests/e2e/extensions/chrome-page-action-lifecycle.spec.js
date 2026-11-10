@@ -1,4 +1,4 @@
-const { expect, test } = require("../shared/browser-evidence")
+const { expect, test, waitForExtensionWorker } = require("../shared/browser-evidence")
 const { launchExtensionChrome } = require("../shared/extension-chrome")
 const { startStoryFixture } = require("./local-source")
 
@@ -10,7 +10,7 @@ test("page target listeners stop quietly when the extension is reloaded", async 
   })
   const { context } = browser
   try {
-    const worker = context.serviceWorkers()[0] || await context.waitForEvent("serviceworker")
+    const worker = await waitForExtensionWorker(context)
     await worker.evaluate(() => {
       globalThis.targetReports = 0
       globalThis.chrome.runtime.onMessage.addListener(message => { if (message.onceCommand === "page-actions-target") globalThis.targetReports++ })

@@ -222,8 +222,11 @@ test("status issues stack, dismiss, restore, and reset per reload", async (t) =>
     assert.equal(document.querySelector(".error_log_copy").textContent, "Copy error text")
     document.querySelector(".error_log_show_source").click()
     assert.deepEqual(actionCalls.shift(), ["highlightSource", "src_warning1"])
+    // Errors come first, the newest on top: the bubble is "Error two", and it opens its own log entry.
+    const errorTwoLog = [...document.querySelectorAll(".error_log_entry")]
+      .find((entry) => entry.querySelector("summary").textContent === "Error two")
     document.querySelector(".status_issue_content").click()
-    assert.match(actionCalls.shift()[0], /showErrorLog/)
+    assert.deepEqual(actionCalls.shift(), ["showErrorLog", errorTwoLog.id])
 
     document.querySelector(".status_issue_bubble.error .status_issue_close").click()
     assert.equal(document.querySelectorAll(".status_issue_bubble.error").length, 1)
@@ -240,10 +243,12 @@ test("status issues stack, dismiss, restore, and reset per reload", async (t) =>
 
     LoaderInsights.showErrorMessage("Reader mode failed")
     t.mock.timers.tick(10_000)
-    assert.match(
-      document.querySelector(".status_issue_bubble.error").textContent,
-      /Reader mode failed|Error/
+    assert.deepEqual(
+      [...document.querySelectorAll(".status_issue_bubble.error .status_issue_title")].map((title) => title.textContent),
+      ["Reader mode failed", "Error two", "Error one"],
+      "an error stays until it is dismissed, the newest on top"
     )
+    assert.equal(document.querySelectorAll(".status_issue_bubble.warning").length, 0, "the restored warnings left again")
 
     subscriptions.get("sourceErrorsChanged")({ errors: [] })
     assert.equal(document.querySelectorAll(".status_issue_bubble").length, 0)
@@ -290,7 +295,6 @@ test("an issue glyph preserves the folded rail and opens the error log when the 
     assert.deepEqual(clicks, ["settings", "errors"])
 
     // Only the menu folded: the click preserves it and toggles the bubbles as usual.
-    menu.classList.add("collapse")
     document.querySelector("#status_surfaces").getClientRects = () => [{}]
     errors.click()
     assert.ok(menu.classList.contains("collapse"))

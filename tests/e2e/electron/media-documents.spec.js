@@ -32,10 +32,15 @@ async function withApp(run) {
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve))
   // Downloads are the browser's business; here they only need to start.
   await electronApp.evaluate(({ session }) => {
-    session.fromPartition("persist:once-browser-v2").on("will-download", event => event.preventDefault())
+    globalThis.downloadsStarted = 0
+    session.fromPartition("persist:once-browser-v2").on("will-download", event => {
+      globalThis.downloadsStarted += 1
+      event.preventDefault()
+    })
   })
+  const downloads = () => electronApp.evaluate(() => globalThis.downloadsStarted)
   try {
-    await run({ electronApp, window, origin: `http://127.0.0.1:${server.address().port}` })
+    await run({ electronApp, window, downloads, origin: `http://127.0.0.1:${server.address().port}` })
   } finally {
     server.close()
     await closeApp(electronApp, userData)
@@ -58,10 +63,9 @@ test("video and audio files opened on their own play in the tab", async () => {
       const url = origin + file
       const id = await window.evaluate(target => window.onceElectron.tabs.create(target, true), url)
       await expect.poll(() => shows(electronApp, url, `Boolean(document.querySelector(${JSON.stringify(element)}))`)).toBe(true)
+      // The rejection is handled in the turn the load stops in, so a tab seen
+      // stopped has its verdict.
       await expect.poll(() => tabState(window, id)).toMatchObject({ url, loadError: null, loading: false })
-      // Long enough for a rejected load to have turned into an error page.
-      await window.waitForTimeout(500)
-      expect(await tabState(window, id)).toMatchObject({ url, loadError: null })
     }
   })
 })
@@ -78,7 +82,7 @@ test("a redirect to a video names the tab after where it ended up", async () => 
 })
 
 test("a navigation that downloads or returns no content keeps the page", async () => {
-  await withApp(async ({ electronApp, window, origin }) => {
+  await withApp(async ({ electronApp, window, downloads, origin }) => {
     const start = `${origin}/start`
     const id = await window.evaluate(target => window.onceElectron.tabs.create(target, true), start)
     await expect.poll(() => tabState(window, id)).toMatchObject({ url: start, title: "Start page", loading: false })
@@ -88,8 +92,9 @@ test("a navigation that downloads or returns no content keeps the page", async (
       await expect.poll(() => tabState(window, id)).toMatchObject({ url: start, title: "Start page", loadError: null, loading: false })
     }
 
+    expect(await downloads()).toBe(1)
     await shows(electronApp, start, "document.getElementById('download').click()")
-    await window.waitForTimeout(500)
+    await expect.poll(downloads).toBe(2)
     await expect.poll(() => tabState(window, id)).toMatchObject({ url: start, title: "Start page", loadError: null, loading: false })
     expect(await shows(electronApp, start, "document.title")).toBe("Start page")
   })
@@ -97,8 +102,13 @@ test("a navigation that downloads or returns no content keeps the page", async (
 
 test("the error page says what went wrong and shows the address as typed", async () => {
   await withApp(async ({ electronApp, window }) => {
+    // A port nothing listens on: one a server just gave back.
+    const gone = http.createServer()
+    await new Promise(resolve => gone.listen(0, "127.0.0.1", resolve))
+    const { port } = gone.address()
+    await new Promise(resolve => gone.close(resolve))
     // "$&" and "$`" are String.replace patterns; the page must not expand them.
-    const failed = "http://127.0.0.1:65534/unreachable?a=$&b=$`"
+    const failed = `http://127.0.0.1:${port}/unreachable?a=$&b=$\``
     const id = await window.evaluate(target => window.onceElectron.tabs.create(target, true), failed)
     await expect.poll(() => tabState(window, id)).toMatchObject({ loadError: "ERR_CONNECTION_REFUSED (-102)" })
     const page = () => electronApp.evaluate(({ webContents }) => {

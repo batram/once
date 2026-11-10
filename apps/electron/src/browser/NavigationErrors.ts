@@ -12,6 +12,7 @@ export class NavigationErrors {
 
   load(entry: TabEntry, url: string): void {
     entry.displayedUrl = url
+    entry.pendingUrl = url
     entry.loadError = null
     entry.loadErrorRetryable = false
     entry.errorPageUrl = null

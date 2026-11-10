@@ -7,9 +7,11 @@ test("unmanaged About page checks a release and opens its page without installin
   })
   try {
     // Exercise the real main-process request and IPC with a deterministic
-    // release response. No GitHub traffic or release downloads in this test.
-    await electronApp.evaluate(({ session, net }) => {
-      session.defaultSession.protocol.handle("https", request => {
+    // release response. No GitHub traffic or release downloads in this test:
+    // the check asks from the default session, the release page opens in a
+    // tab, and tabs live in the browsing partition, so both are answered here.
+    await electronApp.evaluate(({ session }) => {
+      const answer = request => {
         if (request.url === "https://api.github.com/repos/batram/once/releases/latest") {
           return new Response(JSON.stringify({ tag_name: "v9.8.7", draft: false, prerelease: false }), {
             headers: { "content-type": "application/json" }
@@ -20,8 +22,11 @@ test("unmanaged About page checks a release and opens its page without installin
             headers: { "content-type": "text/html" }
           })
         }
-        return net.fetch(request, { bypassCustomProtocolHandlers: true })
-      })
+        return new Response("The fixture serves nothing else", { status: 404 })
+      }
+      for (const target of [session.defaultSession, session.fromPartition("persist:once-browser-v2")]) {
+        target.protocol.handle("https", answer)
+      }
     })
     await openSettingsSection(window, "about")
     const check = window.getByTestId("check-for-updates")
@@ -34,8 +39,9 @@ test("unmanaged About page checks a release and opens its page without installin
     await expect(check).toBeEnabled()
     await expect(link).toHaveAttribute("href", "https://github.com/batram/once/releases/tag/v9.8.7")
     await link.click()
-    await expect.poll(() => window.evaluate(async () => (await window.onceElectron.tabs.getAll())
-      .some(tab => tab.url === "https://github.com/batram/once/releases/tag/v9.8.7"))).toBe(true)
+    // The title is the fixture's: the tab was served here, not by GitHub.
+    await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll())).toContainEqual(
+      expect.objectContaining({ url: "https://github.com/batram/once/releases/tag/v9.8.7", title: "Fixture release" }))
   } finally {
     await closeApp(electronApp, userData)
   }

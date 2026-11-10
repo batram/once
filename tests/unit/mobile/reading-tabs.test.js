@@ -242,7 +242,8 @@ test("tab audio is playing while audible and stays marked as played afterwards",
   assert.equal(published, 2)
 })
 
-test("tab sync times count navigations and selections, and survive a restart", () => {
+test("tab sync times count navigations and selections, and survive a restart", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: 1000 })
   const storage = memory()
   const tabs = new ReadingTabs(storage)
   const first = tabs.create()
@@ -250,9 +251,11 @@ test("tab sync times count navigations and selections, and survive a restart", (
   first.session.navigate("https://one.test/next")
   assert.equal(first.times.navSeq, 2)
   const second = tabs.create(false)
-  const selectedBefore = second.times.selectedAt
+  t.mock.timers.tick(5000)
   tabs.select(second.id)
-  assert.ok(second.times.selectedAt >= selectedBefore)
+  assert.equal(second.times.selectedAt, 6000)
+  assert.equal(second.times.activityAt, 6000)
+  assert.equal(second.times.openedAt, 1000)
   const restored = new ReadingTabs(storage)
   assert.equal(restored.tabs[0].times.navSeq, 2, "a restore keeps the navigation count instead of counting the restore")
   assert.equal(restored.tabs[0].times.openedAt, first.times.openedAt)

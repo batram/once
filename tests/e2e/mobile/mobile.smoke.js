@@ -3,12 +3,10 @@ const { ADDON_INTEGRITY } = require("../shared/addon-fixture")
 // Shell steps shared with mobile.lite-extensions.js (context switching, the
 // __onceE2E__ hooks and the Browser Extensions settings steps).
 const {
-  androidEngine, switchToWebView, waitForOnceReady, settledStoryWrites,
-  evaluateSurface, saveExtensionSettings, clickWeb, setWebValue, backToSettingsIndex
+  androidPackage, switchToWebView, waitForOnceReady, settledStoryWrites,
+  evaluateSurface, saveExtensionSettings, clickWeb, setWebValue, backToSettingsIndex,
+  clickNativeMenuItem, installAiAddon, waitForAiTrayText
 } = require("./helpers/wdio-shell")
-const { packageName } = require("../../../apps/mobile/scripts/android-engine")
-// The Android app under test: com.zmarn.once.dev, or com.zmarn.once.lite.dev for Once Lite.
-const androidPackage = packageName(androidEngine, "dev")
 
 // The reader frame is opaque-origin, so automation cannot reach into it.
 // Observe the TTS bridge traffic (readerTtsPolyfill -> readerTtsHostBridge)
@@ -30,22 +28,33 @@ async function observeReaderTts() {
   })
 }
 
+// The ad probe reports from its image's load or error event and the extension
+// hides the cosmetic target on its own schedule, so the page's "ready" state
+// does not say both have settled: poll, then compare the last reading so a
+// failure shows which capability is missing.
 async function expectExtensionsApplied() {
-  const extensionResult = await evaluateSurface(`({
-    start: document.documentElement.dataset.onceUserscriptStart || null,
-    gm: document.documentElement.dataset.onceGmValue || null,
-    userHidden: getComputedStyle(document.querySelector('#once-userscript-target')).display,
-    filterHidden: getComputedStyle(document.querySelector('.once-filter-hide')).display,
-    ad: document.querySelector('#once-ad-probe').dataset.result || null
-  })`)
-  expect(extensionResult).toEqual({
-    start: "loading", gm: "true", userHidden: "none", filterHidden: "none", ad: "blocked"
-  })
+  const expected = { start: "loading", gm: "true", userHidden: "none", filterHidden: "none", ad: "blocked" }
+  let extensionResult
+  try {
+    await browser.waitUntil(async () => {
+      extensionResult = await evaluateSurface(`({
+        start: document.documentElement.dataset.onceUserscriptStart || null,
+        gm: document.documentElement.dataset.onceGmValue || null,
+        userHidden: getComputedStyle(document.querySelector('#once-userscript-target')).display,
+        filterHidden: getComputedStyle(document.querySelector('.once-filter-hide')).display,
+        ad: document.querySelector('#once-ad-probe').dataset.result || null
+      })`)
+      return Object.keys(expected).every(key => extensionResult[key] === expected[key])
+    }, { timeout: 10_000 })
+  } catch (error) {
+    if (extensionResult === undefined) throw error
+  }
+  expect(extensionResult).toEqual(expected)
 }
 
 // The per-story action buttons are hidden on mobile; a long-press on the story
-// opens the menu built from describeStoryMenu. Installed apps present it
-// natively, while the web harness retains the DOM anchored-menu fallback. The
+// opens the menu built from describeStoryMenu, which installed apps present
+// natively (the DOM menu of the web build is the Playwright suite's). The
 // long-press detector listens for pointer events in the page, so drive it with
 // synthesized PointerEvents (a real webdriver long-press would trigger the OS
 // context menu / text selection instead on some platforms).
@@ -92,25 +101,8 @@ async function storyMenuAction(story, action, platform, { viaLongPress = false }
     await clickWeb(menuButton, platform)
   }
 
-  if (platform === "ios" || platform === "android") {
-    await selectNativeStoryMenuAction(action, platform)
-    await switchToWebView()
-    return
-  }
-
-  const row = await $(`[data-testid='story-menu-${action}']`)
-  await row.waitForDisplayed({ timeout: 10_000 })
-  // the menu suppresses taps for ~250ms after the finger lifts (so the
-  // release of the long-press doesn't phantom-tap a row); wait it out
-  await browser.pause(500)
-  await clickWeb(row, platform)
-  await browser.waitUntil(
-    async () => !(await $(".once-anchored-menu").isDisplayed()),
-    {
-      timeout: 5_000,
-      timeoutMsg: "Story menu did not close after tapping a row"
-    }
-  )
+  await selectNativeStoryMenuAction(action, platform)
+  await switchToWebView()
 }
 
 const nativeStoryMenuLabels = {
@@ -129,36 +121,26 @@ const nativeStoryMenuLabels = {
 async function selectNativeStoryMenuAction(action, platform) {
   const labels = nativeStoryMenuLabels[action]
   if (!labels) throw new Error(`No native story-menu label for ${action}`)
-  await browser.switchContext("NATIVE_APP")
-  let row
-  await browser.waitUntil(async () => {
-    if (platform === "android") {
-      const anrDialog = await $("android=new UiSelector().textContains(\"isn't responding\")")
-      if (await anrDialog.isDisplayed()) {
-        throw new Error("Android system ANR dialog appeared while the story menu was open")
-      }
-    }
-    for (const label of labels) {
-      const selector = platform === "ios"
-        ? `-ios predicate string:name == "${label}" OR label == "${label}" OR value == "${label}"`
-        : `android=new UiSelector().text("${label}")`
-      const candidate = await $(selector)
-      if (await candidate.isDisplayed()) {
-        row = candidate
-        return true
-      }
-    }
-    return false
-  }, {
-    timeout: 10_000,
-    timeoutMsg: `Native story-menu action ${action} did not appear`
-  })
-  await row.click()
+  await clickNativeMenuItem(labels, platform)
 }
 
 // One installed app and one WebDriver session carry across these phases: each
 // depends on the state the one before it left behind, which is the point — the
 // suite follows a single device journey rather than seven independent cases.
+// The tab still holds the page: opening its story again starts no navigation.
+async function expectReopenedStoryReady(story, platform) {
+  const readingContent = await $("#reading_content")
+  await clickWeb(await story.$("[data-testid='story-title']"), platform)
+  await readingContent.waitForDisplayed({ timeout: 10_000 })
+  await browser.waitUntil(async () =>
+    (await readingContent.getAttribute("data-load-state")) === "ready", {
+    timeout: 15_000,
+    timeoutMsg: "Reopening a story whose page is already loaded stayed on loading"
+  })
+  await clickWeb(await $("[data-testid='stories-menu']"), platform)
+  await readingContent.waitForDisplayed({ timeout: 10_000, reverse: true })
+}
+
 // `bail` in the Mocha options stops at the first failure, so a broken early
 // phase reports once instead of cascading into six confusing ones.
 describe("Once mobile", () => {
@@ -209,7 +191,10 @@ describe("Once mobile", () => {
     await $("[data-testid='theme']").selectByAttribute("value", "light")
     await expect($("body")).toHaveAttribute("data-theme", "light")
     await clickWeb(await $("#settings_section_back"), platform)
-    await saveExtensionSettings(baseUrl, platform)
+    const filterLists = [`${baseUrl}/fixtures/mobile-filter-list.txt`]
+    // Only Once Lite hands the lists to uBlock Origin (see the fixture).
+    if (process.env.ONCE_MOBILE_ENGINE === "lite") filterLists.push(`${baseUrl}/fixtures/loopback-generic-cosmetics.txt`)
+    await saveExtensionSettings(baseUrl, platform, { filterLists })
   })
 
   it("loads fixture stories and opens one in the embedded browser", async () => {
@@ -235,15 +220,11 @@ describe("Once mobile", () => {
     expect(await $("#reading_url").getProperty("value")).toBe(
       `${baseUrl}/fixtures/article.html`
     )
-    await browser.pause(500)
-    // Once Lite asserts the same as GeckoView once its extension runtime (M2 of
-    // docs/plans/once-lite-plan.md) lands. Until then the implementers run with
-    // ONCE_LITE_EXTENSIONS_PENDING=1; delete this gate together with that env.
-    const extensionsPending = process.env.ONCE_LITE_EXTENSIONS_PENDING === "1"
-    if (!(extensionsPending && platform === "android" && androidEngine === "lite")) await expectExtensionsApplied()
-    else console.log("Skipping extension assertions on Once Lite (ONCE_LITE_EXTENSIONS_PENDING=1)")
+    await expectExtensionsApplied()
     await clickWeb(await $("[data-testid='stories-menu']"), platform)
     await readingContent.waitForDisplayed({ timeout: 10_000, reverse: true })
+
+    await expectReopenedStoryReady(story, platform)
   })
 
   it("opens the reader from the native story menu and bridges TTS to the host", async () => {
@@ -296,9 +277,12 @@ describe("Once mobile", () => {
 
   it("restores durable state after a hard restart", async () => {
     await browser.switchContext("NATIVE_APP")
+    // The iOS dev bundle id is the Gecko dev package's name, com.zmarn.once.dev.
     await browser.terminateApp(androidPackage)
     await browser.activateApp(androidPackage)
     await switchToWebView()
+    // switchToWebView waits for startup on Android only.
+    await waitForOnceReady()
     await clickWeb(await $("[data-testid='stories-menu']"), platform)
     await clickWeb(await $("[data-testid='reload-stories']"), platform)
     const restored = await $("[data-testid='story']")
@@ -312,11 +296,19 @@ describe("Once mobile", () => {
     await clickWeb(await $("[data-testid='settings-menu']"), platform)
     await clickWeb(await $("[data-settings-target='sources']"), platform)
     const sources = await $("[data-testid='sources']")
-    expect(String(await sources.getProperty("value")).includes("/fixtures/feed.rss")).toBe(true)
+    await browser.waitUntil(async () =>
+      String(await sources.getProperty("value")).includes("/fixtures/feed.rss"), {
+      timeout: 10_000,
+      timeoutMsg: "The saved source did not survive the restart"
+    })
     await backToSettingsIndex(platform)
     await clickWeb(await $("[data-settings-target='sync']"), platform)
     const syncUrl = await $("[data-testid='sync-url']")
-    expect(String(await syncUrl.getProperty("value")).includes(`/db/mobile_${platform}`)).toBe(true)
+    await browser.waitUntil(async () =>
+      String(await syncUrl.getProperty("value")).includes(`/db/mobile_${platform}`), {
+      timeout: 10_000,
+      timeoutMsg: "The saved sync URL did not survive the restart"
+    })
   })
 
   it("runs a scripted add-on in the sandbox frame", async () => {
@@ -369,87 +361,15 @@ async function runScriptedAddon(baseUrl, platform) {
   expect(await browser.execute(() => document.querySelectorAll("iframe[data-addon-sandbox]").length)).toBe(1)
 }
 
-// The AI page redraws its rows whenever settings change, which the add-on
-// save and sync both announce, so a row found a moment ago may be gone by the
-// time it is clicked. Look it up at click time and retry until `opened` shows.
-async function openAiRow(selector, opened) {
-  await browser.waitUntil(async () => {
-    await browser.execute(rowSelector => {
-      const row = document.querySelector(rowSelector)
-      if (!row) return
-      for (const type of ["mousedown", "mouseup", "click"]) {
-        row.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0 }))
-      }
-    }, selector)
-    return (await $(opened)).isDisplayed()
-  }, { timeout: 10_000, interval: 500, timeoutMsg: `${selector} did not open` })
-}
-
-// The AI add-on uses the central AI settings: a connection whose token is kept
-// in this device's secret store, and the default model on that connection.
-async function configureCentralAi(baseUrl, platform) {
-  // iOS can retain AI connections in the Keychain between installs. A plain
-  // "Fixture AI" lookup may select an earlier run's now-closed server port.
-  const connectionName = `Fixture AI (${new URL(baseUrl).host})`
-  for (let level = 0; level < 5 && !(await $("[data-settings-target='ai']").isDisplayed()); level++) {
-    await clickWeb(await $("#settings_section_back"), platform)
-  }
-  await clickWeb(await $("[data-settings-target='ai']"), platform)
-  const editor = "#ai_settings .ai_editor:not([hidden])"
-  await openAiRow("#ai_settings .ai_add_row[data-ai-focus-key='Add connection']", `${editor} [data-testid='ai-connection-name']`)
-  await setWebValue(await $(`${editor} [data-testid='ai-connection-name']`), connectionName)
-  // The provider's change handler clears the endpoint, so it goes first.
-  await setWebValue(await $(`${editor} [data-testid='ai-connection-provider']`), "compatible")
-  await setWebValue(await $(`${editor} [data-testid='ai-connection-endpoint']`), `${baseUrl}/ai-addon/v1/chat/completions`)
-  await setWebValue(await $(`${editor} [data-testid='ai-connection-token']`), "fixture-token")
-  await clickWeb(await $(`${editor} [data-testid='ai-editor-save']`), platform)
-  // The model picker lists the connections it opens with, so it waits for the
-  // saved connection's row, which also says the token is kept on the device.
-  await $(`#ai_settings .settings_link_row[aria-label='${connectionName}: Compatible server · Token set']`).waitForDisplayed({ timeout: 10_000 })
-  await openAiRow("#ai_settings .settings_link_row[data-ai-focus-key='Default model']", `${editor} [data-testid='ai-model-connection']`)
-  // Choosing the connection clears the model field, so the model follows it.
-  const connection = await $(`${editor} [data-testid='ai-model-connection']`)
-  const connectionId = await browser.execute((select, name) =>
-    Array.from(select.options).find(option => option.textContent === name)?.value ?? "", connection, connectionName)
-  expect(connectionId).not.toBe("")
-  await setWebValue(connection, connectionId)
-  await setWebValue(await $(`${editor} [data-testid='ai-model-id']`), "fixture")
-  await clickWeb(await $(`${editor} [data-testid='ai-editor-save']`), platform)
-  await browser.waitUntil(async () => browser.execute(name =>
-    document.querySelector("#ai_settings .settings_link_row[data-ai-focus-key='Default model']")
-      ?.getAttribute("aria-label") === `Default model: ${name} · fixture`, connectionName), {
-    timeout: 10_000,
-    timeoutMsg: "The default AI model was not saved"
-  })
-}
-
-async function waitForAiTrayText(text) {
-  let failure = ""
-  await browser.waitUntil(async () => {
-    failure = await browser.execute(() => document.querySelector(".addon_tray_status--error")?.textContent ?? "")
-    if (failure) return true
-    return (await $(".addon_tray").getText()).includes(text)
-  }, { timeout: 30_000, timeoutMsg: `The AI add-on did not show: ${text}` })
-  if (failure) throw new Error(`AI add-on failed: ${failure}`)
-}
-
 async function runAiAddon(baseUrl, platform) {
-  const fixture = require("../shared/ai-addon-fixture")
   await clickWeb(await $("[data-testid='settings-menu']"), platform)
-  await clickWeb(await $("[data-settings-target='addons']"), platform)
-  await clickWeb(await $("[data-testid='open-addon-advanced']"), platform)
-  await setWebValue(await $("[data-testid='addons']"), JSON.stringify([fixture.manifest(baseUrl)]))
-  await clickWeb(await $("[data-testid='save-addons']"), platform)
-  // Saving is asynchronous, and the status line may still read "Saved" from
-  // the previous phase, so wait for the add-on's own row in the list.
-  await $(".addon_list_row[data-addon-id='what-wait-who-why']").waitForExist({ timeout: 10_000 })
-  await configureCentralAi(baseUrl, platform)
+  await installAiAddon(baseUrl, platform)
   await clickWeb(await $("[data-testid='stories-menu']"), platform)
   const button = await $("[data-addon-tray-button='addon:what-wait-who-why/assistant']")
   expect(await button.isDisplayed()).toBe(false)
   await storyMenuAction(await $("[data-testid='story']"), "addon:what-wait-who-why/explain", platform)
-  await waitForAiTrayText("ExampleApp is software")
+  await waitForAiTrayText(".addon_tray", "ExampleApp is software")
   await browser.waitUntil(async () => browser.execute(() => Array.from(document.querySelectorAll(".addon_tray summary")).some(fold => fold.textContent === "Summary")), { timeout: 30000 })
   await browser.execute(() => Array.from(document.querySelectorAll(".addon_tray summary")).find(fold => fold.textContent === "Summary").click())
-  await waitForAiTrayText("Its qualifications are preserved")
+  await waitForAiTrayText(".addon_tray", "Its qualifications are preserved")
 }

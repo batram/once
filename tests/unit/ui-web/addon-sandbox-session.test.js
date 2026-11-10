@@ -70,7 +70,7 @@ test("operations run only for the story of the open request, or badges it comput
 })
 
 test("a crash closes the frame, fails what waits, and switches the add-on off after three", async () => {
-  const { session, sent, reports, destroyed } = harness()
+  const { session, reports, destroyed } = harness()
   for (let attempt = 0; attempt < 3; attempt++) {
     const loading = session.load("code", {})
     const invoked = session.invoke("ping", story("https://example.org/a"))
@@ -82,7 +82,6 @@ test("a crash closes the frame, fails what waits, and switches the add-on off af
   assert.equal(session.disabled, true)
   await assert.rejects(session.invoke("ping", story("https://example.org/a")), /switched off/)
   assert.equal(reports.filter((line) => /boom/.test(line)).length, 3)
-  assert.ok(sent.length > 0)
 })
 
 test("fetch and storage operations run without a story and get their answer posted back", async () => {

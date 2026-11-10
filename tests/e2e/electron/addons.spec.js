@@ -140,7 +140,7 @@ test("a scripted add-on runs in the sandbox: computed badges, message actions, s
     const alpha = window.locator(`#stories story-item[data-href="${urls.alpha}"]`)
     const title = await alpha.locator("a.title").innerText()
     await expect(alpha.locator('.addon_badge[data-addon-badge="len"]')).toHaveText(`len ${title.length}`)
-    expect(await window.locator("iframe[data-addon-sandbox]").count()).toBe(1)
+    await expect(window.locator("iframe[data-addon-sandbox]")).toHaveCount(1)
 
     await alpha.locator('.addon_btn[data-story-element="addon:harness-script/visit"]').click()
     await expect.poll(async () =>
@@ -338,7 +338,7 @@ test("ONCE_ADDONS directories load as development add-ons in unpackaged builds",
     const alpha = window.locator(`#stories story-item[data-href="${urls.alpha}"]`)
     const title = await alpha.locator("a.title").innerText()
     await expect(alpha.locator('.addon_badge[data-addon-badge="len"]')).toHaveText(`len ${title.length}`, { timeout: 15_000 })
-    expect(await window.locator("iframe[data-addon-sandbox]").count()).toBe(1)
+    await expect(window.locator("iframe[data-addon-sandbox]")).toHaveCount(1)
     // Nothing reached the synced document.
     const editor = await openSettingsSection(window, "addons", "#addons_area")
     await expect(editor).toHaveValue("")

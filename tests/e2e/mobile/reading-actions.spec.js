@@ -22,7 +22,7 @@ for (const mode of ["reader", "browser"]) {
         expect(box.x + box.width).toBeLessThanOrEqual(panel.x + panel.width)
         expect(box.y + box.height).toBeLessThanOrEqual(panel.y + panel.height)
         if (action === "filter") await page.getByTestId("text-input-value").fill("example.test")
-        await page.screenshot({ path: `/tmp/once-reading-${mode}-${action}-${theme}.png` })
+        await page.screenshot({ path: test.info().outputPath(`reading-${mode}-${action}-${theme}.png`) })
         await triggerMobileBack(page)
         await expect(dialog).toHaveCount(0)
         await expect(page.locator("#reading_content")).toBeVisible()

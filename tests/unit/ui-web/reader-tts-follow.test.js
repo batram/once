@@ -1,23 +1,6 @@
 const assert = require("node:assert/strict")
-const fs = require("node:fs")
-const path = require("node:path")
 const test = require("node:test")
-const ts = require("typescript")
-
-const root = path.resolve(__dirname, "../../..")
-
-function loadFollow() {
-  const source = fs.readFileSync(
-    path.join(root, "packages/ui-web/src/reader/readerTtsFollow.ts"),
-    "utf8"
-  )
-  const compiled = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
-  }).outputText
-  const moduleObject = { exports: {} }
-  Function("exports", "module", compiled)(moduleObject.exports, moduleObject)
-  return moduleObject.exports.createReaderTtsFollow
-}
+const { createReaderTtsFollow } = require("../../../packages/ui-web/dist/reader/readerTtsFollow")
 
 function fakeView() {
   const listeners = new Map()
@@ -43,7 +26,7 @@ function segment(top, bottom = top + 40) {
 
 test("speech follows the read segment until the user scrolls away", () => {
   const view = fakeView()
-  const follow = loadFollow()(view)
+  const follow = createReaderTtsFollow(view)
 
   const below = segment(900)
   follow.reveal(below)
@@ -64,7 +47,7 @@ test("speech follows the read segment until the user scrolls away", () => {
 
 test("touch, scroll keys and the scrollbar detach; typing in a control does not", () => {
   const view = fakeView()
-  const follow = loadFollow()(view)
+  const follow = createReaderTtsFollow(view)
   const detaches = [
     ["touchmove", {}],
     ["keydown", { key: "PageDown" }],
@@ -88,7 +71,7 @@ test("touch, scroll keys and the scrollbar detach; typing in a control does not"
 
 test("choosing a position follows again; dispose stops listening", () => {
   const view = fakeView()
-  const follow = loadFollow()(view)
+  const follow = createReaderTtsFollow(view)
   view.fire("wheel")
   follow.resume()
   const chosen = segment(-400)

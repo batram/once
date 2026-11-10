@@ -73,5 +73,5 @@ test("rejects malformed configuration and reports invalid selectors", () => {
   const invalid = parsePickerConf(serializePickerConf(
     { stories: { sel: ".story" } }
   ))
-  assert.notEqual(invalid.warning, "")
+  assert.match(invalid.warning, /missing stories, link, or title/)
 })

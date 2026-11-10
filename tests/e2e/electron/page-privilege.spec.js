@@ -226,9 +226,13 @@ test("a page cannot frame a reader document, and only the served URL answers", a
     await window.evaluate(url => window.onceElectron.tabs.create(url, true), page)
     await waitForPage(electronApp, page)
     const readable = `once-reader://${sourceUrl}`
-    await inPage(electronApp, page, `document.body.innerHTML =
-      '<iframe id="served" src=${JSON.stringify(served)}></iframe><iframe id="readable" src=${JSON.stringify(readable)}></iframe>'; void 0`)
-    await new Promise(resolve => setTimeout(resolve, 3_000))
+    // A refused frame finishes loading too, with the refusal as its document.
+    await inPage(electronApp, page, `Promise.all(${JSON.stringify([served, readable])}.map(src => new Promise(resolve => {
+      const frame = document.createElement("iframe")
+      frame.onload = () => resolve(true)
+      frame.src = src
+      document.body.append(frame)
+    })))`)
     const frames = await electronApp.evaluate(async ({ webContents }, page) => {
       const contents = webContents.getAllWebContents().find(c => c.getURL() === page)
       const texts = []

@@ -39,16 +39,6 @@ export interface ReaderTtsOptions {
   wafli?: WafliSpeechOptions
 }
 
-interface ReaderTtsRuntime {
-  applyControl: typeof applyExternalControl
-  bindDom: typeof bindReaderTtsDom
-  createChannel: typeof createOwnershipChannel
-  loadPreferences: typeof readPreferences
-  savePreferences: typeof storePreferences
-  populateVoiceOptions: typeof populateVoices
-  showTtsUnavailable: typeof showUnavailable
-}
-
 class WafliSpeechSynthesisUtterance {
   lang = "en-US"
   pitch = 1
@@ -219,40 +209,7 @@ function readerSpeechImplementation(options: ReaderTtsOptions): {
   }
 }
 
-const readerTtsRuntime: ReaderTtsRuntime = {
-  applyControl: applyExternalControl,
-  bindDom: bindReaderTtsDom,
-  createChannel: createOwnershipChannel,
-  loadPreferences: readPreferences,
-  savePreferences: storePreferences,
-  populateVoiceOptions: populateVoices,
-  showTtsUnavailable: showUnavailable
-}
-
 export function installReaderTts(options: ReaderTtsOptions = {}): void {
-  runReaderTts(
-    options,
-    ReaderSpeechSession,
-    createReaderSpeechSegments,
-    readerTtsRuntime
-  )
-}
-
-function runReaderTts(
-  options: ReaderTtsOptions,
-  Session: typeof ReaderSpeechSession,
-  createSegments: typeof createReaderSpeechSegments,
-  runtime: ReaderTtsRuntime
-): void {
-  const {
-    applyControl,
-    bindDom,
-    createChannel,
-    loadPreferences,
-    savePreferences,
-    populateVoiceOptions,
-    showTtsUnavailable
-  } = runtime
   if (document.documentElement.dataset.onceTtsInstalled === "true") return
   document.documentElement.dataset.onceTtsInstalled = "true"
 
@@ -269,7 +226,7 @@ function runReaderTts(
   if (!play || !stop || !back || !forward || !voiceSelect || !rateInput || !rateValue || !article) return
 
   if (!synth || typeof Utterance === "undefined") {
-    showTtsUnavailable(
+    showUnavailable(
       [play, stop, back, forward, voiceSelect, rateInput],
       play,
       voiceSettings
@@ -277,15 +234,15 @@ function runReaderTts(
     return
   }
 
-  const segments = createSegments(article)
+  const segments = createReaderSpeechSegments(article)
   const preferences = options.preferences
     ? normalizeReaderTtsPreferences(options.preferences)
-    : loadPreferences()
+    : readPreferences()
   const initialRate = readerTtsRateForVoice(preferences, preferences.voice)
   rateInput.value = String(initialRate)
 
   const ownerId = `${Date.now()}-${Math.random()}`
-  const ownershipChannel = createChannel(options)
+  const ownershipChannel = createOwnershipChannel(options)
   const clearHighlight = (): void => {
     article.querySelector(".tts-current")?.classList.remove("tts-current")
   }
@@ -297,7 +254,7 @@ function runReaderTts(
     segment.element.classList.add("tts-current")
     follow.reveal(segment.element)
   }
-  const session = new Session({
+  const session = new ReaderSpeechSession({
     engine: synth,
     createUtterance: (text) => new Utterance(text) as SpeechSynthesisUtterance,
     texts: segments.map((segment) => segment.text),
@@ -333,21 +290,21 @@ function runReaderTts(
   const remember = rememberPreferences(
     session,
     preferences,
-    () => savePreferences(options, preferences)
+    () => storePreferences(options, preferences)
   )
-  bindDom({
+  bindReaderTtsDom({
     play, stop, back, forward, voiceSelect, voiceSettings, rateInput, rateValue,
     article, segments, session, follow
   }, remember)
-  populateVoiceOptions(voiceSelect, synth.getVoices(), preferences.voice)
+  populateVoices(voiceSelect, synth.getVoices(), preferences.voice)
   synth.addEventListener?.("voiceschanged", () => {
-    populateVoiceOptions(voiceSelect, synth.getVoices(), session.state.voice)
+    populateVoices(voiceSelect, synth.getVoices(), session.state.voice)
     session.notify()
   })
-  bindReaderContentUpdates(session, segments, article, createSegments)
+  bindReaderContentUpdates(session, segments, article)
   const unsubscribeStop = options.subscribeToStop?.(() => session.yield())
   const unsubscribeControl = options.subscribeToControl?.((control) => {
-    applyControl(control, session, voiceSelect, remember, follow)
+    applyExternalControl(control, session, voiceSelect, remember, follow)
   })
   window.addEventListener("pagehide", () => {
     session.dispose()
@@ -553,11 +510,11 @@ function populateVoices(
   if (available.some((voice) => voice.voiceURI === previous)) select.value = previous
 }
 
-function bindReaderContentUpdates(session: ReaderSpeechSession, segments: ReturnType<typeof createReaderSpeechSegments>, article: HTMLElement, createSegments: typeof createReaderSpeechSegments): void {
+function bindReaderContentUpdates(session: ReaderSpeechSession, segments: ReturnType<typeof createReaderSpeechSegments>, article: HTMLElement): void {
   document.addEventListener("once-reader-content-changing", () => session.stop())
   document.addEventListener("once-reader-content-changed", () => {
     session.stop()
-    segments.splice(0, segments.length, ...createSegments(article))
+    segments.splice(0, segments.length, ...createReaderSpeechSegments(article))
     markReaderSegments(segments)
     session.replaceTexts(segments.map(segment => segment.text))
   })

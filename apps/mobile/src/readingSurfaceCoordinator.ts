@@ -56,6 +56,8 @@ export class ReadingSurfaceCoordinator {
   private mediaStateHandler: ((playing: boolean) => void) | null = null
   private finishedHandler: ((event: BrowserNavigationEvent) => void) | null = null
   private loadFailedHandler: ((url: string, reason: string) => void) | null = null
+  /** The failed page is still loaded and may finish late; hiding it would stop the engine watching it. */
+  private liveFailure = false
   private publishedGestures = ""
   private readonly history: ReadingHistory | null
 
@@ -135,6 +137,7 @@ export class ReadingSurfaceCoordinator {
       this.adoptedUrl = null
       this.browserUrl = event.url
       this.browserReady = false
+      this.liveFailure = false
       this.session.navigationStarted(event.navigationId, event.url, event)
     })
     const committed = await this.surface.addListener(
@@ -165,7 +168,10 @@ export class ReadingSurfaceCoordinator {
       this.pendingNavigationUrl = null
       this.adoptedUrl = null
       this.browserReady = false
+      // Opening the failed address again must load it, not wait for a page that is not coming.
+      this.browserUrl = ""
       this.failedExternalUrl = event.externalUrl ?? null
+      this.liveFailure = event.live === true
       this.session.navigationFailed(event.navigationId, event.url, event.message)
       this.loadFailedHandler?.(event.url, event.message)
     })
@@ -443,9 +449,10 @@ export class ReadingSurfaceCoordinator {
     // Publishing a failed open must not queue another open automatically.
     // The next explicit navigation will put the session back into loading.
     if (state.loadState === "error") {
-      if (this.browserOpened) await this.surface.setVisible(false)
+      if (this.browserOpened && !this.liveFailure) await this.surface.setVisible(false)
       return
     }
+    this.liveFailure = false
     const bounds = this.bounds()
     if (!this.browserOpened) {
       // Set first: an adopted page replays its events while open() is pending.
@@ -465,6 +472,9 @@ export class ReadingSurfaceCoordinator {
         this.browserUrl = state.currentUrl
         this.browserReady = false
         await this.surface.navigate(state.currentUrl)
+      } else if (this.browserReady && state.loadState === "loading") {
+        // The page is there already (its story opened again): no navigation will report it.
+        this.session.navigationFinished(state.navigationId, state.currentUrl)
       }
     }
     if (this.disposed || generation !== this.surfaceGeneration) return
@@ -479,7 +489,7 @@ export class ReadingSurfaceCoordinator {
     const state = this.session.snapshot()
     const visible = this.readingPanelVisible &&
       Boolean(state.currentUrl) &&
-      state.loadState !== "error" &&
+      (state.loadState !== "error" || this.liveFailure) &&
       state.mode !== "reader" &&
       !this.covered()
     await this.enqueue(async () => {

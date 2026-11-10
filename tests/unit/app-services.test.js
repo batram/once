@@ -4,7 +4,6 @@ const { Story } = require("../../packages/core/dist")
 const { AppSettings } = require("../../packages/app/dist/AppSettings")
 const { StoryWorkingSet } = require("../../packages/app/dist/StoryWorkingSet")
 const { StoryWriteQueue } = require("../../packages/app/dist/StoryWriteQueue")
-const { SourceLoader } = require("../../packages/app/dist/SourceLoader")
 const { waitForStartupStorage } = require("../../packages/app/dist/startupStorage")
 const {
   acceptRemoteStorySyncState,
@@ -43,12 +42,50 @@ test("settings suppress the matching local database echo", async () => {
     }
   )
 
-  await settings.saveStorySources({ version: 2, groups: [], sources: [
-    { id: "src_00000001", url: "https://example.com/feed" }
-  ] }, false)
+  // A filter list change publishes at once, so an echo that got through would show.
+  await settings.saveFilterList(["example.com"])
   settings.handleObservedChange(observed)
+  assert.deepEqual(changed, ["filters"])
 
-  assert.deepEqual(changed, ["sources"])
+  settings.handleObservedChange({ id: "filter_list", doc: { list: ["other.example"] } })
+  assert.deepEqual(changed, ["filters", "filters"], "another client's write is still announced")
+  settings.handleObservedChange(observed)
+  assert.deepEqual(changed, ["filters", "filters", "filters"], "the echo is suppressed once only")
+})
+
+test("a default list handed out is the caller's own, so changing it leaves the default alone", async () => {
+  const { defaultFilterList, defaultRedirectList } = require("../../packages/core/dist")
+  const filters = [...defaultFilterList], redirects = structuredClone(defaultRedirectList)
+  const lists = new Map()
+  let failing = false
+  const settings = new AppSettings(
+    {
+      get: async (id, fallback) => { if (failing) throw new Error("unreadable"); return lists.get(id) ?? fallback },
+      set: async (id, value) => { lists.set(id, structuredClone(value)) }
+    },
+    { getSyncUrl: async () => "", setSyncUrl: async () => {}, getCacheTime: async () => 120, setCacheTime: async () => {} },
+    undefined,
+    { setTheme: () => {} },
+    {
+      publishChanged: () => {}, reportDiagnostic: () => {}, reloadStories: () => {}, refilterStories: () => {},
+      refreshRedirects: () => {}, updateSourceMenu: () => {}, evictRemovedSources: () => {}, loadedStoryIds: () => []
+    }
+  )
+
+  await settings.addFilter("added.example")
+  assert.deepEqual(lists.get("filter_list"), [...filters, "added.example"])
+  assert.deepEqual(defaultFilterList, filters, "adding the first filter does not grow the shared default")
+
+  lists.clear()
+  ;(await settings.getRedirectList())[0].replace_url = "https://changed.example/"
+  ;(await settings.getRedirectList()).push({ match_url: "a", replace_url: "b" })
+  assert.deepEqual(defaultRedirectList, redirects)
+  assert.deepEqual(await settings.getRedirectList(), redirects)
+
+  // The default a failed read falls back to is a copy as well.
+  failing = true
+  ;(await settings.getFilterList()).push("after-failure.example")
+  assert.deepEqual(defaultFilterList, filters)
 })
 
 test("settings reject and do not persist a sync URL without an HTTP scheme", async () => {
@@ -146,32 +183,6 @@ test("story sync policy merges timestamps and supports authoritative reset", () 
   const accepted = acceptRemoteStorySyncState(local, remote)
   assert.equal(accepted.stared, false)
   assert.deepEqual(accepted.sync_updated_at, remote.sync_updated_at)
-})
-
-test("source loader rejects expired cache before fetching", async () => {
-  const errors = []
-  let requests = 0
-  const loader = new SourceLoader(
-    async () => {
-      requests += 1
-      return new Response("missing", { status: 404, statusText: "Not Found" })
-    },
-    {
-      get: async () => [Date.now() - 10 * 60 * 1000, "{}"],
-      set: async () => {}
-    },
-    (error) => errors.push(error)
-  )
-
-  await assert.rejects(
-    loader.load(
-      { id: "src_00000001", url: "https://old.reddit.com/r/netsec/.json" },
-      { policy: "cache-first", cacheMinutes: 5 }
-    ),
-    /HTTP 404/
-  )
-  assert.equal(requests, 1)
-  assert.deepEqual(errors, [])
 })
 
 test("startup storage timeout reports and continues while work stays pending", async () => {

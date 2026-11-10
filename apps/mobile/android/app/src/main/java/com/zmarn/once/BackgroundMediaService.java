@@ -22,6 +22,10 @@ public final class BackgroundMediaService extends Service {
     private static boolean starting;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable expire = () -> stop(this);
+    private final Runnable postLater = this::post;
+    /** Android drops notification updates beyond five a second, without a word; the dropped one may be the last. */
+    private static final long POST_INTERVAL_MS = 250;
+    private long postedAt;
     private PowerManager.WakeLock wakeLock;
     private android.media.session.MediaSession controls;
     private AudioManager audioManager;
@@ -92,6 +96,7 @@ public final class BackgroundMediaService extends Service {
         // Fulfil a pending foreground start even if playback stopped before delivery.
         ReadingMediaState state = current == null ? new ReadingMediaState() : current.mediaState();
         startForeground(NOTIFICATION, ReadingMediaNotification.build(this, controls, state));
+        postedAt = android.os.SystemClock.uptimeMillis();
         foreground = true;
         if (current == null) { stopSelf(startId); return START_NOT_STICKY; }
         if (intent != null && intent.getAction() != null) {
@@ -106,20 +111,14 @@ public final class BackgroundMediaService extends Service {
         if (current != null) current.command(action, position);
     }
 
-    // MediaStyle notifications with an active MediaSession are exempt from POST_NOTIFICATIONS.
-    // https://developer.android.com/develop/ui/views/notifications/notification-permission#exemptions
-    @android.annotation.SuppressLint("NotificationPermission")
     private void refresh() {
         if (current == null || controls == null) return;
         ReadingMediaState state = current.mediaState();
         controls.setMetadata(state.metadata());
         controls.setPlaybackState(state.playbackState());
-        android.app.Notification notification = ReadingMediaNotification.build(this, controls, state);
         if (state.playing) {
             handler.removeCallbacks(expire);
             expiryScheduled = false;
-            if (!foreground) { startForeground(NOTIFICATION, notification); foreground = true; }
-            else getSystemService(NotificationManager.class).notify(NOTIFICATION, notification);
             if (!focusRequested) {
                 focusRequested = true;
                 if (audioManager.requestAudioFocus(audioFocus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
@@ -134,13 +133,32 @@ public final class BackgroundMediaService extends Service {
             }
         } else {
             releasePlayback();
-            if (foreground) { stopForeground(STOP_FOREGROUND_DETACH); foreground = false; }
-            getSystemService(NotificationManager.class).notify(NOTIFICATION, notification);
             if (!expiryScheduled) {
                 expiryScheduled = true;
                 handler.postDelayed(expire, 5 * 60 * 1000);
             }
         }
+        post();
+    }
+
+    /** Shows the owner's state as it is when the turn of this post comes. */
+    // MediaStyle notifications with an active MediaSession are exempt from POST_NOTIFICATIONS.
+    // https://developer.android.com/develop/ui/views/notifications/notification-permission#exemptions
+    @android.annotation.SuppressLint("NotificationPermission")
+    private void post() {
+        handler.removeCallbacks(postLater);
+        if (current == null || controls == null) return;
+        long wait = postedAt + POST_INTERVAL_MS - android.os.SystemClock.uptimeMillis();
+        if (wait > 0) { handler.postDelayed(postLater, wait); return; }
+        postedAt = android.os.SystemClock.uptimeMillis();
+        ReadingMediaState state = current.mediaState();
+        android.app.Notification notification = ReadingMediaNotification.build(this, controls, state);
+        // While in the foreground every update goes through startForeground: the system posts that
+        // notification from a queue of its own, where a notify() sent after it can arrive first
+        // and then be overwritten by the older one.
+        if (state.playing) { startForeground(NOTIFICATION, notification); foreground = true; }
+        else if (foreground) { startForeground(NOTIFICATION, notification); stopForeground(STOP_FOREGROUND_DETACH); foreground = false; }
+        else getSystemService(NotificationManager.class).notify(NOTIFICATION, notification);
     }
 
     private void releasePlayback() {

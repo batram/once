@@ -48,6 +48,8 @@ public class NativeDatabasePlugin extends Plugin {
     @PluginMethod
     public void execute(PluginCall call) {
         long queued = android.os.SystemClock.elapsedRealtimeNanos();
+        // The shell page can still call while its activity is being destroyed; a throw here ends the process.
+        if (worker.isShutdown()) { call.reject("Native database is closed"); return; }
         worker.execute(() -> {
             long started = android.os.SystemClock.elapsedRealtimeNanos();
             try {

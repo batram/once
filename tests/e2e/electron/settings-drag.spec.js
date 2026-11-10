@@ -182,8 +182,8 @@ test("matches the final-row filter and redirect indicator to the drop", async ()
       const rows = window.locator(
         `[data-structured-section="${section}"] .structured_row`
       )
+      await expect.poll(() => rows.count()).toBeGreaterThan(1)
       const rowCount = await rows.count()
-      expect(rowCount).toBeGreaterThan(1)
       const source = rows.nth(rowCount - 2)
       const target = rows.nth(rowCount - 1)
       await target.evaluate((element) => {

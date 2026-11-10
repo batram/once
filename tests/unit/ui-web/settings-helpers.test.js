@@ -56,7 +56,9 @@ test("settings summaries report counts, state, and source failures", () => {
     assert.equal(buttons.get("redirects").textContent, "1 rule")
     assert.equal(buttons.get("sync").textContent, "Connected")
     assert.equal(buttons.get("theme").textContent, "Dark · animated")
+    assert.equal(buttons.get("swipe").textContent, "Read · skip")
     assert.equal(buttons.get("cache").textContent, "45 min")
+    assert.equal(buttons.get("about").textContent, "Once 0.2.0")
     assert.equal(buttons.get("errors").textContent, "1 error · 2 warnings")
     assert.ok(
       buttons.get("sources").firstElementChild.classList.contains(

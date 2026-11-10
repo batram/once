@@ -1,31 +1,17 @@
 package com.zmarn.once;
 
-import android.app.ActivityManager;
-import android.app.Instrumentation;
 import android.content.Context;
 import android.content.Intent;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.getcapacitor.JSObject;
-import com.getcapacitor.PluginCall;
 import java.net.ServerSocket;
-import java.net.Socket;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mozilla.geckoview.GeckoResult;
 import org.mozilla.geckoview.GeckoSession;
 import static org.junit.Assert.*;
-import static androidx.test.espresso.Espresso.*;
-import static androidx.test.espresso.action.ViewActions.click;
-import static androidx.test.espresso.assertion.ViewAssertions.*;
-import static androidx.test.espresso.matcher.ViewMatchers.*;
-import static androidx.test.espresso.matcher.RootMatchers.isDialog;
 
 /** Real Gecko audio, page visibility, Android backgrounding, and screen-off regression. */
 @RunWith(AndroidJUnit4.class)
@@ -41,7 +27,7 @@ public class BackgroundMediaTest extends MediaTestSupport {
 
     @Test public void fullscreenVideoEntersPipWithoutBackgroundOptIn() throws Exception {
         GeckoTestSupport support = new GeckoTestSupport();
-        assertTrue("Use the emulator or the isolated Gecko test app on a physical device",
+        org.junit.Assume.assumeTrue("Use the emulator or the isolated Gecko test app on a physical device",
             "ranchu".equals(android.os.Build.HARDWARE) ||
             instrumentation.getTargetContext().getPackageName().equals("com.zmarn.once.geckotest.dev"));
         support.start();
@@ -124,11 +110,15 @@ public class BackgroundMediaTest extends MediaTestSupport {
                 assertService(false);
                 assertPlaying("returned from PiP");
                 dismissFullscreenHelp();
+                // Android's fullscreen hint is a window of its own: Back belongs to the page once it has focus again.
+                support.until("The page has focus after the fullscreen hint", activity::hasWindowFocus, 10);
                 if (target.equals("#player") || !"ranchu".equals(android.os.Build.HARDWARE)) shell("input keyevent KEYCODE_BACK");
                 else {
                     int mid = activity.getWindow().getDecorView().getHeight() / 2;
                     shell("input swipe 0 " + mid + " 350 " + mid + " 300");
-                    // Immersive Android first reveals its hidden system bars.
+                    // Immersive Android first reveals its hidden system bars, and hides them
+                    // again after about two seconds: the second swipe has to come before that.
+                    waitFor(1, () -> !plugin.video.isFullscreen());
                     if (plugin.video.isFullscreen()) shell("input swipe 0 " + mid + " 350 " + mid + " 300");
                 }
                 support.ui(() -> android.util.Log.i("OnceMediaTest", "After Back: fullscreen=" + plugin.video.isFullscreen()
@@ -149,6 +139,7 @@ public class BackgroundMediaTest extends MediaTestSupport {
             support.ui(() -> media().onFullscreen(session(),
                 (org.mozilla.geckoview.MediaSession) GeckoTestSupport.field(media(), "playing"), false, null));
             shell("input keyevent KEYCODE_HOME");
+            awaitBackground();
             assertFalse("Paused fullscreen stays out of PiP", activity.isInPictureInPictureMode());
             shell("am start -W -n " + activity.getPackageName() + "/com.zmarn.once.MainActivity");
             support.until("Paused fullscreen returns to the foreground", activity::hasWindowFocus, 10);
@@ -173,7 +164,7 @@ public class BackgroundMediaTest extends MediaTestSupport {
 
     private void exercisePlayback(boolean video) throws Exception {
         Context context = instrumentation.getTargetContext();
-        assertTrue("Use the emulator or the isolated Gecko test app on a physical device",
+        org.junit.Assume.assumeTrue("Use the emulator or the isolated Gecko test app on a physical device",
             "ranchu".equals(android.os.Build.HARDWARE) ||
             context.getPackageName().equals("com.zmarn.once.geckotest.dev"));
         assertTrue(context.getPackageName().endsWith(".dev"));
@@ -207,8 +198,10 @@ public class BackgroundMediaTest extends MediaTestSupport {
                 call(plugin::setVisible, new JSObject().put("visible", false));
                 assertPlaying("hidden reading tab");
                 shell("input keyevent KEYCODE_HOME");
+                awaitBackground();
                 assertPlaying("background app");
                 shell("input keyevent KEYCODE_SLEEP");
+                awaitScreen(false);
                 assertPlaying("screen off");
                 assertService(true);
                 shell("input keyevent KEYCODE_WAKEUP");
@@ -278,12 +271,13 @@ public class BackgroundMediaTest extends MediaTestSupport {
         shell("cmd statusbar collapse");
         controller.getTransportControls().pause();
         assertService(false);
-        Thread.sleep(300);
+        waitFor(5, () -> controller().getPlaybackState().getState() == android.media.session.PlaybackState.STATE_PAUSED);
         assertEquals(android.media.session.PlaybackState.STATE_PAUSED, controller().getPlaybackState().getState());
         controller().getTransportControls().seekTo(2000);
-        Thread.sleep(500);
+        waitFor(5, () -> Math.abs(time() - 2.0) <= 0.25);
         assertEquals("Android seek reaches the page", 2.0, time(), 0.25);
         shell("input keyevent KEYCODE_SLEEP");
+        awaitScreen(false);
         controller().getTransportControls().play();
         assertService(true);
         assertPlaying("Android Play while screen off");

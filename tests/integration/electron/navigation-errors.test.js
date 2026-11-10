@@ -6,7 +6,8 @@ const path = require("node:path")
 const test = require("node:test")
 const ts = require("typescript")
 
-const electronStub = {}
+const electronStub = { dialog: {} }
+const visits = []
 const originalLoad = Module._load
 const originalTs = Module._extensions[".ts"]
 const originalHtml = Module._extensions[".html"]
@@ -14,6 +15,7 @@ const originalCss = Module._extensions[".css"]
 
 Module._load = function load(request, parent, isMain) {
   if (request === "electron") return electronStub
+  if (request === "../BrowserHistory") return { browserHistory: () => ({ record: async (visit) => { visits.push(visit.url) } }) }
   return originalLoad.call(this, request, parent, isMain)
 }
 Module._extensions[".ts"] = (module, filename) => {
@@ -39,6 +41,7 @@ const { NavigationErrors } = require(path.join(
   root,
   "apps/electron/src/browser/NavigationErrors.ts"
 ))
+const { TabEvents } = require(path.join(root, "apps/electron/src/browser/TabEvents.ts"))
 
 test.after(() => {
   Module._load = originalLoad
@@ -160,4 +163,76 @@ test("a load that stopped unfinished before any page committed still reports", a
 
   assert.match(tab.loaded[1], /^once-error:\/\//)
   assert.equal(tab.loadError, "ERR_FAILED (-2)")
+})
+
+/** A tab wired to the real navigation events, its webContents driven by hand. */
+function liveTab() {
+  const tab = entry()
+  let committed = "", loadingMain = false
+  Object.assign(tab.view.webContents, {
+    getURL: () => committed,
+    getTitle: () => "",
+    isLoadingMainFrame: () => loadingMain,
+    setWindowOpenHandler() {},
+    setAudioMuted() {},
+    navigationHistory: { getAllEntries: () => [], getActiveIndex: () => 0 }
+  })
+  Object.assign(tab, { sync: { navSeq: 0, openedAt: 0, navigatedAt: 0, selectedAt: 0, activityAt: 0 }, historySnapshot: null })
+  const errors = navigationErrors()
+  const access = { ownerFor: () => undefined, notify() {} }
+  new TabEvents(errors, { showContentsMenu() {} }, { ...access, applyRedirects: (url) => url, normalizeUrl: (url) => url },
+    { ...access, createTab: async () => "new", createWindow: async () => {}, setFullscreen() {} },
+    { ...access, finalizeClosedTab() {} }).bind(tab)
+  const emit = (name, ...args) => tab.view.webContents.emit(name, ...args)
+  return {
+    tab,
+    /** What loadURL does at once: the load is asked for and its navigation starts. */
+    load(url) {
+      errors.load(tab, url)
+      loadingMain = true
+      emit("did-start-loading")
+      emit("did-start-navigation", { isMainFrame: true, isSameDocument: false, url })
+    },
+    /** The page arrives and, being small, is done loading at once. */
+    commit(url) {
+      committed = url
+      emit("did-navigate", {}, url, 200)
+      emit("did-finish-load")
+    },
+    stop() {
+      loadingMain = false
+      emit("did-stop-loading")
+    }
+  }
+}
+
+// Recorded from the app: a page about to commit cannot be cancelled, so it
+// still arrives after the tab was sent elsewhere.
+test("a page that commits after the tab was sent on does not take the address back", () => {
+  const { tab, load, commit, stop } = liveTab()
+  load("https://example.com/story")
+  load("https://example.com/comments")
+  assert.equal(tab.displayedUrl, "https://example.com/comments")
+
+  commit("https://example.com/story")
+  assert.equal(tab.displayedUrl, "https://example.com/comments", "the overtaken page is not what the tab is heading for")
+  commit("https://example.com/comments")
+  stop()
+  assert.equal(tab.displayedUrl, "https://example.com/comments")
+  assert.deepEqual(visits.splice(0), ["https://example.com/comments"], "history has the page that stayed, once")
+})
+
+test("a navigation that ends without a page leaves the tab on the one that did commit", () => {
+  const { tab, load, commit, stop } = liveTab()
+  load("https://example.com/story")
+  load("https://example.com/file.zip")
+  commit("https://example.com/story")
+  // The download never commits; the load just stops.
+  stop()
+  assert.equal(tab.displayedUrl, "https://example.com/story")
+  visits.length = 0
+
+  // Nothing is under way any more, so a page arriving on its own shows again.
+  commit("https://example.com/next")
+  assert.equal(tab.displayedUrl, "https://example.com/next")
 })

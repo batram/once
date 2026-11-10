@@ -1,3 +1,10 @@
+const { Story } = require("../../packages/core/dist")
+
+// Like the real store: every read and write is a copy, never the caller's object.
+function copyStory(story) {
+  return typeof story?.to_obj === "function" ? Story.from_obj(story.to_obj()) : structuredClone(story)
+}
+
 function createFakePlatform(stories = [], options = {}) {
   const lists = new Map()
   if (options.storySources) {
@@ -10,23 +17,29 @@ function createFakePlatform(stories = [], options = {}) {
       ? { version: 2, groups: [], sources }
       : options.storySources)
   }
-  const savedStories = new Map(stories.map((story) => [story.href, story]))
+  const savedStories = new Map(stories.map((story) => [story.href, copyStory(story)]))
   const savedContents = new Map(options.storyContents || [])
   const cachedResponses = new Map(options.cachedResponses || [])
   const secrets = new Map(options.secrets || [])
-  let databaseHandler
-  let remoteDatabaseHandler
-  let historyHandler
+  // Sets, like the real ports: the app subscribes to database changes from
+  // more than one place, and a single slot would silently drop all but the last.
+  const databaseHandlers = new Set()
+  const remoteDatabaseHandlers = new Set()
+  const historyHandlers = new Set()
+  const subscribe = (handlers) => (handler) => {
+    handlers.add(handler)
+    return () => { handlers.delete(handler) }
+  }
+  const emit = (handlers, value) => { for (const handler of [...handlers]) handler(value) }
   const opened = []
 
   return {
     opened,
-    setStoredStory(story) { savedStories.set(story.href, story) },
-    deleteStoredStory(href) { savedStories.delete(href) },
+    setStoredStory(story) { savedStories.set(story.href, copyStory(story)) },
     savedContents,
-    emitDatabaseChange(change) { databaseHandler?.(change) },
-    emitRemoteDatabaseChange(change) { remoteDatabaseHandler?.(change) },
-    emitHistory(action) { historyHandler?.(action) },
+    emitDatabaseChange(change) { emit(databaseHandlers, change) },
+    emitRemoteDatabaseChange(change) { emit(remoteDatabaseHandlers, change) },
+    emitHistory(action) { emit(historyHandlers, action) },
     cachedResponses,
     secrets,
     ports: {
@@ -38,23 +51,23 @@ function createFakePlatform(stories = [], options = {}) {
         async set(id, value) {
           lists.set(id, value)
           if (options.emitDatabaseChangesOnSet) {
-            databaseHandler?.({ id, doc: { list: value } })
+            emit(databaseHandlers, { id, doc: { list: value } })
           }
         }
       },
       storyStore: {
         storyId: (url) => `sto_${url}`,
         async getStories(limit) {
-          const stories = Array.from(savedStories.values())
+          const stories = Array.from(savedStories.values(), copyStory)
           return limit === undefined ? stories : stories.slice(0, limit)
         },
         async getStaredStories() {
-          return Array.from(savedStories.values()).filter((story) => story.stared)
+          return Array.from(savedStories.values()).filter((story) => story.stared).map(copyStory)
         },
         async getStoriesByUrls(urls) {
-          return new Map(urls.flatMap((url) => savedStories.has(url) ? [[url, savedStories.get(url)]] : []))
+          return new Map(urls.flatMap((url) => savedStories.has(url) ? [[url, copyStory(savedStories.get(url))]] : []))
         },
-        async getStory(url) { return savedStories.get(url) || null },
+        async getStory(url) { return savedStories.has(url) ? copyStory(savedStories.get(url)) : null },
         async saveStory(story) {
           // Like PouchDB: pending html becomes the attachment, and the story
           // keeps only a stub describing it.
@@ -69,7 +82,7 @@ function createFakePlatform(stories = [], options = {}) {
               content: { content_type: "text/html", length: Buffer.byteLength(savedContents.get(story.href)), stub: true }
             }
           }
-          savedStories.set(story.href, story)
+          savedStories.set(story.href, copyStory(story))
           return story
         },
         async deleteStory(url) {
@@ -91,10 +104,7 @@ function createFakePlatform(stories = [], options = {}) {
       },
       syncService: {
         syncFrom() {},
-        onRemoteChange(handler) {
-          remoteDatabaseHandler = handler
-          return () => { remoteDatabaseHandler = undefined }
-        }
+        onRemoteChange: subscribe(remoteDatabaseHandlers)
       },
       theme: { setTheme() {} },
       activeTab: {
@@ -108,14 +118,8 @@ function createFakePlatform(stories = [], options = {}) {
         async clear() { cachedResponses.clear() }
       },
       fetch: options.fetch || (async (url) => { throw new Error(`Unexpected network request in test: ${url}`) }),
-      onDatabaseChange(handler) {
-        databaseHandler = handler
-        return () => { databaseHandler = undefined }
-      },
-      onHistoryCommand(handler) {
-        historyHandler = handler
-        return () => { historyHandler = undefined }
-      }
+      onDatabaseChange: subscribe(databaseHandlers),
+      onHistoryCommand: subscribe(historyHandlers)
     }
   }
 }

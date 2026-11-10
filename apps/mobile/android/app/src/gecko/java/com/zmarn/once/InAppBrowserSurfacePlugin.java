@@ -723,7 +723,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost implements Rea
                             // broken/empty document in a loop. Keep checking for
                             // late content and offer an explicit retry meanwhile.
                             blankWarning = true;
-                            failed(currentUrl, -1, "The page finished loading without visible content.");
+                            failed(currentUrl, -1, "The page finished loading without visible content.", null, true);
                             showRecovery("The page finished loading without visible content. You can retry or choose another page.");
                         }
                     } else blankSince = 0;

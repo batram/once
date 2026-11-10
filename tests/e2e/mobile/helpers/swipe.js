@@ -28,25 +28,16 @@ async function dragStory(
         fire("touchmove", startX + options.distance * fraction)
         await new Promise((resolve) => setTimeout(resolve, 10))
       }
-      // Sample only after the transform has stopped changing. Waiting on the
-      // rendered state avoids assuming the 90ms snap transition will finish
-      // within a fixed wall-clock delay on a loaded CI worker.
-      await new Promise((resolve) => {
-        const deadline = performance.now() + 750
-        let previous = getComputedStyle(row).transform
-        let stableFrames = 0
-        const sample = () => {
-          const current = getComputedStyle(row).transform
-          stableFrames = current === previous ? stableFrames + 1 : 0
-          previous = current
-          if (stableFrames >= 3 || performance.now() >= deadline) {
-            resolve()
-            return
-          }
-          requestAnimationFrame(sample)
-        }
-        requestAnimationFrame(sample)
-      })
+      // Springing home from an earlier release is an animation, and while it
+      // runs it overrides the transform the moves above set. Sample once the
+      // row has none left, rather than after a delay it might outlast.
+      await Promise.all(
+        row
+          .getAnimations()
+          .filter((animation) =>
+            Number.isFinite(animation.effect?.getComputedTiming().endTime))
+          .map((animation) => animation.finished.catch(() => undefined))
+      )
       const revealedLabel = document.querySelector(
         options.distance > 0
           ? ".bb_slide .swipe_left"
@@ -80,14 +71,17 @@ async function dragStory(
   )
 }
 
-// Holds a single move at `distance` and reports the revealed surface after each
-// of `waits`, which is how the fast-mode lock-in phases are observed.
-async function sampleSwipePhases(story, distance, waits) {
+// Holds a single move at `distance` until stage two arms and returns every
+// distinct state the revealed side went through on the way. The lock-in runs on
+// timers, so its phases are recorded as they happen: sampling them at
+// wall-clock offsets misses a phase whenever the worker is busy. The touch is
+// left down for the caller to release or cancel.
+async function holdSwipeUntilArmed(story, distance) {
   return story.evaluate(
-    async (row, options) => {
+    async (row, distance) => {
       const rect = row.getBoundingClientRect()
       const y = rect.top + rect.height / 2
-      const startX = options.distance > 0 ? rect.left + 40 : rect.right - 40
+      const startX = distance > 0 ? rect.left + 40 : rect.right - 40
       const touch = (x) =>
         new Touch({ identifier: 11, target: row, clientX: x, clientY: y })
       const fire = (type, x) => {
@@ -95,19 +89,17 @@ async function sampleSwipePhases(story, distance, waits) {
           new TouchEvent(type, {
             bubbles: true,
             cancelable: true,
-            touches: type === "touchend" ? [] : [touch(x)],
+            touches: [touch(x)],
             changedTouches: [touch(x)]
           })
         )
       }
-      fire("touchstart", startX)
-      fire("touchmove", startX + options.distance)
-      const snapshots = []
-      for (const wait of options.waits) {
-        await new Promise((resolve) => setTimeout(resolve, wait))
-        const side = options.distance > 0 ? ".swipe_left" : ".swipe_right"
+      const side = distance > 0 ? ".swipe_left" : ".swipe_right"
+      const states = []
+      // Returns whether stage two has armed.
+      const record = () => {
         const revealed = document.querySelector(`.bb_slide ${side}`)
-        snapshots.push({
+        const state = {
           action: revealed?.dataset.action,
           lock: revealed?.dataset.lock,
           phase: revealed?.dataset.lockPhase,
@@ -117,12 +109,44 @@ async function sampleSwipePhases(story, distance, waits) {
             revealed?.querySelector(".swipe_action_secondary")?.textContent,
           handoffDuration:
             revealed?.style.getPropertyValue("--swipe-handoff-duration")
-        })
+        }
+        const last = states[states.length - 1]
+        if (!last || Object.keys(state).some((key) => state[key] !== last[key])) {
+          states.push(state)
+        }
+        return state.lock === "armed"
       }
-      document.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true }))
-      return snapshots
+      fire("touchstart", startX)
+      fire("touchmove", startX + distance)
+      const layer = document.querySelector(".bb_slide")
+      if (!layer) throw new Error("The swipe revealed nothing")
+      if (record()) return states
+      await new Promise((resolve, reject) => {
+        // Each timer of the lock rewrites the layer in one task, so a callback
+        // sees one whole state and never half of an update.
+        const observer = new MutationObserver(() => {
+          if (!record()) return
+          observer.disconnect()
+          clearTimeout(expiry)
+          resolve()
+        })
+        // Far beyond the longest lock-in the settings allow (500ms).
+        const expiry = setTimeout(() => {
+          observer.disconnect()
+          reject(new Error(
+            `Stage two never armed: ${JSON.stringify(states)}`
+          ))
+        }, 5000)
+        observer.observe(layer, {
+          subtree: true,
+          attributes: true,
+          childList: true,
+          characterData: true
+        })
+      })
+      return states
     },
-    { distance, waits }
+    distance
   )
 }
 
@@ -133,4 +157,4 @@ function translateX(transform) {
   return parts ? Math.round(Number(parts[1].split(",")[4])) : 0
 }
 
-module.exports = { dragStory, sampleSwipePhases, translateX }
+module.exports = { dragStory, holdSwipeUntilArmed, translateX }

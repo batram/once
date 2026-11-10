@@ -99,11 +99,18 @@ test("a pairing code can carry the add-on sync passphrase, which unlocks add-on 
     await page.getByTestId("sync-page-pair").click()
     const panel = page.getByTestId("pair-panel")
     await panel.getByTestId("pair-include-passphrase").check()
-    // Replication moving the status on must not redraw the offer under the reader.
+    // Replication moving the status on must not redraw the offer under the
+    // reader. The status element is written on every status change, the same
+    // event the offer once redrew on, so a write seen there is one it survived.
+    await page.getByTestId("sync-status").evaluate((element) => {
+      window.__syncStatusWrites = 0
+      new MutationObserver(() => { window.__syncStatusWrites += 1 })
+        .observe(element, { attributes: true, attributeFilter: ["data-state"] })
+    })
     const remote = new Db("once")
-    await remote.put({ _id: `pairing-probe-${Date.now()}`, note: "status churn" })
+    await remote.put({ _id: "pairing-probe", note: "status churn" })
+    await expect.poll(() => page.evaluate(() => window.__syncStatusWrites), { timeout: 20000 }).toBeGreaterThan(0)
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
-    await page.waitForTimeout(1500)
     await expect(panel.getByTestId("pair-include-passphrase")).toBeChecked()
     await expect(panel.getByTestId("pair-passphrase")).toBeVisible()
     await expect(panel).toContainText("also opens your enabled encrypted sync datasets")

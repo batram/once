@@ -3,17 +3,15 @@ const assert = require("node:assert/strict")
 const path = require("node:path")
 const fs = require("node:fs/promises")
 const os = require("node:os")
-const { Builder, By, until } = require("selenium-webdriver")
-const firefox = require("selenium-webdriver/firefox")
+const { By, until } = require("selenium-webdriver")
 const { ADDON_INTEGRITY } = require("../shared/addon-fixture")
 const { startStoryFixture } = require("./local-source")
 const {
   openExtensionPanel,
   openSettingsSection,
   reopenExtensionPanel,
-  systemAccessService,
-  budget,
-  logBrowserVersion
+  startFirefox,
+  budget
 } = require("./firefox-panel")
 
 async function captureFailure(driver, phase, error, requests) {
@@ -57,20 +55,9 @@ async function configureCentralAi(driver, origin, waitFor, setValue) {
 // without configuring a URL or serving any sandbox resources from the fixture.
 test("Firefox runs scripted add-ons in its packaged sandbox without setup", { timeout: budget(120_000) }, async () => {
   const localDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "once-firefox-zip-"))
-  const expectedAddonId = "once_sidepanel_f@zmarn.com"
   const extensionUuid = "00000000-0000-4000-8000-000000000002"
-  const options = new firefox.Options()
-    .addArguments("-no-remote")
-    .setPreference("extensions.webextensions.uuids", JSON.stringify({ [expectedAddonId]: extensionUuid }))
-    .enableBidi()
-  if (process.platform !== "win32") options.addArguments("-headless")
-  const driver = await new Builder()
-    .forBrowser("firefox")
-    .setFirefoxOptions(options)
-    .setFirefoxService(systemAccessService())
-    .build()
-  await logBrowserVersion(driver)
   const source = await startStoryFixture()
+  let driver
   let phase = "install extension"
   const waitFor = (condition, milliseconds, label) => {
     phase = label
@@ -85,13 +72,7 @@ test("Firefox runs scripted add-ons in its packaged sandbox without setup", { ti
     value
   )
   try {
-    const extensionPath = path.resolve(__dirname, "../../../apps/firefox-extension/dist/release")
-    const bidi = await driver.getBidi()
-    const installResult = await bidi.send({
-      method: "webExtension.install",
-      params: { extensionData: { type: "path", path: extensionPath } }
-    })
-    assert.equal(installResult.result.extension, expectedAddonId)
+    driver = await startFirefox(extensionUuid)
     await openExtensionPanel(driver, extensionUuid)
 
     const sandboxUrl = `moz-extension://${extensionUuid}/static/addon-sandbox.html`
@@ -222,8 +203,11 @@ test("Firefox runs scripted add-ons in its packaged sandbox without setup", { ti
     await captureFailure(driver, phase, error, source.requests)
     throw error
   } finally {
-    await driver.quit()
-    await source.close()
-    await fs.rm(localDirectory, { recursive: true, force: true })
+    try {
+      await driver?.quit()
+    } finally {
+      await source.close()
+      await fs.rm(localDirectory, { recursive: true, force: true })
+    }
   }
 })

@@ -3,6 +3,11 @@ const { launchApp, closeApp, startPageServer, seedLocalSource, openSettingsSecti
 const storyFixture = require("../shared/story-fixture")
 const { installAiAddon } = require("../shared/ai-addon-ui")
 
+const { calls } = require("../shared/ai-addon-fixture")
+
+// How often the fixture provider was asked to explain a page (the reader asks it other things).
+const explanations = () => calls.filter(call => !call.body.messages[0]?.content?.includes?.("You prepare documents for a reader view")).length
+
 const ACTION = "addon:what-wait-who-why/explain"
 const LABEL = "What? Wait, who, why?"
 
@@ -201,9 +206,14 @@ test("a tray add-on runs on a page that is no story: from the toolbar, and from 
     const tabs = await window.evaluate(() => window.onceElectron.tabs.getAll())
     const pageTab = tabs.find(tab => tab.url.startsWith("once-reader://"))
     await window.evaluate(id => window.onceElectron.tabs.activate(id), pageTab.id)
+    const asked = explanations()
     await action.click()
-    await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll().then(all => all.filter(tab => tab.url.startsWith("once-addon://")).length))).toBe(2)
-    await expect.poll(pageText).toContain("ExampleApp is software")
+    // A second tab on the conversation shows what was said; the provider is not asked again.
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => Promise.all(webContents.getAllWebContents()
+      .filter(candidate => candidate.getURL().startsWith("once-addon://conversation/"))
+      .map(candidate => candidate.executeJavaScript('document.querySelector(\'[data-testid="addon-conversation"]\')?.textContent ?? ""')))))
+      .toEqual([expect.stringContaining("ExampleApp is software"), expect.stringContaining("ExampleApp is software")])
+    expect(explanations()).toBe(asked)
 
     // The page's native menu lists the action for the page and for a link under
     // the cursor; the chosen one reaches the renderer and opens its conversation.

@@ -107,11 +107,10 @@ async function openSettingsSection(page, target) {
   await page.locator(`[data-settings-target="${target}"]`).click()
 }
 
+// Settings sections open as a list every time; the toggle shows the text.
 async function saveRedirects(page, text) {
   await openSettingsSection(page, "redirects")
-  if (!(await page.getByTestId("redirects").isVisible())) {
-    await page.getByTestId("redirects-mode-toggle").click()
-  }
+  await page.getByTestId("redirects-mode-toggle").click()
   await page.getByTestId("redirects").fill(text)
   await page.getByTestId("save-redirects").click()
   await openStories(page)
@@ -119,9 +118,7 @@ async function saveRedirects(page, text) {
 
 async function saveFilters(page, text) {
   await openSettingsSection(page, "filters")
-  if (!(await page.getByTestId("filters").isVisible())) {
-    await page.getByTestId("filters-mode-toggle").click()
-  }
+  await page.getByTestId("filters-mode-toggle").click()
   await page.getByTestId("filters").fill(text)
   await page.getByTestId("save-filters").click()
   await openStories(page)
@@ -178,13 +175,20 @@ test("opens story, comment, substory, and original links", async () => {
     const hoverUrl = page.locator("#hover_url")
     await expect(hoverUrl).toHaveText(source.urls.alpha)
     await expect(hoverUrl).toHaveClass(/\bvisible\b/)
-    // The indicator lingers for HIDE_DELAY after the pointer leaves, so it is
-    // still shown the instant the hover-away resolves, and gone shortly after.
-    // Sleeping for half the delay and then asserting "still visible" turned
-    // this into a wall-clock race that a slow runner lost.
+    // The indicator lingers for HIDE_DELAY (400 ms) after the pointer leaves.
+    // The page times that itself, from the pointer leaving the link to the
+    // indicator hiding: reading the class from here right after the hover-away
+    // is a race with that delay, which a stalled runner loses.
+    const lingered = page.evaluate(() => new Promise((resolve) => {
+      const indicator = document.querySelector("#hover_url")
+      let left = null
+      document.addEventListener("mouseout", () => { left ??= performance.now() }, true)
+      new MutationObserver(() => {
+        if (!indicator.classList.contains("visible")) resolve(left === null ? -1 : performance.now() - left)
+      }).observe(indicator, { attributes: true, attributeFilter: ["class"] })
+    }))
     await page.locator("#searchfield").hover()
-    expect(await hoverUrl.getAttribute("class"), "the indicator hid without its delay")
-      .toMatch(/\bvisible\b/)
+    expect(await lingered, "the indicator hid without its delay").toBeGreaterThan(300)
     await expect(hoverUrl).not.toHaveClass(/\bvisible\b/)
 
     const alphaPage = await waitForOpenedPage(context, "alpha story link", () =>
@@ -457,9 +461,7 @@ test("adds and removes a story filter", async () => {
     await expect(delta).toBeHidden()
 
     await openSettingsSection(page, "filters")
-    if (!(await page.getByTestId("filters").isVisible())) {
-      await page.getByTestId("filters-mode-toggle").click()
-    }
+    await page.getByTestId("filters-mode-toggle").click()
     const filterArea = page.getByTestId("filters")
     await expect(filterArea).toHaveValue(
       new RegExp(storyFixture.FILTER_TOKEN)
@@ -555,12 +557,27 @@ test("matches HTTP redirects and internal navigation without matching a 404", as
   const { page, context, source } = harness
   try {
     const selected = page.locator("#selected_container story-item.selected")
+    // Every story the panel selects from here on, in order.
+    await page.evaluate(() => {
+      window.selectedStories = []
+      new MutationObserver(() => {
+        const href = document.querySelector("#selected_container story-item.selected")?.dataset.href
+        if (href && window.selectedStories.at(-1) !== href) window.selectedStories.push(href)
+      }).observe(document.body, { subtree: true, childList: true, attributes: true })
+    })
     for (const status of [200, 404]) {
       await saveRedirects(page, `${source.urls.gamma} => ${source.origin}/navigation-start?status=${status}`)
       const opened = await waitForOpenedPage(context, "redirected story", () => storyItem(page, source.urls.gamma).locator("a.title").click())
       await expect(opened).toHaveURL(`${source.origin}/navigation-final?status=${status}`)
       if (status === 404) {
         await expect(selected).toHaveCount(0)
+        // Nothing selected is also what a panel that has not heard of the page
+        // yet shows. The next page in the same tab is reported after this one,
+        // so once it is selected the failed page has been judged too.
+        await page.evaluate(() => { window.selectedStories.length = 0 })
+        await opened.goto(`${source.origin}/story/epsilon`)
+        await expect(selected).toHaveAttribute("data-href", source.urls.epsilon)
+        expect(await page.evaluate(() => window.selectedStories)).toEqual([source.urls.epsilon])
       } else {
         await expect(selected).toHaveAttribute("data-href", source.urls.gamma)
         await opened.getByRole("link", { name: "Jump to heading" }).click()

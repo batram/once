@@ -92,39 +92,54 @@ test("shared request limits apply to built-in consumers and cancellation detache
   assert.equal(await runner.run("reader", undefined, async () => "next"), "next")
 })
 
-test("work that keeps showing progress outlives the timeout; work that goes quiet does not", async () => {
+// Virtual time: against the real clock a busy machine can stall a tick past the timeout.
+const turn = () => new Promise(resolve => setImmediate(resolve))
+
+test("work that keeps showing progress outlives the timeout; work that goes quiet does not", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] })
   const runner = new AiRequestRunner(60)
-  const busy = (signal, stillWorking) => new Promise((resolve) => {
-    let ticks = 0
-    const tick = setInterval(() => { stillWorking(); if (++ticks === 8) { clearInterval(tick); resolve("written") } }, 25)
-    signal.addEventListener("abort", () => clearInterval(tick), { once: true })
-  })
-  assert.equal(await runner.run("reader", undefined, busy), "written", "200 ms of steady progress against a 60 ms timeout")
-  const stalls = (_signal, stillWorking) => new Promise(() => { stillWorking() })
-  await assert.rejects(runner.run("reader", undefined, stalls), error => error.code === "timeout")
+  let progress, finish
+  const busy = runner.run("reader", undefined, (_signal, stillWorking) => new Promise(resolve => { progress = stillWorking; finish = resolve }))
+  await turn()
+  for (let step = 0; step < 8; step++) { t.mock.timers.tick(50); progress() }
+  finish("written")
+  assert.equal(await busy, "written", "400 ms of steady progress against a 60 ms timeout")
+  let outcome = "pending"
+  const stalled = runner.run("reader", undefined, (_signal, stillWorking) => new Promise(() => { stillWorking() }))
+  stalled.catch(error => { outcome = error.code })
+  await turn()
+  t.mock.timers.tick(59)
+  await turn()
+  assert.equal(outcome, "pending")
+  t.mock.timers.tick(1)
+  await assert.rejects(stalled, error => error.code === "timeout")
 })
 
-test("a streamed answer still being written is not timed out", async () => {
+test("a streamed answer still being written is not timed out", async t => {
   const f = aiPlatform()
   await editConnection(f.ai.store, { connection, token: "test-token" })
   await selectModel(f.ai.store, null, { connection: "local", model: "first" })
   f.ai.runner = new AiRequestRunner(80)
   const event = value => `data: ${JSON.stringify(value)}\n\n`
   const words = ["one ", "two ", "three ", "four ", "five ", "six ", "seven ", "eight "]
-  f.platform.fetch = async () => new Response(new ReadableStream({
-    async start(controller) {
-      const encoder = new TextEncoder()
-      // 40 ms apart: the whole answer takes about 320 ms, four times the timeout.
-      for (const word of words) {
-        await new Promise(resolve => setTimeout(resolve, 40))
-        controller.enqueue(encoder.encode(event({ choices: [{ delta: { content: word } }] })))
-      }
-      controller.enqueue(encoder.encode(event({ choices: [{ delta: {}, finish_reason: "stop" }] })))
-      controller.close()
-    }
-  }), { headers: { "content-type": "text/event-stream" } })
+  const encoder = new TextEncoder()
+  let stream
+  f.platform.fetch = async () => new Response(new ReadableStream({ start(controller) { stream = controller } }),
+    { headers: { "content-type": "text/event-stream" } })
+  t.mock.timers.enable({ apis: ["setTimeout"] })
   const shown = []
-  const result = await f.ai.generate("reader.formatting", prompt, undefined, text => shown.push(text))
+  const pending = f.ai.generate("reader.formatting", prompt, undefined, text => shown.push(text))
+  while (!stream) await turn()
+  await turn()
+  // 60 ms before each word: the whole answer takes 480 ms, six times the timeout.
+  for (const word of words) {
+    t.mock.timers.tick(60)
+    stream.enqueue(encoder.encode(event({ choices: [{ delta: { content: word } }] })))
+    await turn()
+  }
+  stream.enqueue(encoder.encode(event({ choices: [{ delta: {}, finish_reason: "stop" }] })))
+  stream.close()
+  const result = await pending
   assert.equal(result.text, words.join("").trim())
   assert.ok(shown.length > 1, "the words were shown as they arrived")
 })

@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.getcapacitor.JSObject;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import static org.junit.Assert.*;
@@ -11,8 +12,12 @@ import static org.junit.Assert.*;
 /** Real-engine coverage: switching must retain documents and independent histories. */
 @RunWith(AndroidJUnit4.class)
 public class GeckoTabsTest {
+    private final GeckoTestSupport t = new GeckoTestSupport();
+
+    @After public void stop() throws Exception { t.stop(); }
+
     @Test public void retainedTabsKeepDocumentsHistoryAndRejectClosedGenerations() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.shellReady();
+        t.start(); t.shellReady();
         String previous = (String) GeckoTestSupport.field(t.plugin, "selectedTab");
         String first = UUID.randomUUID().toString(), second = UUID.randomUUID().toString();
         String generation = UUID.randomUUID().toString();
@@ -50,7 +55,7 @@ public class GeckoTabsTest {
 
     /** Capacitor delivers calls on its own thread while the shell switches tabs on the UI thread. */
     @Test public void callsFromThePluginThreadRouteToTheirTabWhileTabsChange() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        t.start();
         String previous = (String) GeckoTestSupport.field(t.plugin, "selectedTab");
         TabState before = tabs(t);
         String first = UUID.randomUUID().toString(), second = UUID.randomUUID().toString();
@@ -63,9 +68,13 @@ public class GeckoTabsTest {
             ready(t, second, generation, "second");
             java.util.concurrent.atomic.AtomicBoolean running = new java.util.concurrent.atomic.AtomicBoolean(true);
             java.util.concurrent.atomic.AtomicReference<Throwable> churnFailure = new java.util.concurrent.atomic.AtomicReference<>();
+            // One tab comes and goes per round of calls. Unpaced, the loop made some 2000 sessions in
+            // 14 s on a phone, more than its Gecko thread closed, until the JNI reference table was full.
+            java.util.concurrent.Semaphore rounds = new java.util.concurrent.Semaphore(0);
             Thread churn = new Thread(() -> {
                 try {
                     for (int i = 0; running.get(); i++) {
+                        if (!rounds.tryAcquire(100, java.util.concurrent.TimeUnit.MILLISECONDS)) continue;
                         String extra = UUID.randomUUID().toString();
                         GeckoTestSupport.Call select = new GeckoTestSupport.Call(new JSObject().put("tabId", i % 2 == 0 ? first : second));
                         GeckoTestSupport.Call close = new GeckoTestSupport.Call(identity(extra, generation));
@@ -81,6 +90,7 @@ public class GeckoTabsTest {
             try {
                 for (int i = 0; i < 20; i++) {
                     String id = i % 2 == 0 ? first : second;
+                    rounds.release();
                     // Deliberately not t.ui(): the plugin itself must hop to the UI thread.
                     GeckoTestSupport.Call bounds = new GeckoTestSupport.Call(identity(id, generation)
                         .put("x", 0).put("y", 100).put("width", 320).put("height", 500));
@@ -110,7 +120,7 @@ public class GeckoTabsTest {
     }
 
     @Test public void callsForUnknownTabsCreateNothing() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        t.start();
         TabState before = tabs(t);
         String unknown = UUID.randomUUID().toString(), generation = UUID.randomUUID().toString();
         for (String method : new String[] { "close", "clearFind", "setVisible", "setBounds", "capturePreview" }) {
@@ -131,7 +141,7 @@ public class GeckoTabsTest {
 
     /** Every tab reports audible playback, even with background playback off, and never ends at a stale true. */
     @Test public void tabsReportMediaPlaybackChanges() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        t.start();
         String previous = (String) GeckoTestSupport.field(t.plugin, "selectedTab");
         String id = UUID.randomUUID().toString(), generation = UUID.randomUUID().toString();
         java.util.concurrent.LinkedBlockingQueue<Boolean> events = new java.util.concurrent.LinkedBlockingQueue<>();

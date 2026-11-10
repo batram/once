@@ -38,8 +38,9 @@ function fakeCipher(available) {
   }
 }
 
-function setup(available) {
+function setup(t, available) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "once-secure-settings-"))
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
   const filePath = path.join(dir, "settings.json")
   const cipher = fakeCipher(available)
   const warnings = []
@@ -48,8 +49,8 @@ function setup(available) {
   return { settings, cipher, warnings, stored }
 }
 
-test("concurrent saves preserve every setting and leave valid JSON", async () => {
-  const { settings, stored } = setup(true)
+test("concurrent saves preserve every setting and leave valid JSON", async (t) => {
+  const { settings, stored } = setup(t, true)
   await settings.setCacheTime("60")
   await Promise.all([
     settings.setSyncUrl("https://example.org/db"),
@@ -64,8 +65,8 @@ test("concurrent saves preserve every setting and leave valid JSON", async () =>
   for (let index = 0; index < 20; index++) assert.equal(await settings.getSecret(`key:${index}`), `value:${index}`)
 })
 
-test("readers wait for pending saves and a failed save does not block the queue", async () => {
-  const { settings, cipher } = setup(true)
+test("readers wait for pending saves and a failed save does not block the queue", async (t) => {
+  const { settings, cipher } = setup(t, true)
   cipher.encrypt = () => { throw new Error("cipher failed") }
   await assert.rejects(settings.setSecret("broken", "value"), /cipher failed/)
   cipher.encrypt = (value) => `enc:${value}`
@@ -75,8 +76,8 @@ test("readers wait for pending saves and a failed save does not block the queue"
   assert.equal(await settings.getSecret("broken"), "")
 })
 
-test("encrypts the sync URL and secrets when the OS cipher is available", async () => {
-  const { settings, stored, warnings } = setup(true)
+test("encrypts the sync URL and secrets when the OS cipher is available", async (t) => {
+  const { settings, stored, warnings } = setup(t, true)
   await settings.setSyncUrl("https://u:p@example.org/db")
   await settings.setSecret("source:hn", "token")
   assert.equal(stored().encryptedSyncUrl, "enc:https://u:p@example.org/db")
@@ -86,8 +87,8 @@ test("encrypts the sync URL and secrets when the OS cipher is available", async 
   assert.deepEqual(warnings, [])
 })
 
-test("falls back to unencrypted storage, once warned, when the cipher is unavailable", async () => {
-  const { settings, stored, warnings } = setup(false)
+test("falls back to unencrypted storage, once warned, when the cipher is unavailable", async (t) => {
+  const { settings, stored, warnings } = setup(t, false)
   await settings.setSyncUrl("https://u:p@example.org/db")
   await settings.setSecret("source:hn", "token")
   assert.equal(stored().plainSyncUrl, "https://u:p@example.org/db")
@@ -99,8 +100,8 @@ test("falls back to unencrypted storage, once warned, when the cipher is unavail
   assert.match(warnings[0], /unencrypted/)
 })
 
-test("re-encrypts plain values on the next save once the cipher returns", async () => {
-  const { settings, cipher, stored } = setup(false)
+test("re-encrypts plain values on the next save once the cipher returns", async (t) => {
+  const { settings, cipher, stored } = setup(t, false)
   await settings.setSyncUrl("https://old")
   await settings.setSecret("source:hn", "token")
   cipher.available = true
@@ -113,8 +114,8 @@ test("re-encrypts plain values on the next save once the cipher returns", async 
   assert.equal(await settings.getSyncUrl(), "https://new")
 })
 
-test("clearing a secret removes both stored forms", async () => {
-  const { settings, cipher, stored } = setup(false)
+test("clearing a secret removes both stored forms", async (t) => {
+  const { settings, cipher, stored } = setup(t, false)
   await settings.setSecret("source:hn", "plain")
   cipher.available = true
   await settings.setSecret("source:lo", "token")
@@ -125,8 +126,8 @@ test("clearing a secret removes both stored forms", async () => {
   assert.equal(await settings.getSecret("source:hn"), "")
 })
 
-test("an encrypted value from an earlier build fails to read only until it is replaced", async () => {
-  const { settings, cipher } = setup(true)
+test("an encrypted value from an earlier build fails to read only until it is replaced", async (t) => {
+  const { settings, cipher } = setup(t, true)
   await settings.setSyncUrl("https://old")
   cipher.available = false
   await assert.rejects(() => settings.getSyncUrl(), /saved by an earlier build/)
@@ -134,8 +135,8 @@ test("an encrypted value from an earlier build fails to read only until it is re
   assert.equal(await settings.getSyncUrl(), "https://new")
 })
 
-test("a cipher that is available but refuses to decrypt falls back to the plain copy or explains itself", async () => {
-  const { settings, cipher } = setup(false)
+test("a cipher that is available but refuses to decrypt falls back to the plain copy or explains itself", async (t) => {
+  const { settings, cipher } = setup(t, false)
   await settings.setSyncUrl("https://plain")
   cipher.available = true
   await settings.setSecret("source:hn", "token")

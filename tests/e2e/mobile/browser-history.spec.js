@@ -1,19 +1,6 @@
 const { test, expect } = require("@playwright/test")
-const { gotoMobileApp } = require("./helpers/mobile-app")
-
-async function touch(page, row, dx) {
-  const bounds = await row.boundingBox()
-  const x = bounds.x + bounds.width / 2, y = bounds.y + bounds.height / 2
-  const input = await page.context().newCDPSession(page)
-  await input.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
-  for (let step = 1; step <= 5; step++) {
-    await input.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x + dx * step / 5, y }] })
-  }
-  return async () => {
-    await input.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
-    await input.detach()
-  }
-}
+const { gotoMobileApp, reloadMobileApp } = require("./helpers/mobile-app")
+const { touchDrag } = require("./helpers/gestures")
 
 async function seedVisits(page, visits) {
   await page.evaluate(async visits => {
@@ -49,7 +36,7 @@ test("browser history opens from the menu, searches, deletes, and survives resta
   await expect(page.locator(".history-status")).toHaveText("No browsing history yet.")
   await expect(page.locator(".history-empty-hint")).toBeVisible()
   await expect(page.locator(".history-pagination")).toBeHidden()
-  await page.screenshot({ path: "test-results/history-mobile-empty.png" })
+  await page.screenshot({ path: test.info().outputPath("history-mobile-empty.png") })
   await page.getByTestId("browser_history-panel-close").click()
   await page.getByTestId("reading-menu").click()
   const url = new URL("/fixtures/article.html", page.url()).href
@@ -58,15 +45,14 @@ test("browser history opens from the menu, searches, deletes, and survives resta
   await page.evaluate(url => window.__onceE2E__.finishReading(url), url)
   await openHistory(page)
   await expect(page.locator(".history-entry")).toHaveCount(1)
-  await page.reload()
-  await expect(page.locator("body")).toHaveAttribute("data-once-ready", "true")
+  await reloadMobileApp(page)
   await openHistory(page)
   await expect(page.locator(".history-entry")).toHaveCount(1)
   await page.getByRole("searchbox").fill("not-in-history")
   await expect(page.locator(".history-status")).toHaveText("No matching visits.")
   await page.getByRole("searchbox").fill("article")
   await expect(page.locator(".history-entry")).toHaveCount(1)
-  await page.screenshot({ path: "test-results/history-mobile-search.png" })
+  await page.screenshot({ path: test.info().outputPath("history-mobile-search.png") })
   await page.locator(".history-remove").click()
   await expect(page.locator(".history-entry")).toHaveCount(0)
   await expect(page.locator(".history-status")).toHaveText("No matching visits.")
@@ -96,7 +82,7 @@ test("history rows swipe like tab rows: left deletes the visit, right opens it",
   await openHistory(page)
   const rows = page.locator(".history-entry")
   await expect(rows).toHaveCount(2)
-  const releaseDelete = await touch(page, rows.first(), -100)
+  const releaseDelete = await touchDrag(page, rows.first(), -100)
   await expect(rows.first()).toHaveAttribute("data-swipe-direction", "delete")
   await expect(rows.first()).toHaveAttribute("data-swipe-ready", "true")
   await expect(rows.first().locator(".history-swipe-hint")).toHaveText("Release to delete")
@@ -109,20 +95,20 @@ test("history rows swipe like tab rows: left deletes the visit, right opens it",
   expect(feedback.hint).toBeCloseTo(100, 0)
   expect(feedback.transform).toContain("-100")
   expect(feedback.overflow).toBe(false)
-  await page.screenshot({ path: "test-results/history-mobile-swipe-delete.png" })
+  await page.screenshot({ path: test.info().outputPath("history-mobile-swipe-delete.png") })
   await releaseDelete()
   await expect(rows).toHaveCount(1)
   await expect(rows.first().locator(".history-entry-title")).toHaveText("Article")
   // A short drag reveals the action but releases without committing.
-  const releaseShort = await touch(page, rows.first(), 40)
+  const releaseShort = await touchDrag(page, rows.first(), 40)
   await expect(rows.first()).toHaveAttribute("data-swipe-direction", "open")
   await expect(rows.first()).toHaveAttribute("data-swipe-ready", "false")
   await releaseShort()
   await expect(rows.first()).not.toHaveAttribute("data-swipe-direction")
   await expect(page.locator("#browser_history_panel")).toHaveCount(1)
-  const releaseOpen = await touch(page, rows.first(), 100)
+  const releaseOpen = await touchDrag(page, rows.first(), 100)
   await expect(rows.first().locator(".history-swipe-hint")).toHaveText("Release to open")
-  await page.screenshot({ path: "test-results/history-mobile-swipe-open.png" })
+  await page.screenshot({ path: test.info().outputPath("history-mobile-swipe-open.png") })
   await releaseOpen()
   await expect(page.locator("#left_panel")).toHaveAttribute("active_panel", "reading")
   await expect(page.locator("#reading_url")).toHaveValue(url)
@@ -134,22 +120,13 @@ test("history stays bounded, fits phone sizes in both themes, and clears all sea
   // Reproduce the iPhone status-bar and home-indicator runways in the web preview.
   await page.addStyleTag({ content: "body { padding-top: 59px; --m-tabbar-inset: 18px; }" })
   await openHistory(page)
-  await page.evaluate(async () => {
-    const db = await new Promise((resolve, reject) => {
-      const request = indexedDB.open("once-browser-history", 1)
-      request.onsuccess = () => resolve(request.result)
-      request.onerror = () => reject(request.error)
-    })
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction("visits", "readwrite")
-      const store = tx.objectStore("visits")
-      for (let index = 0; index < 120; index++) store.put({ id: String(index).padStart(3, "0"),
-        url: `https://example.test/${"long-address/".repeat(20)}${index}`, title: `${index % 2 ? "Other" : "Match"} ${"long title ".repeat(20)}${index}`, visitedAt: 1700000000000 + index })
-      tx.oncomplete = resolve
-      tx.onabort = () => reject(tx.error)
-    })
-    db.close()
-  })
+  // History was opened first, so the app has created its own store by now.
+  await seedVisits(page, Array.from({ length: 120 }, (_, index) => ({
+    id: String(index).padStart(3, "0"),
+    url: `https://example.test/${"long-address/".repeat(20)}${index}`,
+    title: `${index % 2 ? "Other" : "Match"} ${"long title ".repeat(20)}${index}`,
+    visitedAt: 1700000000000 + index
+  })))
   await page.getByTestId("browser_history-panel-close").click()
   await openHistory(page)
   await expect(page.locator(".history-entry")).toHaveCount(50)
@@ -194,7 +171,7 @@ test("history stays bounded, fits phone sizes in both themes, and clears all sea
       expect(geometry.inputRight).toBeLessThanOrEqual(geometry.viewport)
       expect(geometry.removeWidth).toBeGreaterThanOrEqual(43)
       expect(geometry.removeHeight).toBeGreaterThanOrEqual(43)
-      await page.screenshot({ path: `test-results/history-mobile-${theme}-${width}.png` })
+      await page.screenshot({ path: test.info().outputPath(`history-mobile-${theme}-${width}.png`) })
     }
   }
   await page.locator(".history-older").click()

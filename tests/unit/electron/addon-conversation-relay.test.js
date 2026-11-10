@@ -78,7 +78,8 @@ test("a tab attaches to its window's shell by the page URL, leaves on navigation
   assert.deepEqual(tab.sent.at(-1), [ELECTRON_IPC.addonsConversationState, { first: true }, true])
   relay.command(stranger, { type: "clear" })
   relay.command(tab, { type: "clear" })
-  assert.deepEqual(shell.sent.at(-1), [ELECTRON_IPC.addonsConversationCommand, tab.id, { type: "clear" }])
+  assert.deepEqual(shell.sent.filter(([channel]) => channel === ELECTRON_IPC.addonsConversationCommand),
+    [[ELECTRON_IPC.addonsConversationCommand, tab.id, { type: "clear" }]])
   // Following a link detaches: the shell stops answering, nothing reaches the other page.
   tab.url = "https://elsewhere.test/"
   tab.emit("did-navigate")

@@ -4,10 +4,10 @@ const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
 const { execFileSync } = require("node:child_process")
+const { readSwift, swiftSlice } = require("./swift-source")
 
 test("WebKit page playback never activates the reader's native audio session", { skip: process.platform !== "darwin" }, () => {
-  const source = fs.readFileSync(path.resolve(__dirname, "../../../apps/mobile/ios/App/App/ReaderMediaSession.swift"), "utf8")
-  const audio = source.slice(source.indexOf("final class PlaybackAudioSession"), source.indexOf("/// Speaks reader paragraphs"))
+  const audio = swiftSlice(readSwift("ReaderMediaSession.swift"), "final class PlaybackAudioSession", "/// Speaks reader paragraphs")
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "once-ios-audio-"))
   const harness = `
 import Foundation

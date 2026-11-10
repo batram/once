@@ -40,10 +40,6 @@ app.get("/health", (_request, response) => response.json({
   pid: process.pid,
   port: response.socket.localPort
 }))
-app.get("/test/urls", (_request, response) => response.json({
-  android: process.env.ONCE_MOBILE_TEST_URL || `http://10.0.2.2:${port}`,
-  ios: `http://127.0.0.1:${port}`
-}))
 app.get("/fixtures/visual-feed.json", (request, response) => {
   const baseUrl = `${request.protocol}://${request.get("host")}`
   response.json(storyFixture.feedJson(baseUrl))
@@ -103,6 +99,14 @@ app.get("/fixtures/mobile-filter-list.txt", (_request, response) => {
     "*/fixtures/blocked-ad.png|",
     "##.once-filter-hide"
   ].join("\n"))
+})
+// A phone reaches this server at 127.0.0.1 (adb reverse), where EasyList
+// switches generic cosmetic filters off (`@@://127.0.0.1$generichide`), so
+// uBlock Origin on Once Lite ignores the list above's `##.once-filter-hide`.
+// A list of its own: the portable parsers drop a list's block rules when it
+// holds an exception they cannot honour.
+app.get("/fixtures/loopback-generic-cosmetics.txt", (_request, response) => {
+  response.type("text/plain").send("@@://127.0.0.1$generichide,badfilter\n")
 })
 app.get("/fixtures/blocked-ad.png", (_request, response) => {
   response.type("image/png").send(Buffer.from(

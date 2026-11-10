@@ -8,12 +8,17 @@ const example = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../../exa
 const manifest = () => ({ ...example, script: { url: "https://example.test/main.js", integrity: "sha256-" + "a".repeat(43) + "=" } })
 
 test("AI manifest round-trips trays, connections, prompts and never secret option values", () => {
-  const result = core.readAddonManifest(manifest())
+  // The shipped add-on keeps no secret of its own any more, so one is declared here.
+  const withSecret = manifest()
+  withSecret.settings = { ...withSecret.settings, properties: { ...withSecret.settings.properties, openaiToken: { type: "string", format: "secret" } } }
+  const result = core.readAddonManifest(withSecret)
   assert.equal(result.ok, true, JSON.stringify(result.reports))
+  assert.equal(result.manifest.settings.properties.openaiToken.format, "secret")
   const options = core.validateConfig(result.manifest.settings, { openaiToken: "must-not-sync", explainPrompt: "x".repeat(16000) })
   assert.equal(options.openaiToken, undefined)
   assert.equal(options.explainPrompt.length, 16000)
-  const doc = core.readAddonsDocument({ version: 1, addons: [{ enabled: true, manifest: manifest(), options: { openaiToken: "must-not-sync" } }] })
+  const doc = core.readAddonsDocument({ version: 1, addons: [{ enabled: true, manifest: withSecret, options: { openaiToken: "must-not-sync", webSearch: true } }] })
+  assert.deepEqual(doc.addons[0].options.webSearch, true, "the other options are kept")
   const text = core.presentAddons(doc)
   assert.equal(text.includes("must-not-sync"), false)
   assert.equal(core.parseAddonsText(text).addons[0].manifest.trays[0].id, "assistant")
@@ -23,11 +28,18 @@ test("AI manifest round-trips trays, connections, prompts and never secret optio
 })
 
 test("invalid tray references, secret defaults and connection schemas are rejected", () => {
-  assert.equal(core.readAddonManifest({ ...manifest(), trays: [] }).ok, false)
-  assert.equal(core.readAddonManifest({ ...manifest(), connections: [{ id: "bad", endpoint: "model" }] }).ok, false)
+  const refusal = (value) => {
+    const read = core.readAddonManifest(value)
+    assert.equal(read.ok, false)
+    return read.reports.map(report => report.message).join("; ")
+  }
+  assert.match(refusal({ ...manifest(), trays: [] }), /undeclared tray/)
+  assert.match(refusal({ ...manifest(), connections: [{ id: "bad", endpoint: "model" }] }), /must name a URL setting/)
+  // Added beside the existing settings: replacing them would also break the
+  // connection's endpoint, and the manifest would be refused for that instead.
   const changed = manifest()
-  changed.settings = { type: "object", properties: { token: { type: "string", format: "secret", default: "secret" } } }
-  assert.equal(core.readAddonManifest(changed).ok, false)
+  changed.settings = { ...changed.settings, properties: { ...changed.settings.properties, token: { type: "string", format: "secret", default: "secret" } } }
+  assert.match(refusal(changed), /Secrets cannot have defaults/)
 })
 
 test("model lists stay on the endpoint's origin and suggestions must name a connection that has one", () => {
@@ -39,6 +51,9 @@ test("model lists stay on the endpoint's origin and suggestions must name a conn
   assert.equal(core.addonModelsUrl("https://api.example.test/v1/messages", "models"), "https://api.example.test/v1/models")
   assert.throws(() => core.addonModelsUrl("https://api.example.test/v1/messages", "https://other.test/models"), /origin/)
   const bad = (change) => { const value = manifest(); value.settings = { type: "object", properties: { endpoint: { type: "string", format: "url" }, provider: { type: "string", enum: ["openai"] }, model: { type: "string" }, webSearch: { type: "boolean" } } }; value.connections = [{ id: "openai", endpoint: "endpoint", models: "models" }, { id: "youtube", endpoint: "endpoint" }]; change(value); return core.readAddonManifest(value).ok }
+  // The base is valid, so each refusal below is for the one thing it changes.
+  assert.equal(bad(() => {}), true)
+  assert.equal(bad(value => { value.settings.properties.model.suggestions = { connection: "openai" } }), true)
   assert.equal(bad(value => { value.connections[0].models = "https://other.test/models" }), false)
   assert.equal(bad(value => { value.settings.properties.model.suggestions = { connection: "youtube" } }), false)
   assert.equal(bad(value => { value.settings.properties.model.suggestions = { connectionField: "webSearch" } }), false)

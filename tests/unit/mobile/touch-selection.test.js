@@ -55,9 +55,10 @@ test("a touch double tap on text selects the word and asks for a tap on it in We
 })
 
 test("a mouse double click keeps the browser's own word selection", () => {
-  const { presses, doubleTap } = load()
+  const { presses, doubleTap, selection } = load()
   doubleTap(new FakeElement(true), new FakeElement(true), "mouse")
   assert.deepEqual(presses, [])
+  assert.deepEqual(selection.calls, [])
 })
 
 test("a double tap whose first tap opened a collapsed comment only opens it", () => {

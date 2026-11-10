@@ -12,19 +12,22 @@ test("parses configured JSON selectors, processors, tags, and URLs", () => {
   const stories = collector.parse(input, { url: "https://example.com/feed.json", config })
   assertStories(stories, "JX")
   assert.equal(stories[0].title, "JSON title")
-  assert.equal(stories[0].tags[0].text, "alice")
+  assert.equal(stories[0].href, "https://example.com/json")
+  assert.equal(stories[0].timestamp, Date.parse("2024-01-02T03:04:05Z"))
+  assert.deepEqual(stories[0].tags, [{ class: "user", text: "alice" }])
   // No configuration is not an error: an unconfigured source has no stories.
   assert.deepEqual(collector.parse(input, { url: "https://example.com/feed.json" }), [])
 })
 
-test("parses configured HTML selectors and skips invalid configuration", () => {
+test("parses configured HTML selectors, and an unconfigured source has no stories", () => {
   const collector = require("../../../packages/collectors/dist/collectors/genyMatch")
   const doc = parseDocument(fs.readFileSync(path.resolve(__dirname, "../../fixtures/collectors/generic.html"), "utf8"))
   const config = { stories: { sel: "article", all: true }, link: { sel: ".link", component: "href" }, title: { sel: ".link", component: "innerText", processors: ["trim"] }, tags: [{ elements: { text: { sel: ".tag", component: "innerText" } } }] }
   const stories = collector.parse(doc, { url: "https://example.com/", config })
   assertStories(stories, "GY")
   assert.equal(stories[0].title, "Generic title")
-  assert.equal(stories[0].tags[0].text, "tools")
+  assert.equal(stories[0].href, "https://example.com/generic")
+  assert.deepEqual(stories[0].tags, [{ class: "category", text: "tools" }])
   assert.deepEqual(collector.parse(doc, { url: "https://example.com/" }), [])
 })
 
@@ -75,9 +78,8 @@ test("reports which required geny selector is empty", () => {
   )
 })
 
-// Unreadable JSON is now caught while reading the legacy line, not here — see
-// tests/unit/core/legacy-source-lines.test.js. What reaches a collector is
-// already-parsed data, so what it has to reject is the wrong *shape*.
+// What reaches a collector is already-parsed data, so what it has to reject
+// is the wrong *shape*.
 test("both configurable collectors reject configuration of the wrong shape", () => {
   const jsonCollector = require("../../../packages/collectors/dist/collectors/jsonSelect")
   const htmlCollector = require("../../../packages/collectors/dist/collectors/genyMatch")

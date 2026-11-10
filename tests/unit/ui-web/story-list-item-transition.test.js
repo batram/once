@@ -34,26 +34,24 @@ test("story exit completes when its margin transition is cancelled", () => {
   assert.equal(completions, 1)
 })
 
-test("story exit ignores unrelated transitions and has a fallback", async () => {
+test("story exit ignores unrelated transitions and has a fallback", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] })
   const { window, module } = loadTransitionModule()
   const row = document.createElement("div")
   let completions = 0
 
   module.finishStoryExitTransition(row, () => completions++, 5)
   transition(window, "transitionend", "transform", row)
+  t.mock.timers.tick(4)
   assert.equal(completions, 0)
 
-  // The 5ms fallback timer is what completes it; poll rather than sleep a
-  // fixed 15ms, which a busy runner can overshoot before the timer has run.
-  const deadline = Date.now() + 2_000
-  while (completions === 0 && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 5))
-  }
+  t.mock.timers.tick(1)
   assert.equal(completions, 1)
 })
 
-test("story exit completion can be cancelled by a replacement update", async () => {
-  const { module } = loadTransitionModule()
+test("story exit completion can be cancelled by a replacement update", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] })
+  const { window, module } = loadTransitionModule()
   const row = document.createElement("div")
   let completions = 0
 
@@ -64,7 +62,8 @@ test("story exit completion can be cancelled by a replacement update", async () 
   )
   cancel()
 
-  // Well past the 5ms fallback: a completion after cancel would have fired.
-  await new Promise((resolve) => setTimeout(resolve, 100))
+  // Neither the fallback nor a late transition event completes it now.
+  t.mock.timers.tick(5)
+  transition(window, "transitioncancel", "margin-left", row)
   assert.equal(completions, 0)
 })

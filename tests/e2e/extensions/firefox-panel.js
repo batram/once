@@ -2,7 +2,8 @@ const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
 const test = require("node:test")
-const { By, error: webdriverError, until } = require("selenium-webdriver")
+const assert = require("node:assert/strict")
+const { Builder, By, error: webdriverError, until } = require("selenium-webdriver")
 const firefox = require("selenium-webdriver/firefox")
 
 // A hosted runner is several times slower than a developer machine; every
@@ -145,8 +146,8 @@ async function openSettingsSection(driver, target, controlSelector) {
 //
 // geckodriver's output (its own log, Marionette's, and Firefox's stderr) goes
 // to a file under test-results/firefox-logs. A passing run's output is only
-// Firefox chatter; a failing test prints it, since a Firefox that crashes or
-// refuses the marionette handshake explains itself there.
+// Firefox chatter and is deleted; a failing test keeps and prints it, since a
+// Firefox that crashes or refuses the marionette handshake explains itself there.
 //
 // Firefox is also given its own app-data directory (MOZ_APP_DATA, inherited
 // through geckodriver). Even with an explicit -profile it reads profiles.ini
@@ -154,13 +155,27 @@ async function openSettingsSection(driver, target, controlSelector) {
 // denies that folder to a Firefox launched by a terminal or geckodriver: the
 // launch then exits with "Could not find profile folder." and status 1.
 const LOG_DIRECTORY = path.resolve(__dirname, "../../../test-results/firefox-logs")
-let currentLogs = []
+const EXTENSION_PATH = path.resolve(__dirname, "../../../apps/firefox-extension/dist/release")
+const EXTENSION_ID = "once_sidepanel_f@zmarn.com"
+let currentRuns = []
 
+// Runs once the test's own finally has quit the driver: Firefox no longer
+// holds its app-data directory, and the log is complete.
 test.afterEach((context) => {
-  const logs = currentLogs
-  currentLogs = []
-  if (context.passed) return
-  for (const log of logs) {
+  const runs = currentRuns
+  currentRuns = []
+  for (const { appData, log, output } of runs) {
+    fs.closeSync(output)
+    // Best effort: a Firefox still letting go of its files must not fail the test.
+    try {
+      fs.rmSync(appData, { recursive: true, force: true, maxRetries: 3 })
+    } catch {
+      // Left for the operating system's own temp cleanup.
+    }
+    if (context.passed) {
+      fs.rmSync(log, { force: true })
+      continue
+    }
     console.error(`--- Firefox/geckodriver output (${log}) ---`)
     console.error(fs.readFileSync(log, "utf8"))
   }
@@ -171,28 +186,54 @@ function systemAccessService() {
   fs.mkdirSync(LOG_DIRECTORY, { recursive: true })
   const log = path.join(LOG_DIRECTORY, `geckodriver-${Date.now()}-${process.pid}.log`)
   const output = fs.openSync(log, "w")
-  currentLogs.push(log)
+  currentRuns.push({ appData, log, output })
   return new firefox.ServiceBuilder()
     .addArguments("--allow-system-access")
     .setEnvironment({ ...process.env, MOZ_APP_DATA: appData, MOZ_LOCAL_APP_DATA: appData })
     .setStdio(["ignore", output, output])
 }
 
-// Log which Firefox and geckodriver a run used: neither is pinned, the runner
-// image rolls both forward, and this is what dates a breakage.
-async function logBrowserVersion(driver) {
-  const capabilities = await driver.getCapabilities()
-  console.log(
-    `Firefox ${capabilities.get("browserVersion")} / ` +
-    `geckodriver ${capabilities.get("moz:geckodriverVersion")}`
-  )
+/**
+ * A Firefox with the release build of Once's extension installed under
+ * `extensionUuid`, ready for `openExtensionPanel`. The caller quits it; a
+ * Firefox that fails on the way here is quit before the error is passed on.
+ */
+async function startFirefox(extensionUuid) {
+  const options = new firefox.Options()
+    .addArguments("-no-remote")
+    .setPreference("extensions.webextensions.uuids", JSON.stringify({ [EXTENSION_ID]: extensionUuid }))
+    .enableBidi()
+  if (process.platform !== "win32") options.addArguments("-headless")
+  const driver = await new Builder()
+    .forBrowser("firefox")
+    .setFirefoxOptions(options)
+    .setFirefoxService(systemAccessService())
+    .build()
+  try {
+    // Neither Firefox nor geckodriver is pinned, the runner image rolls both
+    // forward, and this line is what dates a breakage.
+    const capabilities = await driver.getCapabilities()
+    console.log(
+      `Firefox ${capabilities.get("browserVersion")} / ` +
+      `geckodriver ${capabilities.get("moz:geckodriverVersion")}`
+    )
+    const bidi = await driver.getBidi()
+    const installed = await bidi.send({
+      method: "webExtension.install",
+      params: { extensionData: { type: "path", path: EXTENSION_PATH } }
+    })
+    assert.equal(installed.result.extension, EXTENSION_ID)
+    return driver
+  } catch (error) {
+    await driver.quit().catch(() => undefined)
+    throw error
+  }
 }
 
 module.exports = {
   budget,
-  logBrowserVersion,
   openSettingsSection,
   openExtensionPanel,
   reopenExtensionPanel,
-  systemAccessService
+  startFirefox
 }

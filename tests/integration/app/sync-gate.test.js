@@ -10,16 +10,30 @@ function platform({ url = "", provenance, consent, hasLocalData = false, secrets
   fake.ports.syncSettingsStore.getSyncUrl = async () => state.url
   fake.ports.syncSettingsStore.setSyncUrl = async (value) => { state.url = value }
   fake.ports.syncSettingsStore.onSyncUrlChanged = (handler) => { state.urlListeners.add(handler); return () => state.urlListeners.delete(handler) }
-  fake.ports.syncService.syncFrom = (value) => { state.connections.push(value) }
+  fake.ports.syncService.syncFrom = (value) => {
+    state.connections.push(value)
+    if (value) state.connected?.()
+  }
   fake.ports.syncService.hasLocalData = async () => hasLocalData
   fake.ports.syncService.onStatus = (handler) => { state.status = handler; return () => undefined }
   if (consent) fake.ports.syncConsent = consent
-  state.changeUrlElsewhere = async (value) => {
+  state.changeUrlElsewhere = (value) => {
     state.url = value
     state.urlListeners.forEach((handler) => handler())
-    await new Promise((resolve) => setTimeout(resolve, 10))
   }
   return { fake, state }
+}
+
+// A change from outside (the URL, consent) restarts sync in the background.
+// The restart ends in one of two ways: it connects, or it reports why it may not.
+async function reconnection(app, state, trigger) {
+  const finished = new Promise((resolve) => {
+    const stop = app.client.subscribe("syncStatusChanged", () => { stop(); resolve() })
+    state.connected = () => { stop(); resolve() }
+  })
+  await trigger()
+  await finished
+  state.connected = undefined
 }
 
 const lastConnection = (state) => state.connections.at(-1)
@@ -38,7 +52,7 @@ test("changing the device-local URL reconnects immediately and survives restart"
   const restarted = platform({ url: state.url, secrets: fake.secrets, hasLocalData: true })
   await createOnceApp(restarted.fake.ports).start()
   assert.equal(lastConnection(restarted.state), state.url)
-  await state.changeUrlElsewhere("https://elsewhere.example.test/once")
+  await reconnection(app, state, () => state.changeUrlElsewhere("https://elsewhere.example.test/once"))
   assert.equal(lastConnection(state), state.url)
   assert.equal(fake.secrets.get("once:sync-destination"), state.url)
   await app.client.setSyncUrl("")
@@ -61,7 +75,7 @@ test("a changed browser-synced destination waits for Save, then reconnects and p
     secrets: new Map([["once:sync-destination", "https://sync.example.test/once"]]) })
   const app = createOnceApp(fake.ports)
   await app.start()
-  await state.changeUrlElsewhere("https://sync.example.test/other")
+  await reconnection(app, state, () => state.changeUrlElsewhere("https://sync.example.test/other"))
   assert.equal(lastConnection(state), "")
   assert.match(app.client.getSyncStatus().message, /Press Save/)
   await app.client.setSyncUrl(state.url)
@@ -96,11 +110,11 @@ test("without consent nothing connects; granting resumes and withdrawing stops r
   assert.ok(!state.connections.some(Boolean))
   assert.equal(await app.client.getSyncConsent(), "required")
   assert.match(app.client.getSyncStatus().message, /allow sending data/)
-  await app.client.requestSyncConsent()
-  await new Promise((resolve) => setTimeout(resolve, 10))
+  await reconnection(app, state, () => app.client.requestSyncConsent())
   assert.equal(lastConnection(state), "https://sync.example.test/once")
-  granted = false
-  listeners.forEach((handler) => handler())
-  await new Promise((resolve) => setTimeout(resolve, 10))
+  await reconnection(app, state, () => {
+    granted = false
+    listeners.forEach((handler) => handler())
+  })
   assert.equal(lastConnection(state), "")
 })

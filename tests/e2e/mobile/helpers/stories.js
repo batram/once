@@ -8,11 +8,14 @@ const { openSettingsSection, saveSourcesAndWait } = require("./settings")
 
 // Long-press anywhere on the row; ⋮ opens the same menu at the same anchor.
 async function openStoryMenu(page, story) {
-  await story.click({ delay: 700 })
+  // Held until the menu is there, not for a fixed time: the app opens it from a
+  // timer, and a fixed hold can end before a busy page has run it.
+  await story.hover()
+  await page.mouse.down()
   await expect(page.getByTestId("story-menu")).toBeVisible()
-  // The app suppresses the synthetic release click from a long-press for up
-  // to 250ms. Do not let the harness's next intentional tap get swallowed.
-  await page.waitForTimeout(300)
+  // The release click is the last event of the press and disarms the app's
+  // long-press click suppressor, so the next tap is not swallowed.
+  await page.mouse.up()
 }
 
 // Points the app at the local fixture feed, reloads so the source is the stored

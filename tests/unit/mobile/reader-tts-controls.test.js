@@ -96,7 +96,6 @@ test("host TTS bar is the single control surface in Reader mode", () => {
   controls.setReaderMode(false)
   assert.equal(pill.hidden, true)
   assert.equal(settings.open, false)
-  assert.deepEqual(sent.at(-1), { type: "ui-stop" })
 })
 
 test("hiding the bar or switching tabs keeps speech running; only stop and dismiss stop it", () => {
@@ -137,5 +136,5 @@ test("hiding the bar or switching tabs keeps speech running; only stop and dismi
   controls.setReaderMode(true)
   controls.dismiss()
   assert.equal(pill.hidden, true)
-  assert.deepEqual(sent.at(-1), { type: "ui-stop" })
+  assert.deepEqual(sent, [{ type: "ui-stop" }, { type: "ui-stop" }], "dismissing stops the speech as well")
 })

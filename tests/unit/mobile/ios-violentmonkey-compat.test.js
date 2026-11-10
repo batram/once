@@ -40,11 +40,8 @@ test("cold background restores only matched value stores without executing scrip
     if (message.cmd === "GetMoreIds") return { 3: "more", 4: 0 }
     return "ok"
   }
-  host.context.onceRestoreValueOpeners = async (ids, tab, frame) => {
-    assert.deepEqual(Array.from(ids), [3])
-    assert.equal(tab, 1)
-    assert.equal(frame, 0)
-  }
+  const restored = []
+  host.context.onceRestoreValueOpeners = async (ids, tab, frame) => { restored.push({ ids: Array.from(ids), tab, frame }) }
   host.context.handleCommandMessage = upstream
   host.api.runtime.onMessage.addListener(upstream)
   const sender = { tab: { id: 1 }, frameId: 0, documentId: "first", url: "https://example.com/" }
@@ -53,16 +50,20 @@ test("cold background restores only matched value stores without executing scrip
   assert.deepEqual(calls.map(c => c.message.cmd), ["GetMoreIds", "UpdateValue"])
   assert.equal(calls[0].sender, undefined, "Matching is an internal background operation")
   assert.equal(calls[0].message.data.url, sender.url, "Recovery uses WebKit's sender URL")
+  assert.deepEqual(restored, [{ ids: [3], tab: 1, frame: 0 }], "Only the script upstream matched is restored")
   calls.length = 0
   await host.receive(message, sender)
   assert.deepEqual(calls.map(c => c.message.cmd), ["UpdateValue"])
+  assert.equal(restored.length, 1)
   calls.length = 0
   await host.receive(message, { ...sender, documentId: "second" })
   assert.deepEqual(calls.map(c => c.message.cmd), ["GetMoreIds", "UpdateValue"])
+  assert.equal(restored.length, 2)
   calls.length = 0
   host.removed(1)
   await host.receive(message, sender)
   assert.equal(calls[0].message.cmd, "GetMoreIds")
+  assert.equal(restored.length, 3)
 })
 
 test("normal injection and unrelated messages retain upstream dispatch behavior", async () => {

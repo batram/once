@@ -6,7 +6,7 @@ const { SettingsNavigation, openSettingsPage, registerSettingsOverview, invalida
 const { open_panel } = require("../../../packages/ui-web/dist/shell/panelNavigation")
 
 function withDom(run) {
-  const { window } = parseHTML('<html><body><main id="left_panel" active_panel="settings"><div id="settings_panel"><span class="settings_title"></span><button id="settings_section_back"></button><section class="settings_section" data-settings-section="sources"></section><section class="settings_section" data-settings-section="filters"></section></div></main></body></html>')
+  const { window } = parseHTML('<html><body><main id="left_panel" active_panel="settings"><div id="stories_panel"></div><div id="settings_panel"><span class="settings_title"></span><button id="settings_section_back"></button><section class="settings_section" data-settings-section="sources"></section><section class="settings_section" data-settings-section="filters"></section></div></main></body></html>')
   const names = ["window", "document", "CustomEvent", "HTMLElement", "Element", "requestAnimationFrame"]
   const previous = names.map(name => globalThis[name])
   for (const name of names) globalThis[name] = name === "requestAnimationFrame" ? () => 0 : window[name]
@@ -193,6 +193,8 @@ test("deleted pages and completed drafts cannot replay, while history traversal 
     completeSettingsPage(root)
     visible = "sources"
     draft = "discarded"
+    // Walked both ways from here, the history no longer holds the finished draft.
+    navigation.navigate("back")
     navigation.navigate("forward")
     assert.equal(visible, "sources")
   })

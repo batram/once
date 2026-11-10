@@ -3,7 +3,7 @@
 `tests/e2e/mobile/mobile.lite-extensions.js` is the M3 acceptance suite for the
 Lite extension runtime (`docs/plans/once-lite-plan.md`). It drives the
 WebView-based Android app through Appium, like the smoke suite, and is selected
-by `ONCE_MOBILE_LITE_EXTENSIONS=1` in `wdio.shared.conf.js`.
+with `--suite lite-extensions` (`SUITES` in `wdio.shared.conf.js`).
 
 It covers Tier 1 (DevTools available) only: its phases drive uBlock Origin's
 and Violentmonkey's own pages, popups and dashboards, which Tier 2 does not
@@ -22,7 +22,7 @@ npm run test:mobile:e2e:android:lite:extensions:local
 ```
 
 The CI form (device already prepared) is `npm run test:mobile:e2e:android:lite:extensions`.
-Both set the env and pass `--engine lite`; the suite refuses any other engine.
+Both pass `--engine lite --suite lite-extensions`; the suite refuses any other engine.
 
 Optional:
 
@@ -30,9 +30,6 @@ Optional:
   from addons.mozilla.org).
 - `ONCE_LITE_HTML_FILTERS=1` asserts the HTML filter rule (`##^#lite-html-filtered`,
   needs response-body filtering); otherwise its outcome is only logged.
-- `ONCE_LITE_EXTENSIONS_PENDING=1` is for the *smoke* suite only: it keeps the
-  Lite skip of its extension assertions until M2 lands. Delete the gate in
-  `mobile.smoke.js` with the env once Lite applies filter lists and userscripts.
 
 Fixtures live in `tests/mobile-env/server.js` (`/fixtures/lite-filter-list.txt`,
 `/fixtures/ublock/*`, `/fixtures/violentmonkey/*`, `/fixtures/popup-probe.html`);
@@ -74,7 +71,8 @@ Shell (keep stable): `[data-settings-target='extensions']`, `#extension_settings
 Native (UiAutomator): the browser menu's expander `descriptionStartsWith("Extensions (")`
 (content description ends in ", collapsed"/", expanded"; the iOS sheet's expander carries the same
 accessibility label), extension rows by `text("<name>")`,
-the install prompt by `textContains("Install")` with its "Allow" button, an optional "Remove" confirmation.
+the install prompt by `textContains("Install")` and the removal prompt by `textContains("Remove extension")`, each
+accepted through the dialog's positive button (`android:id/button1`).
 
 Extension pages (Appium WebView contexts whose URL is `https://<host>.moz-extension.localhost/...`):
 uBlock `popup-fenix.html` (`#hostname`, `#basicStats` span after `[data-i18n=popupBlockedOnThisPage_v2]`, `#switch`),

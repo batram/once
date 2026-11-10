@@ -82,7 +82,15 @@ public class LiteExtensionEngineTest {
         if (catalogue != null) for (int index = 0; index < catalogue.length(); index++) catalogue.optJSONObject(index).remove("iconDataUrl");
         Log.i(TAG, "RESULTS " + results.toString());
         if (fixture != null) fixture.close();
-        ui(() -> { if (tab != null) { ((ViewGroup) tab.getParent()).removeView(tab); tab.destroy(); } });
+        // start() refused the package or the device: nothing was started.
+        if (activity == null) return;
+        ui(() -> {
+            if (tab != null) { ((ViewGroup) tab.getParent()).removeView(tab); tab.destroy(); }
+            activity.finish();
+        });
+        until("The test activity must be destroyed", activity::isDestroyed, 15);
+        // The engine belongs to the process and outlives the activity: the next test starts its own.
+        ui(() -> { LiteExtensionEngine current = LiteExtensionEngine.current(); if (current != null) current.destroy(); });
     }
 
     private LiteExtensionEngine bindEngine() throws Exception {
@@ -175,16 +183,14 @@ public class LiteExtensionEngineTest {
         assertTrue(loading.await(15, TimeUnit.SECONDS));
         assertNotNull("the tab must have a target", attachment.get().targetId());
         reportTab(tabId, pageUrl, attachment.get());
-        Thread.sleep(3000);
+        // The list blocks the image request and hides the element on the first load.
+        untilEvaluates("document.getElementById('i').dataset.r", "\"error\"", 20);
         results.put("ublockState", ublockState());
         results.put("filterRecord", filterRecord());
         results.put("listRequestsLater", fixture.listRequests.get());
-        // The list blocks the image request and hides the element on the first load.
-        untilEvaluates("document.getElementById('i').dataset.r", "\"error\"", 20);
-        Thread.sleep(3000);
-        results.put("worlds", worldState(attachment.get().targetId()));
         untilEvaluates("getComputedStyle(document.querySelector('.once-hide')).display", "\"none\"", 20);
         untilEvaluates("window.onceScriptletProbe", "true", 20);
+        results.put("worlds", worldState(attachment.get().targetId()));
         results.put("firstLoadFiltered", true);
         // 3. The bridge world answers a script through its binding (once the fixture document, not the marker, is up).
         untilEvaluates("document.title", "\"filter probe\"", 20);
@@ -232,7 +238,6 @@ public class LiteExtensionEngineTest {
         // readiness and filtering matter, not a second network download.
         long reloadEnd = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
         while (System.nanoTime() < reloadEnd && !ublockState().contains("\"loading\":false")) Thread.sleep(500);
-        Thread.sleep(2000);
         results.put("ublockStateAfterRestart", ublockState());
         // 6. The restarted engine filters the tab again: uBlock's own engine blocks the request and hides the element.
         int tabAgain = engine.nextTabId();
@@ -244,8 +249,6 @@ public class LiteExtensionEngineTest {
         assertTrue(loadingAgain.await(15, TimeUnit.SECONDS));
         reportTab(tabAgain, pageUrl, attachment.get());
         results.put("historyEntries", historySize());
-        Thread.sleep(4000);
-        results.put("ublockStateAtEnd", ublockState());
         untilEvaluates("document.getElementById('i').dataset.r", "\"error\"", 20);
         untilEvaluates("getComputedStyle(document.querySelector('.once-hide')).display", "\"none\"", 20);
         untilEvaluates("window.onceScriptletProbe", "true", 20);

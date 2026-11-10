@@ -236,6 +236,8 @@ function serveAfterOutage(request, response, outage) {
   return true
 }
 
+// options.onRequest only watches: an observer that throws is logged and the
+// request is served as usual. To change what a route answers, serve it differently.
 async function startPageServer(options = {}) {
   let origin = ""
   const outage = { requests: 0 }

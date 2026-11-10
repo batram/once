@@ -15,17 +15,17 @@ test("maps tab dispositions and tracks only the selected tab in the current wind
   const activated = event()
   const updated = event()
   const created = []
+  const navigated = []
   const opened = []
   const api = {
     tabs: {
       onActivated: activated,
       onUpdated: updated,
       create(options) { created.push(options) },
-      async get(id) { return { id, windowId: 1, active: true, url: "https://example.com/activated" } },
-      async query() { return [{ windowId: 1, active: true, url: "https://example.com/initial" }] }
+      async update(id, options) { navigated.push([id, options]) },
+      async query() { return [{ id: 5, windowId: 1, active: true, url: "https://example.com/initial" }] }
     },
-    runtime: { onMessage: event(), async sendMessage() { return null } },
-    windows: { async getCurrent() { return { id: 1 } } }
+    runtime: { onMessage: event(), async sendMessage() { return null } }
   }
   const port = createWebExtActiveTab(api, { open(url, target) { opened.push({ url, target }) } })
   port.openUrl("https://example.com/background", "middle")
@@ -36,6 +36,11 @@ test("maps tab dispositions and tracks only the selected tab in the current wind
     { url: "https://example.com/current", active: true }
   ])
   assert.deepEqual(opened, [{ url: "https://example.com/window", target: "blank" }])
+  // The panel is not a tab: "current" navigates the tab the user is looking at.
+  port.openUrl("https://example.com/replaced", "current")
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(navigated, [[5, { url: "https://example.com/replaced" }]])
+  assert.equal(created.length, 2)
 
   // Every event re-reads the active tab of the panel's own window.
   let active = "https://example.com/initial"
@@ -72,11 +77,9 @@ test("a late event about the page being left never reports it as open", async ()
     tabs: {
       onActivated: event(),
       onUpdated: updated,
-      query: () => later(() => [{ id: 1, windowId: 1, active: true, url: current }]),
-      get: () => later(() => ({ id: 1, windowId: 1, active: true, url: current }))
+      query: () => later(() => [{ id: 1, windowId: 1, active: true, url: current }])
     },
-    runtime: { onMessage: event(), async sendMessage() { return null } },
-    windows: { getCurrent: () => later(() => ({ id: 1 })) }
+    runtime: { onMessage: event(), async sendMessage() { return null } }
   }
   const drainNewestFirst = async () => {
     while (pending.length) {
@@ -125,8 +128,7 @@ for (const scheme of ["moz-extension", "chrome-extension"]) {
         getURL: path => `${scheme}://once/${path}`,
         async sendMessage(message) { navigationRequests.push(message); return null }
       },
-      tabs: { onActivated: activated, onUpdated: updated, async query() { return [tab()] }, async get() { return tab() } },
-      windows: { async getCurrent() { return { id: 1 } } }
+      tabs: { onActivated: activated, onUpdated: updated, async query() { return [tab()] } }
     }
     const urls = []
     const cleanup = createWebExtActiveTab(api, {}).onSelectedUrlChanged(url => urls.push(url))

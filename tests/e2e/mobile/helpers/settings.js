@@ -11,9 +11,7 @@ async function openSettingsSection(page, section) {
   }
   await row.click()
   if (["sources", "filters", "redirects"].includes(section)) {
-    const textarea = page.getByTestId(
-      section === "sources" ? "sources" : section
-    )
+    const textarea = page.getByTestId(section)
     if (!(await textarea.isVisible())) {
       await page.getByTestId(`${section}-mode-toggle`).click()
     }

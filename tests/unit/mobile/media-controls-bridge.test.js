@@ -75,7 +75,13 @@ test("other sites get basic metadata without YouTube scraping", () => {
     assert.equal(f.sent[0].title, "Example video - YouTube")
     assert.equal(f.sent[0].artist, "")
   }
-  assert.ok(fixture("www.youtube-nocookie.com").listeners.size > 0)
+})
+
+test("embedded youtube-nocookie players get the YouTube title and channel", () => {
+  const f = fixture("www.youtube-nocookie.com")
+  f.receive({ type: "media-observe", enabled: true })
+  assert.equal(f.sent[0].title, "Example video")
+  assert.equal(f.sent[0].artist, "Example channel")
 })
 
 

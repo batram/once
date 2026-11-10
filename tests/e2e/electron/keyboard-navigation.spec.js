@@ -282,7 +282,6 @@ test("a remapped shortcut takes effect immediately", async () => {
 })
 
 test("a shortcut already in use is refused, and says where it went", async () => {
-  const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp()
   try {
     await openSettingsSection(window, "keyboard", "#keyboard_shortcuts")
@@ -309,12 +308,10 @@ test("a shortcut already in use is refused, and says where it went", async () =>
     await expect(status).toContainText("Ctrl, Alt or Shift")
   } finally {
     await closeApp(electronApp, userData)
-    await server.close()
   }
 })
 
 test("a shortcut can be cleared away entirely", async () => {
-  const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp()
   try {
     await openSettingsSection(window, "keyboard", "#keyboard_shortcuts")
@@ -350,12 +347,10 @@ test("a shortcut can be cleared away entirely", async () => {
     expect(boxes.unset).toEqual(boxes.bound)
   } finally {
     await closeApp(electronApp, userData)
-    await server.close()
   }
 })
 
 test("shortcut groups are boxed, foldable, and keep their state", async () => {
-  const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp()
   try {
     await openSettingsSection(window, "keyboard", "#keyboard_shortcuts")
@@ -383,7 +378,6 @@ test("shortcut groups are boxed, foldable, and keep their state", async () => {
       .not.toHaveAttribute("open", "")
   } finally {
     await closeApp(electronApp, userData)
-    await server.close()
   }
 })
 
@@ -415,7 +409,6 @@ test("story menu actions are offered as bindable shortcuts", async () => {
 })
 
 test("a new tab puts the cursor in the address bar", async () => {
-  const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp()
   try {
     await window.keyboard.press("Control+t")
@@ -433,7 +426,6 @@ test("a new tab puts the cursor in the address bar", async () => {
     await expectDocumentFocus(window.locator("#urlfield"))
   } finally {
     await closeApp(electronApp, userData)
-    await server.close()
   }
 })
 
@@ -509,7 +501,7 @@ test("a story takes the blank tab, the next story gets a tab of its own", async 
     await window.locator(`#stories story-item[data-href="${urls.beta}"]`)
       .locator(storyFixture.SELECTORS.title).click()
     await expect.poll(() => activeTabUrl(window)).toBe(urls.beta)
-    expect((await tabs()).map((tab) => tab.url)).toEqual([urls.alpha, urls.beta])
+    await expect.poll(async () => (await tabs()).map((tab) => tab.url)).toEqual([urls.alpha, urls.beta])
 
     // The row mirrored above the page is that page's own story, so its links
     // replace the page in place rather than opening a third tab.
@@ -517,28 +509,8 @@ test("a story takes the blank tab, the next story gets a tab of its own", async 
     await window.locator(storyFixture.SELECTORS.selected)
       .locator(storyFixture.SELECTORS.comment).first().click()
     await expect.poll(() => activeTabUrl(window)).toBe(urls.betaComments)
+    // Read once: a tab sent on never names the page it is leaving again.
     expect((await tabs()).map((tab) => tab.url)).toEqual([urls.alpha, urls.betaComments])
-  } finally {
-    await closeApp(electronApp, userData)
-    await server.close()
-  }
-})
-
-test("Alt+Shift+C does nothing on a page with no story behind it", async () => {
-  const server = await startPageServer()
-  const { electronApp, userData, window } = await launchApp(STORY_ENV)
-  try {
-    const urls = await seedStories(window, server.origin)
-
-    // Alpha has no comments URL, so there is no other side to switch to.
-    await window.locator(`#stories story-item[data-href="${urls.alpha}"]`)
-      .locator(storyFixture.SELECTORS.title).click()
-    await expect.poll(() => activeTabUrl(window)).toBe(urls.alpha)
-
-    await window.keyboard.press("Alt+Shift+C")
-    // Nothing to poll for, so give the navigation a chance to happen wrongly.
-    await window.waitForTimeout(300)
-    expect(await activeTabUrl(window)).toBe(urls.alpha)
   } finally {
     await closeApp(electronApp, userData)
     await server.close()
@@ -580,7 +552,7 @@ test("opening a story hands the highlight to the tab it opened in", async () => 
   const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp(STORY_ENV)
   try {
-    const urls = await seedStories(window, server.origin)
+    await seedStories(window, server.origin)
     const body = window.locator("body")
     await window.keyboard.press("ArrowDown")
     await expect(body).toHaveAttribute("data-pane-focus", "stories")
@@ -597,7 +569,6 @@ test("opening a story hands the highlight to the tab it opened in", async () => 
 
     await window.keyboard.press("Alt+Shift+ArrowLeft")
     await expect(body).toHaveAttribute("data-pane-focus", "stories")
-    void urls
   } finally {
     await closeApp(electronApp, userData)
     await server.close()

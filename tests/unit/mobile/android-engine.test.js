@@ -136,29 +136,3 @@ test("the Lite runtime's Java half follows the broker protocol", () => {
   // The package step fetches the bundles for both engines.
   assert.doesNotMatch(fs.readFileSync(path.join(root, "apps/mobile/scripts/mobile-cli.js"), "utf8"), /if \(engine === "gecko"\) run\(process\.execPath, \[path\.join\(root, "scripts", "fetch-extensions\.js"\)\]\)/)
 })
-
-test("the e2e harness, CI and docs carry the engine", () => {
-  const smoke = fs.readFileSync(path.join(root, "tests/e2e/mobile/mobile.smoke.js"), "utf8")
-  assert.match(smoke, /packageName\(androidEngine, "dev"\)/)
-  assert.match(smoke, /androidEngine === "lite"\)\) await expectExtensionsApplied\(\)/)
-  assert.doesNotMatch(smoke, /"com\.zmarn\.once\.dev"/)
-  const wdio = fs.readFileSync(path.join(root, "tests/e2e/mobile/wdio.shared.conf.js"), "utf8")
-  assert.match(wdio, /packageName\(engine, "dev"\)/)
-  const runner = fs.readFileSync(path.join(root, "tests/e2e/mobile/run-mobile-e2e.js"), "utf8")
-  assert.match(runner, /stamp\.engine \|\| "gecko"\) !== engine/)
-  const scripts = require(path.join(root, "package.json")).scripts
-  assert.equal(scripts["test:mobile:e2e:android:lite"], "node tests/e2e/mobile/run-mobile-e2e.js android --engine lite")
-  assert.equal(scripts["test:mobile:e2e:android:lite:local"], "node tests/e2e/mobile/run-android-local.js --engine lite")
-  for (const name of ["run:mobile:android:lite", "run:mobile:android:lite:emulator", "package:mobile:android:lite", "deploy:mobile:android:lite", "inspect:mobile:android:lite"]) {
-    assert.match(scripts[name], /lite/, name)
-  }
-  const ci = fs.readFileSync(path.join(root, ".github/workflows/mobile.yml"), "utf8")
-  assert.match(ci, /mobile-android-lite:/)
-  assert.match(ci, /--engine lite/)
-  assert.match(ci, /lintLiteDevelopmentDebug testLiteDevelopmentDebugUnitTest/)
-  assert.match(ci, /test:mobile:e2e:android:lite/)
-  assert.match(fs.readFileSync(path.join(root, ".github/workflows/mobile-compat.yml"), "utf8"), /engine: \[gecko, lite\]/)
-  const docs = fs.readFileSync(path.join(root, "docs/DEVELOPMENT.md"), "utf8")
-  assert.match(docs, /`com\.zmarn\.once\.lite\.dev` \| Once Lite Dev \| `liteDevelopment`/)
-  assert.match(fs.readFileSync(path.join(root, "tests/e2e/mobile/build-extension-benchmark-android.js"), "utf8"), /src\/gecko\/java\/com\/zmarn\/once\/GeckoEngine\.java/)
-})

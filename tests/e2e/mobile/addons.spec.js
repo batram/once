@@ -63,5 +63,5 @@ test("a scripted add-on runs in the mobile sandbox", async ({ page }) => {
   await expect(menu).toBeVisible()
   await expect(menu).toContainText("Visit from add-on")
   await page.getByTestId("story-menu-backdrop").click({ position: { x: 5, y: 5 } })
-  expect(await page.locator("iframe[data-addon-sandbox]").count()).toBe(1)
+  await expect(page.locator("iframe[data-addon-sandbox]")).toHaveCount(1)
 })

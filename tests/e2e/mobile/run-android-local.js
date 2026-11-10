@@ -1,7 +1,7 @@
 const fs = require("fs")
 const path = require("path")
 const { spawnSync } = require("child_process")
-const { androidDeviceAbi, androidDeviceCommands } = require("./android-device")
+const { androidDeviceAbi, androidDeviceCommands, parseUsableAndroidDevices } = require("./android-device")
 const { mobileEngine } = require("../../../apps/mobile/scripts/android-engine")
 
 const root = path.resolve(__dirname, "../../..")
@@ -18,6 +18,9 @@ catch (error) { console.error(`mobile-e2e: ${error.message}`); process.exit(1) }
 // extension runtime starts; it is cleared again however the run ends.
 const tier2 = process.argv.includes("--tier2")
 const TIER2_PROPERTY = "debug.once.lite.devtools"
+// --suite <name> picks another suite than the smoke suite (see wdio.shared.conf.js).
+const suiteFlag = process.argv.indexOf("--suite")
+const suite = suiteFlag >= 0 ? process.argv[suiteFlag + 1] : process.env.ONCE_MOBILE_SUITE
 if (tier2 && engine !== "lite") { console.error("mobile-e2e: --tier2 needs --engine lite"); process.exit(1) }
 
 function fail(message) {
@@ -82,9 +85,7 @@ function requireConnectedDevice(sdk, env) {
     capture: true,
     timeout: 10_000
   })
-  const connected = result.stdout.split(/\r?\n/)
-    .map(line => /^(\S+)\s+device(?:\s|$)/.exec(line.trim())?.[1])
-    .filter(Boolean)
+  const connected = parseUsableAndroidDevices(result.stdout)
   const requested = process.env.ONCE_ANDROID_UDID || process.env.ANDROID_SERIAL
   if (requested && !connected.includes(requested)) {
     fail(`Android device ${requested} is not ready; adb reports: ${connected.join(", ") || "none"}`)
@@ -116,7 +117,13 @@ function ensureUiAutomatorDriver(env) {
 
 const android = androidEnvironment()
 const { adb, serial } = requireConnectedDevice(android.sdk, android.env)
-const env = { ...android.env, ONCE_ANDROID_UDID: serial, ANDROID_SERIAL: serial, ONCE_MOBILE_ENGINE: engine }
+const env = {
+  ...android.env,
+  ONCE_ANDROID_UDID: serial,
+  ANDROID_SERIAL: serial,
+  ONCE_MOBILE_ENGINE: engine,
+  ...(suite ? { ONCE_MOBILE_SUITE: suite } : {})
+}
 ensureUiAutomatorDriver(env)
 let abi
 try { abi = androidDeviceAbi(adb, serial, env, spawnSync) } catch (error) { fail(error.message) }
@@ -130,9 +137,13 @@ if (tier2) {
   process.on("exit", () => {
     spawnSync(adb, ["-s", serial, "shell", "setprop", TIER2_PROPERTY, "''"], { env, stdio: "ignore", timeout: 10_000 })
   })
+  // A signal's default action ends the process without an "exit" event, which
+  // would leave the property set. With a listener the run below still ends
+  // (Ctrl-C reaches the child as well) and the exit handler clears it.
+  for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => process.exit(1))
   console.log(`mobile-e2e: Once Lite runs in Tier 2 (${TIER2_PROPERTY}=off) for this run`)
 }
 runNpm([
   "run",
   visual ? "inspect:mobile:android:run" : "test:mobile:e2e:android"
-], tier2 ? { ...env, ONCE_LITE_TIER2: "1" } : env)
+], env)

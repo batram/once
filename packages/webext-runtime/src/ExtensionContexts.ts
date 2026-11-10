@@ -20,6 +20,8 @@ export interface ContextEntry {
 }
 
 interface PendingReply {
+  /** The context that was asked: no other may answer. */
+  contextId: string
   resolve(results: unknown[]): void
   timer: ReturnType<typeof setTimeout>
 }
@@ -43,7 +45,7 @@ export class ExtensionContexts {
   private readonly entries = new Map<string, ContextEntry>()
   private readonly pending = new Map<number, PendingReply>()
   private readonly removed = new Set<(entry: ContextEntry) => void>()
-  private readonly listenerWaiters = new Set<() => void>()
+  private readonly listenerWaiters = new Set<{ check(): void; unloaded(): void }>()
   private nextToken = 1
 
   /**
@@ -98,7 +100,7 @@ export class ExtensionContexts {
       entry.listeners.set(key, listeners)
     }
     listeners.set(listenerId, spec)
-    for (const waiter of this.listenerWaiters) waiter()
+    for (const waiter of [...this.listenerWaiters]) waiter.check()
   }
 
   /**
@@ -109,10 +111,16 @@ export class ExtensionContexts {
   whenListening(api: string, event: string, timeoutMs: number): Promise<void> {
     if (this.targets(api, event).length > 0) return Promise.resolve()
     return new Promise((resolve, reject) => {
-      const check = () => {
-        if (this.targets(api, event).length === 0) return
-        cleanup()
-        resolve()
+      const waiter = {
+        check: () => {
+          if (this.targets(api, event).length === 0) return
+          cleanup()
+          resolve()
+        },
+        unloaded: () => {
+          cleanup()
+          reject(new Error(`The extension was unloaded before a page listened to ${api}.${event}`))
+        }
       }
       const timer = setTimeout(() => {
         cleanup()
@@ -120,9 +128,9 @@ export class ExtensionContexts {
       }, timeoutMs)
       const cleanup = () => {
         clearTimeout(timer)
-        this.listenerWaiters.delete(check)
+        this.listenerWaiters.delete(waiter)
       }
-      this.listenerWaiters.add(check)
+      this.listenerWaiters.add(waiter)
     })
   }
 
@@ -182,7 +190,7 @@ export class ExtensionContexts {
         this.pending.delete(token)
         resolve([])
       }, timeoutMs)
-      this.pending.set(token, { resolve, timer })
+      this.pending.set(token, { contextId: target.entry.id, resolve, timer })
       target.entry.send({ api, event, args, token, listeners: target.listenerIds })
     })
   }
@@ -190,7 +198,7 @@ export class ExtensionContexts {
   handleReply(senderId: string | number, reply: ExtensionReply): void {
     if (!this.entries.has(String(senderId))) return
     const pending = this.pending.get(reply.token)
-    if (!pending) return
+    if (!pending || pending.contextId !== String(senderId)) return
     clearTimeout(pending.timer)
     this.pending.delete(reply.token)
     pending.resolve(Array.isArray(reply.result) ? reply.result : [])
@@ -202,6 +210,9 @@ export class ExtensionContexts {
       pending.resolve([])
     }
     this.pending.clear()
+    // No page of an unloaded extension will ever listen: waiting out the
+    // timeout would keep its host alive and answer long after anyone cares.
+    for (const waiter of [...this.listenerWaiters]) waiter.unloaded()
     for (const id of [...this.entries.keys()]) this.remove(id)
   }
 }

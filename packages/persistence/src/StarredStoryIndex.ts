@@ -5,7 +5,6 @@ const BATCH_SIZE = 500
 
 /** A local, resumable projection of starred IDs, not a second copy of every story. */
 export async function starredStoryDocuments(db: PouchStoryDatabase): Promise<Record<string, unknown>[]> {
-  if (!db.changes) throw new Error("Starred-story projection requires a changes feed")
   const changes = db.changes.bind(db)
   for (let attempt = 0; ; attempt++) {
     try {

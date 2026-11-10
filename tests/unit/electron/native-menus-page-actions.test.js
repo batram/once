@@ -112,6 +112,8 @@ test("conditions filter the page and link independently, including reader source
 
 test("no add-on items for the shell's own window, a non-web page, malformed actions, or none at all", () => {
   const h = harness([{ id: "example.explain", label: "Explain" }, { id: "bad id!", label: "x" }, { id: "blank", label: "  " }, "junk"])
+  h.menus.showContentsMenu(h.owner, h.contents, h.params)
+  assert.deepEqual(h.labels(), ["Inspect", "separator", "Explain"], "only the well-formed action is listed")
   h.menus.showContentsMenu(h.owner, h.shell, h.params)
   assert.deepEqual(h.labels(), ["Inspect"])
   h.menus.showContentsMenu(h.owner, h.contents, { ...h.params, pageURL: "about:blank" })

@@ -1,19 +1,8 @@
 const assert = require("node:assert/strict")
-const fs = require("node:fs")
-const path = require("node:path")
 const test = require("node:test")
-const ts = require("typescript")
 const { parseHTML } = require("linkedom")
 
-const source = fs.readFileSync(path.resolve(
-  __dirname,
-  "../../../packages/ui-web/src/reader/readerSpeechText.ts"
-), "utf8")
-const compiled = ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
-}).outputText
-const textPolicy = { exports: {} }
-Function("exports", "module", compiled)(textPolicy.exports, textPolicy)
+const textPolicy = { exports: require("../../../packages/ui-web/dist/reader/readerSpeechText") }
 
 test("reader speech normalization removes visual punctuation and simplifies URLs", () => {
   assert.equal(
@@ -100,21 +89,6 @@ test("reader speech skips bracket-only fragments and broken note markers", () =>
   assert.deepEqual(segments.map(({ text }) => text), [
     "Notes", "You can also make tokens flow.", "Second."
   ])
-})
-
-test("reader speech segmenter survives Function.toString inlining into the page", () => {
-  // readerTts.ts serialises these functions with toString(); anything they
-  // reference outside their own body is lost in the standalone page script.
-  const { exports: policy } = textPolicy
-  const inlined = Function(
-    `const normalize = ${policy.normalizeReaderSpeechText.toString()};
-     const split = ${policy.splitReaderSpeechText.toString()};
-     const create = ${policy.createReaderSpeechSegmentsWith.toString()};
-     return (root) => create(root, 900, normalize, split)`
-  )()
-  const { document } = parseHTML("<article><p>One.</p>loose two.<p>Three.</p></article>")
-  const segments = inlined(document.querySelector("article"))
-  assert.deepEqual(segments.map(({ text }) => text), ["One.", "loose two.", "Three."])
 })
 
 test("reader speech announces long code blocks instead of reading them", () => {

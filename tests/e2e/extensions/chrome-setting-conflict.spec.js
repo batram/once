@@ -28,7 +28,21 @@ for (const policy of ["single", "synced", "local"]) test(`Chrome migrates after 
   ], { new_edits: false })
   const server = await new Promise(resolve => { const listening = api.listen(0, "127.0.0.1", () => resolve(listening)) })
   const origin = `http://127.0.0.1:${server.address().port}`
-  const browser = await launchExtensionChrome({ profilePrefix: "once-chrome-setting-review-" })
+  // express-pouchdb keeps its database registry open; it is closed last, so
+  // that the directory can be removed on Windows too.
+  const closeCouch = async () => {
+    server.closeAllConnections()
+    await new Promise(resolve => server.close(resolve))
+    await old.destroy()
+    await canonical.destroy()
+    await Db.allDbs()
+    await new Db("pouch__all_dbs__").close()
+    await fs.rm(directory, { recursive: true, force: true })
+  }
+  const browser = await launchExtensionChrome({ profilePrefix: "once-chrome-setting-review-" }).catch(async error => {
+    await closeCouch()
+    throw error
+  })
   try {
     await browser.context.route(/^https?:/, route => route.request().url().startsWith(origin) ? route.continue() : route.abort())
     const worker = await waitForExtensionWorker(browser.context)
@@ -84,7 +98,6 @@ for (const policy of ["single", "synced", "local"]) test(`Chrome migrates after 
     expect((await canonical.get(story._id)).title).toBe("Canonical Servo title")
     expect((await canonical.get(story._id, { conflicts: true }))._conflicts).toBeUndefined()
   } finally {
-    await browser.close(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await old.destroy(); await canonical.destroy() })
-    // express-pouchdb retains its catalog handle until the worker exits.
+    await browser.close(closeCouch)
   }
 })

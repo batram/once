@@ -46,6 +46,7 @@ class TabNavigationEvents {
     })
     contents.on("did-stop-loading", () => {
       entry.loading = false
+      entry.pendingUrl = undefined
       this.keepCommittedPage(entry)
       changed()
     })
@@ -57,6 +58,7 @@ class TabNavigationEvents {
     })
     contents.on("did-start-navigation", (event) => {
       if (!event.isMainFrame || event.isSameDocument) return
+      entry.pendingUrl = event.url
       entry.visitId = undefined
       const preserveTitle = this.titlePreservingReloads.delete(entry)
       const errorPage = this.errors.state(entry, event.url)
@@ -80,9 +82,15 @@ class TabNavigationEvents {
       // where it ended up, not the link that led there.
       if (entry.title === fallbackTabTitle(entry.displayedUrl)) entry.title = fallbackTabTitle(event.url)
       entry.displayedUrl = event.url
+      entry.pendingUrl = event.url
       changed()
     })
     contents.on("did-navigate", (_event, url, statusCode) => {
+      // A page about to commit cannot be cancelled, so it still arrives after
+      // the tab was sent elsewhere: it is not where the tab is heading, and
+      // the address stays with the navigation that replaces it.
+      if (entry.pendingUrl !== undefined && !sameUrl(url, entry.pendingUrl)) return
+      entry.pendingUrl = undefined
       entry.storyPage = { ...entry.storyPage, statusCode }
       this.didNavigate(entry, url, changed)
       if (statusCode >= 500 || statusCode === 429) this.reportLoadFailure(entry, url, `HTTP ${statusCode}`)
@@ -94,7 +102,8 @@ class TabNavigationEvents {
       }
     })
     contents.on("did-finish-load", () => {
-      this.recordVisit(entry, false)
+      // A page overtaken while it committed finishes under the next one's address.
+      if (entry.pendingUrl === undefined) this.recordVisit(entry, false)
       const owner = this.actions.ownerFor(entry)
       if (owner && this.errors.state(entry, contents.getURL())) {
         this.errors.applyTheme(entry, owner.backgroundColor)

@@ -10,6 +10,8 @@ import android.view.View;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.After;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mozilla.geckoview.GeckoSession;
@@ -18,29 +20,35 @@ import static org.junit.Assert.*;
 /** Faults target real content processes in the isolated development app only. */
 @RunWith(AndroidJUnit4.class)
 public class GeckoResilienceTest {
+    private final GeckoTestSupport t = new GeckoTestSupport();
+
+    @After public void stop() throws Exception { t.stop(); }
+
     @Test public void storyListDoesNotInitializeGecko() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        // The engine lives as long as the process, and JUnit does not order the tests of a class.
+        Assume.assumeTrue("Gecko already runs in this process: run this test alone"
+            + " (-e class com.zmarn.once.GeckoResilienceTest#storyListDoesNotInitializeGecko)", GeckoEngine.started() == null);
+        t.start();
         java.util.concurrent.atomic.AtomicReference<String> shellReady = new java.util.concurrent.atomic.AtomicReference<>();
         t.until("The real shell must finish startup", () -> {
             t.activity.getBridge().getWebView().evaluateJavascript("document.body.dataset.onceReady === 'true'", shellReady::set);
             return "true".equals(shellReady.get());
         }, 25);
-        t.ui(() -> assertNull("The story list must not eagerly create Gecko", t.field("engine")));
+        assertNull("The story list must not eagerly create Gecko", GeckoEngine.started());
         // Open the section the way the shell does: settings navigation shows the
         // overview, which lists extensions natively. A class toggle no longer does.
         t.ui(() -> t.activity.getBridge().getWebView().evaluateJavascript(
             "document.querySelector(\"[data-settings-target='extensions']\").click()", null));
         t.until("Opening extension settings must start Gecko on demand", () -> t.field("engine") != null, 15);
-        t.close();
     }
     @Test public void actualProcessDeathsAutomaticallyRecoverAndPaint() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.close();
+        t.start();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             for (int run = 0; run < 3; run++) {
                 t.open(fixture.url("/alive")); t.ready("alive");
-                // Let the spare service finish binding: this test kills running
-                // renderers, not Android services partway through their launch.
-                Thread.sleep(700);
+                // This test kills running renderers, not Android services partway
+                // through their launch: one of those would survive and take over.
+                t.until("Every Gecko tab service must finish launching", () -> launching(t) == 0, 10);
                 GeckoSession previous = (GeckoSession)t.field("session");
                 long start = SystemClock.elapsedRealtime();
                 List<Integer> children = children(t);
@@ -55,7 +63,7 @@ public class GeckoResilienceTest {
     }
 
     @Test public void frozenProcessDoesNotQueueObsoleteDestinations() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.close();
+        t.start();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             t.open(fixture.url("/before")); t.ready("before");
             GeckoSession old = (GeckoSession)t.field("session");
@@ -78,7 +86,7 @@ public class GeckoResilienceTest {
     }
 
     @Test public void idleFrozenPageRecoversWithoutAnotherNavigation() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.close();
+        t.start();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             t.open(fixture.url("/idle")); t.ready("idle");
             for (int run = 0; run < 3; run++) {
@@ -96,7 +104,7 @@ public class GeckoResilienceTest {
     }
 
     @Test public void networkThatNeverAnswersEndsInNativeRetryThenNewStoryWorks() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.close();
+        t.start();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             t.open(fixture.url("/stall"));
             t.until("Repeated stall must end, not retry forever", () -> (boolean)t.field("recoveryFailed"), 75);
@@ -116,7 +124,7 @@ public class GeckoResilienceTest {
     }
 
     @Test public void hiddenMemoryHeavyPagesReleaseAndResumeRepeatedly() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.close();
+        t.start();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             for (int run = 0; run < 3; run++) {
                 t.open(fixture.url("/memory")); t.ready("memory");
@@ -133,8 +141,11 @@ public class GeckoResilienceTest {
     }
 
     @Test public void realInfiniteScriptCanBeLeftForAnotherStory() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.close();
+        t.start();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
+            // The page starts spinning 300 ms after it loads and then answers nothing, a
+            // readiness script included (that call would block until its 40 s deadline),
+            // so there is no state to poll: this is time for the load and the spin to begin.
             t.open(fixture.url("/spin")); Thread.sleep(2000);
             long start = SystemClock.elapsedRealtime();
             t.navigate(fixture.url("/after-spin")); t.ready("after-spin");
@@ -143,7 +154,7 @@ public class GeckoResilienceTest {
     }
 
     @Test public void redirectsAndBackRemainUsable() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.close();
+        t.start();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             t.open(fixture.url("/first")); t.ready("first");
             t.navigate(fixture.url("/redirect")); t.ready("redirected");
@@ -159,7 +170,7 @@ public class GeckoResilienceTest {
     }
 
     @Test public void extensionPageReattachesAfterLossAndHiddenPagesTrim() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.close();
+        t.start();
         java.util.concurrent.atomic.AtomicReference<GeckoSession> extension = new java.util.concurrent.atomic.AtomicReference<>();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             t.open(fixture.url("/reader")); t.ready("reader");
@@ -199,11 +210,20 @@ public class GeckoResilienceTest {
     }
 
     private List<Integer> children(GeckoTestSupport t) {
+        return contentProcesses(t, true);
+    }
+
+    /** Tab services Android has started that are not renderers yet. */
+    private int launching(GeckoTestSupport t) {
+        return contentProcesses(t, false).size();
+    }
+
+    private List<Integer> contentProcesses(GeckoTestSupport t, boolean rendering) {
         List<Integer> ids = new ArrayList<>();
         Context target = t.instrumentation.getTargetContext();
         ActivityManager manager = (ActivityManager)t.activity.getSystemService(Context.ACTIVITY_SERVICE);
         for (ActivityManager.RunningAppProcessInfo p : manager.getRunningAppProcesses())
-            if (p.uid == Process.myUid() && GeckoEngine.isContentProcess(target, p.processName) && GeckoEngine.hasContentThread(p.pid)) ids.add(p.pid);
+            if (p.uid == Process.myUid() && GeckoEngine.isContentProcess(target, p.processName) && GeckoEngine.hasContentThread(p.pid) == rendering) ids.add(p.pid);
         return ids;
     }
 

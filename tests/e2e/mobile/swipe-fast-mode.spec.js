@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test")
 const { openSettingsSection, openSwipeAdvanced } = require("./helpers/settings")
 const { seedFixtureStories } = require("./helpers/stories")
-const { dragStory, sampleSwipePhases, translateX } = require("./helpers/swipe")
+const { dragStory, holdSwipeUntilArmed, translateX } = require("./helpers/swipe")
 
 test("fast swipe mode requires stage two to lock before it commits", async ({ page }) => {
   await seedFixtureStories(page)
@@ -105,21 +105,34 @@ test("fast swipe mode requires stage two to lock before it commits", async ({ pa
     .toHaveText("Stage 1 → Skip")
 
   // A deliberate hold explains the destination without changing the action
-  // currently promised by the primary label and background.
-  await dragStory(preview, 400, { release: false })
-  await expect(page.locator('[data-lock-phase="handoff"]')).toBeVisible()
-  const handoff = page.locator('.bb_slide .swipe_left[data-lock="pending"]')
-  await expect(handoff).toHaveAttribute("data-action", "open")
-  await expect(handoff.locator(".swipe_action_primary")).toHaveText("Read · open")
-  await expect(handoff.locator(".swipe_action_secondary"))
-    .toHaveText("Hold → Open in reader")
-
-  // Holding continuously beyond the threshold arms and commits stage two.
-  await expect(page.locator('.bb_slide [data-lock="armed"]')).toBeVisible()
-  const armed = page.locator('.bb_slide .swipe_left[data-lock="armed"]')
-  await expect(armed).toHaveAttribute("data-action", "open-reader")
-  await expect(armed.locator(".swipe_action_primary")).toHaveText("Open in reader")
-  await expect(armed.locator(".swipe_action_secondary")).toHaveText("")
+  // currently promised by the primary label and background, and only holding
+  // on through the lock-in arms stage two.
+  const held = await holdSwipeUntilArmed(preview, 400)
+  expect(held).toMatchObject([
+    {
+      action: "open",
+      lock: "pending",
+      phase: "quiet",
+      primary: "Read · open",
+      secondary: ""
+    },
+    {
+      action: "open",
+      lock: "pending",
+      phase: "handoff",
+      primary: "Read · open",
+      secondary: "Hold → Open in reader"
+    },
+    {
+      action: "open-reader",
+      lock: "armed",
+      phase: "none",
+      primary: "Open in reader",
+      secondary: ""
+    }
+  ])
+  await expect(page.locator('.bb_slide .swipe_left[data-lock="armed"]'))
+    .toBeVisible()
   await preview.evaluate(() => {
     document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
   })
@@ -136,48 +149,52 @@ test("fast swipe handoff respects lock-in extremes and identical actions", async
   await page.locator("#swipe_fast_mode").check()
   const preview = page.getByTestId("swipe-preview-row")
 
-  // At the minimum delay the entire pending interval is quiet, followed by a
-  // direct switch to the armed Stage 2 surface.
-  await page.locator("#swipe_stage_2_lock_in").fill("75")
-  const minimum = await sampleSwipePhases(preview, 400, [35, 60])
-  expect(minimum[0]).toMatchObject({
+  const cancelSwipe = () => preview.evaluate(() => {
+    document.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true }))
+  })
+  const quiet = {
     action: "open",
     lock: "pending",
     phase: "quiet",
     primary: "Read · open",
     secondary: ""
-  })
-  expect(minimum[1]).toMatchObject({
+  }
+  const armed = {
     action: "open-reader",
     lock: "armed",
     phase: "none",
     primary: "Open in reader",
     secondary: ""
-  })
+  }
+
+  // At the minimum delay the entire pending interval is quiet, followed by a
+  // direct switch to the armed Stage 2 surface.
+  await page.locator("#swipe_stage_2_lock_in").fill("75")
+  expect(await holdSwipeUntilArmed(preview, 400)).toMatchObject([quiet, armed])
+  await cancelSwipe()
 
   // The maximum delay still uses a 75ms quiet phase; the remaining 425ms is
   // exposed to CSS as the explanatory handoff duration.
   await page.locator("#swipe_stage_2_lock_in").fill("500")
-  const maximum = await sampleSwipePhases(preview, 400, [100])
-  expect(maximum[0]).toMatchObject({
-    action: "open",
-    lock: "pending",
-    phase: "handoff",
-    primary: "Read · open",
-    secondary: "Hold → Open in reader",
-    handoffDuration: "425ms"
-  })
+  expect(await holdSwipeUntilArmed(preview, 400)).toMatchObject([
+    quiet,
+    {
+      ...quiet,
+      phase: "handoff",
+      secondary: "Hold → Open in reader",
+      handoffDuration: "425ms"
+    },
+    armed
+  ])
+  await cancelSwipe()
 
   // There is no explanatory label when holding would produce the same action.
   await page.getByTestId("swipe-right-2").selectOption("open")
-  const identical = await sampleSwipePhases(preview, 400, [100])
-  expect(identical[0]).toMatchObject({
-    action: "open",
-    lock: "pending",
-    phase: "quiet",
-    primary: "Read · open",
-    secondary: ""
-  })
+  expect(await holdSwipeUntilArmed(preview, 400)).toMatchObject([
+    quiet,
+    { ...armed, action: "open", primary: "Read · open" }
+  ])
+  await cancelSwipe()
 })
 
 test("leaving protected stage two resets its lock-in period", async ({ page }) => {
@@ -259,14 +276,16 @@ test("leaving protected stage two resets its lock-in period", async ({ page }) =
   await expect(page.locator('.bb_slide [data-stage="1"]')).toBeVisible()
   await expect(page.locator('.bb_slide [data-lock="armed"]')).toHaveCount(0)
 
-  // Re-entry starts from pending rather than retaining the previous lock.
-  await preview.evaluate((row) => {
+  // Re-entry starts from pending rather than retaining the previous lock. It
+  // is read and released in the task of the move itself: 175ms later the new
+  // lock arms, and a release would then commit stage two.
+  const reentered = await preview.evaluate((row) => {
     const rect = row.getBoundingClientRect()
     const y = rect.top + rect.height / 2
     // The current rect already includes the 150px transform.
     const x = rect.left + 290
     const touch = new Touch({
-      identifier: 8,
+      identifier: 12,
       target: row,
       clientX: x,
       clientY: y
@@ -279,11 +298,11 @@ test("leaving protected stage two resets its lock-in period", async ({ page }) =
         changedTouches: [touch]
       })
     )
-  })
-  await expect(page.locator('.bb_slide [data-lock="pending"]')).toBeVisible()
-  await preview.evaluate(() => {
+    const lock = document.querySelector(".bb_slide .swipe_left")?.dataset.lock
     document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
+    return lock
   })
+  expect(reentered).toBe("pending")
   await expect(page.getByTestId("swipe-preview-status"))
     .toHaveText("Stage 1 → Read · open")
 })

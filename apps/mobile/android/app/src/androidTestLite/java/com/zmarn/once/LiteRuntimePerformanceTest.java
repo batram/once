@@ -156,12 +156,17 @@ public class LiteRuntimePerformanceTest {
 
     private String evaluateBroker(String expression) throws Exception {
         com.zmarn.once.devtools.DevToolsClient client = com.zmarn.once.devtools.DevToolsClient.current();
-        for (com.zmarn.once.devtools.DevToolsClient.Target target : client.targets()) {
-            if (target.url == null || !target.url.contains("/lite-runtime.html")) continue;
-            JSONObject value = client.call(target.sessionId, "Runtime.evaluate", new JSONObject().put("expression", expression).put("returnByValue", true).put("awaitPromise", true), 10000);
-            if (value.has("exceptionDetails")) throw new AssertionError(value.toString());
-            return String.valueOf(value.getJSONObject("result").opt("value"));
-        }
+        // Each test starts its own engine: the broker's target is listed a moment after the broker reports started.
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        do {
+            for (com.zmarn.once.devtools.DevToolsClient.Target target : client.targets()) {
+                if (target.url == null || !(target.url.contains("/lite-runtime.html") || target.url.contains("#once-broker-"))) continue;
+                JSONObject value = client.call(target.sessionId, "Runtime.evaluate", new JSONObject().put("expression", expression).put("returnByValue", true).put("awaitPromise", true), 10000);
+                if (value.has("exceptionDetails")) throw new AssertionError(value.toString());
+                return String.valueOf(value.getJSONObject("result").opt("value"));
+            }
+            Thread.sleep(100);
+        } while (System.nanoTime() < end);
         throw new AssertionError("No broker target");
     }
 

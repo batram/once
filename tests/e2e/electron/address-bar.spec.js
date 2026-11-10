@@ -46,6 +46,39 @@ test("keeps the address synchronized across redirects and page navigation", asyn
   }
 })
 
+test("an address being typed stays while the page moves on, and is what Enter opens", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    const address = window.locator("#urlfield")
+    const activeUrl = () => window.evaluate(async () =>
+      (await window.onceElectron.tabs.getAll()).find((tab) => tab.active)?.url)
+    await address.fill(`${origin}/redirected`)
+    await address.press("Enter")
+    await expect(address).toHaveValue(`${origin}/redirected`)
+    // The address is ahead of the page: wait until the page itself is there.
+    const clickPageLink = () => electronApp.evaluate(async ({ webContents }, currentUrl) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === currentUrl)
+      return contents ? contents.executeJavaScript("(() => { const link = document.querySelector('#page-link'); link?.click(); return Boolean(link) })()") : false
+    }, `${origin}/redirected`)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, currentUrl) =>
+      webContents.getAllWebContents().some((candidate) => candidate.getURL() === currentUrl && !candidate.isLoading()),
+    `${origin}/redirected`)).toBe(true)
+
+    await address.fill(`${origin}/untitled`)
+    expect(await clickPageLink()).toBe(true)
+    // The shell has drawn the tab's new address everywhere but in the field.
+    await expect.poll(activeUrl).toBe(`${origin}/linked`)
+    await expect(window.locator("#electron_tabs .electron-tab-title")).toHaveText(/linked/i)
+    await expect(address).toHaveValue(`${origin}/untitled`)
+
+    await address.press("Enter")
+    await expect.poll(activeUrl).toBe(`${origin}/untitled`)
+    await expect(address).toHaveValue(`${origin}/untitled`)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("preserves a failed URL and renders a theme-aware error page", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {

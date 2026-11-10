@@ -1,6 +1,7 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const fs = require("node:fs")
+const path = require("node:path")
 const { parseHTML } = require("linkedom")
 const { bindUserscriptSettings, userscriptSiteLabel } = require("../../../packages/ui-web/dist/settings/userscriptSettings")
 const { SettingsNavigation } = require("../../../packages/ui-web/dist/settings/SettingsNavigation")
@@ -26,7 +27,7 @@ function fakeClient(scripts) {
 }
 
 function mountShell() {
-  const { window } = parseHTML(fs.readFileSync("packages/ui-web/public/shell.html", "utf8"))
+  const { window } = parseHTML(fs.readFileSync(path.join(__dirname, "../../../packages/ui-web/public/shell.html"), "utf8"))
   const names = ["document", "HTMLElement", "Element", "MutationObserver", "HTMLInputElement", "HTMLTextAreaElement", "CustomEvent", "Event", "CSS", "requestAnimationFrame"]
   const previous = Object.fromEntries(names.map(name => [name, globalThis[name]]))
   for (const name of names) globalThis[name] = name === "requestAnimationFrame" ? () => 0 : window[name]

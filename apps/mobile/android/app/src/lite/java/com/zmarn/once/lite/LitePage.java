@@ -142,11 +142,17 @@ public final class LitePage {
 
     boolean isDestroyed() { return destroyed; }
 
+    /** From this many characters on a frame's message reaches the broker as the text it came in. */
+    private static final int RELAY_AS_TEXT_CHARS = 64 * 1024;
+
     private void receive(String data, Uri sourceOrigin, boolean mainFrame, JavaScriptReplyProxy proxy) {
-        JSONObject message;
-        try { message = new JSONObject(data); } catch (Exception error) { return; }
+        // A storage write of uBlock's runs to megabytes: it is relayed as text, never as an object tree.
+        boolean large = data.length() >= RELAY_AS_TEXT_CHARS;
+        JSONObject message = null;
+        if (large) { if (!BrokerChannel.oneObject(data)) return; }
+        else try { message = new JSONObject(data); } catch (Exception error) { return; }
         Integer frameId = frames.get(proxy);
-        if ("frame-gone".equals(message.optString("type"))) {
+        if (message != null && "frame-gone".equals(message.optString("type"))) {
             if (frameId != null) { frames.remove(proxy); frameGone(channel, pageId, frameId); }
             return;
         }
@@ -156,8 +162,10 @@ public final class LitePage {
         }
         try {
             String frameUrl = mainFrame && view.getUrl() != null ? view.getUrl() : sourceOrigin + "/";
-            channel.event("page.message", new JSONObject().put("pageId", pageId).put("frameId", frameId)
-                .put("mainFrame", mainFrame).put("url", frameUrl).put("message", message));
+            JSONObject params = new JSONObject().put("pageId", pageId).put("frameId", frameId)
+                .put("mainFrame", mainFrame).put("url", frameUrl);
+            if (large) channel.event("page.message", params, "message", data);
+            else channel.event("page.message", params.put("message", message));
         } catch (Exception ignored) { /* a constant document */ }
     }
 

@@ -43,6 +43,7 @@ test("re-collecting a Lobsters story under its slugged URL is no new source", as
   assert.equal(stored.matches_comment_url(incoming.comment_url), true)
   const merged = await mergeIngestionTags(stored, incoming, async story => story, () => {})
   assert.deepEqual(merged.tags.map(tag => tag.text), ["cgrinds", "vibecoding"])
+  assert.deepEqual(merged.substories.map(sub => sub.comment_url), ["https://news.ycombinator.com/item?id=1"])
 })
 
 test("successful redirect and same-document provenance is bounded by errors", () => {

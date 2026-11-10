@@ -81,8 +81,13 @@ test("extension files are read once and never from outside the directory", async
   const files = new ExtensionFiles(extension)
   assert.match(files.read("background.js"), /onBeforeRequest/)
   assert.equal(files.read("/background.js"), files.read("background.js"))
-  assert.throws(() => files.read("../manifest.json"), /outside/)
+  // The path names a file that exists, so only the containment check can refuse it.
+  assert.throws(() => files.read("../blocker/manifest.json"), /outside/)
   assert.throws(() => files.read("missing.js"), /missing/)
+  let reads = 0
+  const counted = new ExtensionFiles({ ...extension, files: { read: (file) => { reads++; return extension.files.read(file) } } })
+  assert.equal(counted.read("background.js"), counted.read("background.js"))
+  assert.equal(reads, 1)
 })
 
 test("content scripts batch by phase and world with file and inline code", async () => {

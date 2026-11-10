@@ -5,10 +5,7 @@ const {
   testServerUrl,
   triggerMobileBack
 } = require("./helpers/mobile-app")
-const {
-  openSettingsSection,
-  saveSourcesAndWait
-} = require("./helpers/settings")
+const { openSettingsSection } = require("./helpers/settings")
 const { openStoryMenu, seedFixtureStories } = require("./helpers/stories")
 
 test("a redirected story remains matched in the Reading view", async ({ page }) => {
@@ -129,10 +126,6 @@ test("the current Reading story reflects bookmark changes", async ({ page }) => 
   await expect(currentCard).toHaveClass(/\breading_story_collapsed\b/)
 })
 
-// The gesture is measured from where the finger went down, not from the first
-// move the swipe handler happens to see — that one arrives only after the axis
-// lock resolves, and a flick has covered most of its distance by then.
-
 test("the current story card remembers its collapsed state and Appearance can set it", async ({ page }) => {
   const story = await seedFixtureStories(page)
   const currentCard = page.getByTestId("reading-current-card")
@@ -185,16 +178,7 @@ test("reader TTS bridges through the host when the frame lacks speech synthesis"
       Object.defineProperty(window, "SpeechSynthesisUtterance", { configurable: true, value: undefined })
     }
   })
-  await gotoMobileApp(page)
-  await openSettingsSection(page, "sources")
-  await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
-  await saveSourcesAndWait(page)
-  await reloadMobileApp(page)
-  await page.getByTestId("stories-menu").click()
-  await page.getByTestId("reload-stories").click()
-
-  const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
-  await expect(story).toBeVisible()
+  const story = await seedFixtureStories(page)
   await openStoryMenu(page, story)
   await page.getByTestId("story-menu-open-reader").click()
   await expect(page.locator("#reading_content")).toHaveAttribute("data-mode", "reader")
@@ -321,7 +305,6 @@ test("Reader mode explains failures and reads the page again on Try again", asyn
   expect(attempts).toBe(3)
 })
 
-
 test("the optional reader button opens the mobile Reading session on tap", async ({ page }) => {
   const story = await seedFixtureStories(page)
   await openSettingsSection(page, "theme")
@@ -332,7 +315,7 @@ test("the optional reader button opens the mobile Reading session on tap", async
   await expect(page.locator("#reading_content")).toHaveAttribute("data-mode", "reader")
   const reader = page.locator(".once-reader-host-frame").contentFrame()
   await expect(reader.locator("article").first()).toContainText("Once mobile reader fixture content")
-  await page.screenshot({ path: "/tmp/once-mobile-reader-button.png" })
+  await page.screenshot({ path: test.info().outputPath("mobile-reader-button.png") })
 })
 
 test("tapping the address opens the editor, which clears in one tap and keeps focus", async ({ page }) => {

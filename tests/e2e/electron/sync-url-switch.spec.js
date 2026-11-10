@@ -36,5 +36,7 @@ test("changing the sync URL reconnects and persists in the same Electron profile
     http.closeAllConnections()
     await new Promise(resolve => http.close(resolve))
     await first.destroy(); await second.destroy()
+    // express-pouchdb retains its catalog handle until worker exit on Windows.
+    await fs.rm(directory, { recursive: true, force: true }).catch(() => undefined)
   }
 })

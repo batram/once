@@ -169,7 +169,7 @@ test("tab dialog fits phone and tablet viewports in both themes", async ({ page 
       }
       await expect(switcher(page).locator(".reading_tab_row strong").nth(2)).toHaveText("example.test")
       await expect(switcher(page).getByRole("button", { name: "Undo close", exact: true })).toBeHidden()
-      if (viewport.width === 412) await page.screenshot({ path: `/tmp/once-tabs-previews-${theme}.png` })
+      if (viewport.width === 412) await page.screenshot({ path: test.info().outputPath(`tabs-previews-${theme}.png`) })
     }
     await switcher(page).getByRole("button", { name: "Close tab view", exact: true }).click()
     await expect(page.locator("#reading_tabs")).toBeFocused()

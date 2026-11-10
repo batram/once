@@ -12,12 +12,11 @@ function memoryCache() {
   return { entries, get: async (key) => entries.get(key), set: async (key, value) => { entries.set(key, value) }, delete: async () => {}, clear: async () => {} }
 }
 
-function harness({ cache = memoryCache(), now = { value: 1_000_000 }, handler } = {}) {
-  let changes = 0
+function harness({ cache = memoryCache(), now = { value: 1_000_000 } } = {}) {
   let doc = emptyAddonsDocument()
   doc.addons.push({ enabled: true, manifest: { id: "mirror" } })
-  const redirects = new AddonRedirects(cache, () => { changes++ }, async (change) => { doc = change(doc) }, () => now.value)
-  return { redirects, cache, now, handler, changes: () => changes, doc: () => doc }
+  const redirects = new AddonRedirects(cache, () => {}, async (change) => { doc = change(doc) }, () => now.value)
+  return { redirects, cache, now, doc: () => doc }
 }
 
 function mirrors(...targets) {
@@ -34,10 +33,15 @@ const settle = () => new Promise((resolve) => setImmediate(resolve))
 
 test("a dynamic rule is off until the add-on names a replacement, then joins the rules", async () => {
   const h = harness()
-  const handler = mirrors("https://a.test/$1")
+  const asked = []
+  let answer
+  const handler = { target: (id) => { asked.push(id); return new Promise((resolve) => { answer = resolve }) }, failed: async () => null }
   await h.redirects.register("mirror", "Mirror", [rule], handler)
+  assert.deepEqual(asked, ["x-to-mirror"])
+  assert.deepEqual(h.redirects.rules(), [], "nothing to point at yet")
+  assert.equal(h.redirects.list()[0].replace_url, undefined)
+  answer("https://a.test/$1")
   await settle()
-  assert.equal(handler.asked.target, 1)
   assert.deepEqual(h.redirects.rules(), [{ match_url: rule.match, replace_url: "https://a.test/$1", origin: "addon:mirror/x-to-mirror" }])
   assert.equal(h.cache.entries.get("addon-redirect:addon:mirror/x-to-mirror").replacement, "https://a.test/$1")
 })

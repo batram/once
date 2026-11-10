@@ -227,7 +227,7 @@ test("suspend and resume bracket the settings key-capture control", () => {
 })
 
 test("dispatchChord drives commands that never reached the DOM", () => {
-  withShell(({ window, KeyboardDispatcher, defaultBindings }) => {
+  withShell(({ KeyboardDispatcher, defaultBindings }) => {
     const dispatcher = new KeyboardDispatcher(defaultBindings())
     let tabs = 0
     dispatcher.register("browser.new-tab", () => { tabs += 1 })
@@ -236,7 +236,6 @@ test("dispatchChord drives commands that never reached the DOM", () => {
     assert.equal(dispatcher.dispatchChord("Ctrl+T"), true)
     assert.equal(tabs, 1)
     assert.equal(dispatcher.dispatchChord("Ctrl+Shift+Q"), false)
-    void window
   })
 })
 

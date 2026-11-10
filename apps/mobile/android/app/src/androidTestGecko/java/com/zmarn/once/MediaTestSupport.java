@@ -89,19 +89,28 @@ abstract class MediaTestSupport {
         long startDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (time() < 0.5 && System.nanoTime() < startDeadline) Thread.sleep(100);
         boolean visibleVideo = "true".equals(evaluate("document.querySelector('#media').tagName === 'VIDEO' && document.visibilityState === 'visible'"));
-        double frames = visibleVideo ? Double.parseDouble(evaluate("document.querySelector('#media').getVideoPlaybackQuality().totalVideoFrames")) : 0;
+        // Frames are likewise presented a moment after the app returns to the
+        // foreground; whether they keep coming is what the window below measures.
+        if (visibleVideo) {
+            double first = videoFrames();
+            while (videoFrames() == first && System.nanoTime() < startDeadline) Thread.sleep(100);
+        }
+        double frames = visibleVideo ? videoFrames() : 0;
         double before = time();
         Thread.sleep(1600);
         double after = time();
         double duration = Double.parseDouble(evaluate("document.querySelector('#media').duration"));
         double elapsed = (after - before + duration) % duration;
         assertEquals(state + ": decoder error", "null", evaluate("document.querySelector('#media').error?.message || null"));
-        if (visibleVideo) assertTrue(state + ": video frames did not advance",
-            Double.parseDouble(evaluate("document.querySelector('#media').getVideoPlaybackQuality().totalVideoFrames")) > frames);
+        if (visibleVideo) assertTrue(state + ": video frames did not advance", videoFrames() > frames);
         String detail = elapsed > 0.7 && elapsed < 3.5 ? "" : evaluate("(() => {const v=document.querySelector('#media');return {paused:v.paused,ended:v.ended,ready:v.readyState,error:v.error?.message,loop:v.loop,visibility:document.visibilityState,fullscreen:!!document.fullscreenElement}})()");
         assertTrue(state + ": media clock did not advance (" + before + " -> " + after + "): " + detail,
             elapsed > 0.7 && elapsed < 3.5);
         android.util.Log.i("OnceMediaTest", state + ": " + before + " -> " + after);
+    }
+
+    private double videoFrames() throws Exception {
+        return Double.parseDouble(evaluate("document.querySelector('#media').getVideoPlaybackQuality().totalVideoFrames"));
     }
 
     protected double time() throws Exception { return Double.parseDouble(evaluate("document.querySelector('#media').currentTime")); }
@@ -161,7 +170,26 @@ abstract class MediaTestSupport {
             byte[] buffer = new byte[1024];
             while (output.read(buffer) != -1) {}
         }
-        Thread.sleep(500);
+    }
+
+    protected interface Check { boolean ok() throws Exception; }
+
+    /** Polls until the check holds or the deadline passes; the caller asserts what it waited for. */
+    protected void waitFor(int seconds, Check check) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
+        while (!check.ok() && System.nanoTime() < deadline) Thread.sleep(100);
+    }
+
+    /** A key event's effect arrives after `input` returns: Home has taken the activity out of the foreground. */
+    protected void awaitBackground() throws Exception {
+        waitFor(10, () -> activity.isInPictureInPictureMode()
+            || !activity.getLifecycle().getCurrentState().isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED));
+    }
+
+    protected void awaitScreen(boolean on) throws Exception {
+        android.os.PowerManager power = instrumentation.getTargetContext().getSystemService(android.os.PowerManager.class);
+        waitFor(10, () -> power.isInteractive() == on);
+        assertEquals("Screen on", on, power.isInteractive());
     }
     protected Call call(Consumer<PluginCall> operation, JSObject data) throws Exception {
         Call call = new Call(data);

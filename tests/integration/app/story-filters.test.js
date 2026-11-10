@@ -39,8 +39,9 @@ test("saved story loads evaluate current rules without writing old records", asy
 })
 
 test("startup bookmarks and newly matching saved stories use current rules", async () => {
-  const { stored, app } = fixture()
+  const { stored, fake, app } = fixture()
   stored.stared = true
+  fake.setStoredStory(stored)
   await app.client.saveFilterList(["Part"])
   await app.start()
   assert.equal(app.client.getStorySnapshot()[0].filter, "Part")
@@ -72,8 +73,9 @@ test("foreground sync filters new working stories but background sync stays boun
 })
 
 test("manual filter markers survive loading when no keyword matches", async () => {
-  const { stored, app } = fixture()
+  const { stored, fake, app } = fixture()
   stored.filter = "::manual"
+  fake.setStoredStory(stored)
   await app.client.saveFilterList(["RT @"])
   assert.equal((await app.client.getStories())[0].filter, "::manual")
 })

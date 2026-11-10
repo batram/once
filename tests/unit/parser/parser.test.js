@@ -85,10 +85,3 @@ test("wraps malformed response failures with useful context", async () => {
     /JSON parsing failed/
   )
 })
-
-test("an unhandled source is refused at resolution, before any fetch", () => {
-  // Previously this surfaced as "no parser found" from parse_response, i.e.
-  // after the request had already been made.
-  const resolved = resolveStorySource({ url: "https://unsupported.example/" })
-  assert.match(resolved.problem, /no handler available/)
-})

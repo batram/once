@@ -517,7 +517,9 @@ export class AppSettings {
     }
   }
 
-  private async getList<T>(id: string, fallback: T): Promise<T> {
+  private async getList<T>(id: string, shared: T): Promise<T> {
+    // Callers change what they get; a default is shared by the whole process.
+    const fallback = structuredClone(shared)
     try {
       return await this.listStore.get(id, fallback)
     } catch (error) {

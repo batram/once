@@ -1,6 +1,6 @@
 /* global browser, describe, before, it, expect, $ */
 // Acceptance suite for Once Lite's extension runtime (M3 of
-// docs/plans/once-lite-plan.md). Selected by ONCE_MOBILE_LITE_EXTENSIONS=1
+// docs/plans/once-lite-plan.md). Selected with `--suite lite-extensions`
 // (npm run test:mobile:e2e:android:lite:extensions[:local]); it drives the
 // WebView-based Android app, so it only runs with --engine lite.
 //

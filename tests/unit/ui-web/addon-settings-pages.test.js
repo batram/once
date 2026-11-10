@@ -1,13 +1,14 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const fs = require("node:fs")
+const path = require("node:path")
 const { parseHTML } = require("linkedom")
 const { bindAddonSettingsPages } = require("../../../packages/ui-web/dist/settings/AddonSettingsPages")
 const { settingsSearchSegments } = require("../../../packages/ui-web/dist/settings/settingsSearch")
 const { SettingsNavigation } = require("../../../packages/ui-web/dist/settings/SettingsNavigation")
 
 test("addon pages isolate settings, preserve drafts, reveal advanced JSON and recover after removal", async () => {
-  const { window } = parseHTML(fs.readFileSync("packages/ui-web/public/shell.html", "utf8"))
+  const { window } = parseHTML(fs.readFileSync(path.resolve(__dirname, "../../../packages/ui-web/public/shell.html"), "utf8"))
   const names = ["document", "HTMLElement", "Element", "MutationObserver", "HTMLInputElement", "HTMLTextAreaElement", "HTMLSelectElement", "CustomEvent", "Event", "requestAnimationFrame"]
   const previous = Object.fromEntries(names.map(name => [name, globalThis[name]]))
   for (const name of names) globalThis[name] = name === "requestAnimationFrame" ? () => 0 : window[name]

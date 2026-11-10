@@ -3,7 +3,7 @@ const { gotoMobileApp } = require("./helpers/mobile-app")
 const { openSettingsSection } = require("./helpers/settings")
 
 test("a pasted pairing link connects the phone after naming the database", async ({ page, request, baseURL }) => {
-  const database = "web_pairing"
+  const database = `web_pairing_${test.info().repeatEachIndex}`
   const server = new URL(baseURL).origin
   await request.post(`${server}/test/databases/${database}/reset`, { data: { docs: [{ _id: "theme", list: "light" }] } })
   const syncUrl = `${server.replace("http://", "http://once-test:once-test@")}/db/${database}`

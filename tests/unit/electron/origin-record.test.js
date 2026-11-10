@@ -82,15 +82,18 @@ test("an unreadable or tampered file starts an empty record rather than failing 
   assert.deepEqual(new OriginRecord(file).originsFor("example.com"), ["https://example.com"])
 })
 
-test("new origins are saved after a delay, revisits alone write nothing", async () => {
+test("new origins are saved after a delay, revisits alone write nothing", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] })
   const file = tempFile()
-  const record = new OriginRecord(file, 100, 20)
+  const record = new OriginRecord(file, 100, 2_000)
   record.record("https://example.com/")
+  t.mock.timers.tick(1_999)
   assert.equal(fs.existsSync(file), false)
-  await new Promise((resolve) => setTimeout(resolve, 80))
+  t.mock.timers.tick(1)
   assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), ["https://example.com"])
-  const written = fs.statSync(file).mtimeMs
+  // A revisit schedules no save: the file, removed here, does not come back.
+  fs.rmSync(file)
   record.record("https://example.com/other")
-  await new Promise((resolve) => setTimeout(resolve, 80))
-  assert.equal(fs.statSync(file).mtimeMs, written)
+  t.mock.timers.tick(10_000)
+  assert.equal(fs.existsSync(file), false)
 })

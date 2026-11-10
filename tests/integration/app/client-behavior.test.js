@@ -167,17 +167,21 @@ test("ignores origin-blind story echoes and applies serialized remote changes", 
   const fake = createFakePlatform([story])
   const app = createOnceApp(fake.ports)
   await app.start()
+  // Loaded first: a change to a story outside the working set is ignored anyway.
+  await app.client.findStoryByUrl(story.href)
 
   fake.emitDatabaseChange({
     id: `sto_${story.href}`,
     doc: { ...story.to_obj(), _rev: "2-stale", read_state: "read" }
   })
+  await app.client.settledStoryWrites()
   assert.equal((await app.client.findStoryByUrl(story.href)).read_state, "skipped")
 
   fake.emitDatabaseChange({
     id: `sto_${story.href}`,
     doc: { ...story.to_obj(), _rev: "4-newer", read_state: "read" }
   })
+  await app.client.settledStoryWrites()
   assert.equal((await app.client.findStoryByUrl(story.href)).read_state, "skipped")
 
   fake.emitRemoteDatabaseChange({

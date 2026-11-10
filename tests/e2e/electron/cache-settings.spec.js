@@ -35,6 +35,26 @@ async function setFieldValue(locator, value) {
   }, value)
 }
 
+/**
+ * Clicks Reload and waits for that reload to finish: the button carries
+ * `disabled` for exactly as long as the reload runs. Observed rather than
+ * polled, because a reload served from the cache is over within a frame.
+ */
+async function reloadStories(window) {
+  const button = window.getByTestId("reload-stories")
+  const finished = button.evaluate((element) => new Promise((resolve) => {
+    let started = false
+    new MutationObserver((records, observer) => {
+      started ||= records.some((record) => /\bdisabled\b/.test(record.oldValue ?? ""))
+      if (!started || element.classList.contains("disabled")) return
+      observer.disconnect()
+      resolve()
+    }).observe(element, { attributes: true, attributeFilter: ["class"], attributeOldValue: true })
+  }))
+  await button.click()
+  await finished
+}
+
 test("the cache section reports each source and refetches one on demand", async () => {
   const counter = feedCounter()
   const server = await startPageServer({ onRequest: counter.onRequest })
@@ -105,8 +125,7 @@ test("a per-collector window of zero refetches on every plain reload", async () 
     // fetches nothing.
     const cachedAt = counter.fetches
     await showAllStories(window)
-    await window.getByTestId("reload-stories").click()
-    await expect(window.locator("#stories story-item.story").first()).toBeVisible()
+    await reloadStories(window)
     expect(counter.fetches).toBe(cachedAt)
 
     await openSettingsSection(window, "cache", "#cache_time_input")
@@ -124,14 +143,7 @@ test("a per-collector window of zero refetches on every plain reload", async () 
 })
 
 test("a failed request serves the cached copy with a warning", async () => {
-  let failing = false
-  const server = await startPageServer({
-    onRequest: ({ phase, url }) => {
-      if (phase === "request" && url.split("?")[0] === "/feed.rss" && failing) {
-        throw new Error("fixture feed is offline")
-      }
-    }
-  })
+  const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp(STORY_ENV)
   try {
     const urls = storyFixture.storyUrls(server.origin)
@@ -139,7 +151,6 @@ test("a failed request serves the cached copy with a warning", async () => {
 
     // The body is cached; the feed then goes away and a forced reload must
     // still show stories, with the offline copy reported.
-    failing = true
     await server.close()
     await showAllStories(window)
     await window.getByTestId("reload-stories").dblclick()

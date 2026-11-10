@@ -14,7 +14,7 @@ import static org.junit.Assert.*;
 @RunWith(AndroidJUnit4.class)
 public class StandardPipTest extends MediaTestSupport {
     @Test public void standardVideoPipFromInline() throws Exception {
-        assertTrue("Use the emulator or isolated physical test profile",
+        org.junit.Assume.assumeTrue("Use the emulator or isolated physical test profile",
             "ranchu".equals(android.os.Build.HARDWARE) ||
             instrumentation.getTargetContext().getPackageName().equals("com.zmarn.once.geckotest.dev"));
         GeckoTestSupport support = new GeckoTestSupport();
@@ -56,7 +56,7 @@ public class StandardPipTest extends MediaTestSupport {
                 assertEquals("Video fills the PiP viewport", "true", evaluate("(()=>{const r=document.querySelector('#media').getBoundingClientRect();return Math.abs(r.width-innerWidth)<2&&Math.abs(r.height-innerHeight)<2})()"));
                 capture("direct-pip-" + (explicitExit ? "light" : "dark") + ".png");
                 controller().getTransportControls().pause();
-                Thread.sleep(500);
+                waitFor(5, () -> "true".equals(evaluate("document.querySelector('#media').paused")));
                 assertEquals("PiP Pause remains a real pause", "true", evaluate("document.querySelector('#media').paused"));
                 controller().getTransportControls().play();
                 assertPlaying("direct API PiP controls");

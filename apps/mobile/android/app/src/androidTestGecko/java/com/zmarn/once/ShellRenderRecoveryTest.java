@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mozilla.geckoview.GeckoSession;
@@ -19,10 +20,11 @@ import static org.junit.Assert.*;
 public class ShellRenderRecoveryTest {
     private final GeckoTestSupport t = new GeckoTestSupport();
 
+    @After public void stop() throws Exception { t.stop(); }
+
     @Test public void lostShellRendererIsReplacedAndReadingSessionSurvives() throws Exception {
         t.start();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
-            t.close();
             t.open(fixture.url("/kept"));
             t.ready("kept");
             GeckoSession reading = (GeckoSession) t.field("session");
@@ -47,7 +49,6 @@ public class ShellRenderRecoveryTest {
                 assertTrue("The reading session must still be open", open.get());
                 assertEquals("\"kept\"", t.evaluate("document.querySelector('#ready')?.textContent"));
             }
-            t.close();
         }
     }
 

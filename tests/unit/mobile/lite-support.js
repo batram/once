@@ -21,6 +21,17 @@ if (!Module._extensions[".ts"]) {
   }
 }
 
+// The broker guards extension start-up with 20–60 s timers (`whenListening`,
+// uBlock's lists) that nothing cancels when a test is over, so each one kept
+// the finished test process alive until it fired. No test waits one out;
+// unreferenced, they let the process exit with the last test.
+const referencedSetTimeout = globalThis.setTimeout
+globalThis.setTimeout = (callback, delay, ...args) => {
+  const timer = referencedSetTimeout(callback, delay, ...args)
+  if (delay >= 10_000) timer.unref()
+  return timer
+}
+
 function lite(name) {
   return require(path.join(liteRoot, `${name}.ts`))
 }
@@ -109,10 +120,7 @@ class FakeJava {
       "page.open": (params) => { this.pages.set(params.pageId, params) },
       "page.close": ({ pageId }) => { this.pages.delete(pageId) },
       "page.post": () => undefined,
-      "page.resize": () => undefined,
       "ui.confirm": () => ({ confirmed: this.confirm ?? true }),
-      "ui.pickFile": () => ({ file: this.pickedFile }),
-      "files.mkdir": ({ directory, path: relative }) => { (this.files.memory[directory] ??= {}); void relative },
       "files.write": ({ directory, path: relative, base64 }) => {
         const entries = this.files.memory[directory] ??= {}
         if (entries[relative] !== undefined) throw new Error(`${relative} exists`)
@@ -124,19 +132,7 @@ class FakeJava {
         entries: Object.keys(this.files.memory).filter((key) => key.startsWith(`${directory}/`) && !key.includes("/.staging/"))
           .map((key) => key.slice(directory.length + 1).split("/")[0])
       }),
-      "package.readArchive": ({ file }) => ({ base64: this.archives[file].toString("base64") }),
-      "tab.create": ({ url }) => {
-        const tabId = this.nextTab ??= 100
-        this.nextTab += 1
-        this.event("tab.changed", { tabId, generation: 1, url, title: "", active: true, index: 0, status: "loading", audible: false, muted: false })
-        return { tabId }
-      },
-      "tab.update": () => undefined,
-      "tab.remove": () => undefined,
-      "tab.reload": () => undefined,
-      "cookies.get": () => ({ cookies: this.cookies ?? [] }),
-      "cookies.set": () => undefined,
-      "cookies.remove": () => undefined
+      "package.readArchive": ({ file }) => ({ base64: this.archives[file].toString("base64") })
     }
     this.archives = {}
     this.port = {
@@ -210,6 +206,16 @@ class FakeJava {
     })
   }
 
+  /**
+   * Plays a page that answers: `respond` runs for every message the broker
+   * has sent or sends that `predicate` accepts, a task later as Java delivers.
+   */
+  onEach(predicate, respond) {
+    const waiter = (envelope) => { if (predicate(envelope)) setImmediate(() => respond(envelope)) }
+    for (const envelope of [...this.sent]) waiter(envelope)
+    this.waiters.push(waiter)
+  }
+
   /** The next `page.post` carrying an API event of `api.event` to a page. */
   nextPageEvent(pageId, api, event) {
     return this.next((envelope) => envelope.type === "request" && envelope.method === "page.post" &&
@@ -233,4 +239,4 @@ class FakeJava {
   }
 }
 
-module.exports = { lite, fakeFiles, FakeJava, root, liteRoot }
+module.exports = { lite, fakeFiles, FakeJava, root }

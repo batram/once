@@ -21,10 +21,6 @@ async function inPage(app, script) {
 }
 
 /**
- * Runs a script in the selection's words frame: the app's cross-origin frame
- * anchored to the image (see browser/ImageTextOverlay.ts); null while none is open.
- */
-/**
  * Records the reading flourish from inside the words frame: it lives for about
  * half a second, shorter than polling it across processes can be trusted to
  * catch. The main process installs the recorder the moment the frame exists,
@@ -55,6 +51,10 @@ async function watchScan(app) {
   })
 }
 
+/**
+ * Runs a script in the selection's words frame: the app's cross-origin frame
+ * anchored to the image (see browser/ImageTextOverlay.ts); null while none is open.
+ */
 async function inOverlay(app, script) {
   return app.evaluate(({ webContents }, script) => {
     for (const contents of webContents.getAllWebContents()) {
@@ -288,9 +288,11 @@ test("native OCR selects and copies image words with stable geometry and cleanup
     expect(await findMatches(app, "Native Apple", { keep: true })).toBe(1)
     await expect.poll(() => inPage(app, inView("img"))).toBe(true)
     await stopFind(app)
-    await inPage(app, "scrollTo(0,0)")
-    await inPage(app, "scrollBy(0,80)")
-    await expect.poll(async () => (await geometry(app)).words[0].top).toBeCloseTo(initial.words[0].top - 80, 0)
+    // Again until it holds, as above.
+    await expect.poll(async () => {
+      await inPage(app, "scrollTo(0,80)")
+      return (await geometry(app)).words[0].top
+    }).toBeCloseTo(initial.words[0].top - 80, 0)
     // Again until it holds, as above: a late scroll from the stopped find can undo it.
     await expect.poll(async () => {
       await inPage(app, "scrollTo(0,document.scrollingElement.scrollHeight)")
@@ -841,16 +843,20 @@ test("an image in a cross-site iframe gets the selection, anchored in its own fr
       const image = await inFrame("document.querySelector('img').getBoundingClientRect().toJSON()")
       return frame[0] + image.bottom > 0 && frame[0] + image.top < frame[1]
     }
-    await inFrame("scrollTo(0, 0)")
-    await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url).executeJavaScript("scrollTo(0, 2000)"), url)
-    await expect.poll(imageInPage).toBe(false)
+    // Again until it holds: a scroll made while find's own is still under way,
+    // which nothing reports, leaves the frames where they were.
+    const away = (innerY) => expect.poll(async () => {
+      await inFrame(`scrollTo(0, ${innerY})`)
+      const held = await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url)
+        .executeJavaScript("scrollTo(0, 2000); new Promise(resolve => { const y=scrollY; setTimeout(() => resolve(scrollY === y), 200) })"), url)
+      return held && !(await imageInPage())
+    }).toBe(true)
+    await away(0)
     expect(await findMatches(app, "Native Apple", { keep: true, url })).toBe(1)
     await expect.poll(imageInPage).toBe(true)
     // And with the image scrolled away inside the iframe too.
     await stopFind(app, url)
-    await inFrame("scrollTo(0, 2000)")
-    await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url).executeJavaScript("scrollTo(0, 2000)"), url)
-    await expect.poll(imageInPage).toBe(false)
+    await away(2000)
     expect(await findMatches(app, "punctuation", { keep: true, url })).toBe(1)
     await expect.poll(imageInPage).toBe(true)
     await stopFind(app, url)

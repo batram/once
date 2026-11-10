@@ -6,6 +6,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONObject;
+import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import static org.junit.Assert.*;
@@ -13,8 +14,12 @@ import static org.junit.Assert.*;
 /** Exercises the actual Capacitor shell coordinator, rather than opening the plugin directly. */
 @RunWith(AndroidJUnit4.class)
 public class GeckoReadingJourneyTest {
+    private final GeckoTestSupport t = new GeckoTestSupport();
+
+    @After public void stop() throws Exception { t.stop(); }
+
     @Test public void redirectThroughShellSettlesAtDestination() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        t.start();
         awaitShell(t, "document.body.dataset.onceReady === 'true'", 30);
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             submit(t, fixture.url("/redirect"));
@@ -25,7 +30,7 @@ public class GeckoReadingJourneyTest {
     }
 
     @Test public void blankDocumentOffersRetryAndLateContentAppearsWithoutProcessReset() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        t.start();
         awaitShell(t, "document.body.dataset.onceReady === 'true'", 30);
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             submit(t, fixture.url("/blank-late"));
@@ -41,7 +46,7 @@ public class GeckoReadingJourneyTest {
     }
 
     @Test public void paintedInteractiveDocumentIsUsableWhileAnImageStalls() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        t.start();
         awaitShell(t, "document.body.dataset.onceReady === 'true'", 30);
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             submit(t, fixture.url("/interactive"));
@@ -54,7 +59,7 @@ public class GeckoReadingJourneyTest {
     }
 
     @Test public void rapidAddressesAndBackSettleWithoutDelayedRecovery() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        t.start();
         awaitShell(t, "document.body.dataset.onceReady === 'true'", 30);
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             for (int run = 0; run < 3; run++) {
@@ -73,7 +78,6 @@ public class GeckoReadingJourneyTest {
     }
 
     @Test public void addressFormLoadsAndReopensWithoutEmptyHistoryClosingThePage() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport();
         t.start();
         awaitShell(t, "document.body.dataset.onceReady === 'true'", 30);
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
@@ -88,15 +92,23 @@ public class GeckoReadingJourneyTest {
                 Thread.sleep(500);
                 assertEquals("The shell must retain the requested address", url,
                     new org.json.JSONTokener(shell(t, "document.querySelector('#reading_url').value")).nextValue());
-                // Close through the real controller, using Android Back on a first page.
+                // Android Back through the real controller. On a first page it leaves the reading
+                // panel and the tab keeps its page; after that it returns to the page before, always
+                // the first: the address submitted after a Back replaces the page Back left.
                 t.instrumentation.getUiAutomation().performGlobalAction(1);
-                awaitShell(t, "document.querySelector('#reading_url').value === ''", 10);
+                if (run == 0) {
+                    awaitShell(t, "document.querySelector('#left_panel').getAttribute('active_panel') === 'stories'"
+                        + " && document.querySelector('#reading_url').value === " + JSONObject.quote(url), 10);
+                } else {
+                    t.ready("shell-0");
+                    awaitShell(t, "document.querySelector('#reading_url').value === " + JSONObject.quote(fixture.url("/shell-0"))
+                        + " && document.querySelector('#reading_content').dataset.loadState === 'ready'", 10);
+                }
             }
         }
     }
 
     @Test public void failedAddressRemainsVisibleAndAnotherAddressLoads() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport();
         t.start();
         awaitShell(t, "document.body.dataset.onceReady === 'true'", 30);
         int closedPort;

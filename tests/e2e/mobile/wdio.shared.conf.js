@@ -4,6 +4,14 @@ const fs = require("fs")
 const path = require("path")
 const { mobileEngine, apkPath, packageName } = require("../../../apps/mobile/scripts/android-engine")
 
+// The suites a run can select: `--suite <name>` on the runners, which hand it
+// on as ONCE_MOBILE_SUITE. lite-extensions needs --engine lite.
+const SUITES = {
+  "smoke": "mobile.smoke.js",
+  "addons": "mobile.addons.js",
+  "lite-extensions": "mobile.lite-extensions.js"
+}
+
 function configFor(platform) {
   const visual = process.env.ONCE_MOBILE_VISUAL_INSPECTION === "1"
   const root = path.resolve(__dirname, "../../..")
@@ -50,6 +58,8 @@ function configFor(platform) {
     common["appium:appPackage"] = packageName(engine, "dev")
     common["appium:appActivity"] = "com.zmarn.once.MainActivity"
     common["appium:chromedriverAutodownload"] = true
+    // The GeckoView APK is about 280 MB; over wireless adb its install outlasts the 90 s default.
+    common["appium:androidInstallTimeout"] = 280_000
     // Keep downloaded chromedrivers out of node_modules, where npm ci wipes
     // them and forces a fresh download on the next session.
     const chromedrivers = path.join(root, ".tmp", "chromedriver")
@@ -92,22 +102,16 @@ function configFor(platform) {
   // default 120s client timeout. Raise it to 5min, but stay under the ~6min
   // point where WebdriverIO hits UND_ERR_HEADERS_TIMEOUT (webdriverio#13778).
   // connectionRetryCount is capped so a genuine failure doesn't retry the whole
-  // slow handshake several times. Android sessions are fast; leave its defaults.
-  const iosTimeouts = platform === "ios"
-    ? { connectionRetryTimeout: 300_000, connectionRetryCount: 1 }
-    : {}
+  // slow handshake several times. An emulator's Android session is fast, but a
+  // phone on wireless adb installs the app inside this request (see above).
+  const sessionTimeouts = { connectionRetryTimeout: 300_000, connectionRetryCount: 1 }
   return {
-    ...iosTimeouts,
+    ...sessionTimeouts,
     runner: "local",
-    // One spec per run: the visual inspection, the native AI add-on suite
-    // (ONCE_MOBILE_ADDONS_ONLY=1), the Once Lite extension acceptance suite
-    // (ONCE_MOBILE_LITE_EXTENSIONS=1, with --engine lite), else the smoke suite.
+    // One spec per run: the visual inspection, or the selected suite.
     specs: [path.join(
       __dirname,
-      visual ? "mobile.visual-inspection.js"
-        : process.env.ONCE_MOBILE_ADDONS_ONLY === "1" ? "mobile.addons.js"
-          : process.env.ONCE_MOBILE_LITE_EXTENSIONS === "1" ? "mobile.lite-extensions.js"
-            : "mobile.smoke.js"
+      visual ? "mobile.visual-inspection.js" : SUITES[process.env.ONCE_MOBILE_SUITE || "smoke"]
     )],
     maxInstances: 1,
     logLevel: "info",
@@ -132,4 +136,4 @@ function configFor(platform) {
   }
 }
 
-module.exports = { configFor }
+module.exports = { configFor, SUITES }

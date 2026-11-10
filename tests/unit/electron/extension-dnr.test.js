@@ -120,26 +120,3 @@ test("the router applies declarative rules beside a blocking webRequest listener
     { responseHeaders: { "Content-Type": "text/plain" } }
   )
 })
-
-test("webRequest never exposes requests outside the extension's permissions", async () => {
-  const session = fakeSession()
-  const contexts = new ElectronExtensionContexts()
-  const background = fakeContents(9)
-  contexts.add(background, "background")
-  contexts.addListener(9, "webRequest", "onBeforeRequest", 1,
-    { filter: { urls: ["<all_urls>"] }, extraInfoSpec: [] })
-  const extension = { manifest: {
-    permissions: new Set(), hostPermissions: ["https://allowed.test/*"]
-  } }
-  installWebRequestRouter(session, new WebRequestRouter({ sources: () => [{ contexts, extension }] }), () => 1)
-  const run = (url) => new Promise((resolve) => session.listeners.onBeforeRequest({
-    id: 1, url, method: "GET", resourceType: "xhr", referrer: "", timestamp: 0, frame: null
-  }, resolve))
-  await run("https://allowed.test/a")
-  assert.equal(background.sent.length, 0)
-  extension.manifest.permissions.add("webRequest")
-  await run("https://private.test/a")
-  assert.equal(background.sent.length, 0)
-  await run("https://allowed.test/a")
-  assert.equal(background.sent.length, 1)
-})

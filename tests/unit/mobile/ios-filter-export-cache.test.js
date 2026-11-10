@@ -56,7 +56,7 @@ import Foundation
 `)
   fs.appendFileSync(path.join(directory, "Driver.swift"), "\nfunc check(_ value: Bool, _ message: String = \"\") { precondition(value, message) }\n")
   const binary = path.join(directory, "cache-test")
-  execFileSync("xcrun", ["--sdk", "macosx", "swiftc", "-O", "-parse-as-library", path.join(directory, "Support.swift"), path.join(directory, "Driver.swift"), "-o", binary], { stdio: "pipe" })
+  execFileSync("xcrun", ["--sdk", "macosx", "swiftc", "-parse-as-library", path.join(directory, "Support.swift"), path.join(directory, "Driver.swift"), "-o", binary], { stdio: "pipe" })
   execFileSync(binary, [directory, "seed"], { stdio: "pipe" })
   assert.match(execFileSync(binary, [directory, "check"], { encoding: "utf8" }), /Native cache regression passed/)
 })

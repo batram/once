@@ -36,6 +36,8 @@ test("mobile test server atomically selects a port and reports ownership", async
     owner: "unit-test-owner",
     env: { ONCE_MOBILE_TEST_DATA_DIR: dataRoot }
   })
+  // Registered after the server's stop hook: a supplied root is the caller's to remove.
+  t.after(() => fs.rmSync(dataRoot, { recursive: true, force: true }))
   if (!running) return
   const { server, started } = running
   assert.ok(started.port > 0)
@@ -56,7 +58,7 @@ test("mobile test server atomically selects a port and reports ownership", async
     }
   )
   assert.equal(reset.status, 200)
-  assert.ok(fs.existsSync(path.resolve(dataRoot)))
+  assert.notDeepEqual(fs.readdirSync(dataRoot), [], "databases are stored below the supplied root")
 })
 
 test("independent dynamic-port servers use independent database roots", async t => {
@@ -84,8 +86,12 @@ test("independent dynamic-port servers use independent database roots", async t 
   }
 
   assert.notEqual(firstStarted.dataDirectory, secondStarted.dataDirectory)
-  assert.ok(fs.existsSync(firstStarted.dataDirectory))
-  assert.ok(fs.existsSync(secondStarted.dataDirectory))
+  const authorization = `Basic ${Buffer.from("once-test:once-test").toString("base64")}`
+  for (const { port, dataDirectory } of [firstStarted, secondStarted]) {
+    assert.notDeepEqual(fs.readdirSync(dataDirectory), [])
+    const allDocs = await fetch(`http://127.0.0.1:${port}/db/isolation/_all_docs`, { headers: { authorization } })
+    assert.deepEqual((await allDocs.json()).rows.map(row => row.id), [`from-${port}`])
+  }
 })
 
 test("mobile test server rejects an explicitly occupied port without disturbing its owner", async t => {

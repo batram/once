@@ -29,11 +29,7 @@ test("settings sections do not autofocus a field on mobile", async ({
 test("list settings are the default and expose structured add actions", async ({ page }) => {
   await gotoMobileApp(page)
   await page.getByTestId("settings-menu").click()
-  const sourcesSection = page.locator('[data-settings-target="sources"]')
-  if (!(await sourcesSection.isVisible())) {
-    await page.locator("#settings_section_back").click()
-  }
-  await sourcesSection.click()
+  await page.locator('[data-settings-target="sources"]').click()
   await expect(page.locator("#settings_panel .settings_title")).toHaveText(
     "Story sources"
   )
@@ -132,10 +128,7 @@ test("list settings are the default and expose structured add actions", async ({
     '.mobile_scroll_indicator[data-scroll-owner="sources-structured-list"]'
   )
   await expect(sourceScrollIndicator).toBeVisible()
-  await expect(sourceList).not.toHaveClass(
-    /\bmobile_scrollbar_active\b/,
-    { timeout: 1_500 }
-  )
+  await expect(sourceList).not.toHaveClass(/\bmobile_scrollbar_active\b/)
   await expect(sourceScrollIndicator).toHaveCSS("opacity", "0")
 
   await addSource.click()

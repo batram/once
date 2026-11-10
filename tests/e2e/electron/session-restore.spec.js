@@ -51,13 +51,16 @@ test("a relaunch restores each window with its own tabs, then reopens tabs close
     await closeApp(electronApp, userData, { keepUserData: true })
 
     ;({ electronApp, window } = await launchApp({ userData, restored: true }))
-    await expect.poll(() => getOnceWindows(electronApp), { timeout: 30_000 }).toHaveLength(2)
-    const windows = await getOnceWindows(electronApp)
-    const byTabs = windows.map((candidate) => urlsOf(candidate.tabs)).sort((a, b) => b.length - a.length)
     // Blank starting tabs are not part of a session; everything else is back where it was.
-    expect(byTabs).toEqual([[`${origin}/first-a`, `${origin}/first-b`], [`${origin}/second`]])
+    // A window exists before its tabs are back, so the whole picture is awaited.
+    await expect.poll(async () =>
+      (await getOnceWindows(electronApp)).map((candidate) => urlsOf(candidate.tabs)).sort((a, b) => b.length - a.length),
+    { timeout: 30_000 }).toEqual([[`${origin}/first-a`, `${origin}/first-b`], [`${origin}/second`]])
+    const windows = await getOnceWindows(electronApp)
     const restoredFirst = windows.find((candidate) => candidate.tabs.length === 2)
-    expect(restoredFirst.tabs.find((tab) => tab.active)?.url).toBe(`${origin}/first-a`)
+    await expect.poll(async () =>
+      (await getWindowTabs(electronApp, restoredFirst.id)).find((tab) => tab.active)?.url
+    ).toBe(`${origin}/first-a`)
     await expect.poll(async () =>
       (await getWindowTabs(electronApp, restoredFirst.id)).map((tab) => tab.title)
     ).toEqual(["First-a", "First-b"])

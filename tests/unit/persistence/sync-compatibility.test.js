@@ -50,26 +50,27 @@ test("two actual Pouch clients stop on a live protocol increase and retain pendi
   const statuses = []
   const client = new PouchSyncService(old, () => {}, () => remote, 1)
   client.onStatus(status => statuses.push(status))
+  const updated = new PouchSyncService(old, () => {}, () => remote, 2)
   try {
     client.syncFrom(destination)
-    await eventually(() => statuses.at(-1).state === "up-to-date")
+    await eventually(() => statuses.at(-1).state === "up-to-date", "the first sync")
     await assert.rejects(old.get(id), error => error.status === 404, "marker is not replicated as ordinary data")
     await new PouchSyncCompatibility(modern).check(remote, destination, 2)
-    await eventually(() => statuses.at(-1).state === "update-required")
+    await eventually(() => statuses.at(-1).state === "update-required", "the live protocol increase to stop sync")
     await old.put({ _id: "sto_pending", value: "retained" })
     assert.equal((await old.get("sto_pending")).value, "retained")
     await assert.rejects(remote.get("sto_pending"), error => error.status === 404)
     client.recheckCompatibility()
-    await eventually(() => statuses.at(-1).state === "update-required")
+    assert.equal(statuses.at(-1).state, "connecting")
+    await eventually(() => statuses.at(-1).state === "update-required", "the recheck to refuse again")
     assert.equal(statuses.at(-1).compatibility.requiredSyncProtocol, 2)
     client.syncFrom("")
-    const updated = new PouchSyncService(old, () => {}, () => remote, 2)
     updated.syncFrom(destination)
-    await eventually(() => statuses.at(-1).state === "disabled")
-    for (let i = 0; i < 100; i++) { try { if ((await remote.get("sto_pending")).value) break } catch { /* Replication has not delivered the retained edit yet. */ } await new Promise(resolve => setTimeout(resolve, 10)) }
-    assert.equal((await remote.get("sto_pending")).value, "retained")
-    updated.syncFrom("")
-  } finally { client.syncFrom(""); await Promise.all([old, modern, remote].map(db => db.close())); await fs.rm(dir, { recursive: true, force: true }) }
+    await eventually(() => remote.get("sto_pending").then(doc => doc.value === "retained", () => false), "the updated client to push the retained edit")
+  } finally {
+    client.syncFrom(""); updated.syncFrom("")
+    await Promise.all([old, modern, remote].map(db => db.close())); await fs.rm(dir, { recursive: true, force: true })
+  }
 })
 
 test("highest conflict branch is enforced and malformed losing branches fail closed", async () => {

@@ -73,7 +73,7 @@ test("browser menu history records foreground and background visits, searches an
           const page = webContents.getAllWebContents().find(tab => tab.getURL() === "once-history://view/index.html")
           return (await page.capturePage()).toPNG().toString("base64")
         })
-        await fs.writeFile(`test-results/history-electron-${theme}-${width}.png`, Buffer.from(screenshot, "base64"))
+        await fs.writeFile(test.info().outputPath(`history-electron-${theme}-${width}.png`), Buffer.from(screenshot, "base64"))
       }
     }
     await historyPage(electronApp, 'document.querySelector(".history-clear").click()')

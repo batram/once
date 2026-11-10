@@ -6,6 +6,7 @@ import java.lang.reflect.Field;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.json.JSONArray;
+import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mozilla.geckoview.GeckoResult;
@@ -16,8 +17,12 @@ import static org.junit.Assert.*;
 /** Real-engine tests with controlled catalog and filter barriers; only the dev identity is used. */
 @RunWith(AndroidJUnit4.class)
 public class GeckoParallelStartupTest {
+    private final GeckoTestSupport t = new GeckoTestSupport();
+
+    @After public void stop() throws Exception { t.stop(); }
+
     private GeckoTestSupport start() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        t.start();
         t.shellReady(); t.selectRoot();
         t.close();
         t.ui(() -> set(t.plugin, "navigationReady", false));

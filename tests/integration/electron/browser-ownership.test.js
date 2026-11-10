@@ -314,11 +314,8 @@ test("TabOwnership reorders without reattaching or changing activation", () => {
   assert.equal(second.view.visible, true)
 })
 
-test("TabEvents composes navigation, interaction, and lifecycle families", () => {
-  const tab = entry("tab", 1)
-  tab.view.webContents.setWindowOpenHandler = (handler) => {
-    tab.view.webContents.windowOpenHandler = handler
-  }
+function bindEvents(tab, ownerState) {
+  tab.view.webContents.setWindowOpenHandler ??= () => {}
   const errors = {
     state: () => null,
     handleFailure() {},
@@ -326,7 +323,7 @@ test("TabEvents composes navigation, interaction, and lifecycle families", () =>
     collapseFailedEntry() {},
     applyTheme() {}
   }
-  const ownerAccess = { ownerFor: () => undefined, notify() {} }
+  const ownerAccess = { ownerFor: () => ownerState, notify() {} }
   const events = new TabEvents(
     errors,
     { showContentsMenu() {} },
@@ -339,8 +336,16 @@ test("TabEvents composes navigation, interaction, and lifecycle families", () =>
     },
     { ...ownerAccess, finalizeClosedTab() {} }
   )
-
   events.bind(tab)
+  return events
+}
+
+test("TabEvents composes navigation, interaction, and lifecycle families", () => {
+  const tab = entry("tab", 1)
+  tab.view.webContents.setWindowOpenHandler = (handler) => {
+    tab.view.webContents.windowOpenHandler = handler
+  }
+  bindEvents(tab)
 
   assert.equal(tab.view.webContents.listenerCount("did-start-loading"), 1)
   assert.equal(tab.view.webContents.listenerCount("before-input-event"), 1)
@@ -351,28 +356,7 @@ test("TabEvents composes navigation, interaction, and lifecycle families", () =>
 test("TabEvents preserves the title while reloading the current URL", () => {
   const tab = entry("tab", 1)
   tab.title = "Existing title"
-  tab.view.webContents.setWindowOpenHandler = () => {}
-  const errors = {
-    state: () => null,
-    handleFailure() {},
-    restore() {},
-    collapseFailedEntry() {},
-    applyTheme() {}
-  }
-  const ownerAccess = { ownerFor: () => undefined, notify() {} }
-  const events = new TabEvents(
-    errors,
-    { showContentsMenu() {} },
-    { ...ownerAccess, applyRedirects: (url) => url },
-    {
-      ...ownerAccess,
-      createTab: async () => "new",
-      createWindow: async () => {},
-      setFullscreen() {}
-    },
-    { ...ownerAccess, finalizeClosedTab() {} }
-  )
-  events.bind(tab)
+  const events = bindEvents(tab)
 
   events.preserveTitleOnNextNavigation(tab)
   tab.view.webContents.emit("did-start-navigation", {
@@ -590,9 +574,11 @@ function sessionOwnership(directory) {
   )
 }
 
-const saved = () => new Promise((resolve) => setTimeout(resolve, 1200))
+// The snapshot is written a second after a change (OpenTabs' SAVE_DELAY_MS).
+const SAVE_DELAY_MS = 1000
 
 test("a killed session comes back as its windows, ahead of older closed tabs", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] })
   const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "once-open-tabs-"))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const openFile = path.join(directory, "open-tabs.json")
@@ -609,26 +595,26 @@ test("a killed session comes back as its windows, ahead of older closed tabs", (
   ownership.activate(window, active.id)
   ownership.notify(window)
   // The snapshot is written a moment after the change, not on every keystroke.
+  t.mock.timers.tick(SAVE_DELAY_MS - 1)
   assert.equal(fs.existsSync(openFile), false)
-  return saved().then(() => {
-    assert.equal(fs.existsSync(openFile), true)
+  t.mock.timers.tick(1)
+  assert.equal(fs.existsSync(openFile), true)
 
-    // The process dies here: no closeWindow. The next start restores the window.
-    const restarted = sessionOwnership(directory)
-    const session = restarted.takeSession()
-    assert.equal(fs.existsSync(openFile), false, "taken once")
-    assert.deepEqual(restarted.takeSession(), [])
-    assert.equal(session.length, 1)
-    assert.deepEqual(session[0].tabs.map((tab) => tab.url), [
-      "https://example.com/left", "https://example.com/active", "https://example.com/right"
-    ])
-    assert.equal(session[0].activeIndex, 1)
-    assert.deepEqual(session[0].bounds, { x: 10, y: 20, width: 800, height: 600 })
-    // Only what was closed before the session ended is left to reopen.
-    const fresh = owner(7)
-    assert.equal(restarted.closedTabs.take(fresh).url, "https://example.com/earlier")
-    assert.equal(restarted.closedTabs.take(fresh), undefined)
-  })
+  // The process dies here: no closeWindow. The next start restores the window.
+  const restarted = sessionOwnership(directory)
+  const session = restarted.takeSession()
+  assert.equal(fs.existsSync(openFile), false, "taken once")
+  assert.deepEqual(restarted.takeSession(), [])
+  assert.equal(session.length, 1)
+  assert.deepEqual(session[0].tabs.map((tab) => tab.url), [
+    "https://example.com/left", "https://example.com/active", "https://example.com/right"
+  ])
+  assert.equal(session[0].activeIndex, 1)
+  assert.deepEqual(session[0].bounds, { x: 10, y: 20, width: 800, height: 600 })
+  // Only what was closed before the session ended is left to reopen.
+  const fresh = owner(7)
+  assert.equal(restarted.closedTabs.take(fresh).url, "https://example.com/earlier")
+  assert.equal(restarted.closedTabs.take(fresh), undefined)
 })
 
 test("quitting keeps every window with its own tabs for the next start", (t) => {
@@ -715,6 +701,7 @@ test("a moved window keeps its new place in the session snapshot", (t) => {
 })
 
 test("a window that closes normally leaves no open tab snapshot behind", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] })
   const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "once-open-tabs-"))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
   const openFile = path.join(directory, "open-tabs.json")
@@ -729,36 +716,14 @@ test("a window that closes normally leaves no open tab snapshot behind", (t) => 
   ownership.addTab(window, tab)
   ownership.notify(window)
   ownership.closeWindow(window)
-  return new Promise((resolve) => setTimeout(resolve, 1200)).then(() => {
-    assert.equal(fs.existsSync(openFile), false)
-    assert.equal(ownership.closedTabs.size, 1)
-  })
+  t.mock.timers.tick(SAVE_DELAY_MS)
+  assert.equal(fs.existsSync(openFile), false)
+  assert.equal(ownership.closedTabs.size, 1)
 })
 
 function boundTab(ownerState) {
   const tab = entry("tab", ownerState.window.webContents.id)
-  tab.view.webContents.setWindowOpenHandler = () => {}
-  const errors = {
-    state: () => null,
-    handleFailure() {},
-    restore() {},
-    collapseFailedEntry() {},
-    applyTheme() {}
-  }
-  const ownerAccess = { ownerFor: () => ownerState, notify() {} }
-  const events = new TabEvents(
-    errors,
-    { showContentsMenu() {} },
-    { ...ownerAccess, applyRedirects: (url) => url },
-    {
-      ...ownerAccess,
-      createTab: async () => "new",
-      createWindow: async () => {},
-      setFullscreen() {}
-    },
-    { ...ownerAccess, finalizeClosedTab() {} }
-  )
-  events.bind(tab)
+  bindEvents(tab, ownerState)
   return tab
 }
 

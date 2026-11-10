@@ -1,11 +1,9 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
-const fs = require("node:fs")
-const path = require("node:path")
 const vm = require("node:vm")
+const { readSwift, swiftSlice } = require("./swift-source")
 
-const swift = fs.readFileSync(path.resolve(__dirname, "../../../apps/mobile/ios/App/App/InAppBrowserSurfaceNavigation.swift"), "utf8")
-const source = swift.slice(swift.indexOf("final class ExternalLinkHandler:")).match(/static let source = """\n([\s\S]*?)\n {4}"""/)[1]
+const source = swiftSlice(readSwift("InAppBrowserSurfaceNavigation.swift"), "final class ExternalLinkHandler:").match(/static let source = """\n([\s\S]*?)\n {4}"""/)[1]
 
 function fixture() {
   const messages = []

@@ -315,7 +315,7 @@ test("updating an add-on preserves storage and validates existing user options",
   assert.equal(updated.enabled, false)
   assert.throws(() => upsertAddon({ version: 1, addons: [old] }, {
     ...fresh, manifest: { ...fresh.manifest, settings: { type: "object", properties: { suffix: { type: "number" } } } }
-  }))
+  }), /suffix must be a number/)
 })
 
 test("defaults fill in: action group navigation, surfaces button and menu", () => {

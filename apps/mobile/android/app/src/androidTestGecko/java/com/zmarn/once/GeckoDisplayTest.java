@@ -4,6 +4,7 @@ import android.graphics.Bitmap;
 import android.view.View;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.getcapacitor.JSObject;
+import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import static org.junit.Assert.*;
@@ -11,8 +12,12 @@ import static org.junit.Assert.*;
 /** Physical-device regressions: verify display ownership and pixels, not just DOM completion. */
 @RunWith(AndroidJUnit4.class)
 public class GeckoDisplayTest {
+    private final GeckoTestSupport t = new GeckoTestSupport();
+
+    @After public void stop() throws Exception { t.stop(); }
+
     @Test public void hiddenBootstrapWaitsForRealViewport() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        t.start();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             GeckoTestSupport.Call open = new GeckoTestSupport.Call(new JSObject()
                 .put("url", fixture.url("/display")).put("visible", false)
@@ -27,7 +32,7 @@ public class GeckoDisplayTest {
     }
 
     @Test public void loadedUnpaintedPageRepairsDisplayWithoutReload() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        t.start();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             t.open(fixture.url("/repair")); t.ready("repair"); assertDisplayed(t);
             Object session = t.field("session");
@@ -44,7 +49,7 @@ public class GeckoDisplayTest {
     }
 
     @Test public void viewportChangesAndLoadingStatusPreservePixels() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        t.start();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             t.open(fixture.url("/viewport-0")); t.ready("viewport-0"); assertDisplayed(t);
             for (int run = 1; run <= 8; run++) {

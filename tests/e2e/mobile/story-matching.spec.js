@@ -19,6 +19,7 @@ for (const theme of ["light", "dark"]) {
     await expect(card).toBeVisible()
     await expect(page.getByTestId("reading-url-input")).toHaveValue(redirected)
     await page.evaluate(url => window.__onceE2E__.finishReading(url), redirected + "#heading")
+    await expect(page.getByTestId("reading-url-input")).toHaveValue(redirected + "#heading")
     await expect(card).toBeVisible()
     const bounds = await card.boundingBox()
     expect(bounds.width).toBeLessThanOrEqual(440)

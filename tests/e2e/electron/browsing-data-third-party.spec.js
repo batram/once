@@ -35,7 +35,6 @@ const READ = `(async () => ({
 }))()`
 
 test("clearing a site reaches its third-party storage in other sites and other sites' inside it", async () => {
-  test.setTimeout(60_000)
   const { server, port } = await startServer()
   const { electronApp, userData, window } = await launchApp()
   const top = `http://localhost:${port}/top`
@@ -62,13 +61,8 @@ test("clearing a site reaches its third-party storage in other sites and other s
     // Reloaded first, so each reads what is stored rather than what it holds.
     const expectStored = async (expected) => {
       for (const url of [top, first]) await run(url, "reload")
-      let seen
-      for (const deadline = Date.now() + 10_000; Date.now() < deadline;) {
-        seen = { embedded: await run(top, READ, true), firstParty: await run(first, READ) }
-        if (JSON.stringify(seen) === JSON.stringify(expected)) return
-        await new Promise((resolve) => setTimeout(resolve, 250))
-      }
-      expect(seen, "storage after reloading both pages").toEqual(expected)
+      await expect.poll(async () => ({ embedded: await run(top, READ, true), firstParty: await run(first, READ) }),
+        { timeout: 15_000, message: "storage after reloading both pages" }).toEqual(expected)
     }
 
     for (const url of [top, first]) await window.evaluate((target) => window.onceElectron.tabs.create(target, true), url)

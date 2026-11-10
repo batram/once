@@ -24,9 +24,10 @@ test("the bookmark button sends a real transition before the app's no-op check",
   } })
   const row = { story, star_btn: document.createElement("button") }
   StoryListItem.prototype.toggleBookmark.call(row)
-  await pendingChange
+  // The app works on its own copy; the row shows the story it answers with.
+  row.story = await pendingChange
   assert.equal((await fake.ports.storyStore.getStory(story.href)).stared, true)
-  assert.ok(story.sync_updated_at.stared > 0)
+  assert.ok(row.story.sync_updated_at.stared > 0)
   StoryListItem.prototype.toggleBookmark.call(row)
   await pendingChange
   assert.equal((await fake.ports.storyStore.getStory(story.href)).stared, false)

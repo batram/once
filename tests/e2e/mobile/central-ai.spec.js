@@ -29,8 +29,17 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 
     await connectionEditor.getByRole("button", { name: "Cancel", exact: true }).click()
     await page.getByRole("button", { name: /^Default model:/ }).click()
     let editor = page.locator("#ai_settings .ai_editor:not([hidden])")
+    // Opening the editor discovers the models. Typing before that finished left
+    // the list closed, typing after it opens the list over Refresh models; wait
+    // so the list is always open, and close it the way a reader would.
+    await expect(editor.getByRole("status")).toContainText("2 models available")
     await editor.getByLabel("Model", { exact: true }).fill("draft-model")
+    await expect(editor.getByRole("listbox", { name: "Models" })).toBeVisible()
+    await editor.getByLabel("Model", { exact: true }).press("Escape")
+    await expect(editor.getByRole("listbox", { name: "Models" })).toBeHidden()
+    const refreshed = page.waitForResponse(response => response.url().endsWith("/ai-addon/v1/models"))
     await editor.getByRole("button", { name: "Refresh models", exact: true }).click()
+    await refreshed
     await expect(editor.getByRole("status")).toContainText("2 models available")
     await expect(editor.getByLabel("Model", { exact: true })).toHaveValue("draft-model")
     await expect(editor.locator('[role="option"]')).toHaveCount(2)
@@ -57,7 +66,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 
     expect(geometry.overflow).toBe(false)
     expect(geometry.formControls).toBe(0)
     expect(geometry.width).toBeLessThanOrEqual(Math.min(viewport.width, 832))
-    await page.screenshot({ path: `test-results/ai-overview-${viewport.width}-${theme}.png`, fullPage: true })
+    await page.screenshot({ path: test.info().outputPath(`ai-overview-${viewport.width}-${theme}.png`), fullPage: true })
   })
 }
 
@@ -83,7 +92,7 @@ for (const width of [390, 1280]) for (const theme of ["light", "dark"]) test(`re
   await expect(article.locator("li.tts-segment"), "read-aloud segments follow the rewritten article").toHaveCount(2)
   await expect(page.locator("#reader_ai_status")).toBeHidden()
   await expect(bar.getByRole("button", { name: "Rewrite with AI", exact: true })).toHaveAttribute("title", /fixture/)
-  await page.screenshot({ path: `test-results/ai-reader-${width}-${theme}.png`, fullPage: true })
+  await page.screenshot({ path: test.info().outputPath(`ai-reader-${width}-${theme}.png`), fullPage: true })
   // A second rewrite adds a step: the first Undo returns to the first rewrite, the second to the extraction.
   const answered = page.waitForResponse(response => response.url().includes("/ai-addon/") && response.request().method() === "POST")
   await bar.getByRole("button", { name: "Rewrite with AI", exact: true }).click()
@@ -101,7 +110,7 @@ for (const width of [390, 1280]) for (const theme of ["light", "dark"]) test(`re
 
 test("shared sync uses one unlock while both dataset switches remain independent", async ({ page, request, baseURL }) => {
   const server = new URL(baseURL).origin
-  const database = "central_ai_sync"
+  const database = `central_ai_sync_${test.info().repeatEachIndex}`
   await request.post(`${server}/test/databases/${database}/reset`, { data: { docs: [] } })
   await page.setViewportSize({ width: 390, height: 844 })
   await gotoMobileApp(page)
@@ -122,7 +131,7 @@ test("shared sync uses one unlock while both dataset switches remain independent
   await expect(page.getByTestId("sync-dataset-ai")).toBeChecked()
   await page.getByTestId("sync-dataset-addons").uncheck()
   await expect(page.getByTestId("sync-dataset-addons")).not.toBeChecked()
-  await page.screenshot({ path: "test-results/ai-shared-sync.png", fullPage: true })
+  await page.screenshot({ path: test.info().outputPath("ai-shared-sync.png"), fullPage: true })
   await page.getByRole("button", { name: "Lock and forget", exact: true }).click()
   await page.getByLabel("Sync passphrase or recovery key", { exact: true }).fill("fixture shared passphrase")
   await page.getByRole("button", { name: "Unlock sync", exact: true }).click()
@@ -138,11 +147,13 @@ test("reader cancellation retains content and ignores a delayed provider result"
   const story = await seedFixtureStories(page)
   await openSettingsSection(page, "addons")
   await installAiAddon(page, new URL(page.url()).origin)
-  let release
+  let release, answered
   const held = new Promise(resolve => { release = resolve })
+  const settled = new Promise(resolve => { answered = resolve })
   await page.route("**/ai-addon/v1/chat/completions", async route => {
     await held
     await route.abort().catch(() => {})
+    answered()
   })
   await page.getByTestId("stories-menu").click()
   await story.getByTestId("story-menu-button").click()
@@ -159,6 +170,7 @@ test("reader cancellation retains content and ignores a delayed provider result"
   await bar.getByRole("button", { name: "Cancel AI rewrite", exact: true }).click()
   await expect(status).toBeHidden()
   release()
+  await settled
   expect(await frame.locator("article").first().innerHTML()).toBe(before)
   await expect(bar.getByRole("button", { name: "Undo", exact: true })).toBeHidden()
   await expect(bar.getByRole("button", { name: "Rewrite with AI", exact: true })).toBeVisible()

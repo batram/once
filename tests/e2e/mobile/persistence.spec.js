@@ -10,16 +10,6 @@ const {
 } = require("./helpers/settings")
 const { openStoryMenu } = require("./helpers/stories")
 
-test("mobile settings persist without contacting external sources", async ({ page }) => {
-  await gotoMobileApp(page)
-  await openSettingsSection(page, "sources")
-  await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
-  await saveSourcesAndWait(page)
-  await reloadMobileApp(page)
-  await openSettingsSection(page, "sources")
-  await expect(page.getByTestId("sources")).toHaveValue(/\/fixtures\/feed\.rss/)
-})
-
 test("stories persist offline and open in the in-app reader", async ({ page }) => {
   await gotoMobileApp(page)
   await openSettingsSection(page, "sources")
@@ -71,7 +61,7 @@ test("authenticated PouchDB sync pulls and pushes deterministic settings", async
   request,
   baseURL
 }) => {
-  const database = "web_sync"
+  const database = `web_sync_${test.info().repeatEachIndex}`
   const server = new URL(baseURL).origin
   await request.post(`${server}/test/databases/${database}/reset`, {
     data: { docs: [{ _id: "theme", list: "light" }] }

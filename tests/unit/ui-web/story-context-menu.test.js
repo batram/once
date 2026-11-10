@@ -2,6 +2,8 @@ const test = require("node:test")
 const assert = require("node:assert/strict")
 const { parseHTML } = require("linkedom")
 
+const { installRawAssetLoader } = require("../../helpers/raw-assets")
+
 function loadMenuModule() {
   const { window } = parseHTML("<html><body></body></html>")
   globalThis.window = window
@@ -10,32 +12,22 @@ function loadMenuModule() {
   globalThis.HTMLElement = window.HTMLElement
   globalThis.customElements = window.customElements
   globalThis.MouseEvent = window.MouseEvent
+  installRawAssetLoader()
   return require("../../../packages/ui-web/dist/menu/storyContextMenu")
 }
 
+// A row as the menu sees it: a real Story, labelled by the real row's own
+// methods, so the labels asserted below are the ones the app shows.
 function fakeStory(overrides = {}) {
-  const story = {
-    href: "https://example.com/story",
-    comment_url: "https://example.com/comments",
-    read_state: "unread",
-    stared: false,
-    filter: "",
-    ...overrides
-  }
-  return {
-    story,
-    readActionLabel: () =>
-      story.read_state === "unread"
-        ? "Skip reading"
-        : story.read_state === "read"
-          ? "Mark as unread"
-          : "Unskip",
-    bookmarkActionLabel: () => story.stared ? "Remove bookmark" : "Bookmark",
-    filterActionLabel: () => story.filter ? "Edit filter" : "Filter source",
-    saveContentActionLabel: () =>
-      story.stored_content?.source === "page" ? "Update saved copy" : "Save for offline",
-    openComments: () => {}
-  }
+  const { Story } = require("../../../packages/core/dist")
+  const { StoryListItem } = require("../../../packages/ui-web/dist/story/StoryListItem")
+  const story = Object.assign(
+    new Story("fixture", "https://example.com/story", "Example", "https://example.com/comments"),
+    overrides
+  )
+  const { readActionLabel, bookmarkActionLabel, filterActionLabel, saveContentActionLabel } =
+    StoryListItem.prototype
+  return { story, readActionLabel, bookmarkActionLabel, filterActionLabel, saveContentActionLabel }
 }
 
 test("story menu descriptors are ordered, contextual, and platform-aware", () => {
@@ -77,7 +69,10 @@ test("the offline action names an update once the page was saved", () => {
   const items = describeStoryMenu({
     platform: "electron",
     buildChannel: "release",
-    story: fakeStory({ stored_content: { source: "page", saved_at: 1 } })
+    story: fakeStory({
+      stored_content: { source: "page", saved_at: 1 },
+      _attachments: { content: { content_type: "text/html", length: 12, stub: true } }
+    })
   })
   assert.equal(items.find((item) => item.id === "save-content").label, "Update saved copy")
 })

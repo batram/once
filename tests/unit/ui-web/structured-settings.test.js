@@ -261,7 +261,7 @@ test("flat settings editor preserves malformed redirect rows", () => {
   })
 })
 
-function sourceRowHost(window, groups, saved, overrides = {}) {
+function sourceRowHost(groups, saved, overrides = {}) {
   return {
     groups,
     errors: new Map(),
@@ -281,7 +281,7 @@ test("source row rendering keeps edit and error callbacks on the host", () => {
     const source = { id: "src_00000001", url: "bad.test" }
     const groups = [{ id: "default", name: "Default", sources: [source] }]
     const calls = []
-    const host = sourceRowHost(window, groups, calls, {
+    const host = sourceRowHost(groups, calls, {
       errors: new Map([[source.id, {
         sourceId: source.id,
         url: "bad.test",
@@ -313,7 +313,7 @@ test("a disabled source is marked in the row, its label and its menu", () => {
     const groups = [{ id: "default", name: "Default", sources: [source] }]
     const calls = []
     const menus = []
-    const host = sourceRowHost(window, groups, calls, {
+    const host = sourceRowHost(groups, calls, {
       onTouch: () => false,
       openMenu: (_anchor, items) => menus.push(items)
     })
@@ -335,32 +335,34 @@ test("a disabled source is marked in the row, its label and its menu", () => {
 test("source row drop reorders the model and saves without story reload", () => {
   withDom("<main></main>", (window) => {
     const root = window.document.querySelector("main")
-    const groups = [{
-      id: "default",
-      name: "Default",
-      sources: ["first.test", "second.test"]
-    }]
-    const calls = []
-    const host = sourceRowHost(window, groups, calls)
-    const row = renderSourceRow(root, host, "second.test", 0, 1, "source-2")
-    root.append(row)
-    row.getBoundingClientRect = () => ({ top: 20, height: 20 })
-    const drop = new window.Event("drop", { bubbles: true, cancelable: true })
-    Object.defineProperties(drop, {
-      clientY: { value: 20 },
-      dataTransfer: {
-        value: { getData: () => "0:0" }
-      }
-    })
-    row.dispatchEvent(drop)
+    // The first row is dropped on the second: above its middle it stays in
+    // front, from the middle down the two swap.
+    for (const [clientY, expected] of [
+      [29, ["first.test", "second.test"]],
+      [30, ["second.test", "first.test"]]
+    ]) {
+      const groups = [{
+        id: "default",
+        name: "Default",
+        sources: ["first.test", "second.test"]
+      }]
+      const calls = []
+      const row = renderSourceRow(root, sourceRowHost(groups, calls), "second.test", 0, 1)
+      root.append(row)
+      row.getBoundingClientRect = () => ({ top: 20, height: 20 })
+      row.dispatchEvent(dragEvent(window, "drop", {
+        clientY,
+        dataTransfer: { getData: () => "0:0" }
+      }))
 
-    assert.deepEqual(groups[0].sources, ["first.test", "second.test"])
-    assert.deepEqual(calls, [["save", false]])
+      assert.deepEqual(groups[0].sources, expected)
+      assert.deepEqual(calls, [["save", false]])
+    }
   })
 })
 
-function sourceGroupHost(window, groups, calls, overrides = {}) {
-  return sourceRowHost(window, groups, calls, {
+function sourceGroupHost(groups, calls, overrides = {}) {
+  return sourceRowHost(groups, calls, {
     listActions: () => null,
     editGroup: () => {},
     deleteGroup: () => {},
@@ -383,7 +385,7 @@ test("source group view preserves expansion state across renders", () => {
       { id: "default", name: "Default", sources: [] },
       { id: "alpha", name: "Alpha", sources: ["alpha.test"] }
     ]
-    const view = new SourceGroupView(sourceGroupHost(window, groups, []))
+    const view = new SourceGroupView(sourceGroupHost(groups, []))
     view.render(root)
     const alpha = root.querySelector("[data-group-id='alpha']")
     alpha.open = false
@@ -545,7 +547,7 @@ test("source group title drop moves a row into an empty group", () => {
       { id: "empty", name: "Empty", sources: [] }
     ]
     const calls = []
-    new SourceGroupView(sourceGroupHost(window, groups, calls)).render(root)
+    new SourceGroupView(sourceGroupHost(groups, calls)).render(root)
     const summary = root.querySelector("[data-group-id='empty'] summary")
     summary.dispatchEvent(dragEvent(window, "drop", {
       dataTransfer: { getData: () => "0:0" }
@@ -564,7 +566,7 @@ test("source group drag commits order and restores expanded groups", () => {
       { id: "beta", name: "Beta", sources: [] }
     ]
     const calls = []
-    new SourceGroupView(sourceGroupHost(window, groups, calls)).render(root)
+    new SourceGroupView(sourceGroupHost(groups, calls)).render(root)
     const details = [...root.querySelectorAll(".structured_group")]
     details.forEach((group, index) => {
       group.open = index !== 1
@@ -606,7 +608,7 @@ test("source group drag resolves targets below the translated origin", () => {
       { id: "alpha", name: "Alpha", sources: [] },
       { id: "beta", name: "Beta", sources: [] }
     ]
-    new SourceGroupView(sourceGroupHost(window, groups, [])).render(root)
+    new SourceGroupView(sourceGroupHost(groups, [])).render(root)
     const details = [...root.querySelectorAll(".structured_group")]
     details.forEach((group, index) => {
       group.getBoundingClientRect = () => {
@@ -648,11 +650,10 @@ test("source row ignores stale drag coordinates", () => {
     const calls = []
     const row = renderSourceRow(
       root,
-      sourceRowHost(window, groups, calls),
+      sourceRowHost(groups, calls),
       "one.test",
       0,
-      0,
-      "source-1"
+      0
     )
     root.append(row)
     row.dispatchEvent(dragEvent(window, "drop", {
@@ -672,9 +673,9 @@ test("source row dragleave only clears its own insertion indicator", () => {
       name: "Default",
       sources: ["one.test", "two.test"]
     }]
-    const host = sourceRowHost(window, groups, [])
-    const source = renderSourceRow(root, host, "one.test", 0, 0, "source-1")
-    const target = renderSourceRow(root, host, "two.test", 0, 1, "source-2")
+    const host = sourceRowHost(groups, [])
+    const source = renderSourceRow(root, host, "one.test", 0, 0)
+    const target = renderSourceRow(root, host, "two.test", 0, 1)
     root.append(source, target)
     target.getBoundingClientRect = () => ({
       top: 20,

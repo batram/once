@@ -37,6 +37,8 @@ test("addon overview, isolated settings, import and advanced pages work with key
     await expect(prompt).toHaveValue("My edited prompt")
     await expect(prompt).toHaveAttribute("data-retention-marker", "same-node")
     await window.getByRole("button", { name: "Disable", exact: true }).click()
+    // A disabled add-on keeps its settings editable.
+    await expect(window.getByRole("button", { name: "Enable", exact: true })).toBeVisible()
     await expect(prompt).toBeEnabled()
     await window.locator('#addon_installed [data-addon-id="first"]').getByRole("button", { name: "Remove", exact: true }).click()
     await expect(window.locator("#addon_overview")).toBeVisible()
@@ -48,6 +50,7 @@ test("addon overview, isolated settings, import and advanced pages work with key
     await window.locator("#addon_install_settings").evaluate(element => { element.style.width = "310px" })
     expect(await window.locator("#addon_install_settings").evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
     await addonSettings(window, "second")
+    await expect(window.getByTestId("addon-option-second-prompt")).toBeVisible()
     expect(await window.locator("#addon_install_settings").evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
     await addonAdvanced(window)
     await expect(window.getByTestId("addons")).toBeVisible()

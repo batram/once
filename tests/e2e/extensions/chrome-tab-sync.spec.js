@@ -1,6 +1,7 @@
 const { expect, expectExtensionReady, test, waitForExtensionWorker } = require("../shared/browser-evidence")
 const { launchExtensionChrome } = require("../shared/extension-chrome")
 const fs = require("node:fs/promises")
+const http = require("node:http")
 const os = require("node:os")
 const path = require("node:path")
 const PouchDB = require("pouchdb")
@@ -11,9 +12,16 @@ async function startCouch() {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-tabsync-couch-"))
   const Db = PouchDB.defaults({ prefix: directory + path.sep })
   const api = expressPouchDB(Db, { mode: "minimumForPouchDB", inMemoryConfig: true })
-  const server = await new Promise((resolve) => { const listening = api.listen(0, "127.0.0.1", () => resolve(listening)) })
+  const requests = []
+  const server = http.createServer((request, response) => {
+    requests.push(`${request.method} ${request.url}`)
+    api(request, response)
+  })
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve))
   const origin = `http://127.0.0.1:${server.address().port}`
   return {
+    /** Every request received so far, as "METHOD /path". */
+    requests,
     url: (name) => `${origin}/${name}`,
     put: async (name, doc) => {
       await fetch(`${origin}/${name}`, { method: "PUT" })
@@ -84,8 +92,11 @@ test("the Chrome background publishes every window's tabs with no panel open, an
     // Another installation of this browser profile points sync elsewhere.
     await worker.evaluate((syncUrl) => globalThis.chrome.storage.sync.set({ sync_url: syncUrl }), couch.url("other"))
     await page.goto(fixture.urls.delta)
-    // Publishing is due within 0.3 s here; a second and a half would have seen one.
+    // Nothing announces a refused URL, so this absence can only be given time:
+    // reconnecting asks the database for its sync epoch at once and publishing
+    // is due within 0.3 s, so a second and a half would have seen either.
     await new Promise((resolve) => setTimeout(resolve, 1_500))
+    expect(couch.requests.filter((line) => line.includes("/other"))).toEqual([])
     expect(await couch.devices("other")).toEqual([])
     const binding = await worker.evaluate(async () => (await globalThis.chrome.storage.local.get("secret:once:sync-destination"))["secret:once:sync-destination"])
     expect(binding).toBe(couch.url("once"))
@@ -134,9 +145,7 @@ test("the side panel's Tabs entry lists other devices' tabs and opens one in a n
     await expect(panel.getByTestId("remote-device")).toContainText("Test phone")
     const opened = context.waitForEvent("page")
     await panel.getByText("Epsilon on the phone").click()
-    expect((await opened).url()).toBe(fixture.urls.epsilon)
-    await panel.screenshot({ path: "artifacts/tab-sync/tabs-panel-chrome.png" })
-    await page.screenshot({ path: "artifacts/tab-sync/side-panel-chrome.png" })
+    await expect(await opened).toHaveURL(fixture.urls.epsilon)
   } finally {
     await browser.close(...cleanup)
   }

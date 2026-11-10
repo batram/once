@@ -6,7 +6,7 @@ const auth = { Authorization: `Basic ${Buffer.from("once-test:once-test").toStri
 const otherDevice = "fedcba9876543210fedcba9876543210"
 
 test("the phone shares its reading tabs and lists other devices' tabs in the tab view", async ({ page, request, baseURL }) => {
-  const database = "web_tab_sync"
+  const database = `web_tab_sync_${test.info().repeatEachIndex}`
   const server = new URL(baseURL).origin
   const at = new Date().toISOString()
   await request.post(`${server}/test/databases/${database}/reset`, {
@@ -46,7 +46,7 @@ test("the phone shares its reading tabs and lists other devices' tabs in the tab
 })
 
 test("an article opened from another device continues where it was read, and its own position is shared", async ({ page, request, baseURL }) => {
-  const database = "web_tab_sync_reader"
+  const database = `web_tab_sync_reader_${test.info().repeatEachIndex}`
   const server = new URL(baseURL).origin
   const at = new Date().toISOString()
   const article = `${server}/fixtures/article.html?from=laptop`
@@ -92,7 +92,7 @@ test("an article opened from another device continues where it was read, and its
 })
 
 test("a tab card's own menu in the tab view sends that tab to another device", async ({ page, request, baseURL }) => {
-  const database = "web_tab_sync_send"
+  const database = `web_tab_sync_send_${test.info().repeatEachIndex}`
   const server = new URL(baseURL).origin
   const at = new Date().toISOString()
   await request.post(`${server}/test/databases/${database}/reset`, {
@@ -118,13 +118,16 @@ test("a tab card's own menu in the tab view sends that tab to another device", a
   await page.getByTestId("menu-send").click()
   await page.getByTestId(`menu-${otherDevice}`).click()
   await expect(page.locator(".reading_tab_status")).toHaveText("Sent to Test laptop")
-  const response = await request.get(`${server}/db/${database}/_all_docs?include_docs=true&startkey=%22tsend_${otherDevice}_%22&endkey=%22tsend_${otherDevice}_%EF%BF%BF%22`, { headers: auth })
-  const sends = (await response.json()).rows.map((row) => row.doc)
-  expect(sends.map((send) => send.url)).toEqual(["https://first.example/to-send"])
+  // The status is shown from the local write; the server has it once replicated.
+  await expect.poll(async () => {
+    const response = await request.get(`${server}/db/${database}/_all_docs?include_docs=true&startkey=%22tsend_${otherDevice}_%22&endkey=%22tsend_${otherDevice}_%EF%BF%BF%22`, { headers: auth })
+    const rows = response.ok() ? (await response.json()).rows : []
+    return rows.map((row) => row.doc.url)
+  }, { timeout: 30_000 }).toEqual(["https://first.example/to-send"])
 })
 
 test("a tab sent to the phone is announced in its own band above the tab bar, never over it or off screen", async ({ page, request, baseURL }) => {
-  const database = "web_tab_sync_notice"
+  const database = `web_tab_sync_notice_${test.info().repeatEachIndex}`
   const server = new URL(baseURL).origin
   const at = new Date().toISOString()
   await request.post(`${server}/test/databases/${database}/reset`, {
@@ -170,7 +173,7 @@ test("a tab sent to the phone is announced in its own band above the tab bar, ne
 })
 
 test("never-share domains take the row's full width on a wide phone and grow with their lines", async ({ page, request, baseURL }) => {
-  const database = "web_tab_sync_excluded"
+  const database = `web_tab_sync_excluded_${test.info().repeatEachIndex}`
   const server = new URL(baseURL).origin
   await request.post(`${server}/test/databases/${database}/reset`, { data: { docs: [] } })
   await gotoMobileApp(page)
@@ -198,8 +201,7 @@ test("never-share domains take the row's full width on a wide phone and grow wit
   expect(before.width).toBeGreaterThan(before.rowWidth - 2)
   expect(before.top).toBeGreaterThanOrEqual(before.nameBottom)
   await field.fill(["a.example", "b.example", "c.example", "d.example", "e.example", "f.example"].join("\n"))
-  const after = await box()
-  expect(after.height).toBeGreaterThan(before.height)
+  await expect.poll(async () => (await box()).height).toBeGreaterThan(before.height)
   expect(await field.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1)
   await page.locator("#sync_page_tabs").screenshot({ path: "artifacts/tab-sync/never-share-wide-phone.png" })
   await openSettingsSection(page, "theme")

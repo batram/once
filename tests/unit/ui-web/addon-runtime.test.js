@@ -5,12 +5,18 @@ const path = require("node:path")
 const vm = require("node:vm")
 const { parseHTML } = require("linkedom")
 
-test("overlapping async handlers retain their own story invocation", async () => {
+const tick = () => new Promise(resolve => setImmediate(resolve))
+
+/** The sandbox runtime as its frame runs it, with `code` loaded and ready. */
+async function runtime(code) {
   const sent = []
-  let receive
-  const scope = { parent: { postMessage: message => sent.push(message) }, addEventListener: (_event, handler) => { receive = handler } }
-  const context = vm.createContext({
-    exports: {},
+  let receive, started
+  const starting = new Promise(resolve => { started = resolve })
+  const scope = {
+    parent: { postMessage: message => { sent.push(message); if (message.type === "ready" || message.type === "error") started() } },
+    addEventListener: (_event, handler) => { receive = handler }
+  }
+  const context = vm.createContext({ exports: {}, AbortController,
     Blob: function FixtureBlob(parts) { this.code = parts.join("") },
     URL: { createObjectURL: blob => `data:text/javascript,${encodeURIComponent(blob.code)}`, revokeObjectURL() {} }
   })
@@ -19,18 +25,23 @@ test("overlapping async handlers retain their own story invocation", async () =>
   }).runInContext(context)
   context.exports.startSandboxRuntime(scope)
   const send = data => receive({ source: scope.parent, data })
-  const tick = () => new Promise(resolve => setImmediate(resolve))
-  send({ type: "load", protocol: 1, settings: {}, code: `export default once => {
+  send({ type: "load", protocol: 1, settings: {}, code })
+  await starting
+  assert.equal(sent.at(-1).type, "ready", JSON.stringify(sent))
+  return { sent, send }
+}
+
+test("overlapping async handlers retain their own story invocation", async () => {
+  const { sent, send } = await runtime(`export default once => {
     once.onInvoke(async (action, story) => {
       await once.fetch('https://fixture.test/' + action)
       once.notify(story, action)
     })
-  }` })
-  for (let attempt = 0; attempt < 20 && !sent.some(message => message.type === "ready"); attempt++) await tick()
-  assert.ok(sent.some(message => message.type === "ready"), JSON.stringify(sent))
+  }`)
   send({ type: "invoke", requestId: 1, action: "one", story: { href: "https://fixture.test/one" } })
   send({ type: "invoke", requestId: 2, action: "two", story: { href: "https://fixture.test/two" } })
   const fetches = sent.filter(message => message.type === "op" && message.op.name === "fetch")
+  assert.equal(fetches.length, 2)
   for (const fetch of fetches.reverse()) { send({ type: "opResult", opId: fetch.opId, ok: true, value: {} }); await tick() }
   assert.deepEqual(sent.filter(message => message.op?.name === "notify").map(message => [message.requestId, message.op.text]), [[2, "two"], [1, "one"]])
 })
@@ -48,26 +59,12 @@ test("badge updates target the owning add-on even when computation names match",
 })
 
 test("only an explicit refreshed invocation bypasses the saved article", async () => {
-  const sent = []
-  let receive
-  const scope = { parent: { postMessage: message => sent.push(message) }, addEventListener: (_event, handler) => { receive = handler } }
-  const context = vm.createContext({ exports: {}, AbortController,
-    Blob: function FixtureBlob(parts) { this.code = parts.join("") },
-    URL: { createObjectURL: blob => `data:text/javascript,${encodeURIComponent(blob.code)}`, revokeObjectURL() {} }
-  })
-  new vm.Script(fs.readFileSync(path.resolve(__dirname, "../../../packages/ui-web/dist/addons/sandboxRuntime.js"), "utf8"), {
-    importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER
-  }).runInContext(context)
-  context.exports.startSandboxRuntime(scope)
-  const send = data => receive({ source: scope.parent, data })
-  const tick = () => new Promise(resolve => setImmediate(resolve))
-  send({ type: "load", protocol: 1, settings: {}, code: `export default once => {
+  const { sent, send } = await runtime(`export default once => {
     once.onTray(async (_tray, _event, _story, context) => {
       await context.getStoryContent()
       return { messages: [] }
     })
-  }` })
-  for (let attempt = 0; attempt < 20 && !sent.some(message => message.type === "ready"); attempt++) await tick()
+  }`)
   for (const [requestId, refreshSource] of [[1, false], [2, true]]) {
     send({ type: "tray", requestId, tray: "summary", event: { type: "open", refreshSource }, story: { href: "https://example.test/a" } })
     const operation = sent.find(message => message.type === "op" && message.requestId === requestId)

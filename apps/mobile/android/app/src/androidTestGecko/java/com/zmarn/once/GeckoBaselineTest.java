@@ -8,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mozilla.geckoview.*;
@@ -16,8 +17,12 @@ import static org.junit.Assert.*;
 /** Same local document, device, runtime version and repetitions. External sites are observations only. */
 @RunWith(AndroidJUnit4.class)
 public class GeckoBaselineTest {
+    private final GeckoTestSupport t = new GeckoTestSupport();
+
+    @After public void stop() throws Exception { t.stop(); }
+
     @Test public void compareConfigurations() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.close();
+        t.start();
         GeckoEngine engine = t.engine();
         List<WebExtension> installed = t.result(engine::ready);
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {

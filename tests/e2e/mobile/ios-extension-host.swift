@@ -100,8 +100,11 @@ final class HostTest: UIResponder, UIApplicationDelegate, WKScriptMessageHandler
   if disk.count != live.count { mismatches.append("disk rows \(disk.count) live rows \(live.count)") }
   results["diskCatalogMismatches"] = mismatches
   // This fresh controller identity has never run the bundles, so they load once WebKit's relaunch window closes.
+  let ubolOnly = CommandLine.arguments.contains("--ubol-only")
+  // Tools only: the other bundles never load, so no first-run welcome page takes the active tab from the fixture page.
+  if ubolOnly { for id in ["addon@darkreader.org", "sponsorBlocker@ajay.app", "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}"] { _ = try host.command("enable", id:id, enabled:false) } }
   await host.firstRunLoads?.value
-  if CommandLine.arguments.contains("--ubol-only") { try await testUBlockTools(); return }
+  if ubolOnly { try await testUBlockTools(); return }
   web.loadHTMLString("<html><head><meta name='viewport' content='width=device-width'><style>body{background:white;color:black}article{padding:24px}</style></head><body><article><h1>Extension test</h1><p>Dark Reader should theme this page using the upstream extension.</p></article></body></html>", baseURL:URL(string:"https://example.com/once-test"))
   await pause()
   results["darkPage"] = try await value("({url:location.href,styles:document.querySelectorAll('.darkreader').length,background:getComputedStyle(document.body).backgroundColor,html:document.documentElement.outerHTML.slice(0,500)})")

@@ -4,14 +4,13 @@ const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
 const { execFileSync } = require("node:child_process")
+const { readSwift, swiftSlice } = require("./swift-source")
 
 test("native settings apply filters and scripts without initializing the browser extension host", { skip: process.platform !== "darwin" }, t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "once-lazy-extensions-"))
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
-  const root = path.resolve(__dirname, "../../../apps/mobile/ios/App/App")
-  const plugin = fs.readFileSync(path.join(root, "InAppBrowserSurfacePlugin.swift"), "utf8")
-  const method = plugin.slice(plugin.indexOf("    @objc func applyExtensionSettings("), plugin.indexOf("    @objc func extensionCommand("))
-  fs.writeFileSync(path.join(directory, "Support.swift"), fs.readFileSync(path.join(root, "ExtensionSupport.swift"), "utf8")
+  const method = swiftSlice(readSwift("InAppBrowserSurfacePlugin.swift"), "    @objc func applyExtensionSettings(", "    @objc func extensionCommand(")
+  fs.writeFileSync(path.join(directory, "Support.swift"), readSwift("ExtensionSupport.swift")
     .replace("import Capacitor", "typealias JSObject = [String: Any]"))
   fs.writeFileSync(path.join(directory, "Driver.swift"), `
 import Foundation

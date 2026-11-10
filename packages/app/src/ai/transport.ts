@@ -23,7 +23,7 @@ export async function aiTransport(fetch: typeof globalThis.fetch, connection: Ai
     const decoder = new TextDecoder()
     let text = "", sent = 0, size = 0
     const progress = (done: boolean) => {
-      let end = done ? text.length : Math.max(0, text.length - token.length + 1)
+      let end = done ? text.length : text.length - Math.max(0, token.length - 1)
       for (let found; token && (found = text.indexOf(token, Math.max(sent, end - token.length + 1))) >= 0 && found < end;) end = found + token.length
       if (end > sent) { onChunk?.(redact(text.slice(sent, end))); sent = end }
     }

@@ -138,7 +138,7 @@ test("tag subsets and reordering cause no save or change event; additions are de
   await app.addStories([story(href, ["B", "C", "C"])])
   assert.equal(saves, 1)
   assert.equal(changes.length, 1)
-  assert.deepEqual(stored.tags.map(tag => tag.text), ["A", "B", "C"])
+  assert.deepEqual(app.client.getStorySnapshot()[0].tags.map(tag => tag.text), ["A", "B", "C"])
 })
 
 test("duplicate source URLs remain serialized and preserve both sources' metadata", async () => {
@@ -160,7 +160,7 @@ test("failed tag additions are rolled back so a source retry persists them", asy
   const save = fake.ports.storyStore.saveStory
   fake.ports.storyStore.saveStory = async () => { throw new Error("injected failure") }
   await assert.rejects(app.addStories([story(href, ["A", "B"])]), /injected failure/)
-  assert.deepEqual(stored.tags.map(tag => tag.text), ["A"])
+  assert.deepEqual(app.client.getStorySnapshot()[0].tags.map(tag => tag.text), ["A"])
   fake.ports.storyStore.saveStory = save
   await app.addStories([story(href, ["A", "B"])])
   assert.deepEqual((await fake.ports.storyStore.getStory(href)).tags.map(tag => tag.text), ["A", "B"])
@@ -212,10 +212,11 @@ test("known story refresh keeps metadata and retains new discussions without tim
   const again = story(href, ["B", "C"]); again.comment_url = "https://lobste.rs/s/abc/renamed"; again.timestamp = 555
   await app.addStories([again])
   assert.equal(saves, 2)
-  assert.equal(original.title, "A story")
-  assert.equal(original.timestamp, 1784678400000)
-  assert.equal(original.substories.length, 1)
-  assert.deepEqual(original.substories[0].tags.map(t => t.text), ["B", "C"])
+  const [kept] = app.client.getStorySnapshot()
+  assert.equal(kept.title, "A story")
+  assert.equal(kept.timestamp, 1784678400000)
+  assert.equal(kept.substories.length, 1)
+  assert.deepEqual(kept.substories[0].tags.map(t => t.text), ["B", "C"])
   await app.addStories([again])
   assert.equal(saves, 2)
 })

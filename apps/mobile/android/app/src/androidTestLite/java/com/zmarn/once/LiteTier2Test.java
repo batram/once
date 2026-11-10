@@ -92,6 +92,8 @@ public class LiteTier2Test {
 
     @After
     public void stop() throws Exception {
+        // start() refused the package or the device: nothing was switched, and a skip must stay a skip.
+        if (activity == null) return;
         JSONArray catalogue = results.optJSONArray("catalogue");
         if (catalogue != null) for (int index = 0; index < catalogue.length(); index++) catalogue.optJSONObject(index).remove("iconDataUrl");
         Log.i(TAG, "RESULTS " + results.toString());

@@ -4,13 +4,11 @@ const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
 const { execFileSync } = require("node:child_process")
+const { readSwift, swiftSlice } = require("./swift-source")
 
 test("settings refreshes restore AMO in existing tabs without registering duplicate handlers", { skip: process.platform !== "darwin" }, t => {
-  const root = path.resolve(__dirname, "../../../apps/mobile/ios/App/App")
-  const plugin = fs.readFileSync(path.join(root, "InAppBrowserSurfacePlugin.swift"), "utf8")
-  const bridge = fs.readFileSync(path.join(root, "AmoInstallBridge.swift"), "utf8")
-  const reset = plugin.slice(plugin.indexOf("    private func installUserscripts("), plugin.indexOf("    @objc func close("))
-  const install = bridge.slice(bridge.indexOf("    func installSurfaceScripts("), bridge.indexOf("    /// Tells open AMO pages"))
+  const reset = swiftSlice(readSwift("InAppBrowserSurfacePlugin.swift"), "    private func installUserscripts(", "    @objc func close(")
+  const install = swiftSlice(readSwift("AmoInstallBridge.swift"), "    func installSurfaceScripts(", "    /// Tells open AMO pages")
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "once-amo-lifecycle-"))
   t.after(() => fs.rmSync(temporary, { recursive: true, force: true }))
   const source = `

@@ -41,7 +41,17 @@
         // native-rendering/run.js spawns this as an Electron main script by
         // path, which Knip cannot follow as an import.
         "tests/e2e/electron/native-rendering/driver.js",
-        "tests/e2e/mobile/*.js",
+        // The mobile device harness, named file by file so Knip reports an
+        // orphan: the runners npm scripts and docs/benchmarks start, ...
+        "tests/e2e/mobile/run-{mobile-e2e,mobile-web-e2e,android-local}.js",
+        "tests/e2e/mobile/run-ios-extension-{host,management,compat}.js",
+        "tests/e2e/mobile/{run,build}-extension-benchmark-{android,ios}.js",
+        // ... the WebdriverIO configs run-mobile-e2e.js passes by path, and
+        // the suites wdio.shared.conf.js selects by file name.
+        "tests/e2e/mobile/wdio.{android,ios}.conf.js",
+        "tests/e2e/mobile/mobile.{smoke,addons,lite-extensions,visual-inspection}.js",
+        // playwright.config.js names its global setup by path.
+        "tests/e2e/mobile/global-setup.js",
         "tests/mobile-env/server.js"
       ],
       "project": [
@@ -75,9 +85,8 @@
         "src/addonSandbox.ts",
         "src/pdfSandbox.ts",
         "src/pickerInjection.ts",
-        // Image text selection: the host run in a tab's isolated world, and
-        // the Forge entry for the words frame it anchors to the image.
-        "src/imageTextAnchor.ts",
+        // Image text selection: the Forge entry for the words frame. Its host
+        // is part of the frame preload (contentPreload imports imageTextPreload).
         "src/imageTextOverlayRenderer.ts",
         "src/extensions/extensionPreload.ts",
         "src/extensions/contentPreload.ts",

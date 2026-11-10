@@ -12,13 +12,14 @@ const defaults = Object.fromEntries(Object.entries(schema.properties).filter(([,
 async function fixture(extra = {}, respond, fetch = async url => { throw new Error("no fetch: grant covers " + url) }, api = {}) {
   const addon = await modulePromise
   let handler, settingsChanged
-  const requests = [], updates = []
+  const requests = [], updates = [], watchers = []
+  const controller = new AbortController()
   let extracts = 0
   const settings = { ...defaults, provider: "compatible", model: "fixture-model", compatibleEndpoint: "http://localhost/v1/chat/completions", ...extra }
   addon.default({ settings, fetch, onTray: callback => { handler = callback }, onSettings: callback => { settingsChanged = callback }, ...api })
   const context = {
-    signal: new AbortController().signal,
-    update(view) { updates.push(view) },
+    signal: controller.signal,
+    update(view) { updates.push(view); for (const watch of watchers) watch() },
     async getStoryContent() { extracts++; return { text: "Article evidence", title: "Article", sourceUrl: "https://story.test/", truncated: false } },
     async request(connection, request, options) {
       requests.push({ connection, request })
@@ -59,7 +60,15 @@ async function fixture(extra = {}, respond, fetch = async url => { throw new Err
     return ai.search(query, undefined, context.signal)
   }
   const story = { href: "https://story.test/", title: "What is ExampleApp 2.0?" }
-  return { requests, updates, context, story, addon, changed: () => settingsChanged(settings), extracts: () => extracts,
+  /** Resolves once an update has shown messages that `matches` accepts, each given by its title or else its text. */
+  const shown = matches => new Promise(resolve => {
+    const check = () => { if (updates.some(view => matches(view.messages.map(message => message.title ?? message.text)))) resolve() }
+    watchers.push(check)
+    check()
+  })
+  // Ends requests a failed test left waiting, so their timeouts do not keep the process alive.
+  const abort = () => controller.abort()
+  return { requests, updates, context, story, shown, abort, changed: () => settingsChanged(settings), extracts: () => extracts,
     run: event => handler("assistant", event, story, context) }
 }
 
@@ -72,7 +81,6 @@ test("opening explains and summarizes once, follow-up includes history, clear re
   assert.equal(f.requests.length, 2)
   const summary = f.requests.map(item => JSON.parse(item.request.body)).find(body => body.messages[0].content.includes("three to five"))
   assert.ok(summary)
-  assert.match(summary.messages[0].content, /three to five/)
   assert.equal(summary.messages.some(message => message.content === "An explanation."), false)
   // The opening turn already explained and summarized, so neither is offered again.
   assert.deepEqual(result.actions, [])
@@ -93,19 +101,24 @@ test("opening explains and summarizes once, follow-up includes history, clear re
   assert.equal(f.extracts(), 3)
 })
 
-test("opening asks for the explanation and summary at once and shows whichever lands first", async () => {
+test("opening asks for the explanation and summary at once and shows whichever lands first", { timeout: 10_000 }, async t => {
   const pending = []
+  let bothAsked
+  const asked = new Promise(resolve => { bothAsked = resolve })
   const reply = content => ({ status: 200, text: JSON.stringify({ choices: [{ message: { content } }] }) })
-  const f = await fixture({}, (_connection, request) => new Promise(resolve => pending.push({ summary: /Summarize/.test(request.body), resolve })))
+  const f = await fixture({}, (_connection, request) => new Promise(resolve => {
+    pending.push({ summary: /Summarize/.test(request.body), resolve })
+    if (pending.length === 2) bothAsked()
+  }))
+  t.after(f.abort)
   const opened = f.run({ type: "open" })
-  await new Promise(resolve => setImmediate(resolve))
-  for (let attempt = 0; pending.length < 2 && attempt < 100; attempt++) await new Promise(resolve => setTimeout(resolve, 5))
+  await asked
   // Both are in flight before either answers, in whichever order they reached the transport.
   assert.deepEqual(pending.map(request => request.summary).sort(), [false, true])
   const summary = pending.find(request => request.summary)
   const explanation = pending.find(request => !request.summary)
   summary.resolve(reply("The summary."))
-  await new Promise(resolve => setImmediate(resolve))
+  await f.shown(names => names.includes("Summary"))
   // Progress-only updates carry no messages; the answers are what is counted here.
   const answered = () => f.updates.filter(view => view.messages.length)
   assert.deepEqual(answered().map(view => view.messages.map(message => message.title ?? message.text)), [["Summary"]])
@@ -116,29 +129,32 @@ test("opening asks for the explanation and summary at once and shows whichever l
   assert.equal(answered().length, 1)
 })
 
-test("a streamed explanation shows as it is written, and its finished text is the answer", async () => {
-  const pause = () => new Promise(resolve => setTimeout(resolve, 120))
+test("a streamed explanation shows as it is written, and its finished text is the answer", { timeout: 10_000 }, async t => {
   const event = content => `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`
+  // Each step waits for the tray to show the one before, not for time to pass.
   const f = await fixture({}, async (_connection, request, options) => {
     const body = JSON.parse(request.body)
     assert.equal(body.stream, true)
     if (body.messages.at(-1).content === "Summarize this article.") {
-      await pause(); await pause(); await pause()
+      // The summary lands once the finished explanation has been shown on its own.
+      await f.shown(names => names.length === 1 && names[0] === "ExampleApp organizes projects.")
       return { status: 200, text: JSON.stringify({ choices: [{ message: { content: "The summary." } }] }) }
     }
     const stream = [event("ExampleApp "), event("organizes"), event(" projects."), `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`].join("")
     // Pieces need not end on an event boundary.
     const cut = stream.indexOf("organizes") + 3
     options.onChunk(stream.slice(0, cut))
-    await pause()
+    await f.shown(names => names[0] === "ExampleApp ")
     options.onChunk(stream.slice(cut))
-    await pause()
+    await f.shown(names => names.length === 1 && names[0] === "ExampleApp organizes projects.")
     return { status: 200, headers: { "content-type": "text/event-stream" }, text: stream }
   })
+  t.after(f.abort)
   const result = await f.run({ type: "open" })
   const shown = f.updates.filter(view => view.messages.length).map(view => view.messages.map(message => message.title ?? message.text))
   assert.deepEqual(shown[0], ["ExampleApp "])
   assert.ok(shown.some(messages => messages[0] === "ExampleApp organizes projects." && messages.length === 1))
+  assert.ok(shown.every(messages => "ExampleApp organizes projects.".startsWith(messages[0])), "every piece shown is the answer so far")
   assert.deepEqual(result.messages.map(message => message.title ?? message.text), ["ExampleApp organizes projects.", "Summary"])
 })
 

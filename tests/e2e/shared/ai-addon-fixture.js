@@ -57,4 +57,9 @@ function handleRequest(request, response) {
   response.writeHead(404); response.end(); return true
 }
 
-module.exports = { manifest, handleRequest, calls }
+/** The requests recorded so far belong to whichever test ran before: start each test without them. */
+function reset() {
+  calls.length = 0
+}
+
+module.exports = { manifest, handleRequest, calls, reset }

@@ -7,22 +7,6 @@ export function createReaderSpeechSegments(
   root: HTMLElement,
   maximum = 900
 ): ReaderSpeechSegment[] {
-  return createReaderSpeechSegmentsWith(
-    root,
-    maximum,
-    normalizeReaderSpeechText,
-    splitReaderSpeechText
-  )
-}
-
-// This function is inlined into the reader page through Function.toString(),
-// so it must be self-contained: no module-level constants or helpers.
-export function createReaderSpeechSegmentsWith(
-  root: HTMLElement,
-  maximum: number,
-  normalize: typeof normalizeReaderSpeechText,
-  split: typeof splitReaderSpeechText
-): ReaderSpeechSegment[] {
   const blockSelector = "p,li,h2,h3,h4,h5,h6,blockquote,pre,figcaption,td,th"
   const blockLevelSelector = `${blockSelector},div,section,article,main,aside,header,footer,dd,dt,ul,ol,table,tbody,tr,hr,br,img,figure,nav,form,details,summary,script,style,noscript,template,svg,math`
   const isElement = (node: Node): node is HTMLElement => node.nodeType === 1
@@ -63,7 +47,7 @@ export function createReaderSpeechSegmentsWith(
   const describeCode = (element: HTMLElement): string => {
     const raw = element.textContent || ""
     const lines = raw.split(/\r?\n/).filter((line) => line.trim())
-    if (lines.length <= 3 && raw.length <= 160) return normalize(raw)
+    if (lines.length <= 3 && raw.length <= 160) return normalizeReaderSpeechText(raw)
     return `Code block, ${lines.length} lines.`
   }
 
@@ -75,10 +59,10 @@ export function createReaderSpeechSegmentsWith(
     const text = element.matches("pre")
       ? describeCode(element)
       // innerText follows rendered reading order and supplies block/line spacing.
-      : normalize(element.innerText || element.textContent || "")
+      : normalizeReaderSpeechText(element.innerText || element.textContent || "")
     // Punctuation-only leftovers such as a lone "[" are not worth an utterance.
     return /[\p{L}\p{N}]/u.test(text)
-      ? split(text, maximum).map((chunk) => ({ element, text: chunk }))
+      ? splitReaderSpeechText(text, maximum).map((chunk) => ({ element, text: chunk }))
       : []
   })
 }

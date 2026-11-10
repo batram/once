@@ -144,8 +144,15 @@ test("requests pause at both stages: a blocked image, a document with the held o
   assert.equal(response.params.params.responseCode, 200)
 
   // Completion notifications come from Network events.
+  for (const [id, event] of [[5, "onCompleted"], [6, "onErrorOccurred"]]) {
+    java.pageMessage(pageId, { type: "listen", change: { action: "add", api: "webRequest", event, id, spec: { filter: { urls: ["<all_urls>"] } } } })
+  }
   java.cdpEvent("T1", "Network.loadingFinished", { requestId: "N3" })
+  const completed = (await java.nextPageEvent(pageId, "webRequest", "onCompleted")).params.message.message.args[0]
+  assert.deepEqual([completed.url, completed.statusCode], ["https://site.test/page", 200])
   java.cdpEvent("T1", "Network.loadingFailed", { requestId: "N2", errorText: "net::ERR_FAILED" })
+  const errored = (await java.nextPageEvent(pageId, "webRequest", "onErrorOccurred")).params.message.message.args[0]
+  assert.deepEqual([errored.url, errored.error], ["https://cdn.test/fine.png", "net::ERR_FAILED"])
 })
 
 test("a world says hello, sends a runtime message to the background and gets the reply; tabs.query sees Java's tabs", async () => {
@@ -258,18 +265,13 @@ test("applyExtensionSettings hands the lists to uBlock's dashboard port and the 
   // the broker's readiness checks (`getLists` after start-up and after the reload).
   const dashboard = []
   let answered = 0
-  const answerPorts = async () => {
-    for (;;) {
-      const post = await java.next((e) => e.type === "request" && e.method === "page.post" && e.params.pageId === ublockPage &&
-        e.params.message.type === "event" && e.params.message.message.api === "__port" && e.params.message.message.event === "message")
-      java.forget(post)
-      const { portId: onPort, message: envelope } = post.params.message.message.args[0]
-      if (onPort === portId) dashboard.push(envelope.msg.what)
-      const reply = envelope.msg.what === "getLists" ? { available: { "easylist": { off: false } } } : {}
-      java.pageMessage(ublockPage, { type: "invoke", id: 100 + answered++, api: "__port", method: "post", args: [{ portId: onPort, message: { msgId: envelope.msgId, msg: reply } }] })
-    }
-  }
-  void answerPorts().catch(() => undefined)
+  java.onEach((e) => e.type === "request" && e.method === "page.post" && e.params.pageId === ublockPage &&
+    e.params.message.type === "event" && e.params.message.message.api === "__port" && e.params.message.message.event === "message", (post) => {
+    const { portId: onPort, message: envelope } = post.params.message.message.args[0]
+    if (onPort === portId) dashboard.push(envelope.msg.what)
+    const reply = envelope.msg.what === "getLists" ? { available: { "easylist": { off: false } } } : {}
+    java.pageMessage(ublockPage, { type: "invoke", id: 100 + answered++, api: "__port", method: "post", args: [{ portId: onPort, message: { msgId: envelope.msgId, msg: reply } }] })
+  })
   await applied
   assert.deepEqual(dashboard, ["getLists", "applyFilterListSelection", "reloadAllFilters"])
   assert.ok(java.stores.has(`/storage/${ublock.extension.host}/once-filter-lists.json`))
@@ -526,8 +528,7 @@ test("cookies.onChanged reaches only extensions with the cookies permission and 
 })
 
 test("a stalled renderer: the broker answers Java's ping, continues requests of unknown targets and drops released ones quietly", async () => {
-  const { java, broker } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
-  void broker
+  const { java } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
   assert.deepEqual(await java.request("broker.ping"), {})
   java.cdpEvent("T9", "Fetch.requestPaused", { requestId: "R1", frameId: "F1", resourceType: "Image", request: { url: "https://cdn.test/a.png", method: "GET", headers: {} } })
   const continued = await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.params.requestId === "R1")
@@ -658,26 +659,21 @@ test("documents wait for Violentmonkey's late cookie only when it has scripts to
   await host.storage.get(null)
   java.event("target.attached", { targetId: "T1", kind: "tab", tabId: 7, frameTree: { frame: { id: "F1", url: "about:blank" } } })
   let asked = 0
-  const answerAll = (async () => {
-    for (;;) {
-      const ask = await java.nextPageEvent(pageId, "webRequest", "onHeadersReceived").catch(() => null)
-      if (!ask) return
-      java.forget(ask)
-      asked += 1
-      java.pageMessage(pageId, { type: "reply", token: ask.params.message.message.token, result: [undefined] })
-    }
-  })()
+  java.onEach((e) => e.type === "request" && e.method === "page.post" && e.params.pageId === pageId &&
+    e.params.message.type === "event" && e.params.message.message.event === "onHeadersReceived", (ask) => {
+    asked += 1
+    java.pageMessage(pageId, { type: "reply", token: ask.params.message.message.token, result: [undefined] })
+  })
   const load = async (requestId) => {
     java.cdpEvent("T1", "Fetch.requestPaused", { requestId, networkId: requestId, frameId: "F1", resourceType: "Document",
       request: { url: "https://site.test/", method: "GET", headers: {} }, responseStatusCode: 200, responseHeaders: [{ name: "Content-Type", value: "text/html" }] })
-    await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.params.requestId === requestId, 5000)
+    await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.params.requestId === requestId)
   }
   await load("R1")
   assert.equal(asked, 1, "no scripts: asked once, no retries")
   await host.storage.set({ "scr:1": { config: { enabled: 1 } } })
   await load("R2")
   assert.equal(asked, 6, "with scripts: asked again while its preparation may still be running")
-  await answerAll
 })
 
 test("extension hosts are random per install, kept across starts, and an install from before keeps its host", async () => {

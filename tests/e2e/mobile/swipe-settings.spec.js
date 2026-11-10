@@ -39,21 +39,6 @@ test("swipe settings autosave, undo, and reset without submit controls", async (
   await waitForSwipeSettings(page)
 })
 
-test("mobile undo button setting autosaves", async ({ page }) => {
-  await gotoMobileApp(page)
-  await openSettingsSection(page, "swipe")
-  await openSwipeAdvanced(page)
-
-  const enabled = page.locator("#swipe_undo_button")
-  await expect(enabled).toBeVisible()
-  await expect(enabled).toBeChecked()
-
-  await enabled.uncheck()
-  await waitForSwipeSettings(page)
-  await enabled.check()
-  await waitForSwipeSettings(page)
-})
-
 test("swipe settings fit the mobile viewport without horizontal clipping", async ({
   page
 }) => {

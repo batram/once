@@ -81,19 +81,24 @@ test("conditions narrow by type, method, domains, domain type and regex", () => 
 })
 
 test("priority decides, and at a tie allow beats block beats upgrade beats redirect", () => {
+  // The winner is never first or last in its list, and the pair below is
+  // tried both ways round: rule order must not be what decides.
+  const redirect = { type: "redirect", redirect: { url: "https://elsewhere.test/" } }
   const tie = matcher([
-    rule(1, { type: "redirect", redirect: { url: "https://elsewhere.test/" } }, { urlFilter: "tie" }),
-    rule(2, { type: "upgradeScheme" }, { urlFilter: "tie" }),
-    rule(3, { type: "block" }, { urlFilter: "tie" }),
-    rule(4, { type: "allow" }, { urlFilter: "tie" })
+    rule(1, { type: "block" }, { urlFilter: "tie" }),
+    rule(2, { type: "allow" }, { urlFilter: "tie" }),
+    rule(3, redirect, { urlFilter: "tie" }),
+    rule(4, { type: "upgradeScheme" }, { urlFilter: "tie" })
   ])
   assert.equal(tie.evaluate(request("http://site.test/tie")).outcome, "allow")
   const noAllow = matcher([
-    rule(1, { type: "redirect", redirect: { url: "https://elsewhere.test/" } }, { urlFilter: "tie" }),
-    rule(2, { type: "upgradeScheme" }, { urlFilter: "tie" }),
-    rule(3, { type: "block" }, { urlFilter: "tie" })
+    rule(1, { type: "upgradeScheme" }, { urlFilter: "tie" }),
+    rule(2, { type: "block" }, { urlFilter: "tie" }),
+    rule(3, redirect, { urlFilter: "tie" })
   ])
   assert.equal(noAllow.evaluate(request("http://site.test/tie")).outcome, "block")
+  const upgradeFirst = matcher([rule(1, { type: "upgradeScheme" }, { urlFilter: "tie" }), rule(2, redirect, { urlFilter: "tie" })])
+  assert.equal(upgradeFirst.evaluate(request("http://site.test/tie")).outcome, "upgradeScheme")
   const upgrade = matcher([
     rule(1, { type: "redirect", redirect: { url: "https://elsewhere.test/" } }, { urlFilter: "tie" }),
     rule(2, { type: "upgradeScheme" }, { urlFilter: "tie" })
@@ -102,11 +107,12 @@ test("priority decides, and at a tie allow beats block beats upgrade beats redir
     [upgrade.evaluate(request("http://site.test/tie")).outcome, upgrade.evaluate(request("http://site.test/tie")).redirectUrl],
     ["upgradeScheme", "https://site.test/tie"]
   )
-  const higher = matcher([
-    rule(1, { type: "allow" }, { urlFilter: "x" }, 1),
-    rule(2, { type: "block" }, { urlFilter: "x" }, 5)
-  ])
-  assert.equal(higher.evaluate(request("https://site.test/x")).rule.id, 2)
+  for (const rules of [
+    [rule(1, { type: "allow" }, { urlFilter: "x" }, 1), rule(2, { type: "block" }, { urlFilter: "x" }, 5)],
+    [rule(2, { type: "block" }, { urlFilter: "x" }, 5), rule(1, { type: "allow" }, { urlFilter: "x" }, 1)]
+  ]) {
+    assert.equal(matcher(rules).evaluate(request("https://site.test/x")).rule.id, 2)
+  }
   assert.equal(matcher([]).evaluate(request("https://site.test/x")).outcome, "none")
 })
 

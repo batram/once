@@ -94,8 +94,9 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
     await address.fill("not a valid URL")
     await address.press("Enter")
     await expect(address).toHaveValue("not a valid URL")
-    await expect(window.locator("#url_error")).toBeHidden()
     await expect(window.locator(".electron-tab-title")).toHaveText("Failed to load")
+    // Read once the failure has been reported: it shows as a page, not under the field.
+    await expect(window.locator("#url_error")).toBeHidden()
     await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
       const contents = webContents
         .getAllWebContents()

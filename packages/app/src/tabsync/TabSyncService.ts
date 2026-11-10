@@ -139,6 +139,10 @@ export class TabSyncService {
   private readonly states: TabStates
   private maintenanceTimer?: ReturnType<typeof setInterval>
   private disposed = false
+  /** Work that is scheduled or running outside the write queue; see whenIdle. */
+  private readonly pending = new Set<Promise<unknown>>()
+  private debounceSettled?: () => void
+  private refreshSettled?: () => void
   private readonly maintenance: TabSyncMaintenance
   private sampler?: ReturnType<typeof setInterval>
   private stopDeselected?: () => void
@@ -165,7 +169,7 @@ export class TabSyncService {
     if (this.deps.source) {
       this.releasePublisher = holdLock("once-tabsync-publisher", () => {
         this.publisher = true
-        void this.reevaluate()
+        this.track(this.reevaluate())
       })
     }
     if (typeof document !== "undefined") {
@@ -178,6 +182,7 @@ export class TabSyncService {
   dispose(): void {
     this.disposed = true
     clearTimeout(this.refreshTimer)
+    this.refreshSettled?.()
     clearInterval(this.maintenanceTimer)
     this.generation++
     this.stopPublishing()
@@ -186,13 +191,30 @@ export class TabSyncService {
     this.disposers.forEach((dispose) => dispose())
   }
 
-  /** Resolves once queued writes have settled; for tests and orderly shutdown. */
+  /**
+   * Resolves once nothing is scheduled, running or queued: the publish
+   * debounce, a pending reread and option changes included, since each of
+   * them can queue a write. For tests and orderly shutdown.
+   */
   async whenIdle(): Promise<void> {
     let queued: Promise<unknown>
     do {
       queued = this.queue
       await queued
-    } while (queued !== this.queue)
+      await Promise.all(this.pending)
+    } while (queued !== this.queue || this.pending.size)
+  }
+
+  private track(work: Promise<unknown>): void {
+    const settled = work.catch(() => undefined).finally(() => this.pending.delete(settled))
+    this.pending.add(settled)
+  }
+
+  /** Counts as pending until the returned function is called. */
+  private hold(): () => void {
+    let release = (): void => undefined
+    this.track(new Promise<void>((resolve) => { release = resolve }))
+    return release
   }
 
   /** A routed tab document changed, here, in another runtime, or by replication. */
@@ -206,7 +228,7 @@ export class TabSyncService {
 
   /** Sync connected, disconnected or was blocked. */
   syncStateChanged(): void {
-    void this.reevaluate()
+    this.track(this.reevaluate())
   }
 
   /**
@@ -217,7 +239,7 @@ export class TabSyncService {
    */
   optionsChangedElsewhere(): void {
     this.deps.identity.invalidate()
-    void this.settingsFingerprint().then((fingerprint) => this.reevaluate(fingerprint !== this.appliedSettings))
+    this.track(this.settingsFingerprint().then((fingerprint) => this.reevaluate(fingerprint !== this.appliedSettings)))
   }
 
   /** Rereads the other devices and this device's inbox, for a context without a change feed. */
@@ -227,7 +249,7 @@ export class TabSyncService {
 
   /** Independent from publishing, also called by extension alarms after worker sleep. */
   maintainSoon(): void {
-    void this.maintenance.run(this.shared.sendRetentionDays).catch((error) => this.deps.reportError("tabsync.maintenance", error))
+    this.track(this.maintenance.run(this.shared.sendRetentionDays).catch((error) => this.deps.reportError("tabsync.maintenance", error)))
   }
 
   storage() { return this.maintenance.storage() }
@@ -472,6 +494,7 @@ export class TabSyncService {
 
   private stopPublishing(): void {
     clearTimeout(this.debounce)
+    this.debounceSettled?.()
     clearInterval(this.heartbeat)
     clearInterval(this.sampler)
     this.stopDeselected?.()
@@ -486,11 +509,14 @@ export class TabSyncService {
     if (!this.heartbeat) return
     if (this.debounce && !force) return
     clearTimeout(this.debounce)
+    this.debounceSettled?.()
+    const settled = this.debounceSettled = this.hold()
     const wait = force ? delay : Math.max(delay, this.lastPublishedAt + this.timing.minInterval - Date.now())
     const generation = this.generation
     this.debounce = setTimeout(() => {
       this.debounce = undefined
       void this.enqueue(() => this.publish(generation, force))
+      settled()
     }, Math.max(0, wait))
   }
 
@@ -552,7 +578,9 @@ export class TabSyncService {
 
   private scheduleRefresh(): void {
     clearTimeout(this.refreshTimer)
-    this.refreshTimer = setTimeout(() => void this.refresh(), this.timing.refresh)
+    this.refreshSettled?.()
+    const settled = this.refreshSettled = this.hold()
+    this.refreshTimer = setTimeout(() => void this.refresh().finally(settled), this.timing.refresh)
   }
 
   /** Reloads every device and retirement; reading a conflicted device resolves it. */

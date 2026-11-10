@@ -37,7 +37,11 @@ async function run(nativeLayers, iteration) {
   })
   await fs.writeFile(path.join(directory, "electron.log"), log)
   await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 })
-  const report = JSON.parse(await fs.readFile(reportPath, "utf8"))
+  // A driver that died outright (a missing bundle, a crash on startup) left
+  // no report, only its log.
+  const written = await fs.readFile(reportPath, "utf8").catch(() => null)
+  assert.ok(written, `${label} wrote no report (Electron exited ${exitCode}); see ${path.join(directory, "electron.log")}`)
+  const report = JSON.parse(written)
   summary.runs.push({ label, exitCode, status: report.status, code: report.code,
     stages: report.stages.length, durationMs: Date.now() - startedAt, reportPath })
   await fs.writeFile(path.join(outputRoot, "summary.json"), JSON.stringify(summary, null, 2))

@@ -1,42 +1,21 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
-const path = require("node:path")
-const { Builder, By, until } = require("selenium-webdriver")
-const firefox = require("selenium-webdriver/firefox")
+const { By, until } = require("selenium-webdriver")
 const { startLocalSource } = require("./local-source")
 const {
   openExtensionPanel,
   openSettingsSection,
   reopenExtensionPanel,
-  systemAccessService,
-  budget,
-  logBrowserVersion
+  startFirefox,
+  budget
 } = require("./firefox-panel")
 
 test("installed Firefox extension loads, collects, persists settings, and opens a story", { timeout: 90_000 }, async () => {
-  const expectedAddonId = "once_sidepanel_f@zmarn.com"
   const extensionUuid = "00000000-0000-4000-8000-000000000001"
-  const options = new firefox.Options()
-    .addArguments("-no-remote")
-    .setPreference("extensions.webextensions.uuids", JSON.stringify({ [expectedAddonId]: extensionUuid }))
-    .enableBidi()
-  if (process.platform !== "win32") options.addArguments("-headless")
-  const driver = await new Builder()
-    .forBrowser("firefox")
-    .setFirefoxOptions(options)
-    .setFirefoxService(systemAccessService())
-    .build()
-  await logBrowserVersion(driver)
   const source = await startLocalSource()
+  let driver
   try {
-    const extensionPath = path.resolve(__dirname, "../../../apps/firefox-extension/dist/release")
-    const bidi = await driver.getBidi()
-    const installResult = await bidi.send({
-      method: "webExtension.install",
-      params: { extensionData: { type: "path", path: extensionPath } }
-    })
-    assert.equal(installResult.result.extension, expectedAddonId)
-
+    driver = await startFirefox(extensionUuid)
     await openExtensionPanel(driver, extensionUuid)
     // A sidepanel cannot cycle tabs, focus an address bar or own a second
     // pane, so those shortcuts must not be offered at all. The one key that
@@ -124,7 +103,10 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
     await driver.switchTo().window(openedHandle)
     await driver.wait(until.urlIs(`${source.origin}/story`), budget(10_000))
   } finally {
-    await driver.quit()
-    await source.close()
+    try {
+      await driver?.quit()
+    } finally {
+      await source.close()
+    }
   }
 })

@@ -51,15 +51,10 @@ test("a story with stored content opens in the reader without a request", async 
   assert.match(opened[0].html, /href="https:\/\/example.com\/more"/, "links resolve against the story")
   assert.doesNotMatch(opened[0].html, /alert\(1\)/, "stored html is sanitized on the way out")
   assert.doesNotMatch(opened[0].html, /http-equiv|attacker\.example|xlink:href|readerXss/, "article markup cannot redirect, style, or reparse the reader")
-  assert.match(
-    opened[0].html,
-    /<script data-once-reader-runtime><\/script>/,
-    "platforms receive an inert marker instead of serialized executable code"
-  )
-  assert.doesNotMatch(
-    opened[0].html,
-    /FliteSpeechSynthesis|normalizeReaderSpeechText\.toString/,
-    "the reader runtime is never serialized into article HTML"
+  assert.deepEqual(
+    opened[0].html.match(/<script\b[\s\S]*?<\/script>/g),
+    ["<script data-once-reader-runtime></script>"],
+    "the only script is the inert marker: the reader runtime is never serialized into the document"
   )
 })
 
@@ -67,6 +62,7 @@ test("a failed reader fetch retains a reader surface for explicit AI OCR", async
   const { ReaderView, Story } = loadReaderView()
   const story = new Story("rss", "https://example.com/b", "Live")
   const fetched = []
+  const opened = []
   ReaderView.mount({
     async findStoryByUrl() { return story },
     async getStoryContent() { throw new Error("nothing stored to read") },
@@ -74,10 +70,14 @@ test("a failed reader fetch retains a reader surface for explicit AI OCR", async
       fetched.push(url)
       throw new Error("fetch reached (extraction needs a browser DOM)")
     }
-  }, async html => { assert.match(html, /data-reader-error/); assert.match(html, /fetch reached/); assert.match(html, /data-once-reader-runtime/) })
+  }, async html => { opened.push(html) })
 
   await ReaderView.open(story.href)
   assert.deepEqual(fetched, [story.href])
+  assert.equal(opened.length, 1, "the failure still opens a reader document")
+  assert.match(opened[0], /data-reader-error/)
+  assert.match(opened[0], /fetch reached/)
+  assert.match(opened[0], /data-once-reader-runtime/)
 })
 
 test("the supplied extension runtime opens stored and live readers without a browser global", async () => {

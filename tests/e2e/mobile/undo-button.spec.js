@@ -24,11 +24,13 @@ async function swipeToSkip(page, story) {
   await expect(story).toHaveClass(/skipped/)
 }
 
-async function holdButton(page, button) {
-  const box = await button.boundingBox()
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+// Held until the list it opens is there, not for a fixed time: the button
+// opens it from a timer, and a release before a busy page has run that timer
+// is a tap, which undoes instead.
+async function holdButton(page, button, opened) {
+  await button.hover()
   await page.mouse.down()
-  await page.waitForTimeout(700)
+  await expect(opened).toBeVisible()
   await page.mouse.up()
 }
 
@@ -75,13 +77,12 @@ test("holding the button lists changes and undoes only the picked one", async ({
   const story = await seedFixtureStories(page)
   const button = page.getByTestId("undo-button")
 
-  await holdButton(page, button)
-  await expect(page.getByTestId("undo-list-empty")).toBeVisible()
+  await holdButton(page, button, page.getByTestId("undo-list-empty"))
   await page.getByTestId("story-menu-backdrop").dispatchEvent("pointerdown")
 
   await swipeToSkip(page, story)
-  await holdButton(page, button)
   const items = page.getByTestId("undo-list-item")
+  await holdButton(page, button, items.first())
   await expect(items).toHaveCount(1)
   await expect(items.first()).toContainText("Skipped")
   await expect(items.first()).toContainText("Fixture article")
@@ -93,13 +94,21 @@ test("holding the button lists changes and undoes only the picked one", async ({
   await expect(button).toHaveAttribute("aria-disabled", "true")
 })
 
-test("the undo button can be hidden in mobile settings", async ({ page }) => {
+test("the undo button can be hidden and shown again in mobile settings", async ({ page }) => {
   await seedFixtureStories(page)
   await openSettingsSection(page, "swipe")
   await openSwipeAdvanced(page)
-  await page.locator("#swipe_undo_button").uncheck()
+  const enabled = page.locator("#swipe_undo_button")
+  await expect(enabled).toBeChecked()
+  await enabled.uncheck()
   await waitForSwipeSettings(page)
   await page.getByTestId("stories-menu").click()
-
   await expect(page.getByTestId("undo-button")).toBeHidden()
+
+  await openSettingsSection(page, "swipe")
+  await openSwipeAdvanced(page)
+  await enabled.check()
+  await waitForSwipeSettings(page)
+  await page.getByTestId("stories-menu").click()
+  await expect(page.getByTestId("undo-button")).toBeVisible()
 })

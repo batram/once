@@ -63,12 +63,6 @@
       "removeWhen": "Settings navigation rows are redesigned to present as primitive buttons. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
     },
     {
-      "family": "addon_sync_link",
-      "reason": "The full-width Add-on sync navigation card shares the add-on rows' column layout, description, status and positioned chevron; addon-settings.css owns its padding, border, fill and typography rather than the primitive button box",
-      "phase": "3.1",
-      "removeWhen": "Add-on navigation cards are redesigned to present as primitive buttons. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
-    },
-    {
       "family": "sync_status_button",
       "reason": "The sync state read-out in the Settings titlebar: a dot and a truncated message with no border or fill, which opens Settings › Sync when chosen",
       "phase": "3.1",
@@ -109,6 +103,36 @@
       "reason": "A role=tab header tab in the tab view (This phone, Other devices) with a count badge; it draws a 3px underline when selected and has no border or fill",
       "phase": "3.1",
       "removeWhen": "The tab view's group tabs are redesigned to present as primitive buttons rather than underlined tabs. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "address_editor_undo",
+      "reason": "The underlined Undo text in the address editor's toast; it sits inline with the toast's message and takes only a --touch min-height and side padding from mobile.css, with the editor's flat button reset underneath",
+      "phase": "3.1",
+      "removeWhen": "The address editor's toast is redesigned so Undo presents as a primitive button. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "settings_link_row",
+      "reason": "A full-width navigation row in the AI, Reader and add-on settings cards (title, summary, badge and arrow on a grid) with its own min-height and bottom separator in ai-settings.css",
+      "phase": "3.1",
+      "removeWhen": "This control is redesigned to present as a primitive button rather than a navigation row. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "ai_add_row",
+      "reason": "The full-width \"Add connection\" row at the foot of an AI settings card: a 44px flex row with a leading plus glyph, laid out like the link rows above it",
+      "phase": "3.1",
+      "removeWhen": "This control is redesigned to present as a primitive button rather than a card row. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "ai_inline_link",
+      "reason": "A link inside a sentence of the AI and Reader settings (Sync, Open AI & Search): display inline on the text baseline with no padding, border or min-height",
+      "phase": "3.1",
+      "removeWhen": "These sentences are redesigned to use anchors or primitive buttons beside the text. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "settings_inline_link",
+      "reason": "A link inside a sentence under the add-on list (Add-on sync, Advanced): display inline with no margin, padding, border or background in settings.css",
+      "phase": "3.1",
+      "removeWhen": "These sentences are redesigned to use anchors or primitive buttons beside the text. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
     }
   ],
   "unclassified": []

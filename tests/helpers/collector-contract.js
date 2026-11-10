@@ -21,4 +21,4 @@ function assertStories(stories, type, minimum = 1) {
   stories.forEach((story) => assertStory(story, type))
 }
 
-module.exports = { assertStory, assertStories }
+module.exports = { assertStories }

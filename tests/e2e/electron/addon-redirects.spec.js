@@ -69,6 +69,7 @@ test.afterAll(async () => {
 })
 
 test("an add-on redirect shows in the Redirects panel, fails over with its collector and tabs, and switches off", async () => {
+  requests.length = 0
   const { electronApp, userData, window } = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
   try {
     const editor = await openSettingsSection(window, "addons", "#addons_area")

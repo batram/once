@@ -19,5 +19,8 @@ test("extension IDs and storage keys cannot change object prototypes", () => {
   const doc = readBrowserExtensionSync(value)
   assert.equal(Object.getPrototypeOf(doc.extensions), Object.prototype)
   assert.equal(Object.hasOwn(doc.extensions, "__proto__"), true)
-  assert.deepEqual(doc.extensions.__proto__.values.local.__proto__, { test: 1 })
+  const local = doc.extensions.__proto__.values.local
+  assert.equal(Object.getPrototypeOf(local), Object.prototype)
+  assert.equal(Object.hasOwn(local, "__proto__"), true)
+  assert.deepEqual(local.__proto__, { test: 1 })
 })

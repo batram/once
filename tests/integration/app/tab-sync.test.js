@@ -44,16 +44,25 @@ async function harness() {
       source: tabSource, appVersion: "1.0.0", syncActive: () => options.active ?? true, changed: () => undefined,
       reportError: (operation, error) => errors.push({ operation, error }), timing
     })
-    const changes = db.changes({ since: "now", live: true }).on("change", (change) => service.handleChange({ id: change.id }))
-    made.push({ db, service, changes })
+    // The feed starts at the current sequence; `seen` is how far it has told the service.
+    const feed = { db, service, seen: (await db.info()).update_seq }
+    const changes = db.changes({ since: feed.seen, live: true }).on("change", (change) => {
+      feed.seen = change.seq
+      service.handleChange({ id: change.id })
+    })
+    made.push({ db, service, changes, feed })
     await service.start()
     await settle(service)
     return { db, service, identity, errors, secrets, push: () => db.replicate.to(server), pull: () => db.replicate.from(server) }
   }
+  // Settled is when the change feed has delivered every write to the service
+  // and the service has nothing scheduled, running or queued in answer.
   const settle = async (service) => {
-    for (let index = 0; index < 5; index++) {
-      await wait(5)
+    const { changes, feed } = made.find((entry) => entry.service === service)
+    for (;;) {
       await service.whenIdle()
+      if (feed.seen >= (await feed.db.info()).update_seq) return
+      await new Promise((resolve) => changes.once("change", resolve))
     }
   }
   const close = async () => {

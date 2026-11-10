@@ -1,19 +1,6 @@
 const assert = require("node:assert/strict")
-const fs = require("node:fs")
-const path = require("node:path")
 const test = require("node:test")
-const ts = require("typescript")
-
-const source = fs.readFileSync(path.resolve(
-  __dirname,
-  "../../../packages/ui-web/src/reader/ReaderSpeechSession.ts"
-), "utf8")
-const compiled = ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
-}).outputText
-const sessionModule = { exports: {} }
-Function("exports", "module", compiled)(sessionModule.exports, sessionModule)
-const { ReaderSpeechSession } = sessionModule.exports
+const { ReaderSpeechSession } = require("../../../packages/ui-web/dist/reader/ReaderSpeechSession")
 
 function createFixture() {
   const utterances = []
@@ -81,6 +68,11 @@ test("reader speech session owns pause, restart, voice, and yielded position", (
   assert.equal(fixture.utterances.length, queuedBeforePreview)
   fixture.session.setRate(2)
   assert.equal(fixture.session.state.rate, 2)
+  assert.deepEqual(
+    fixture.utterances.slice(queuedBeforePreview).map(({ text, rate }) => [text, rate]),
+    [["two", 2], ["three", 2]],
+    "a committed speed restarts from the segment being read"
+  )
   assert.equal(fixture.utterances.at(-1).voice.voiceURI, "voice-1")
   fixture.session.yield()
   assert.equal(fixture.session.state.playing, false)

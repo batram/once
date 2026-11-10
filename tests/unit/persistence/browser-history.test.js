@@ -4,8 +4,7 @@ const { DatabaseSync } = require("node:sqlite")
 const { SqlBrowserHistory } = require("../../../packages/persistence/dist/SqlBrowserHistory")
 const { historyUrl } = require("../../../packages/core/dist/browserHistory")
 
-function fixture() {
-  const db = new DatabaseSync(":memory:")
+function fixture(db = new DatabaseSync(":memory:")) {
   const driver = {
     async batch(statements) {
       db.exec("BEGIN")
@@ -104,17 +103,7 @@ test("a database from before the seq key is moved over with its visits and searc
     CREATE VIRTUAL TABLE visit_search USING fts5(title, url, content='visits', content_rowid='rowid', tokenize='trigram');
     CREATE TRIGGER visits_insert AFTER INSERT ON visits BEGIN INSERT INTO visit_search(rowid,title,url) VALUES(new.rowid,new.title,new.url); END;
     INSERT INTO visits(id,url,title,visitedAt,searchText) VALUES('old','https://example.com/old','Older schema',1000,'older schema https://example.com/old')`)
-  const driver = {
-    async batch(statements) {
-      db.exec("BEGIN")
-      try {
-        for (const { sql, params = [] } of statements) db.prepare(sql).run(...params)
-        db.exec("COMMIT")
-      } catch (error) { db.exec("ROLLBACK"); throw error }
-    },
-    async query({ sql, params = [] }) { return db.prepare(sql).all(...params) }
-  }
-  const history = new SqlBrowserHistory(driver)
+  const { history } = fixture(db)
   assert.deepEqual((await history.query({ search: "schema" })).entries.map(row => row.id), ["old"])
   await history.record(visit("new", "Newer", 2000))
   assert.deepEqual((await history.query({})).entries.map(row => row.id), ["new", "old"])

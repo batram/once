@@ -62,7 +62,6 @@ public class LiteDevToolsTest {
     private DevToolsClient devtools;
     /** Request header names shouldInterceptRequest saw, by path. */
     private final Map<String, String> interceptedHeaders = Collections.synchronizedMap(new HashMap<>());
-    private volatile boolean mozExtensionIntercepted;
 
     @Before
     public void start() throws Exception {
@@ -85,7 +84,19 @@ public class LiteDevToolsTest {
     public void stop() throws Exception {
         Log.i(TAG, "RESULTS " + results.toString());
         if (fixture != null) fixture.close();
-        ui(() -> { if (view != null) { ((ViewGroup) view.getParent()).removeView(view); view.destroy(); } });
+        // start() refused the package or the device: nothing was started.
+        if (activity == null) return;
+        ui(() -> {
+            if (view != null) { ((ViewGroup) view.getParent()).removeView(view); view.destroy(); }
+            activity.finish();
+        });
+        until("The test activity must be destroyed", activity::isDestroyed, 15);
+        // The activity's extension runtime outlives it and shares the client this test connected: end both.
+        ui(() -> {
+            com.zmarn.once.lite.LiteExtensionEngine engine = com.zmarn.once.lite.LiteExtensionEngine.current();
+            if (engine != null) engine.destroy();
+        });
+        if (devtools != null) devtools.close();
     }
 
     @Test
@@ -206,18 +217,6 @@ public class LiteDevToolsTest {
                 + "<iframe src=\"https://abc.moz-extension.localhost/frame.html\"></iframe>", "text/html", "utf-8", null));
         untilEvaluates("document.title", "\"frame-loaded:https://abc.moz-extension.localhost\"", 15);
         results.put("extensionFrameInHttpsPage", true);
-
-        // 7. Observation only: a custom moz-extension:// scheme (the plan explains why it is not used).
-        String[] mozOrigins = new String[2];
-        for (int index = 0; index < 2; index++) {
-            String host = index == 0 ? "abc" : "def";
-            ui(() -> view.loadUrl("moz-extension://" + host + "/page.html"));
-            Thread.sleep(1500);
-            try { mozOrigins[index] = evaluate("location.origin + ' ' + location.href"); }
-            catch (Throwable error) { mozOrigins[index] = "unavailable: " + error.getMessage(); }
-        }
-        results.put("mozExtensionIntercepted", mozExtensionIntercepted);
-        results.put("mozExtensionOrigins", new JSONArray().put(mozOrigins[0]).put(mozOrigins[1]));
     }
 
     private void load(String url) { ui(() -> view.loadUrl(url)); }
@@ -296,16 +295,12 @@ public class LiteDevToolsTest {
         + "document.title = JSON.stringify(r);\n"
         + "})()</script>";
 
-    /** Serves the extension hosts and the moz-extension observation; records header names. */
+    /** Serves the extension hosts; records header names. */
     private final class Interceptor extends WebViewClient {
         @Override public WebResourceResponse shouldInterceptRequest(WebView ignored, WebResourceRequest request) {
             String url = request.getUrl().toString();
             String path = request.getUrl().getPath() == null ? "" : request.getUrl().getPath();
             interceptedHeaders.put(path, new java.util.TreeMap<>(request.getRequestHeaders()).toString());
-            if ("moz-extension".equals(request.getUrl().getScheme())) {
-                mozExtensionIntercepted = true;
-                return html(PROBE_PAGE, null);
-            }
             String host = request.getUrl().getHost();
             if (host == null || !host.endsWith(".moz-extension.localhost")) return null;
             if (path.equals("/page.html")) return html(PROBE_PAGE, null);

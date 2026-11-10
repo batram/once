@@ -52,12 +52,15 @@ test("a recreated active epoch with missing metadata cannot retire itself or ent
 test("retired database recovery waits for the native pointer commit before restarting", async t => {
   const w = await world(t), db = w.named("native")
   await db.put({ _id: "_local/once-sync-epoch", retired: { database: db.name + "@next", destination: "https://example.test/once_e2" } })
-  let commit, restarted = false
+  let commit, started, restarted = false
   const committed = new Promise(resolve => { commit = resolve })
-  const storage = { getItem: () => null, setItem: () => committed }
+  const committing = new Promise(resolve => { started = resolve })
+  const storage = { getItem: () => null, setItem: () => { started(); return committed } }
   const epoch = new LocalDatabaseEpoch(db.name, db.name, db, w.open, () => { restarted = true }, storage)
   const resolving = resolveSyncEpoch("https://example.test/once", async () => { throw new Error("Must not contact server") }, epoch, () => {})
-  await new Promise(resolve => setTimeout(resolve, 10))
+  await committing
+  // A restart that did not wait for the commit would follow in microtasks.
+  await new Promise(resolve => setImmediate(resolve))
   assert.equal(restarted, false)
   commit()
   assert.deepEqual(await resolving, { restarting: true })
@@ -200,7 +203,8 @@ test("storage inspection and cancellation cannot contact the original database w
   let release, contacted = 0
   const waiting = new Promise(resolve => { release = resolve })
   const remote = { info: async () => { contacted++; return {} }, get: async () => { contacted++; throw { status: 404 } } }
-  const service = new PouchSyncService(local, () => {}, () => remote, undefined, { state: () => waiting })
+  const service = new PouchSyncService(local, () => {}, () => remote, undefined,
+    { state: () => waiting, rememberConfiguredDestination: async () => {} })
   service.syncFrom("https://sync.test/old")
   assert.equal(await service.storageInfo(), null)
   service.syncFrom("")

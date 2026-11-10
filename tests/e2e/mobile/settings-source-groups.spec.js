@@ -170,8 +170,11 @@ test("story source groups collapse while dragging and restore afterward", async 
   expect(alphaScrollBounds).not.toBeNull()
   const scrollY = alphaScrollBounds.y + alphaScrollBounds.height / 2
   await touchStart(alphaSummary, { touchId: 16, clientY: scrollY })
+  await expect(groups.nth(1)).toHaveClass(/\bstructured_group_pressing\b/)
   expect(await touchMove(alphaSummary, { touchId: 16, clientY: scrollY + 10 }))
     .toBe(false)
+  // The pending press is given up at once, so its hold timer starts no drag.
+  await expect(groups.nth(1)).not.toHaveClass(/\bstructured_group_pressing\b/)
   await expect(page.getByTestId("sources-structured-list"))
     .not.toHaveClass(/\bstructured_group_drag_active\b/)
 
@@ -187,7 +190,8 @@ test("story source groups collapse while dragging and restore afterward", async 
     touchId,
     clientY: betaStartY
   })
-  await page.waitForTimeout(350)
+  // The press becomes a drag on a hold timer, and the list collapses a frame
+  // after that: the collapsed list is what the moves below are measured in.
   await expect(page.getByTestId("sources-structured-list"))
     .toHaveClass(/\bstructured_group_drag_active\b/)
   await expect(groups.nth(2)).toHaveClass(/\bstructured_group_dragging\b/)
@@ -266,8 +270,9 @@ test("story source groups expose drop targets below their touch origin", async (
     touchId,
     clientY: alphaBounds.y + alphaBounds.height / 2
   })
-  await page.waitForTimeout(350)
   await expect(alpha).toHaveClass(/\bstructured_group_dragging\b/)
+  await expect(page.getByTestId("sources-structured-list"))
+    .toHaveClass(/\bstructured_group_drag_active\b/)
 
   const destinationY = betaBounds.y + betaBounds.height - 2
   expect(await touchMove(alphaSummary, {

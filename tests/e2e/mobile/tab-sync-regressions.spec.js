@@ -6,8 +6,10 @@ const { encodePairingLink } = require("../../../packages/core/dist")
 const auth = { Authorization: `Basic ${Buffer.from("once-test:once-test").toString("base64")}` }
 const other = "fedcba9876543210fedcba9876543210"
 
-async function connect(page, request, baseURL, database) {
+async function connect(page, request, baseURL, name) {
   const server = new URL(baseURL).origin
+  // One database per repeat, so parallel repeats cannot reset each other's.
+  const database = `${name}_${test.info().repeatEachIndex}`
   await request.post(`${server}/test/databases/${database}/reset`, { data: { docs: [] } })
   await gotoMobileApp(page)
   await openSettingsSection(page, "sync")
@@ -39,7 +41,10 @@ test("receiving off stays quiet and re-enabling exposes the queued tab", async (
   }).toBe(false)
   await request.post(`${db}/_bulk_docs`, { headers: auth, data: { docs: [{ _id: `tsend_${self.deviceId}_0123456789abcdef0123456789abcdef`,
     type: "send", from: other, fromName: "Review laptop", url: "https://example.com/queued", title: "Queued while receiving is off",
-    mode: "web", createdAt: new Date().toISOString() }] } })
+    mode: "web", createdAt: new Date().toISOString() }, device()] } })
+  // The sending device is written after the queued tab, so once the phone lists
+  // it the tab has arrived as well, and staying quiet is no longer just early.
+  await expect(page.getByTestId("tab-sync-device")).toContainText("Review laptop")
   await expect(page.getByTestId("sent-tab-toast")).toHaveCount(0)
   await page.getByRole("checkbox", { name: "Receive sent tabs", exact: true }).check()
   await expect(page.getByTestId("sent-tab-toast")).toContainText("Queued while receiving is off")
@@ -89,16 +94,14 @@ test("back from tab sync settings opened in the tab view returns to its other de
 })
 
 test("pairing never claims success for invalid credentials and keeps one offer", async ({ page, request, baseURL }) => {
-  test.setTimeout(90_000)
   const { url } = await connect(page, request, baseURL, "pairing_failure_regression")
   await page.getByTestId("sync-page-pair").click()
   const link = encodePairingLink({ syncUrl: url.replace("once-test:once-test@", "once-test:wrong-password@") })
   await page.locator("#pair_link_input").fill(link)
   await page.locator("#pair_connect").click()
   await page.getByTestId("pair-confirm").getByRole("button", { name: "Connect", exact: true }).click()
-  await expect(page.locator("#pair_status")).not.toHaveText("Connected")
-  await expect(page.getByTestId("pair-make")).toHaveCount(1)
-  await expect(page.locator("#pair_status")).toContainText(/Could not connect|unable to confirm/, { timeout: 70_000 })
+  // The server's refusal is reported in the sync failure's own words.
+  await expect(page.locator("#pair_status")).toHaveText("Sync paused. Check the database credentials and access permissions.")
   await expect(page.locator("#pair_link_input")).toHaveValue(link)
   await expect(page.getByTestId("pair-make")).toHaveCount(1)
 })

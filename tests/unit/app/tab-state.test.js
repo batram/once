@@ -7,7 +7,8 @@ const at = "2026-10-06T10:00:00.000Z"
 const tab = (fields = {}) => ({ id: "t", navSeq: 1, url: "https://video.example/a", title: "", mode: "web", active: true,
   openedAt: at, navigatedAt: at, selectedAt: at, activityAt: at, ...fields })
 
-test("state belongs to one page, counts as activity when it changes, and is kept while unreadable", async () => {
+test("state belongs to one page, counts as activity when it changes, and is kept while unreadable", async t => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse(at) + 60_000 })
   let media = { currentTime: 30, duration: 600, paused: false, rate: 1 }
   const states = new TabStates({ runInPage: async () => media, readerPosition: async () => ({ fraction: 0.5, anchor: null }) })
   assert.equal(await states.capture(tab()), true)
@@ -16,7 +17,7 @@ test("state belongs to one page, counts as activity when it changes, and is kept
   assert.equal(await states.capture(tab()), true)
   const [window] = states.attach([{ id: "w", focused: true, tabs: [tab()] }])
   assert.equal(window.tabs[0].state.media.data.currentTime, 45)
-  assert.ok(Date.parse(window.tabs[0].activityAt) > Date.parse(at), "playing on counts as using the tab")
+  assert.equal(window.tabs[0].activityAt, "2026-10-06T10:01:00.000Z", "playing on counts as using the tab")
   media = null
   assert.equal(await states.capture(tab()), false)
   assert.equal(states.attach([{ id: "w", focused: true, tabs: [tab()] }])[0].tabs[0].state.media.data.currentTime, 45, "a page that cannot be read now keeps what was known")

@@ -45,9 +45,11 @@ test("source-id navigation refuses noncanonical text instead of guessing", () =>
   globalThis.document = window.document
   try {
     const textarea = window.document.querySelector("#sources_area")
+    let selections = 0
+    textarea.setSelectionRange = () => { selections++ }
     textarea.value = JSON.stringify({ version: 2, groups: [], sources: [source] })
     assert.equal(highlightStorySourceTextarea(source.id), false)
-    assert.equal(textarea.selectionStart, textarea.selectionEnd)
+    assert.equal(selections, 0)
   } finally {
     globalThis.document = previousDocument
   }

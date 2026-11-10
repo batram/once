@@ -29,6 +29,15 @@ final class GeckoTestSupport {
             () -> activity.hasWindowFocus() && activity.getWindow().getDecorView().getWidth() > 0, 15);
         plugin = (InAppBrowserSurfacePlugin) activity.getBridge().getPlugin("InAppBrowserSurface").getInstance();
     }
+    /** Ends what start() began, so the next test gets a new activity, shell and plugin. */
+    void stop() throws Exception {
+        if (activity == null) return;
+        try { if (plugin != null) close(); }
+        finally {
+            ui(activity::finish);
+            until("The test activity must be destroyed", activity::isDestroyed, 15);
+        }
+    }
     void shellReady() throws Exception {
         java.util.concurrent.atomic.AtomicBoolean ready = new java.util.concurrent.atomic.AtomicBoolean();
         until("The shell must finish its initial settings publication", () -> {
@@ -62,7 +71,12 @@ final class GeckoTestSupport {
         if (failure.get() != null) throw new AssertionError(failure.get());
         return value.get();
     }
-    Object field(String name) { return field(plugin, name); }
+    Object field(String name) { return field(surface(), name); }
+    /** The surface calls without a tab identity reach: the shell's selected tab, or the root plugin when none is selected. */
+    private Object surface() {
+        Object tab = ((java.util.Map<?, ?>) field(plugin, "tabs")).get(field(plugin, "selectedTab"));
+        return tab == null ? plugin : tab;
+    }
     static Object field(Object owner, String name) {
         for (Class<?> type = owner.getClass(); type != null; type = type.getSuperclass()) {
             try { java.lang.reflect.Field f = type.getDeclaredField(name); f.setAccessible(true); return f.get(owner); }

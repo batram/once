@@ -6,7 +6,7 @@ const auth = { Authorization: `Basic ${Buffer.from("once-test:once-test").toStri
 for (const width of [390, 1280]) for (const theme of ["light", "dark"]) {
   test(`update-required sync status ${width} ${theme}`, async ({ page, request, baseURL, context }) => {
     await page.setViewportSize({ width, height: 900 })
-    const server = new URL(baseURL).origin, db = `compat_${width}_${theme}`
+    const server = new URL(baseURL).origin, db = `compat_${width}_${theme}_${test.info().repeatEachIndex}`
     await request.post(`${server}/test/databases/${db}/reset`, { data: { docs: [{ _id: "once_sync_compat", schema: 1, minSyncProtocol: 99, minAppVersion: "9.0.0" }] } })
     await gotoMobileApp(page)
     await openSettingsSection(page, "theme")
@@ -27,7 +27,7 @@ for (const width of [390, 1280]) for (const theme of ["light", "dark"]) {
     expect(geometry.width).toBeLessThanOrEqual(width)
     const rows = await (await request.get(`${server}/db/${db}/_all_docs`, { headers: auth })).json()
     expect(rows.rows.filter(row => !row.id.startsWith("_design/")).map(row => row.id)).toEqual(["once_sync_compat"])
-    await page.screenshot({ path: `test-results/sync-update-required-${width}-${theme}.png`, fullPage: true })
+    await page.screenshot({ path: test.info().outputPath(`sync-update-required-${width}-${theme}.png`), fullPage: true })
     if (width === 390 && theme === "dark") {
       await context.route("https://github.com/batram/once/releases/latest", route => route.fulfill({ body: "Mock release destination" }))
       const popup = page.waitForEvent("popup")
@@ -40,7 +40,7 @@ for (const width of [390, 1280]) for (const theme of ["light", "dark"]) {
 }
 
 test("damaged metadata remains distinguishable from an update requirement", async ({ page, request, baseURL }) => {
-  const server = new URL(baseURL).origin, db = "compat_damaged"
+  const server = new URL(baseURL).origin, db = `compat_damaged_${test.info().repeatEachIndex}`
   await request.post(`${server}/test/databases/${db}/reset`, { data: { docs: [{ _id: "once_sync_compat", schema: 42, minSyncProtocol: 2 }] } })
   await gotoMobileApp(page)
   await openSettingsSection(page, "sync")

@@ -4,6 +4,8 @@ import android.os.SystemClock;
 import android.util.Log;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import java.util.List;
+import org.junit.After;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mozilla.geckoview.*;
@@ -11,8 +13,14 @@ import org.mozilla.geckoview.*;
 /** Live site observations: failures are reported separately from deterministic fixture assertions. */
 @RunWith(AndroidJUnit4.class)
 public class GeckoSiteBaselineTest {
+    private final GeckoTestSupport t = new GeckoTestSupport();
+
+    @After public void stop() throws Exception { t.stop(); }
+
     @Test public void publicSiteJourneysWithBridgeAndFullExtensions() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.close();
+        Assume.assumeTrue("Opt-in: loads public websites (-e siteBaseline true)",
+            "true".equals(androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("siteBaseline")));
+        t.start();
         GeckoEngine engine = t.engine();
         List<WebExtension> installed = t.result(engine::ready);
         try {

@@ -81,24 +81,51 @@ test("only an HTML document's markup is read; an image, PDF or text file in its 
 const PDF = "https://example.com/report.pdf"
 
 function pdfTab(result) {
-  const scripts = []
   const contents = Object.assign(new EventEmitter(), {
     isLoading: () => false,
     getURL: () => PDF,
-    executeJavaScript: async (script) => { scripts.push(script); return result }
+    executeJavaScript: async (script) => typeof result === "function" ? result(script) : result
   })
   const tab = { id: "p1", url: PDF, loadError: null }
-  return { scripts, tabs: { getAll: () => [tab], tabContents: () => contents } }
+  return { tabs: { getAll: () => [tab], tabContents: () => contents } }
+}
+
+// The script the tab runs, run here against a document of that type and a
+// fetch that answers each cache mode as told.
+function pdfPage(contentType, answers) {
+  const requests = []
+  const fetch = async (url, options) => {
+    requests.push({ url, ...options })
+    const answer = answers[options.cache]
+    if (!answer) throw new TypeError("Failed to fetch")
+    return { ok: true, headers: { get: () => null }, arrayBuffer: async () => answer.buffer, ...answer.response }
+  }
+  const run = (script) => Function("document", "location", "fetch", `return ${script}`)({ contentType }, { href: PDF }, fetch)
+  return { requests, run }
 }
 
 test("a PDF tab's bytes are read as the tab, from its HTTP cache before asking again", async () => {
   const { tabPdfBytes } = load()
   const bytes = new TextEncoder().encode("%PDF-1.7\n%body")
-  const { tabs, scripts } = pdfTab(bytes)
-  assert.deepEqual(await tabPdfBytes(tabs, null, `${PDF}#page=2`), { bytes, url: PDF })
-  assert.match(scripts[0], /document\.contentType !== "application\/pdf"/)
-  assert.match(scripts[0], /credentials: "include"/)
-  assert.match(scripts[0], /read\("only-if-cached"\) \?\? await read\("no-cache"\)/)
+  const asTab = { url: PDF, mode: "same-origin", credentials: "include" }
+
+  const cached = pdfPage("application/pdf", { "only-if-cached": bytes })
+  assert.deepEqual(await tabPdfBytes(pdfTab(cached.run).tabs, null, `${PDF}#page=2`), { bytes, url: PDF })
+  assert.deepEqual(cached.requests, [{ ...asTab, cache: "only-if-cached" }])
+
+  // Not in the cache, or cached as a failure: the tab asks again.
+  for (const miss of [undefined, { response: { ok: false } }]) {
+    const asked = pdfPage("application/pdf", { "only-if-cached": miss, "no-cache": bytes })
+    assert.deepEqual(await tabPdfBytes(pdfTab(asked.run).tabs, null, PDF), { bytes, url: PDF })
+    assert.deepEqual(asked.requests, [{ ...asTab, cache: "only-if-cached" }, { ...asTab, cache: "no-cache" }])
+  }
+
+  const oversized = pdfPage("application/pdf", { "only-if-cached": { response: { headers: { get: () => String(65 * 1024 * 1024) } } } })
+  assert.equal(await tabPdfBytes(pdfTab(oversized.run).tabs, null, PDF), null)
+
+  const html = pdfPage("text/html", { "only-if-cached": bytes })
+  assert.equal(await tabPdfBytes(pdfTab(html.run).tabs, null, PDF), null)
+  assert.deepEqual(html.requests, [], "a tab showing something else is not asked for a PDF")
 })
 
 test("a cached challenge page, a non-PDF tab or no tab is not taken for the PDF", async () => {
@@ -110,7 +137,7 @@ test("a cached challenge page, a non-PDF tab or no tab is not taken for the PDF"
   assert.equal(await tabPdfBytes(pdfTab(null).tabs, null, "file:///C:/report.pdf"), null)
 })
 
-test("a tab that fails or moves on while it loads is not read", async (t) => {
+test("a tab that fails, moves on or closes while it loads is not read", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] })
   const { tabPageHtml } = load()
   const failed = tabWindow({ loading: true })
@@ -119,6 +146,13 @@ test("a tab that fails or moves on while it loads is not read", async (t) => {
   failed.contents.loading = false
   failed.contents.emit("did-stop-loading")
   assert.equal(await read, null)
+
+  const moved = tabWindow({ loading: true })
+  const elsewhere = tabPageHtml(moved.tabs, null, ARTICLE)
+  moved.tab.url = "https://example.com/another"
+  moved.contents.loading = false
+  moved.contents.emit("did-stop-loading")
+  assert.equal(await elsewhere, null)
 
   const closed = tabWindow({ loading: true })
   const gone = tabPageHtml(closed.tabs, null, ARTICLE)

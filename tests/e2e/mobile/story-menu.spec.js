@@ -1,28 +1,13 @@
 const { test, expect } = require("@playwright/test")
 const {
-  gotoMobileApp,
-  reloadMobileApp,
-  testServerUrl
-} = require("./helpers/mobile-app")
-const {
   openSettingsSection,
-  saveSourcesAndWait,
   waitForSwipeSettings
 } = require("./helpers/settings")
 const { openStoryMenu, seedFixtureStories } = require("./helpers/stories")
 const { dragStory } = require("./helpers/swipe")
 
 test("the ⋮ button opens the story menu anchored above the tab bar", async ({ page }) => {
-  await gotoMobileApp(page)
-  await openSettingsSection(page, "sources")
-  await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
-  await saveSourcesAndWait(page)
-  await reloadMobileApp(page)
-  await page.getByTestId("stories-menu").click()
-  await page.getByTestId("reload-stories").click()
-
-  const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
-  await expect(story).toBeVisible()
+  const story = await seedFixtureStories(page)
 
   // A tap on ⋮ opens the menu directly — no long-press, no swipe armed.
   await story.getByTestId("story-menu-button").click()
@@ -126,16 +111,7 @@ test("filter actions open a visible editor from the menu and a swipe", async ({ 
 })
 
 test("a long-press that becomes a drag shows progress and opens nothing", async ({ page }) => {
-  await gotoMobileApp(page)
-  await openSettingsSection(page, "sources")
-  await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
-  await saveSourcesAndWait(page)
-  await reloadMobileApp(page)
-  await page.getByTestId("stories-menu").click()
-  await page.getByTestId("reload-stories").click()
-
-  const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
-  await expect(story).toBeVisible()
+  const story = await seedFixtureStories(page)
 
   const result = await story.evaluate(async (row) => {
     const rect = row.getBoundingClientRect()

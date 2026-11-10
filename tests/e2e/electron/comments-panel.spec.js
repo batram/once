@@ -102,11 +102,25 @@ test("comments open in the Once panel beside the current page", async () => {
     await expect.poll(() => panelPage("1")).toBe("no panel page")
 
     // Closed and opened again at once: the old page going away must not take the new panel along.
+    // What would take it along is main telling the shell that the page it just closed is gone
+    // (a null report), which arrives once the next panel is open. Main's reports are recorded,
+    // and the new page's own report is the last thing the shell is told.
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const shell = BrowserWindow.getAllWindows()[0].webContents
+      const send = shell.send.bind(shell)
+      globalThis.__oncePanelReports = []
+      shell.send = (channel, ...args) => {
+        if (channel === "once:panel-page:changed") globalThis.__oncePanelReports.push(args[0])
+        return send(channel, ...args)
+      }
+    })
     await beta.getByTestId("comments-in-panel").first().click()
     await window.getByTestId("comments-panel-close").click()
     await beta.getByTestId("comments-in-panel").first().click()
     await expect.poll(() => panelPage("document.querySelector('h1')?.textContent")).toBe("Beta-1")
-    await window.waitForTimeout(500)
+    const reports = () => electronApp.evaluate(() => globalThis.__oncePanelReports)
+    await expect.poll(async () => (await reports()).at(-1)).toBe(urls.betaComments)
+    expect(await reports()).not.toContain(null)
     await expect(panel).toBeVisible()
     await expect(window.locator("#left_panel")).toHaveAttribute("active_panel", "comments")
     await window.getByTestId("comments-panel-close").click()

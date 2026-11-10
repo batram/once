@@ -59,15 +59,18 @@ test("permanent HTTP and certificate errors fail without retrying", async () => 
     Object.assign(new TypeError("fetch failed"), { cause: { code: "CERT_HAS_EXPIRED" } })
   ]) {
     let calls = 0
+    let waits = 0
+    // A throwing wait would reject the download too, and so hide a retry.
     await assert.rejects(downloadExtension(url, {
       async request() {
         calls++
         if (outcome instanceof Error) throw outcome
         return outcome
       },
-      wait: async () => { assert.fail("permanent errors must not wait") },
+      wait: async () => { waits++ },
       warn() {}
-    }))
+    }), (error) => outcome instanceof Error ? error === outcome : /HTTP 404/.test(error.message))
     assert.equal(calls, 1)
+    assert.equal(waits, 0)
   }
 })

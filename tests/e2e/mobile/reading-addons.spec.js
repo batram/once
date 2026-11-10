@@ -58,7 +58,7 @@ for (const mode of ["reader", "browser"]) {
       const content = await page.locator("#reading_content").boundingBox()
       expect(bounds).toEqual(content)
       expect(await host.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
-      await page.screenshot({ path: `/tmp/once-reading-${mode}-tray-${theme}.png` })
+      await page.screenshot({ path: test.info().outputPath(`reading-${mode}-tray-${theme}.png`) })
       await triggerMobileBack(page)
       await expect(host).toBeHidden()
       await expect(page.locator("#reading_content")).toBeVisible()

@@ -111,6 +111,45 @@ public final class BrokerChannel {
         });
     }
 
+    /**
+     * An event whose params end in `key`, a JSON object a page sent ({@link #oneObject}), spliced in
+     * as text. Parsed and encoded again, a document of tens of megabytes took several times its
+     * size in heap on the main thread, and with a full heap the process.
+     */
+    public void event(String event, JSONObject params, String key, String document) {
+        onMain(() -> post(envelope(event, params, key, document)));
+    }
+
+    /** `params` must have a member already. */
+    static String envelope(String event, JSONObject params, String key, String document) {
+        String head = params.toString();
+        return new StringBuilder(head.length() + document.length() + event.length() + key.length() + 64)
+            .append("{\"type\":\"event\",\"event\":").append(JSONObject.quote(event)).append(",\"params\":")
+            .append(head, 0, head.length() - 1).append(',').append(JSONObject.quote(key)).append(':')
+            .append(document).append("}}").toString();
+    }
+
+    /**
+     * Whether the text is one JSON object as far as nesting goes: spliced into an envelope it can
+     * neither close nor continue what surrounds it. It need not be valid JSON otherwise; the
+     * broker drops an envelope it cannot parse.
+     */
+    static boolean oneObject(String text) {
+        int length = text.length(), depth = 0;
+        if (length == 0 || text.charAt(0) != '{') return false;
+        boolean string = false;
+        for (int index = 0; index < length; index++) {
+            char c = text.charAt(index);
+            if (string) {
+                if (c == '\\') index++;
+                else if (c == '"') string = false;
+            } else if (c == '"') string = true;
+            else if (c == '{' || c == '[') depth++;
+            else if ((c == '}' || c == ']') && --depth == 0) return index == length - 1;
+        }
+        return false;
+    }
+
     private void onMain(Runnable work) {
         if (Looper.myLooper() == Looper.getMainLooper()) work.run(); else main.post(work);
     }

@@ -4,25 +4,11 @@ import { isMissingAttachmentBytes } from "./missingAttachments"
 import { starredStoryDocuments } from "./StarredStoryIndex"
 
 export interface PouchStoryDatabase {
-  changes?(options: Record<string, unknown>): Promise<{
+  changes(options: Record<string, unknown>): Promise<{
     results: Array<{ id: string; deleted?: boolean; doc?: Record<string, unknown> }>
     last_seq: unknown
   }>
   allDocs(options: Record<string, unknown>): Promise<{ rows: { doc?: unknown }[] }>
-  createIndex(
-    options: PouchDB.Find.CreateIndexOptions,
-    callback: PouchDB.Core.Callback<PouchDB.Find.CreateIndexResponse<object>>
-  ): void
-  createIndex(
-    options?: PouchDB.Find.CreateIndexOptions
-  ): Promise<PouchDB.Find.CreateIndexResponse<object>>
-  find(
-    options: PouchDB.Find.FindRequest<object>,
-    callback: PouchDB.Core.Callback<PouchDB.Find.FindResponse<object>>
-  ): void
-  find(
-    options?: PouchDB.Find.FindRequest<object>
-  ): Promise<PouchDB.Find.FindResponse<object>>
   get(id: string): Promise<Record<string, unknown>>
   put(doc: Record<string, unknown>): Promise<{ rev?: string }>
   remove(
@@ -55,7 +41,6 @@ async function attachmentText(attachment: unknown): Promise<string> {
 export class PouchStoryStore<TStory extends Story> {
   /** A local attachment read takes milliseconds; one this slow is not coming back. */
   static attachmentReadTimeoutMs = 10_000
-  private staredIndex?: Promise<unknown>
   private starredReads: Promise<void> = Promise.resolve()
   private diagnosticHandlers = new Set<(error: {
     severity: "warning" | "error"
@@ -106,35 +91,11 @@ export class PouchStoryStore<TStory extends Story> {
   }
 
   async getStaredStories(): Promise<TStory[]> {
-    if (this.db.changes) {
-      // PouchDB 9's Mango index builds a persisted row for every false value
-      // too. A tiny changes-fed ID projection avoids that cold-start write storm.
-      const read = this.starredReads.then(() => starredStoryDocuments(this.db))
-      this.starredReads = read.then(() => undefined, () => undefined)
-      return Promise.all((await read).map(doc => this.storyFromDocument(doc)))
-    }
-    const indexOptions = {
-      index: {
-        fields: ["stared"],
-        partial_filter_selector: { stared: { $eq: true } }
-      },
-      ddoc: "once-stared",
-      name: "stared-only"
-    } as PouchDB.Find.CreateIndexOptions & { ddoc: string; name: string }
-    this.staredIndex ??= this.db.createIndex(indexOptions)
-    try {
-      await this.staredIndex
-    } catch (error) {
-      this.staredIndex = undefined
-      throw error
-    }
-    const response = await this.db.find({
-      selector: { stared: { $eq: true } },
-      use_index: ["once-stared", "stared-only"]
-    })
-    return Promise.all(response.docs.map((doc) =>
-      this.storyFromDocument(doc as unknown as Record<string, unknown>)
-    ))
+    // PouchDB 9's Mango index builds a persisted row for every false value
+    // too. A tiny changes-fed ID projection avoids that cold-start write storm.
+    const read = this.starredReads.then(() => starredStoryDocuments(this.db))
+    this.starredReads = read.then(() => undefined, () => undefined)
+    return Promise.all((await read).map(doc => this.storyFromDocument(doc)))
   }
 
   async getStoriesByUrls(urls: string[]): Promise<Map<string, TStory>> {

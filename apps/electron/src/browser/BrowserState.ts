@@ -26,6 +26,8 @@ export interface TabEntry {
   storyPage?: StoryPageContext
   storyPageUrl?: string
   displayedUrl: string
+  /** Where a main-frame navigation under way is heading, until it commits or ends. */
+  pendingUrl?: string
   loadError: string | null
   loadErrorRetryable: boolean
   errorPageUrl: string | null

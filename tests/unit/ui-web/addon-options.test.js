@@ -63,7 +63,6 @@ test("development options persist locally, preserve drafts, restore defaults and
     assert.match(cardOf("shadowed").textContent, /Linked folder with newer files \(2\.0\.0\)/)
     assert.equal(document.querySelector('[data-addon="shadowed"]').dataset.addonOrigin, "Imported copy · folder linked")
     assert.equal(cardOf("remote").querySelector(".addon_source_path").textContent, "https://example.org/once-addon.json")
-    assert.equal(button("Use this version on my devices"), undefined)
     button("Install this version").click()
     button("Run from the folder instead").click()
     button("Update installed copy from folder").click()

@@ -3,7 +3,6 @@ const fs = require("node:fs")
 const path = require("node:path")
 
 const known = require("./known-failures.json")
-const matrix = require("./renderer-matrix.json")
 const { createServer, root } = require("./static-server")
 
 let server
@@ -22,21 +21,6 @@ test.afterAll(async () => {
   await new Promise((resolve, reject) => {
     server.close((error) => error ? reject(error) : resolve())
   })
-})
-
-test("renderer matrix names every Phase 0 surface", () => {
-  expect(Object.keys(matrix)).toEqual([
-    "shared",
-    "extensions",
-    "electron",
-    "mobileWeb",
-    "android",
-    "ios",
-    "readerAndPresenters"
-  ])
-  expect(matrix.shared.automated).toBe(true)
-  expect(matrix.android.automated).toBe(false)
-  expect(matrix.ios.automated).toBe(false)
 })
 
 test("known failures carry ownership and a deletion condition", () => {

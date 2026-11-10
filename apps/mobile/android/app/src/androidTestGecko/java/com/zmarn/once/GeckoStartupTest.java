@@ -3,6 +3,7 @@ package com.zmarn.once;
 import android.os.SystemClock;
 import android.util.Log;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import static org.junit.Assert.*;
@@ -10,8 +11,12 @@ import static org.junit.Assert.*;
 /** Run in a fresh instrumentation process to separate engine startup from warm navigation. */
 @RunWith(AndroidJUnit4.class)
 public class GeckoStartupTest {
+    private final GeckoTestSupport t = new GeckoTestSupport();
+
+    @After public void stop() throws Exception { t.stop(); }
+
     @Test public void firstPageAndWarmSwitches() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.shellReady(); t.selectRoot();
+        t.start(); t.shellReady(); t.selectRoot();
         GeckoTestSupport.Call settings = new GeckoTestSupport.Call(new com.getcapacitor.JSObject()
             .put("filterLists", new com.getcapacitor.JSObject().put("lists", new org.json.JSONArray()))
             .put("userscripts", new com.getcapacitor.JSObject().put("scripts", new org.json.JSONArray())));
@@ -35,7 +40,7 @@ public class GeckoStartupTest {
     }
 
     @Test public void paintResetInvalidatesOldReadiness() throws Exception {
-        GeckoTestSupport t = new GeckoTestSupport(); t.start(); t.shellReady(); t.selectRoot();
+        t.start(); t.shellReady(); t.selectRoot();
         try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
             t.open(fixture.url("/paint-reset")); t.ready("paint-reset");
             t.until("Initial page paints", () -> (boolean)t.field("painted"), 15);

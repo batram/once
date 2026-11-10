@@ -1,18 +1,26 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const fs = require("node:fs")
+const path = require("node:path")
 const ts = require("typescript")
 
-test("concurrent catalog readers share one native query and a failure can be retried", async () => {
+const code = ts.transpileModule(fs.readFileSync(path.resolve(__dirname,
+  "../../../packages/platform-mobile/src/BrowserExtensions.ts"), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+}).outputText
+
+/** The catalog API over a native plugin whose commands the test settles itself. */
+function extensionsApi(platform) {
   const exports = {}
   const requests = []
-  const code = ts.transpileModule(fs.readFileSync("packages/platform-mobile/src/BrowserExtensions.ts", "utf8"), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
-  }).outputText
   Function("exports", "require", code)(exports, name => name === "@capacitor/core"
-    ? { Capacitor: { getPlatform: () => "android" } }
+    ? { Capacitor: { getPlatform: () => platform } }
     : { NativeInAppBrowser: { extensionCommand: options => new Promise((resolve, reject) => requests.push({ options, resolve, reject })) } })
-  const api = exports.createMobileBrowserExtensions()
+  return { api: exports.createMobileBrowserExtensions(), requests }
+}
+
+test("concurrent catalog readers share one native query and a failure can be retried", async () => {
+  const { api, requests } = extensionsApi("android")
   const first = api.command({ action: "list" })
   assert.equal(api.command({ action: "list" }), first)
   assert.equal(requests.length, 1)
@@ -29,15 +37,7 @@ test("concurrent catalog readers share one native query and a failure can be ret
 })
 
 test("a refresh list does not join the shared plain query", async () => {
-  const exports = {}
-  const requests = []
-  const code = ts.transpileModule(fs.readFileSync("packages/platform-mobile/src/BrowserExtensions.ts", "utf8"), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
-  }).outputText
-  Function("exports", "require", code)(exports, name => name === "@capacitor/core"
-    ? { Capacitor: { getPlatform: () => "ios" } }
-    : { NativeInAppBrowser: { extensionCommand: options => new Promise((resolve, reject) => requests.push({ options, resolve, reject })) } })
-  const api = exports.createMobileBrowserExtensions()
+  const { api, requests } = extensionsApi("ios")
   const plain = api.command({ action: "list" })
   const refresh = api.command({ action: "list", refresh: true })
   assert.notEqual(refresh, plain)

@@ -1,229 +1,157 @@
-/* global browser, describe, it, $ */
-const assert = require("node:assert/strict")
-const fixture = require("../shared/ai-addon-fixture")
-const { mobileEngine, packageName } = require("../../../apps/mobile/scripts/android-engine")
-// The Android app under test: com.zmarn.once.dev, or com.zmarn.once.lite.dev for Once Lite.
-const androidPackage = packageName(mobileEngine(), "dev")
+/* global browser, describe, before, it, $ */
+// The AI add-on in the Reading view of the installed app, where its tray sits
+// beside the reader frame or the native browser surface and its actions come
+// from the native Reading story menu. Selected with `--suite addons`
+// (npm run test:mobile:e2e:android:addons[:local], …:ios:addons). The smoke
+// suite covers the same add-on in the story list.
+//
+// As there, the phases share one installed app and one WebDriver session and
+// each builds on the state the last one left; `bail` stops at the first failure.
+const {
+  switchToWebView, waitForOnceReady, evaluateSurface, clickWeb, setWebValue,
+  backToSettingsIndex, clickNativeMenuItem, installAiAddon, waitForAiTrayText
+} = require("./helpers/wdio-shell")
 
-async function click(selector) {
-  const element = await $(selector)
-  await element.waitForExist({ timeout: 30000 })
-  await browser.execute(query => document.querySelector(query).click(), selector)
+const ADDON_ACTION = "What? Wait, who, why?"
+const READING_TRAY = "#reading_addon_trays"
+const ARTICLE_TEXT = "Once mobile reader fixture content"
+
+async function waitForReadingMode(mode) {
+  const content = await $("#reading_content")
+  await content.waitForDisplayed({ timeout: 30_000 })
+  await browser.waitUntil(async () =>
+    (await content.getAttribute("data-mode")) === mode &&
+    (await content.getAttribute("data-load-state")) === "ready", {
+    timeout: 30_000,
+    timeoutMsg: `The Reading view did not finish loading in ${mode} mode`
+  })
 }
 
-async function fill(selector, value) {
-  const element = await $(selector)
-  await element.waitForExist({ timeout: 10000 })
-  await browser.execute((target, text) => {
-    target.value = text
-    target.dispatchEvent(new Event("input", { bubbles: true }))
-    target.dispatchEvent(new Event("change", { bubbles: true }))
-  }, element, value)
+// The Reading story menu is native; choosing an item leaves the session in the
+// native context, which is where a native prompt would have to be answered.
+async function chooseReadingMenuItem(label, platform) {
+  await clickWeb(await $("#reading_story_menu"), platform)
+  await clickNativeMenuItem([label], platform)
 }
 
-function nativeItem(platform, text) {
-  return platform === "android"
-    ? `android=new UiSelector().text("${text}")`
-    : `-ios predicate string:name == "${text}"`
+async function clickTrayButton(label) {
+  await browser.waitUntil(async () => browser.execute((tray, text) => {
+    const button = Array.from(document.querySelectorAll(`${tray} button`))
+      .find(candidate => candidate.textContent === text && !candidate.disabled)
+    button?.click()
+    return Boolean(button)
+  }, READING_TRAY, label), {
+    timeout: 10_000,
+    timeoutMsg: `The Reading tray has no enabled "${label}" button`
+  })
 }
 
-// Opens each Reading story-menu action that shows a dialog and checks the
-// native prompt (Filter source) or the in-page dialog (Purge story) stays on screen.
-async function verifyReadingActionDialogs(platform, webview, mode) {
-  for (const action of ["Filter source", "Purge story"]) {
-    await click("#reading_story_menu")
-    await browser.switchContext("NATIVE_APP")
-    await $(nativeItem(platform, action)).click()
-    if (action === "Filter source") {
+describe("Once mobile AI add-on in the Reading view", () => {
+  let platform
+  let baseUrl
+
+  before(async () => {
+    platform = String(browser.capabilities.platformName).toLowerCase()
+    const port = process.env.ONCE_MOBILE_TEST_PORT || "3211"
+    baseUrl = process.env.ONCE_MOBILE_TEST_URL ||
+      (platform === "android" ? `http://10.0.2.2:${port}` : `http://127.0.0.1:${port}`)
+  })
+
+  it("installs the AI add-on and loads the fixture stories", async () => {
+    await switchToWebView()
+    await browser.setTimeout({ script: 30_000 })
+    await waitForOnceReady()
+    await clickWeb(await $("[data-testid='settings-menu']"), platform)
+    await clickWeb(await $("[data-settings-target='sources']"), platform)
+    const sourcesInput = await $("[data-testid='sources']")
+    if (!(await sourcesInput.isDisplayed())) {
+      await clickWeb(await $("[data-testid='sources-mode-toggle']"), platform)
+    }
+    await setWebValue(sourcesInput, `${baseUrl}/fixtures/feed.rss`)
+    await clickWeb(await $("[data-testid='save-sources']"), platform)
+    await backToSettingsIndex(platform, { target: "addons" })
+    await installAiAddon(baseUrl, platform)
+    await clickWeb(await $("[data-testid='stories-menu']"), platform)
+    const reloadStories = await $("[data-testid='reload-stories']")
+    await reloadStories.waitForDisplayed({ timeout: 10_000 })
+    await clickWeb(reloadStories, platform)
+    await $("[data-testid='story']").waitForDisplayed({ timeout: 30_000 })
+  })
+
+  for (const mode of ["reader", "browser"]) {
+    it(`holds a conversation in the Reading tray and returns to the ${mode}`, async () => {
+      if (mode === "reader") {
+        const menuButton = await $("[data-testid='story'] [data-testid='story-menu-button']")
+        await menuButton.waitForDisplayed({ timeout: 10_000 })
+        await clickWeb(menuButton, platform)
+        await clickNativeMenuItem(["Open in reader"], platform)
+        await switchToWebView()
+      } else {
+        await clickWeb(await $("#reading_reader_toggle"), platform)
+      }
+      await waitForReadingMode(mode)
+
+      await chooseReadingMenuItem(ADDON_ACTION, platform)
+      await switchToWebView()
+      const tray = await $(READING_TRAY)
+      await tray.waitForDisplayed({ timeout: 10_000 })
+      await waitForAiTrayText(READING_TRAY, "ExampleApp is software")
+      // The follow-up goes out with the conversation so far; the fixture
+      // server answers it only when it carries the question.
+      await setWebValue(await $(`${READING_TRAY} textarea`), "Who uses it?")
+      await clickTrayButton("Ask")
+      await waitForAiTrayText(READING_TRAY, "Developers use it")
+      await $(`${READING_TRAY} textarea`).waitForEnabled({ timeout: 30_000 })
+
+      await clickWeb(await $(`${READING_TRAY} button[aria-label='Close']`), platform)
+      await tray.waitForDisplayed({ reverse: true, timeout: 10_000 })
+      // Closing the tray must hand the screen back to what it covered.
+      await waitForReadingMode(mode)
+      if (mode === "browser") {
+        let text = ""
+        await browser.waitUntil(async () => {
+          text = String(await evaluateSurface("document.body.innerText").catch(() => ""))
+          return text.includes(ARTICLE_TEXT)
+        }, {
+          timeout: 30_000,
+          timeoutMsg: "The browser surface did not show the article again after the tray closed"
+        })
+      }
+    })
+
+    it(`answers Filter source and Purge story over the ${mode} with dialogs that stay on screen`, async () => {
+      await chooseReadingMenuItem("Filter source", platform)
       const cancel = await $(platform === "android"
         ? 'android=new UiSelector().resourceId("android:id/button2")'
-        : '-ios predicate string:name == "Cancel"')
-      await cancel.waitForDisplayed({ timeout: 10000 })
-      await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-filter.png`)
+        : '-ios predicate string:type == "XCUIElementTypeButton" AND name == "Cancel"')
+      await cancel.waitForDisplayed({ timeout: 10_000 })
       await cancel.click()
-      await browser.switchContext(webview)
-      continue
-    }
-    await browser.switchContext(webview)
-    const dialog = await $("dialog[open]")
-    await dialog.waitForDisplayed({ timeout: 10000 })
-    const bounds = await browser.execute(() => {
-      const box = document.querySelector("dialog[open]").getBoundingClientRect()
-      return { x: box.x, y: box.y, right: box.right, bottom: box.bottom, width: innerWidth, height: innerHeight }
-    })
-    assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.right <= bounds.width && bounds.bottom <= bounds.height)
-    await browser.switchContext("NATIVE_APP")
-    await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-purge.png`)
-    await browser.switchContext(webview)
-    await $('[data-testid="confirm-cancel"]').click()
-    await dialog.waitForExist({ reverse: true, timeout: 10000 })
-  }
-}
+      await cancel.waitForDisplayed({ reverse: true, timeout: 10_000 })
+      await switchToWebView()
 
-describe("Native AI addon", () => {
-  it("extracts an article and sends authenticated explanation and summary requests through native HTTP", async () => {
-    const platform = String(browser.capabilities.platformName).toLowerCase()
-    const baseUrl = process.env.ONCE_MOBILE_TEST_URL || `http://${platform === "android" ? "10.0.2.2" : "127.0.0.1"}:${process.env.ONCE_MOBILE_TEST_PORT}`
-    const connectionName = `Fixture AI (${new URL(baseUrl).host})`
-    await browser.waitUntil(async () => {
-      const contexts = (await browser.getContexts()).map(context => typeof context === "string" ? context : context.id)
-      const webview = contexts.find(context => context.includes(platform === "android" ? `WEBVIEW_${androidPackage}` : "WEBVIEW"))
-      if (!webview) return false
-      await browser.switchContext(webview)
-      return true
-    }, { timeout: 60000 })
-    await browser.waitUntil(async () => (await $("body").getAttribute("data-once-ready")) === "true", { timeout: 30000 })
-    await click("[data-testid='settings-menu']")
-    await click("[data-settings-target='sources']")
-    if (!(await $("[data-testid='sources']").isDisplayed())) await click("[data-testid='sources-mode-toggle']")
-    await fill("[data-testid='sources']", `${baseUrl}/fixtures/feed.rss`)
-    await click("[data-testid='save-sources']")
-    // The text view is its own settings page: Back reaches the list first.
-    for (let level = 0; level < 3 && !(await $("[data-settings-target='addons']").isDisplayed()); level++) await click("#settings_section_back")
-    await click("[data-settings-target='addons']")
-    await click("[data-testid='open-addon-advanced']")
-    await fill("[data-testid='addons']", JSON.stringify([fixture.manifest(baseUrl)]))
-    await click("[data-testid='save-addons']")
-    for (let level = 0; level < 5 && !(await $("[data-settings-target='ai']").isDisplayed()); level++) await click("#settings_section_back")
-    await click("[data-settings-target='ai']")
-    await browser.execute(() => [...document.querySelectorAll("#ai_settings button")].find(button => button.textContent === "Add connection").click())
-    await fill("[data-testid='ai-connection-name']", connectionName)
-    await fill("[data-testid='ai-connection-provider']", "compatible")
-    await fill("[data-testid='ai-connection-endpoint']", `${baseUrl}/ai-addon/v1/chat/completions`)
-    await fill("[data-testid='ai-connection-token']", "fixture-token")
-    await click("[data-testid='ai-editor-save']")
-    await $(`#ai_settings button[aria-label='${connectionName}: Compatible server · Token set']`).waitForDisplayed({ timeout: 10000 })
-    await browser.execute(() => document.querySelector('#ai_settings button[aria-label^="Default model:"]').click())
-    const connectionId = await browser.execute(name => [...document.querySelector('[data-testid="ai-model-connection"]').options].find(option => option.textContent === name).value, connectionName)
-    await fill("[data-testid='ai-model-connection']", connectionId)
-    await fill("[data-testid='ai-model-id']", "fixture")
-    await click("[data-testid='ai-editor-save']")
-    await $(`#ai_settings button[aria-label='Default model: ${connectionName} · fixture']`).waitForDisplayed({ timeout: 10000 })
-    await click("[data-testid='stories-menu']")
-    await click("[data-testid='reload-stories']")
-    await $("[data-testid='story']").waitForDisplayed({ timeout: 30000 })
-    const action = "#stories [data-addon-tray-button='addon:what-wait-who-why/assistant']"
-    assert.equal(await $(action).isDisplayed(), false)
-    const webview = await browser.getContext()
-    await $("#stories [data-testid='story-menu-button']").click()
-    await browser.switchContext("NATIVE_APP")
-    const entry = await $(nativeItem(platform, "What? Wait, who, why?"))
-    await entry.waitForDisplayed({ timeout: 10000 })
-    await browser.saveScreenshot("/tmp/once-android-story-menu.png")
-    await entry.click()
-    await browser.switchContext(webview)
-    await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("ExampleApp is software"), { timeout: 30000 })
-    // The summary arrives with the explanation but stays folded until opened; getText reads only what shows.
-    await browser.waitUntil(async () => browser.execute(() => Array.from(document.querySelectorAll(".addon_tray summary")).some(fold => fold.textContent === "Summary")), { timeout: 30000 })
-    assert.equal((await $(".addon_tray").getText()).includes("Its qualifications are preserved"), false)
-    await browser.execute(() => Array.from(document.querySelectorAll(".addon_tray summary")).find(fold => fold.textContent === "Summary").click())
-    await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("Its qualifications are preserved"), { timeout: 30000 })
-    await $(".addon_tray button[aria-label='Close']").click()
-    await click("[data-testid='settings-menu']")
-    for (let level = 0; level < 3 && !(await $("[data-settings-target='theme']").isDisplayed()); level++) await click("#settings_section_back")
-    await click("[data-settings-target='theme']")
-    const mobile = '[id="story-button-mobile-addon:what-wait-who-why/explain"]'
-    assert.equal(await $(mobile).isSelected(), false)
-    assert.equal(await $('[id^="story-button-desktop-"]').isExisting(), false)
-    await $(mobile).click()
-    for (const theme of ["light", "dark"]) {
-      await fill("#theme_select", theme)
-      await click("[data-testid='stories-menu']")
-      await $(action).waitForDisplayed()
-      const geometry = await browser.execute(selector => {
-        const button = document.querySelector(selector).getBoundingClientRect()
-        const menu = document.querySelector("#stories story-item .menu_btn").getBoundingClientRect()
-        const data = document.querySelector("#stories story-item .data").getBoundingClientRect()
-        return { width: button.width, height: button.height, y: button.y, menuY: menu.y,
-          menuWidth: menu.width, menuHeight: menu.height, textBottom: data.bottom,
-          overflow: document.documentElement.scrollWidth > innerWidth }
-      }, action)
-      assert.equal(geometry.width, 28)
-      assert.equal(geometry.height, 28)
-      assert.equal(geometry.width, geometry.menuWidth)
-      assert.equal(geometry.height, geometry.menuHeight)
-      assert.equal(geometry.y, geometry.menuY)
-      assert.ok(geometry.y < geometry.textBottom)
-      assert.equal(geometry.overflow, false)
-      await browser.saveScreenshot(`/tmp/once-android-buttons-${theme}.png`)
-      await $(action).click()
-      await $(".addon_tray").waitForDisplayed()
-      const tray = await browser.execute(() => {
-        const panel = document.querySelector(".addon_tray")
-        return { padding: getComputedStyle(panel).padding,
-          heights: [...panel.querySelectorAll("button")].map(button => button.getBoundingClientRect().height) }
+      await chooseReadingMenuItem("Purge story", platform)
+      await switchToWebView()
+      const dialog = await $("dialog[open]")
+      await dialog.waitForDisplayed({ timeout: 10_000 })
+      let bounds
+      await browser.waitUntil(async () => {
+        bounds = await browser.execute(() => {
+          const box = document.querySelector("dialog[open]")?.getBoundingClientRect()
+          return box && {
+            left: box.left, top: box.top, right: box.right, bottom: box.bottom,
+            width: box.width, height: box.height, viewportWidth: innerWidth, viewportHeight: innerHeight
+          }
+        })
+        return Boolean(bounds) && bounds.width > 0 && bounds.height > 0 &&
+          bounds.left >= 0 && bounds.top >= 0 &&
+          bounds.right <= bounds.viewportWidth && bounds.bottom <= bounds.viewportHeight
+      }, {
+        timeout: 10_000,
+        timeoutMsg: "The Purge story dialog does not fit the screen"
       })
-      assert.equal(tray.padding, "4px 6px 6px")
-      for (const height of tray.heights) assert.equal(height, 28)
-      await browser.saveScreenshot(`/tmp/once-android-compact-tray-${theme}.png`)
-      if (platform === "android") {
-        await browser.execute(() => { document.querySelector(".addon_tray").style.minHeight = "200vh" })
-        await $("#stories [data-testid='story-menu-button']").click()
-        await browser.switchContext("NATIVE_APP")
-        await $('android=new UiSelector().text("Open in reader")').waitForDisplayed({ timeout: 10000 })
-        await $('android=new UiSelector().text("What? Wait, who, why?")').waitForDisplayed({ timeout: 10000 })
-        await browser.saveScreenshot(`/tmp/once-android-expanded-tray-menu-${theme}.png`)
-        await browser.back()
-        await browser.switchContext(webview)
-      }
-      await $(".addon_tray button[aria-label='Close']").click()
-      await click("[data-testid='settings-menu']")
-      await click("[data-settings-target='theme']")
-    }
-    await browser.refresh()
-    await browser.waitUntil(async () => (await $("body").getAttribute("data-once-ready")) === "true", { timeout: 30000 })
-    await click("[data-testid='stories-menu']")
-    await click("[data-testid='reload-stories']")
-    await $(action).waitForDisplayed({ timeout: 30000 })
-    await click("[data-testid='settings-menu']")
-    await click("[data-settings-target='theme']")
-    await $('[id="story-button-mobile-builtin/outline"]').click()
-    await click("[data-testid='stories-menu']")
-    await $("#stories [data-testid='story-reader']").click()
-    await $("#reading_content").waitForDisplayed({ timeout: 30000 })
-    assert.equal(await $("#reading_content").getAttribute("data-mode"), "reader")
-    const readerFrame = await $(".once-reader-host-frame")
-    await readerFrame.waitForDisplayed({ timeout: 30000 })
-    await browser.switchToFrame(readerFrame)
-    await browser.waitUntil(async () => (await $("article").getText()).includes("Once mobile reader fixture content"), { timeout: 30000 })
-    await browser.switchToFrame(null)
-    await browser.saveScreenshot("/tmp/once-android-reader-button.png")
-    for (const mode of ["reader", "browser"]) {
-      if (mode === "browser") {
-        await click("#reading_reader_toggle")
-        await browser.waitUntil(async () => (await $("#reading_content").getAttribute("data-load-state")) === "ready", { timeout: 30000 })
-      }
-      await click("#reading_story_menu")
-      await browser.switchContext("NATIVE_APP")
-      const readingAction = await $(nativeItem(platform, "What? Wait, who, why?"))
-      await readingAction.waitForDisplayed({ timeout: 10000 })
-      await readingAction.click()
-      await browser.switchContext(webview)
-      const readingTray = await $("#reading_addon_trays")
-      await readingTray.waitForDisplayed({ timeout: 10000 })
-      await browser.waitUntil(async () => (await readingTray.getText()).includes("ExampleApp is software"), { timeout: 30000 })
-      await $("#reading_addon_trays textarea").setValue("Who uses it?")
-      await browser.execute(() => Array.from(document.querySelectorAll("#reading_addon_trays button")).find(button => button.textContent === "Ask").click())
-      await browser.waitUntil(async () => (await readingTray.getText()).includes("Developers use it"), { timeout: 30000 })
-      await $("#reading_addon_trays textarea").waitForEnabled({ timeout: 30000 })
-      await browser.switchContext("NATIVE_APP")
-      await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-tray.png`)
-      await browser.switchContext(webview)
-      await $("#reading_addon_trays button[aria-label='Close']").click()
-      await readingTray.waitForDisplayed({ reverse: true, timeout: 10000 })
-      assert.equal(await $("#reading_content").getAttribute("data-mode"), mode)
-      if (mode === "browser") {
-        await browser.waitUntil(async () => {
-          const text = await browser.executeAsync(done => {
-            window.__onceE2E__.evaluateSurface("document.body.innerText").then(done, () => done(""))
-          })
-          return String(text).includes("Once mobile reader fixture content")
-        }, { timeout: 30000 })
-      }
-      await browser.switchContext("NATIVE_APP")
-      await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-restored.png`)
-      await browser.switchContext(webview)
-      await verifyReadingActionDialogs(platform, webview, mode)
-    }
-  })
+      await clickWeb(await $("[data-testid='confirm-cancel']"), platform)
+      await dialog.waitForExist({ reverse: true, timeout: 10_000 })
+      await waitForReadingMode(mode)
+    })
+  }
 })

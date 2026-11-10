@@ -53,4 +53,4 @@ function webBundleStaleness(sources) {
   return null
 }
 
-module.exports = { root, appRoot, newestSourceTime, packageSources, readStamp, webBundleStaleness }
+module.exports = { appRoot, newestSourceTime, packageSources, readStamp, webBundleStaleness }

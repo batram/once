@@ -16,6 +16,20 @@ async function fixture(t) {
   return { directory, open }
 }
 
+/**
+ * express-pouchdb opens the databases it serves and a catalog of them. Close
+ * those before removing the directory, the catalog last: destroying it would
+ * register it again, because this constructor has a prefix.
+ */
+async function removeServedDatabases(Db, directory) {
+  await Db.allDbs()
+  for (const store of await fs.readdir(directory, { withFileTypes: true })) {
+    if (store.isDirectory() && store.name !== "pouch__all_dbs__") await new Db(store.name).close()
+  }
+  await new Db("pouch__all_dbs__").close()
+  await fs.rm(directory, { recursive: true, force: true })
+}
+
 test("HTTP epoch pages stay bounded without falling back to 25-document transport pages", async t => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "once-http-performance-"))
   const Db = PouchDB.defaults({ prefix: directory + path.sep })
@@ -37,7 +51,7 @@ test("HTTP epoch pages stay bounded without falling back to 25-document transpor
     await a.close(); await b.close(); http.closeAllConnections()
     await new Promise(resolve => http.close(resolve))
     await source.destroy(); await target.destroy()
-    // express-pouchdb retains its catalog handle until this test worker exits.
+    await removeServedDatabases(Db, directory)
   })
   await copyWinningRevisions(a, b, "fixture", { batchSize: 100 })
   assert.equal(changes.length, 4)
@@ -88,6 +102,7 @@ test("actual sync options exclude all controls in both directions without downlo
   t.after(async () => {
     service.syncFrom(""); await remote.close(); http.closeAllConnections()
     await new Promise(resolve => http.close(resolve)); await source.destroy(); await local.destroy()
+    await removeServedDatabases(Db, directory)
   })
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("sync did not settle")), 5000)

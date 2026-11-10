@@ -135,7 +135,11 @@ endpoint is contentful paint; bridge modes require DOM evaluation and WebView
 requires a document result, so these numbers are not identical render metrics.
 The modes share a warmed process/runtime and are not cold-profile benchmarks.
 `GeckoSiteBaselineTest` records public-site observations separately; its JUnit
-completion does not mean every external site succeeded.
+completion does not mean every external site succeeded. It loads live websites,
+so it is skipped unless asked for: run with
+`-e siteBaseline true -e class com.zmarn.once.GeckoSiteBaselineTest` (through
+Gradle, `-Pandroid.testInstrumentationRunnerArguments.siteBaseline=true`);
+`-e mode bridge` or `-e mode full` selects one extension set.
 `GeckoReadingJourneyTest` exercises the real shell address form and coordinator,
 repeated Android Back/reopen, and visible connection failure followed by a working
 address. Direct-plugin tests alone do not establish this normal browsing path.

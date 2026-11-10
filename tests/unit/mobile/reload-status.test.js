@@ -64,12 +64,20 @@ test("a pull-to-refresh shows the pill at once and hands over to the sources", (
   assert.deepEqual(shown.at(-1), ["Ready", "ready"])
 })
 
-test("initial loading reports sources immediately and settles even an empty configuration", (t) => {
+test("initial loading reports sources immediately and settles", (t) => {
   const { shown, loader, tick } = fixture(t, { initiallyShown: true })
   loader(["a.example"])
   assert.deepEqual(shown, [["Loading 1 source: a.example", "loading"]])
   loader([])
   assert.deepEqual(shown.at(-1), ["Stories updated", "done"])
+  tick(1500)
+  assert.deepEqual(shown.at(-1), ["Ready", "ready"])
+})
+
+test("initial loading settles even an empty configuration", (t) => {
+  const { shown, loader, tick } = fixture(t, { initiallyShown: true })
+  loader([])
+  assert.deepEqual(shown, [["Stories updated", "done"]])
   tick(1500)
   assert.deepEqual(shown.at(-1), ["Ready", "ready"])
 })

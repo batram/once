@@ -1,8 +1,5 @@
 const { test, expect } = require("./electron-harness")
 const {
-  HIDE_DELAY
-} = require("../../../packages/ui-web/dist/shell/HoverUrlIndicator")
-const {
   closeApp,
   expectDocumentFocus,
   launchApp,
@@ -108,12 +105,10 @@ test("opens stories via title click, middle click, and comment links", async () 
     await expect(hoverUrl).toHaveClass(/\bvisible\b/)
     await expect(window.locator("#status_bar_text")).not.toHaveText(urls.alpha)
 
+    // How long it lingers is the unit test's business (notifications.test.js);
+    // here it only has to go once the pointer has left the link.
     await window.locator("#searchfield").hover()
-    await window.waitForTimeout(HIDE_DELAY / 2)
-    await expect(hoverUrl).toHaveClass(/\bvisible\b/)
-    await expect.poll(() => hoverUrl.getAttribute("class"), {
-      timeout: HIDE_DELAY * 2
-    }).not.toMatch(/\bvisible\b/)
+    await expect(hoverUrl).not.toHaveClass(/\bvisible\b/)
 
     await alpha.locator("a.title").hover()
     await expect(hoverUrl).toHaveClass(/\bvisible\b/)
@@ -255,8 +250,8 @@ test("stacks, dismisses, restores, and opens source issues through the error log
     await expect(window.locator(".status_issue_bubble.warning")).toHaveCount(2)
     await expect(window.locator(".status_issue_bubble.error")).toHaveCount(1)
 
-    await window.waitForTimeout(5_200)
-    await expect(window.locator(".status_issue_bubble.warning")).toHaveCount(0)
+    // Warnings dismiss themselves after five seconds; errors stay.
+    await expect(window.locator(".status_issue_bubble.warning")).toHaveCount(0, { timeout: 15_000 })
     await expect(window.locator(".status_issue_bubble.error")).toHaveCount(1)
     await warnings.click()
     await expect(window.locator(".status_issue_bubble.warning")).toHaveCount(2)
@@ -407,10 +402,6 @@ test("the filter editor takes spaces as text and closes on Escape", async () => 
 })
 
 test("skip and star toggles persist across an app relaunch", async () => {
-  // A healthy two-launch cycle completes in a few seconds. Treat anything
-  // materially longer as a hung renderer instead of consuming the suite's
-  // broader timeout budget.
-  test.setTimeout(10_000)
   const first = await launchApp(STORY_ENV)
   const userData = first.userData
   let electronApp = first.electronApp

@@ -12,10 +12,20 @@ const {
   resolveAndroidSerial
 } = require("./android-device")
 
+const { detachedGroup, stopProcessTree } = require("./process-group")
+const { SUITES } = require("./wdio.shared.conf")
+
 const platform = process.argv[2]
 const visual = process.argv.includes("--visual")
 if (platform !== "android" && platform !== "ios") {
   console.error("Expected android or ios")
+  process.exit(1)
+}
+// The suite to run (--suite addons, or ONCE_MOBILE_SUITE); the smoke suite by default.
+const suiteFlag = process.argv.indexOf("--suite")
+const suite = (suiteFlag >= 0 ? process.argv[suiteFlag + 1] : process.env.ONCE_MOBILE_SUITE) || "smoke"
+if (!Object.hasOwn(SUITES, suite)) {
+  console.error(`Unknown suite ${suite}; expected one of ${Object.keys(SUITES).join(", ")}`)
   process.exit(1)
 }
 
@@ -226,18 +236,6 @@ function removeAndroidReverse() {
   androidReverse = undefined
 }
 
-function forceStopWdio() {
-  if (!wdio?.pid || wdio.exitCode !== null) return
-  if (process.platform === "win32") {
-    spawnSync("taskkill.exe", ["/pid", String(wdio.pid), "/t", "/f"], {
-      stdio: "ignore",
-      timeout: 5_000
-    })
-  } else {
-    wdio.kill("SIGKILL")
-  }
-}
-
 async function finalize(code) {
   if (finalizing) return
   finalizing = true
@@ -288,6 +286,7 @@ async function start() {
     console.error(error)
     await finalize(1)
   }
+  if (stopping) return
   wdio = spawn(
     node,
     [
@@ -301,14 +300,19 @@ async function start() {
     ],
     {
       cwd: root,
-      stdio: "inherit",
+      // Its own process group, so stop() reaches Appium as well (see process-group.js).
+      detached: detachedGroup,
+      stdio: ["ignore", "inherit", "inherit"],
       env: {
         ...testEnv,
+        ONCE_MOBILE_SUITE: suite,
         ...(visual ? { ONCE_MOBILE_VISUAL_INSPECTION: "1" } : {})
       }
     }
   )
   wdio.on("exit", async (code, signal) => {
+    // stop() finalizes once the whole process tree is gone.
+    if (stopping) return
     if (visual && !signal && code === 0) {
       console.log("")
       console.log(`${platform === "android" ? "Android emulator" : "iOS Simulator"} is ready for visual inspection.`)
@@ -332,22 +336,21 @@ async function start() {
         `Mobile E2E run timed out after ${Math.round(runTimeout / 1000)}s; ` +
         "forcing WebdriverIO/Appium cleanup"
       )
-      if (wdio?.exitCode === null) wdio.kill("SIGTERM")
-      setTimeout(() => {
-        forceStopWdio()
-        void finalize(1)
-      }, 5_000).unref()
+      void stop()
     }, runTimeout)
   }
 }
 
 start()
 
-function stop() {
+// A requested stop (signal or watchdog) always fails the run, and only
+// finalizes after WebdriverIO and Appium have ended: finalize() exits the
+// process, which would otherwise leave a slow or stuck Appium behind.
+async function stop() {
+  if (stopping) return
   stopping = true
-  if (wdio?.exitCode === null) wdio.kill("SIGTERM")
-  setTimeout(forceStopWdio, 5_000).unref()
-  void finalize(1)
+  await stopProcessTree(wdio)
+  await finalize(1)
 }
 process.on("SIGINT", stop)
 process.on("SIGTERM", stop)

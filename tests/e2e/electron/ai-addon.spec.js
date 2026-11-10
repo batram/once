@@ -7,6 +7,9 @@ const { installAiAddon, exerciseAiTray } = require("../shared/ai-addon-ui")
 test("AI addon uses authenticated requests, host trays, article text and session conversation", async () => {
   test.setTimeout(60000)
   const server = await startPageServer()
+  // The fixture's record is shared by every spec of the worker (addon-vault
+  // asks it too); the counts and calls[0] below are about this test's requests.
+  aiFixture.reset()
   const { electronApp, userData, window } = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
   try {
     const urls = storyFixture.storyUrls(server.origin)

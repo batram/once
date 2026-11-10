@@ -11,13 +11,22 @@ interface AddressBarActions {
 
 /** The URL field of the browser shell: typing, Enter, and its context menu. */
 export class AddressBar {
+  private shownTab: string | null = null
+  private shownUrl = ""
+  /** The user has typed since the field took focus, and has not sent it. */
+  private edited = false
+
   constructor(
     readonly input: HTMLInputElement,
     private readonly error: HTMLElement,
     private readonly actions: AddressBarActions
   ) {
     input.addEventListener("focus", () => input.select())
-    input.addEventListener("input", () => this.setError(""))
+    input.addEventListener("input", () => {
+      this.edited = true
+      this.setError("")
+    })
+    input.addEventListener("blur", () => { this.edited = false })
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") void this.navigate(input.value)
     })
@@ -33,6 +42,23 @@ export class AddressBar {
 
   focus(): void {
     this.input.focus()
+  }
+
+  /**
+   * Shows the active tab's address. What the user is typing stays until it is
+   * sent or left, whatever the tab does meanwhile: a page that redirects, or a
+   * restored one still arriving, would otherwise be what Enter opens. Only
+   * another tab's address replaces it.
+   */
+  show(tabId: string | null, url: string): void {
+    const otherTab = tabId !== this.shownTab
+    const changed = otherTab || url !== this.shownUrl
+    this.shownTab = tabId
+    this.shownUrl = url
+    if (tabId === null) return
+    if (otherTab) this.edited = false
+    if (this.edited) return
+    if (changed || this.input.ownerDocument.activeElement !== this.input) this.input.value = url
   }
 
   setError(message: string): void {

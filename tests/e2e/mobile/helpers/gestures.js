@@ -131,8 +131,26 @@ async function edgeSwipe(page, direction) {
   }, direction)
 }
 
+// A real touch sequence through the browser's input pipeline, held at the end of
+// its travel so the caller can inspect the revealed state. Returns the release;
+// `release(true)` cancels the touch instead of lifting the finger.
+async function touchDrag(page, target, dx, dy = 0) {
+  const bounds = await target.boundingBox()
+  const x = bounds.x + bounds.width / 2, y = bounds.y + bounds.height / 2
+  const input = await page.context().newCDPSession(page)
+  await input.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
+  for (let step = 1; step <= 5; step++) {
+    await input.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x + dx * step / 5, y: y + dy * step / 5 }] })
+  }
+  return async (cancel = false) => {
+    await input.send("Input.dispatchTouchEvent", { type: cancel ? "touchCancel" : "touchEnd", touchPoints: [] })
+    await input.detach()
+  }
+}
+
 module.exports = {
   edgeSwipe,
+  touchDrag,
   dragAcross,
   startDrag,
   endDrag,

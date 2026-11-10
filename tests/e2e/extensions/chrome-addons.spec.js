@@ -35,7 +35,7 @@ test("a scripted add-on runs in Chrome's sandbox page", async () => {
 
     await page.getByTestId("settings-menu").click()
     await page.locator('[data-settings-target="sources"]').click()
-    if (!(await page.getByTestId("sources").isVisible())) await page.getByTestId("sources-mode-toggle").click()
+    await page.getByTestId("sources-mode-toggle").click()
     await page.getByTestId("sources").fill(source.source)
     await page.getByTestId("save-sources").click()
 

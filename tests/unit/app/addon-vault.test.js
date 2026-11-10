@@ -179,14 +179,15 @@ test("branches that differ only in bundled offers combine them, newest version k
   assert.equal(await second.client.hasAddonSecret(manifest.id, "token", "https://provider.test/messages"), true)
 })
 
-test("branches that differ only in add-on storage keep the copy saved last", async () => {
+test("branches that differ only in add-on storage keep the copy saved last", async t => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() })
   const { first } = await setup()
   const second = device(first.state.records)
   await second.client.unlockAddonVault(passphrase, false, true, "Phone")
   // Both devices refresh an add-on's own cache at once, as Nitter does with its instance list.
   const cache = at => doc => ({ ...doc, addons: doc.addons.map(entry => ({ ...entry, storage: { instances: { at, hosts: ["https://a.test"] } } })) })
   await first.client.updateAddons(cache(2))
-  await new Promise(resolve => setTimeout(resolve, 5)) // the phone saves last
+  t.mock.timers.tick(1000) // the phone saves last
   await second.client.updateAddons(cache(1))
   first.state.records.push(second.state.records[0])
   assert.equal((await first.client.getAddonVaultStatus()).state, "ready")

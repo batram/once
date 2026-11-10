@@ -44,7 +44,10 @@ test("native OCR output requires bounded, finite, aligned geometry", () => {
 })
 
 const helper = path.resolve(__dirname, "../../../apps/electron/.native/once-image-text.exe")
-test("the Windows AppContainer worker decodes an image and rejects bytes that are none", { skip: process.platform !== "win32" || !fs.existsSync(helper) }, () => {
+test("the Windows AppContainer worker decodes an image and rejects bytes that are none", {
+  skip: process.platform !== "win32" ? "Windows only"
+    : !fs.existsSync(helper) && "the helper is not built (apps/electron/scripts/build-native.js)"
+}, () => {
   const { createCanvas } = require("@napi-rs/canvas")
   const canvas = createCanvas(100, 100)
   const context = canvas.getContext("2d")

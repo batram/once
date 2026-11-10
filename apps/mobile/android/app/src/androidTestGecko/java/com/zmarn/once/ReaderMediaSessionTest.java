@@ -35,7 +35,7 @@ public class ReaderMediaSessionTest {
     private ReaderMediaSessionPlugin plugin;
 
     @Test public void speechControlsReportCommandsAndRelease() throws Exception {
-        assertEquals("Run against the emulator", "ranchu", android.os.Build.HARDWARE);
+        org.junit.Assume.assumeTrue("Run against the emulator", "ranchu".equals(android.os.Build.HARDWARE));
         assertTrue(context.getPackageName().endsWith(".dev"));
         shell("input keyevent KEYCODE_WAKEUP");
         shell("wm dismiss-keyguard");
@@ -47,6 +47,10 @@ public class ReaderMediaSessionTest {
             @Override public void resolve(JSObject result) { commands.add(result.getString("action")); }
         };
         instrumentation.runOnMainSync(() -> plugin.addListener(listener));
+        AudioManager audio = context.getSystemService(AudioManager.class);
+        AudioFocusRequest focus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build())
+            .setOnAudioFocusChangeListener(change -> {}).build();
         try {
             instrumentation.runOnMainSync(() -> new BackgroundMedia(context).setEnabled(false));
             call(plugin::update, speech(false, 0));
@@ -72,6 +76,13 @@ public class ReaderMediaSessionTest {
             state = controller().getPlaybackState();
             assertEquals("Paused speech keeps its controls", PlaybackState.STATE_PAUSED, state.getState());
             assertNotEquals(0, state.getActions() & PlaybackState.ACTION_SKIP_TO_PREVIOUS);
+            // A pause right behind a play: the playing notification must not land after the paused one.
+            for (int run = 0; run < 5; run++) {
+                call(plugin::update, speech(false, 1));
+                call(plugin::update, speech(true, 1));
+            }
+            assertService(false);
+            assertActionStays("Play", "Pause");
             notificationAction("Play");
             assertCommand("play");
 
@@ -86,10 +97,6 @@ public class ReaderMediaSessionTest {
             instrumentation.runOnMainSync(() -> BackgroundMediaService.release(context, other));
             assertService(true);
 
-            AudioManager audio = context.getSystemService(AudioManager.class);
-            AudioFocusRequest focus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build())
-                .setOnAudioFocusChangeListener(change -> {}).build();
             assertEquals(AudioManager.AUDIOFOCUS_REQUEST_GRANTED, audio.requestAudioFocus(focus));
             assertCommand("pause");
             audio.abandonAudioFocusRequest(focus);
@@ -106,6 +113,8 @@ public class ReaderMediaSessionTest {
             assertService(false);
             assertNoControls();
         } finally {
+            // A no-op unless the test stopped while it still held the focus it took.
+            audio.abandonAudioFocusRequest(focus);
             call(plugin::clear, new JSObject());
             instrumentation.runOnMainSync(() -> plugin.removeAllListeners(new Call(new JSObject())));
             instrumentation.runOnMainSync(() -> new BackgroundMedia(context).setEnabled(original));
@@ -145,15 +154,35 @@ public class ReaderMediaSessionTest {
     private void notificationAction(String label) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         do {
-            for (StatusBarNotification notification : context.getSystemService(NotificationManager.class).getActiveNotifications()) {
-                if (notification.getNotification().actions == null) continue;
-                for (Notification.Action action : notification.getNotification().actions) {
-                    if (label.contentEquals(action.title)) { action.actionIntent.send(); return; }
-                }
-            }
+            Notification.Action action = action(label);
+            if (action != null) { action.actionIntent.send(); return; }
             Thread.sleep(100);
         } while (System.nanoTime() < deadline);
         fail("Reader notification supplies " + label);
+    }
+
+    private Notification.Action action(String label) {
+        for (StatusBarNotification notification : context.getSystemService(NotificationManager.class).getActiveNotifications()) {
+            if (notification.getNotification().actions == null) continue;
+            for (Notification.Action action : notification.getNotification().actions) {
+                if (label.contentEquals(action.title)) return action;
+            }
+        }
+        return null;
+    }
+
+    /** The settled notification: a late post of an older one would show within the second watched. */
+    private void assertActionStays(String label, String replaced) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (action(label) == null) {
+            if (System.nanoTime() > deadline) fail("Reader notification supplies " + label);
+            Thread.sleep(50);
+        }
+        long watched = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
+        do {
+            assertNull("Reader notification went back to " + replaced, action(replaced));
+            Thread.sleep(50);
+        } while (System.nanoTime() < watched);
     }
 
     private void assertService(boolean expected) throws Exception {
@@ -174,7 +203,6 @@ public class ReaderMediaSessionTest {
             byte[] buffer = new byte[1024];
             while (output.read(buffer) != -1) {}
         }
-        Thread.sleep(500);
     }
 
     private Call call(Consumer<PluginCall> operation, JSObject data) throws Exception {

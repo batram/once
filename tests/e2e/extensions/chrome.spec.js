@@ -78,7 +78,7 @@ test("installed Chrome extension loads, collects, persists settings, and opens a
     const shortcutsTab = context.waitForEvent("page")
     await page.getByTestId("keybinding-managed-open").first().click()
     const shortcutsPage = await shortcutsTab
-    expect(shortcutsPage.url()).toBe("chrome://extensions/shortcuts")
+    await expect(shortcutsPage).toHaveURL("chrome://extensions/shortcuts")
     await shortcutsPage.close()
 
     await page.getByTestId("settings-menu").click()

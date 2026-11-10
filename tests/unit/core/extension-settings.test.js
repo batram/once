@@ -70,8 +70,7 @@ test("a disabled userscript round-trips through the marker line", () => {
   assert.match(text, /\/\/ ==UserScript==\n\/\/ @once-disabled\n/)
   const again = parseUserscriptsText(text)
   assert.equal(again.scripts[0].enabled, false)
-  again.scripts[0].enabled = true
-  assert.equal(presentUserscripts(again), text)
+  assert.equal(presentUserscripts(again), text, "a marker already in the source is not added twice")
 })
 
 test("userscript text errors name the script and reject stray text and duplicates", () => {

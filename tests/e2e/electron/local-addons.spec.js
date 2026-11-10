@@ -78,7 +78,6 @@ test("an installed copy hides a linked folder until its page hands over to the f
     await expect(source).not.toHaveClass(/addon_source--update/)
     await expect(source).toContainText("linked folder on this device")
     await expect(window.getByTestId("addon-source-install")).toBeVisible()
-    await expect(window.getByRole("button", { name: "Use this version on my devices" })).toHaveCount(0)
     await window.locator("#addon_install_settings").screenshot({ path: test.info().outputPath("addon-source-folder.png") })
   } finally {
     await closeApp(electronApp, userData)

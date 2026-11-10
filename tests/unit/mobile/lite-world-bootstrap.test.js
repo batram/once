@@ -139,12 +139,14 @@ test("wrappedJSObject reads, probes and deletes main-world globals through the h
   assert.equal(document.documentElement.hasAttribute(accessAttribute(CHANNEL)), false, "the answer is cleared")
 }))
 
-test("blank frames match by their top URL only with match_about_blank and inherit the parent's nonce", () => withDom("about:blank", ({ window }) => {
+test("blank frames match by their top URL only with match_about_blank and inherit the parent's nonce", () => withDom("about:blank", ({ window, document, boot }) => {
   const { selectScripts } = lite("worldBootstrap")
   const scripts = [script({}), script({ matchAboutBlank: true, allFrames: true })]
   assert.equal(selectScripts(scripts, { url: "about:blank", topUrl: "https://www.site.test/", isTop: false }).length, 1)
   assert.equal(selectScripts(scripts, { url: "about:blank", topUrl: "https://other.test/", isTop: false }).length, 0)
-  void window
+  window.parent = { location: { href: "https://www.site.test/page" } }
+  boot(config([]))
+  assert.equal(document.createElement("script").nonce, worldNonce(TOKEN, "https://www.site.test/page"))
 }))
 
 test("registered scripts are asked for synchronously at boot and run like the manifest's", () => withDom("https://www.site.test/page", ({ sent, boot, scope }) => {

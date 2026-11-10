@@ -4,7 +4,7 @@ const { parseHTML } = require("linkedom")
 const { SettingsNavigation, openSettingsPage, settingsEnteredFrom } = require("../../../packages/ui-web/dist/settings/SettingsNavigation")
 
 function withNavigation(run) {
-  const { window } = parseHTML('<html><body><main id="left_panel" active_panel="settings"><div id="settings_panel"><button id="settings_section_back"></button><section class="settings_section" data-settings-section="addons"><div id="addons_root"></div></section><section class="settings_section" data-settings-section="sync"><div id="sync_root"></div></section></div></main></body></html>')
+  const { window } = parseHTML('<html><body><main id="left_panel" active_panel="settings"><div id="stories_panel"></div><div id="settings_panel"><button id="settings_section_back"></button><section class="settings_section" data-settings-section="addons"><div id="addons_root"></div></section><section class="settings_section" data-settings-section="sync"><div id="sync_root"></div></section></div></main></body></html>')
   const names = ["window", "document", "CustomEvent", "HTMLElement", "Element", "requestAnimationFrame"]
   const previous = names.map(name => globalThis[name])
   for (const name of names) globalThis[name] = name === "requestAnimationFrame" ? () => 0 : window[name]

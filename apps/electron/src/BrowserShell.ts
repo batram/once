@@ -47,8 +47,6 @@ export class BrowserShell {
   private draggingTabId: string | null = null
   private dropHandled = false
   private activeTabElement: HTMLElement | null = null
-  private renderedAddressTabId: string | null = null
-  private renderedAddressUrl = ""
   private readonly readerRequests: ReaderRequests
   private readonly hoverPreview: TabHoverPreview
   private readonly pageAddonActions: PageAddonActions
@@ -480,14 +478,7 @@ export class BrowserShell {
     const active = this.activeTab()
     this.pageAddonActions.setTab(active)
     if (active) {
-      const addressUrl = displayBrowserUrl(active.url)
-      const navigationChanged =
-        this.renderedAddressTabId !== active.id || this.renderedAddressUrl !== addressUrl
-      this.renderedAddressTabId = active.id
-      this.renderedAddressUrl = addressUrl
-      if (navigationChanged || document.activeElement !== this.address.input) {
-        this.address.input.value = addressUrl
-      }
+      this.address.show(active.id, displayBrowserUrl(active.url))
       this.backButton.disabled = !active.canGoBack
       this.forwardButton.disabled = !active.canGoForward
       const reloadContent = document.createElement("span")
@@ -514,8 +505,7 @@ export class BrowserShell {
         : readerActive ? "Exit reader mode" : "Reader mode"
       this.readerButton.setAttribute("aria-label", this.readerButton.title)
     } else {
-      this.renderedAddressTabId = null
-      this.renderedAddressUrl = ""
+      this.address.show(null, "")
       this.backButton.disabled = true
       this.forwardButton.disabled = true
       this.reloadButton.disabled = true

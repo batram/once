@@ -194,7 +194,6 @@ function resolveAndroidSerial(adb, env, spawnSync, options = {}) {
 module.exports = {
   ADB_COMMAND_TIMEOUT_MS,
   adbFailureDetail,
-  androidDataFreeBytes,
   androidDeviceAbi,
   androidDeviceCommands,
   ensureAndroidInstallSpace,
@@ -203,6 +202,5 @@ module.exports = {
   parseUpdatedSystemPackages,
   parseUsableAndroidDevices,
   resolveAndroidSerial,
-  SUPPORTED_ANDROID_ABIS,
   verifyAndroidTransport
 }

@@ -55,7 +55,8 @@ test("an unpacked extension loads with its locale and a generated background pag
   assert.equal(nodeHost.resolveExtensionFile(extension, "/"), null)
   assert.equal(path.basename(nodeHost.resolveExtensionFile(extension, "background.js")), "background.js")
   assert.match(runtime.readExtensionText(extension, "/background.js"), /onBeforeRequest/)
-  assert.equal(runtime.readExtensionText(extension, "../package.json"), null)
+  // These name a file that exists, so only the containment check keeps it out.
+  assert.equal(runtime.readExtensionText(extension, "../blocker/manifest.json"), null)
 })
 
 test("the protocol serves extension files, the generated page, and nothing outside", async () => {
@@ -71,7 +72,8 @@ test("the protocol serves extension files, the generated page, and nothing outsi
   assert.equal(script.headers.get("content-type"), "text/javascript; charset=utf-8")
   assert.match(await script.text(), /onBeforeRequest/)
 
-  assert.equal((await serve("../package.json")).status, 404)
+  assert.equal((await serve("manifest.json")).status, 200)
+  assert.equal((await serve("%2e%2e%2fblocker%2fmanifest.json")).status, 404)
   assert.equal((await serve("missing.js")).status, 404)
   assert.equal((await runtime.serveExtensionRequest("moz-extension://nobody/x", lookup)).status, 404)
 })

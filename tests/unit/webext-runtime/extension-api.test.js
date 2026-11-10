@@ -49,9 +49,23 @@ test("contexts route events to the listeners that asked and collect replies", as
   const pending = contexts.request(target, "webRequest", "onBeforeRequest", [{ url: "x" }], 1000)
   const sent = background.sent[1].message
   assert.equal(typeof sent.token, "number")
-  contexts.handleReply(2, { token: sent.token, result: [{ cancel: true }] })
+  // Only the context that was asked can answer, not a stranger nor another
+  // context of the same extension guessing the token; and a token answers once.
+  contexts.handleReply(99, { token: sent.token, result: [{ cancel: false }] })
+  contexts.handleReply(2, { token: sent.token, result: [{ cancel: false }] })
   contexts.handleReply(1, { token: sent.token, result: [{ cancel: true }] })
+  contexts.handleReply(1, { token: sent.token, result: [{ cancel: false }] })
   assert.deepEqual(await pending, [{ cancel: true }])
+
+  // Asked of several contexts, each answers its own request.
+  contexts.addListener(2, "webRequest", "onBeforeRequest", 20, { filter: { urls: ["<all_urls>"] }, extraInfoSpec: ["blocking"] })
+  const asked = contexts.targets("webRequest", "onBeforeRequest")
+  assert.deepEqual(asked.map(each => each.entry.id), ["1", "2"])
+  const answers = Promise.all(asked.map(each => contexts.request(each, "webRequest", "onBeforeRequest", [{ url: "y" }], 1000)))
+  contexts.handleReply(2, { token: popup.sent[0].message.token, result: [{ cancel: true }] })
+  contexts.handleReply(1, { token: background.sent[2].message.token, result: [{}] })
+  assert.deepEqual(await answers, [[{}], [{ cancel: true }]])
+  contexts.removeListener(2, "webRequest", "onBeforeRequest", 20)
 
   const timedOut = contexts.request(target, "webRequest", "onBeforeRequest", [{}], 5)
   assert.deepEqual(await timedOut, [])
@@ -70,6 +84,17 @@ test("whenListening resolves once a context registers the event, or gives up", a
   const waiting = contexts.whenListening("runtime", "onConnect", 1000)
   contexts.addListener(1, "runtime", "onConnect", 3, null)
   await waiting
+})
+
+test("unloading the extension ends a wait for a listener at once, leaving no timer behind", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] })
+  const contexts = new ExtensionContexts()
+  fakeContext(contexts, 1, "background")
+  const waiting = contexts.whenListening("runtime", "onMessage", 60_000)
+  contexts.dispose()
+  await assert.rejects(waiting, /unloaded before a page listened to runtime\.onMessage/)
+  // Nothing is left to fire: the timeout was cleared with the wait.
+  t.mock.timers.tick(60_000)
 })
 
 test("scripting registrations map onto the host's dynamic content scripts", () => {

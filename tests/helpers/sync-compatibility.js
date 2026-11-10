@@ -6,8 +6,12 @@ function compatibilityDatabase(database = {}) {
     ...(!database.changes ? { changes() { return { on() { return this }, cancel() {} } } } : {})
   })
 }
-async function eventually(check) {
-  for (let attempt = 0; attempt < 200; attempt++) { if (check()) return; await new Promise(resolve => setTimeout(resolve, 5)) }
-  throw new Error("Expected asynchronous sync state did not arrive")
+/**
+ * Polls until `check` (sync or async) is truthy. The deadline is about ten
+ * seconds: real database I/O can take that long on a loaded runner.
+ */
+async function eventually(check, what = "the expected asynchronous sync state") {
+  for (let attempt = 0; attempt < 2000; attempt++) { if (await check()) return; await new Promise(resolve => setTimeout(resolve, 5)) }
+  throw new Error(`Timed out waiting for ${what}`)
 }
 module.exports = { compatibilityDatabase, eventually }

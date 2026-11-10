@@ -36,7 +36,7 @@ print(String(data: try! JSONSerialization.data(withJSONObject: result), encoding
 function compileDriver(directory) {
   fs.writeFileSync(path.join(directory, "main.swift"), driver)
   const binary = path.join(directory, "archive-test")
-  execFileSync("xcrun", ["--sdk", "macosx", "swiftc", "-O", "-o", binary, source, path.join(directory, "main.swift")], { stdio: "pipe" })
+  execFileSync("xcrun", ["--sdk", "macosx", "swiftc", "-o", binary, source, path.join(directory, "main.swift")], { stdio: "pipe" })
   return binary
 }
 

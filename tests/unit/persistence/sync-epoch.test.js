@@ -210,13 +210,16 @@ test("a client without an epoch mover refuses a ready epoch", async t => {
   const w = await world(t)
   const plain = w.open(path.join(path.dirname(w.base), "plain"))
   const unsupported = new PouchSyncService(plain, () => {}, url => w.server[syncDatabaseName(url)])
-  const statuses = []
+  const statuses = [], diagnostics = []
   unsupported.onStatus(status => statuses.push(status))
+  unsupported.onDiagnostic(diagnostic => diagnostics.push(diagnostic))
+  t.after(() => unsupported.syncFrom(""))
   const marker = { _id: "once_sync_epoch", schema: 1, state: "ready", next: "once_e2" }
   await w.server.once.put(marker)
   unsupported.syncFrom(URL_)
   await until(() => statuses.at(-1)?.state === "error", "the refusal without an epoch mover")
-  unsupported.syncFrom("")
+  assert.match(diagnostics[0].details, /cannot move its local data to the new database/)
+  assert.equal((await plain.info()).doc_count, 0, "nothing was replicated")
 })
 
 test("a fresh installation discovers the canonical database through the retained original marker", async t => {

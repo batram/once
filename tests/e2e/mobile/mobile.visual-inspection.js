@@ -1,57 +1,9 @@
 /* global browser, describe, it, expect, $, $$ */
-const { mobileEngine, packageName } = require("../../../apps/mobile/scripts/android-engine")
-// The Android app under test: com.zmarn.once.dev, or com.zmarn.once.lite.dev for Once Lite.
-const androidPackage = packageName(mobileEngine(), "dev")
-
-function contextName(context) {
-  return typeof context === "string" ? context : context?.id || ""
-}
-
-async function switchToWebView() {
-  const platform = String(browser.capabilities.platformName).toLowerCase()
-  let webview = ""
-  await browser.waitUntil(async () => {
-    const contexts = (await browser.getContexts()).map(contextName)
-    webview = platform === "android"
-      ? contexts.find(context => context.includes(`WEBVIEW_${androidPackage}`)) || ""
-      : contexts.find(context => context.includes("WEBVIEW")) || ""
-    return Boolean(webview)
-  }, {
-    timeout: 60_000,
-    timeoutMsg: "Capacitor WebView did not become available"
-  })
-  if (platform === "ios") {
-    await browser.waitUntil(async () => {
-      try {
-        await browser.switchContext({ title: "Once Dev" })
-        return true
-      } catch {
-        return false
-      }
-    }, {
-      timeout: 60_000,
-      timeoutMsg: "Capacitor WebView did not expose the Once Dev page"
-    })
-  } else {
-    await browser.switchContext(webview)
-  }
-}
-
-async function clickWeb(element, platform) {
-  if (platform === "ios") {
-    await browser.execute(target => {
-      for (const type of ["mousedown", "mouseup", "click"]) {
-        target.dispatchEvent(new MouseEvent(type, {
-          bubbles: true,
-          cancelable: true,
-          button: 0
-        }))
-      }
-    }, element)
-  } else {
-    await element.click()
-  }
-}
+// Shell steps shared with the smoke suite; its switchToWebView also picks the
+// shell page among the several pages of Once Lite's WebView context.
+const {
+  androidPackage, switchToWebView, waitForOnceReady, clickWeb, setWebValue
+} = require("./helpers/wdio-shell")
 
 describe("Once mobile visual inspection", () => {
   it("leaves the app open with deterministic stories", async () => {
@@ -62,12 +14,7 @@ describe("Once mobile visual inspection", () => {
     await browser.terminateApp(androidPackage)
     await browser.activateApp(androidPackage)
     await switchToWebView()
-    const body = await $("body")
-    await body.waitForExist({ timeout: 30_000 })
-    await browser.waitUntil(
-      async () => (await body.getAttribute("data-once-ready")) === "true",
-      { timeout: 30_000, timeoutMsg: "Once did not finish initializing" }
-    )
+    await waitForOnceReady()
 
     const platform = String(browser.capabilities.platformName).toLowerCase()
     const port = process.env.ONCE_MOBILE_TEST_PORT
@@ -82,9 +29,12 @@ describe("Once mobile visual inspection", () => {
     // round-trip finish before clicking a settings row in the same bounds.
     await browser.pause(500)
     await clickWeb(await $("[data-settings-target='sources']"), platform)
-    await $("[data-testid='sources']").setValue(
-      `${baseUrl}/fixtures/visual-feed.rss`
-    )
+    // The sources open as a list; the text view is behind its mode toggle.
+    const sourcesInput = await $("[data-testid='sources']")
+    if (!(await sourcesInput.isDisplayed())) {
+      await clickWeb(await $("[data-testid='sources-mode-toggle']"), platform)
+    }
+    await setWebValue(sourcesInput, `${baseUrl}/fixtures/visual-feed.rss`)
     await clickWeb(await $("[data-testid='save-sources']"), platform)
     await clickWeb(await $("#settings_section_back"), platform)
     await clickWeb(await $("[data-testid='stories-menu']"), platform)

@@ -75,18 +75,18 @@ test("replication routes pulled tab records, deletions included, and pulls them 
   const { dbs: [local, server], close } = await databases(["local", "server"])
   const service = new PouchSyncService(local, () => {}, () => server)
   try {
+    // The story is the older change: replication in sequence order would deliver it first.
+    await server.put({ _id: "sto_https://example.com/story", href: "https://example.com/story" })
     const repo = new TabDocRepository(pouchTabDocs(server))
     await repo.publish(deviceDocument(identity(1), windows("https://example.com/"), true))
-    await server.put({ _id: "sto_https://example.com/story", href: "https://example.com/story" })
     const tabChanges = []
-    const storyChanges = []
-    service.onRemoteTabChange((change) => tabChanges.push(change))
-    service.onRemoteChange((change) => storyChanges.push(change.id))
+    const arrivals = []
+    service.onRemoteTabChange((change) => { tabChanges.push(change); arrivals.push(change.id) })
+    service.onRemoteChange((change) => arrivals.push(change.id))
     const upToDate = new Promise((resolve) => service.onStatus((status) => { if (status.state === "up-to-date") resolve() }))
     service.syncFrom("https://sync.example.test/once")
     await upToDate
-    assert.deepEqual(tabChanges.map((change) => change.id), [`dev_${id}`])
-    assert.deepEqual(storyChanges, ["sto_https://example.com/story"])
+    assert.deepEqual(arrivals, [`dev_${id}`, "sto_https://example.com/story"])
     await repo.deleteDevice(id)
     const deadline = Date.now() + 5000
     while (!tabChanges.some((change) => change.doc._deleted) && Date.now() < deadline) {

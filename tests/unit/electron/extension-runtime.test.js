@@ -129,6 +129,14 @@ test("activeTab grant is scoped to a clicked tab and expires on navigation", () 
   assert.equal(canInjectFrame(host, 4, tab.url), true)
   assert.equal(canInjectFrame(host, 4, "https://other.test/frame"), false)
   assert.equal(canInjectFrame(host, 5, tab.url), false)
+  // The grant is for the origin clicked on: once the tab shows another one,
+  // neither the new page nor a frame of the old origin can be injected.
+  const granted = tab.url
+  tab.url = "https://elsewhere.test/page"
+  assert.equal(canInjectFrame(host, 4, tab.url), false)
+  assert.equal(canInjectFrame(host, 4, granted), false)
+  tab.url = granted
+  assert.equal(canInjectFrame(host, 4, tab.url), true)
   host.revokeActiveTab(4)
   assert.equal(canInjectFrame(host, 4, tab.url), false)
 })

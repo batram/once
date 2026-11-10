@@ -28,8 +28,6 @@ test("maintenance merges story conflicts, deletes losing leaves, and compacts on
   let changeReads = 0
   let compactions = 0
   const db = {
-    replicate: { from() {} },
-    sync() {},
     async changes(options) {
       assert.equal(options.conflicts, true)
       changeReads++

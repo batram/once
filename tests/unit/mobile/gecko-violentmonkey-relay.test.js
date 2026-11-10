@@ -8,7 +8,7 @@ const vm = require("node:vm")
 
 const root = path.resolve(__dirname, "../../..")
 const { handUserscriptsToViolentmonkey, userscriptId } = require(path.join(root, "packages/core/dist/index.js"))
-const { adaptGeckoViolentmonkey } = require(path.join(root, "scripts/adapt-gecko-violentmonkey.js"))
+const { adaptGeckoViolentmonkey, holdResponseForPreparedScripts } = require(path.join(root, "scripts/adapt-gecko-violentmonkey.js"))
 const relaySource = fs.readFileSync(path.join(root, "scripts/gecko-violentmonkey-relay.js"), "utf8")
 
 const source = (name, body) => `// ==UserScript==
@@ -166,11 +166,36 @@ test("synced scripts reach Violentmonkey through the relay, and dashboard edits 
   assert.equal(violentmonkey.scripts.size, 0)
 })
 
+// The shape of Violentmonkey's minified response-headers listener, with what it reads.
+const HEADERS_LISTENER = "const cc=new Map,te='inject',p='scripts',r='content',Ya={},hc=e=>e,pc=()=>!0,Kr=(e,o)=>o[te][p];l.promise=null;" +
+  "function kc(e){var a;const t=hc(e.url,pc(e)),o=cc.get(t);if(o&&!o[r]&&null!=(a=o[te])&&a[p]&&!Ya[e.tabId]){return Kr(e,o)}}"
+
+test("a response is held for scripts still being prepared, once", async () => {
+  const context = vm.createContext({ l: {} })
+  vm.runInContext(holdResponseForPreparedScripts(HEADERS_LISTENER) + ";this.kc=kc;this.cc=cc", context)
+  const { kc, cc } = context
+  const prepared = { inject: { scripts: ["document-start script"] } }
+  cc.set("https://ready.test/", prepared)
+  assert.deepEqual(kc({ url: "https://ready.test/" }), ["document-start script"], "prepared scripts go out with the headers at once")
+
+  let finish
+  cc.set("https://slow.test/", { promise: new Promise(resolve => { finish = resolve }) })
+  const held = kc({ url: "https://slow.test/" })
+  assert.equal(typeof held.then, "function", "the response waits for the preparation")
+  cc.set("https://slow.test/", prepared)
+  finish()
+  assert.deepEqual(await held, ["document-start script"])
+
+  cc.set("https://off.test/", { promise: Promise.resolve() })
+  assert.equal(await kc({ url: "https://off.test/" }), undefined, "a preparation that leaves nothing is not waited for again")
+  assert.throws(() => holdResponseForPreparedScripts('"use strict";'), /needs review/)
+})
+
 test("the Android copy adds the relay after Violentmonkey's background and reinstalls when it changes", () => {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "once-vm-"))
   const upstream = path.join(scratch, "violentmonkey")
   fs.mkdirSync(path.join(upstream, "background"), { recursive: true })
-  fs.writeFileSync(path.join(upstream, "background/index.js"), '"use strict";{const e=!0,a=this;a.handleCommandMessage=Vm;({SetOptions(e){},xhrInject:e=>e})}')
+  fs.writeFileSync(path.join(upstream, "background/index.js"), `"use strict";{const e=!0,a=this;a.handleCommandMessage=Vm;({SetOptions(e){},xhrInject:e=>e});${HEADERS_LISTENER}}`)
   fs.writeFileSync(path.join(upstream, "manifest.json"), JSON.stringify({
     manifest_version: 2, version: "2.49.0", background: { scripts: ["background/index.js"] }, permissions: ["storage"]
   }))
@@ -182,6 +207,7 @@ test("the Android copy adds the relay after Violentmonkey's background and reins
     assert.deepEqual(manifest.permissions, ["storage", "nativeMessaging", "geckoViewAddons"])
     assert.match(manifest.version, /^2\.49\.0\.\d+$/)
     assert.equal(fs.readFileSync(path.join(target, "once-relay.js"), "utf8"), relaySource)
+    assert.match(fs.readFileSync(path.join(target, "background/index.js"), "utf8"), /onceHeld/, "the copy holds a response for scripts still being prepared")
     assert.equal(adaptGeckoViolentmonkey(upstream, target, "abc"), false, "an unchanged copy is kept")
     assert.equal(adaptGeckoViolentmonkey(upstream, target, "def"), true, "a new upstream is adapted again")
 
