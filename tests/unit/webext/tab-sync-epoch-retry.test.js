@@ -43,10 +43,16 @@ test("background reconnect keeps retrying through preparing and remembers the re
     if (id === "once_sync_epoch" && old && (preparing || ready)) doc = { schema: 1, state: ready ? "ready" : "preparing", next: "once_e2" }
     return new Response(JSON.stringify(doc ?? { error: "not_found", reason: "missing" }), { status: doc ? 200 : 404 })
   })
-  const flush = async () => { for (let i = 0; i < 80; i++) await new Promise(resolve => setImmediate(resolve)) }
+  // The coordinator's work has no handle to await: wait for its outcome, not for a number of turns.
+  const until = async (done, what) => {
+    const deadline = Date.now() + 10_000
+    while (!done()) {
+      assert.ok(Date.now() < deadline, `Timed out waiting for ${what}`)
+      await new Promise(resolve => setImmediate(resolve))
+    }
+  }
   exports.installTabSyncBackground(api, "chrome")
-  await flush()
-  assert.equal(services.length, 1)
+  await until(() => services.length === 1, "the first connection")
   preparing = true
   await assert.rejects(services[0].deps.repository.db.put({ _id: "tsend_test" }), SyncEpochPendingError)
   assert.equal(services[0].disposed, true)
@@ -54,17 +60,16 @@ test("background reconnect keeps retrying through preparing and remembers the re
     assert.equal(alarms.get("once-tabsync-retry").delayInMinutes, 1)
     alarms.delete("once-tabsync-retry")
     onAlarm({ name: "once-tabsync-retry" })
-    await flush()
+    await until(() => alarms.has("once-tabsync-retry"), "the next retry alarm")
+    assert.equal(services.length, 1)
   }
   assert.equal(alarms.get("once-tabsync-retry").delayInMinutes, 1)
   ready = true
   onAlarm({ name: "once-tabsync-retry" })
-  await flush()
-  assert.equal(services.length, 2)
+  await until(() => services.length === 2, "the connection to the ready destination")
   requests.length = 0
   oldGone = true
   onStorage({ sync_url: {} }, "sync")
-  await flush()
-  assert.equal(services.length, 3)
+  await until(() => services.length === 3, "the reconnect after the settings change")
   assert.ok(requests.every(url => url.startsWith("/once_e2/")))
 })
