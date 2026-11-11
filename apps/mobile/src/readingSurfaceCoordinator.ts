@@ -346,6 +346,8 @@ export class ReadingSurfaceCoordinator {
   async stepHistory(direction: HistoryDirection): Promise<boolean> {
     const step = this.history?.step(direction)
     if (!step) return false
+    // A history destination is not the loaded page until the native move finishes.
+    if (step.nativeIndex !== null) this.browserReady = false
     this.showEntry(step.entry, step.nativeIndex === null)
     const index = step.nativeIndex
     if (index !== null) await this.enqueue(async () => { await this.surface.goToHistoryIndex?.(index) })

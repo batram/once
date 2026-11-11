@@ -3,6 +3,7 @@ const assert = require("node:assert/strict")
 const fs = require("node:fs/promises")
 const os = require("node:os")
 const path = require("node:path")
+const { EventEmitter } = require("node:events")
 const PouchDB = require("pouchdb")
 const { pouchTabDocs } = require("../../../packages/persistence/dist")
 const { DeviceIdentity } = require("../../../packages/app/dist/tabsync/DeviceIdentity")
@@ -11,6 +12,39 @@ const { TabSyncService } = require("../../../packages/app/dist/tabsync/TabSyncSe
 
 const timing = { debounce: 1, minInterval: 0, heartbeat: 60000, refresh: 1 }
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// A feed can deliver a write while info() is reading its sequence.
+async function settleFeed(service, feed, changes) {
+  for (;;) {
+    await service.whenIdle()
+    const seen = feed.seen
+    const { update_seq: sequence } = await feed.db.info()
+    // A delivered change may have scheduled another refresh during info().
+    if (feed.seen !== seen) continue
+    if (feed.seen >= sequence) return
+    // No await between checking the feed and subscribing to its next event.
+    await new Promise((resolve) => changes.once("change", resolve))
+  }
+}
+
+test("settling waits for work from changes delivered during the sequence read", { timeout: 1000 }, async () => {
+  const changes = new EventEmitter()
+  let pending = false, idleCalls = 0
+  const feed = { seen: 0, db: { info: async () => {
+    if (feed.seen === 0) {
+      await Promise.resolve()
+      feed.seen = 1
+      pending = true
+      changes.emit("change")
+    }
+    return { update_seq: 1 }
+  } } }
+  const service = { whenIdle: async () => { idleCalls++; pending = false } }
+  await settleFeed(service, feed, changes)
+  assert.equal(pending, false, "the delivered change's work must settle too")
+  assert.equal(idleCalls, 2)
+  assert.equal(changes.listenerCount("change"), 0)
+})
 
 function tab(id, url, fields = {}) {
   return { id, navSeq: 1, url, title: url, mode: "web", active: false, openedAt: 1, navigatedAt: 2, selectedAt: 3, activityAt: 4, ...fields }
@@ -59,11 +93,7 @@ async function harness() {
   // and the service has nothing scheduled, running or queued in answer.
   const settle = async (service) => {
     const { changes, feed } = made.find((entry) => entry.service === service)
-    for (;;) {
-      await service.whenIdle()
-      if (feed.seen >= (await feed.db.info()).update_seq) return
-      await new Promise((resolve) => changes.once("change", resolve))
-    }
+    await settleFeed(service, feed, changes)
   }
   const close = async () => {
     for (const { db, service, changes } of made) {

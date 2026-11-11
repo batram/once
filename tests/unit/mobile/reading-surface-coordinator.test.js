@@ -406,6 +406,46 @@ function createContent() {
   return { getBoundingClientRect: () => ({ x: 0, y: 0, width: 320, height: 500 }) }
 }
 
+test("Back and Forward stay loading until their native destination finishes", async t => {
+  const { ReadingSurfaceCoordinator } = await loadCoordinator()
+  const { ReadingHistory } = await import("../../../apps/mobile/src/readingHistory.ts")
+  const session = new ReadingSession(), surface = createSurface(), history = new ReadingHistory()
+  const coordinator = new ReadingSurfaceCoordinator(session, surface, createReader(), createContent(), undefined, history)
+  t.after(() => coordinator.dispose())
+  await coordinator.install()
+  const urls = ["https://example.test/first", "https://example.test/second"]
+  let navigationId = 0
+  for (const [index, url] of urls.entries()) {
+    session.navigate(url)
+    await flushCoordinator()
+    surface.listeners.get("navigationStarted")({ navigationId: ++navigationId, url })
+    surface.listeners.get("navigationFinished")({ navigationId, url })
+    history.nativeReported(urls.slice(0, index + 1), index)
+    await flushCoordinator()
+  }
+  const requested = []
+  surface.goToHistoryIndex = async index => {
+    requested.push({ index, loadState: session.snapshot().loadState })
+  }
+  for (const [direction, index] of [["back", 0], ["forward", 1]]) {
+    assert.equal(await coordinator.stepHistory(direction), true)
+    await flushCoordinator()
+    assert.equal(session.snapshot().loadState, "loading")
+    assert.equal(coordinator.showsPage(urls[index]), false)
+    surface.listeners.get("navigationStarted")({ navigationId: ++navigationId, url: urls[index] })
+    surface.listeners.get("navigationCommitted")({ navigationId, url: urls[index] })
+    await flushCoordinator()
+    assert.equal(session.snapshot().loadState, "loading", "committing does not finish the page")
+    surface.listeners.get("navigationFinished")({ navigationId, url: urls[index] })
+    history.nativeReported(urls, index)
+    await flushCoordinator()
+    assert.equal(session.snapshot().loadState, "ready")
+    assert.equal(coordinator.showsPage(urls[index]), true)
+  }
+  assert.deepEqual(requested, [{ index: 0, loadState: "loading" }, { index: 1, loadState: "loading" }],
+    "the destination is still loading when the native move is requested")
+})
+
 test("an emptied tab hides its page instead of retiring it, and the next address navigates", async () => {
   const { ReadingSurfaceCoordinator } = await loadCoordinator()
   const session = new ReadingSession(true), surface = createSurface()

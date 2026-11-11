@@ -580,7 +580,13 @@ export class TabSyncService {
     clearTimeout(this.refreshTimer)
     this.refreshSettled?.()
     const settled = this.refreshSettled = this.hold()
-    this.refreshTimer = setTimeout(() => void this.refresh().finally(settled), this.timing.refresh)
+    this.refreshTimer = setTimeout(() => {
+      // Only a scheduled refresh can be cancelled. Once running, its hold
+      // belongs to that read until it finishes, even if another is scheduled.
+      this.refreshTimer = undefined
+      this.refreshSettled = undefined
+      void this.refresh().finally(settled)
+    }, this.timing.refresh)
   }
 
   /** Reloads every device and retirement; reading a conflicted device resolves it. */
