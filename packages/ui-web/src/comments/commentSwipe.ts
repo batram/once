@@ -55,6 +55,14 @@ export function attachCommentSwipe(root: HTMLElement, target: CommentSwipeTarget
     // The innermost comment's own text and header, not the replies around it.
     const main = (event.target as Element | null)?.closest?.(".comment_main")
     if (index < 0 || !(main instanceof HTMLElement)) return
+    // Code blocks (including touches on their nested <code>) own horizontal
+    // panning. Leave the whole gesture to the browser, even at either end:
+    // reaching a scroll boundary must not collapse or focus the comment.
+    for (let node = event.target as Element | null; node && node !== main; node = node.parentElement) {
+      if (node.scrollWidth <= node.clientWidth) continue
+      const overflow = getComputedStyle(node).overflowX
+      if (overflow === "auto" || overflow === "scroll") return
+    }
     touching = { index, main, x: touch.clientX, y: touch.clientY, time: Date.now(), moved: false }
   }
 
