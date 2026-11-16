@@ -524,6 +524,7 @@ public final class LiteExtensionEngine {
             @Override public void loaded(LitePage loaded, String url) {}
             @Override public void statusChanged(LitePage changed) { if (presenter != null && !changed.isBackground()) presenter.statusChanged(changed); }
             @Override public void closeRequested(LitePage closing) { closePage(closing); }
+            @Override public void leftForSite(LitePage from, String url) { if (!from.isBackground() && tabShell != null) tabShell.createTab(url, true); }
         }, () -> activity);
         pages.put(page.pageId, page);
         if (page.isBackground()) hidden.addView(page.view, new FrameLayout.LayoutParams(1, 1));

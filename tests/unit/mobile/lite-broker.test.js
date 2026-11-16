@@ -397,10 +397,9 @@ test("scripts registered during a document's held onResponseStarted are served t
   await java.next((e) => e.type === "request" && e.method === "page.post" && e.params.message.type === "result" && e.params.message.id === 50)
   java.pageMessage(pageId, { type: "reply", token: started.params.message.message.token, result: [undefined] })
   const continued = await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.method === "Fetch.fulfillWithBody" && e.params.params.requestId === "R1")
-  const origin = `https://${host.extension.host}.moz-extension.localhost`
   const csp = continued.params.params.responseHeaders.find((h) => h.name === "Content-Security-Policy").value
-  assert.ok(csp.includes(`connect-src ${origin}`), `the world's request passes the policy: ${csp}`)
-  // No registration was re-installed on the paused target; Java got the answer to serve instead.
+  assert.ok(csp.includes("connect-src https://*.moz-extension.localhost"), `the world's request passes the policy: ${csp}`)
+  assert.equal(csp.includes(host.extension.host), false, "the site reads its policy back: no per-install host in it")  // No registration was re-installed on the paused target; Java got the answer to serve instead.
   assert.equal(java.requests.filter((e) => e.method === "worlds.set").length, setsBefore)
   const answered = java.requests.filter((e) => e.method === "sync.set")
   assert.equal(answered.length, 1)
@@ -610,6 +609,59 @@ test("an extension's own pages are decided per request: a navigation in a tab, a
   assert.equal(await status("P1", "R5", "G1", `${origin}/background.js`, "Script"), 200)
   assert.equal(await status("P1", "R6", "G2", `${origin}/background.js`, "Script"), 404, "a web frame inside the extension's page")
   assert.equal(await status("P1", "R7", "G1", `${origin}/popup.html`, "Document"), 200, "the page's own top frame")
+})
+
+test("a site inside an extension page's WebView is a web page: private pages stay the extension's own", async () => {
+  const { java, broker } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
+  const host = hostOf(broker, FIXTURE_ID)
+  const origin = `https://${host.extension.host}.moz-extension.localhost`
+  let next = 0
+  const status = async (targetId, frameId, url, resourceType, extra = {}) => {
+    const requestId = `R${++next}`
+    java.cdpEvent(targetId, "Fetch.requestPaused", { requestId, frameId, resourceType, request: { url, method: "GET", headers: extra.headers ?? {} },
+      ...(extra.redirected ? { redirectedRequestId: "R0" } : {}) })
+    const answer = await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.params.requestId === requestId)
+    return answer.params.params.responseCode
+  }
+  // Java's first load: only the marker document is there.
+  java.event("target.attached", { targetId: "P1", kind: "page", pageId: host.backgroundPage, frameTree: { frame: { id: "G1", url: "about:blank#once-page-1" } } })
+  assert.equal(await status("P1", "G1", `${origin}/options.html`, "Document"), 200)
+  java.cdpEvent("P1", "Page.frameNavigated", { frame: { id: "G1", url: `${origin}/options.html` } })
+  assert.equal(await status("P1", "G1", `${origin}/popup.html?x=1`, "Document"), 200, "the options page goes to another page of its extension")
+  assert.equal(await status("P1", "G1", `${origin}/popup.html`, "Document", { redirected: true }), 404, "a server's redirect does not choose a private page")
+  // The site took the top frame (a link tapped in the options page).
+  java.cdpEvent("P1", "Page.frameNavigated", { frame: { id: "G1", url: "https://evil.test/" } })
+  assert.equal(await status("P1", "G1", `${origin}/options.html?evil=1`, "Document"), 404, "the site sets location to a private page")
+  assert.equal(await status("P1", "G1", `${origin}/options.html`, "Document", { headers: { Referer: `${origin}/` } }), 404, "whatever it sends")
+  assert.equal(await status("P1", "G1", `${origin}/picker.html`, "Document"), 200, "what is web accessible stays so, as in a tab")
+  // It frames the web-accessible picker (G2): that frame is the extension's page in a web page, not in its own.
+  java.cdpEvent("P1", "Page.frameAttached", { frameId: "G2", parentFrameId: "G1" })
+  java.cdpEvent("P1", "Page.frameNavigated", { frame: { id: "G2", parentId: "G1", url: `${origin}/picker.html` } })
+  java.cdpEvent("P1", "Page.frameAttached", { frameId: "G3", parentFrameId: "G2" })
+  assert.equal(await status("P1", "G3", `${origin}/options.html`, "Document"), 404, "a frame of the picker under a site")
+  assert.equal(await status("P1", "G2", `${origin}/background.js`, "Script"), 200, "the picker's own files, by the grant a tab gives")
+})
+
+test("a web frame inside the extension's own page does not navigate itself to a private page", async () => {
+  const { java, broker } = await startBroker([{ id: FIXTURE_ID, directory: fixture, present: true }])
+  const host = hostOf(broker, FIXTURE_ID)
+  const origin = `https://${host.extension.host}.moz-extension.localhost`
+  let next = 0
+  const status = async (frameId, url, headers = {}) => {
+    const requestId = `R${++next}`
+    java.cdpEvent("P1", "Fetch.requestPaused", { requestId, frameId, resourceType: "Document", request: { url, method: "GET", headers } })
+    const answer = await java.next((e) => e.type === "request" && e.method === "cdp.command" && e.params.params.requestId === requestId)
+    return answer.params.params.responseCode
+  }
+  // uBlock's dashboard: its panes load in a frame (G2); a link without a target loads the site there. G3 is new.
+  java.event("target.attached", { targetId: "P1", kind: "page", pageId: host.backgroundPage, frameTree: { frame: { id: "G1", url: `${origin}/options.html` },
+    childFrames: [{ frame: { id: "G2", parentId: "G1", url: "https://evil.test/" } }, { frame: { id: "G3", parentId: "G1", url: "" } },
+      { frame: { id: "G4", parentId: "G1", url: `${origin}/popup.html` } }] } })
+  assert.equal(await status("G2", `${origin}/options.html`), 404, "the site's frame sets its own location")
+  assert.equal(await status("G2", `${origin}/options.html`, { Referer: "https://evil.test/" }), 404)
+  assert.equal(await status("G2", `${origin}/popup.html`, { Referer: `${origin}/options.html` }), 200, "the dashboard loads its next pane over the site")
+  assert.equal(await status("G3", `${origin}/popup.html`), 200, "a frame the page just made")
+  assert.equal(await status("G4", `${origin}/options.html`), 200, "a pane goes to another")
 })
 
 test("contexts coming and going leave no removal listener behind", async () => {

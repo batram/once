@@ -24,7 +24,7 @@ import {
 import { JavaChannel, RequestError } from "./javaChannel"
 import { TargetFrames } from "./liteFrames"
 import { LiteExtensionHost } from "./liteHosts"
-import { CdpCommandParams, electronResourceType, extensionUrlFromPageUrl, pageHostOf, pageOrigin, TargetKind } from "./protocol"
+import { CdpCommandParams, electronResourceType, extensionUrlFromPageUrl, PAGE_HOST_SUFFIX, pageHostOf, pageOrigin, TargetKind } from "./protocol"
 
 export interface RequestTarget {
   kind: TargetKind
@@ -127,6 +127,9 @@ export function withDocumentNonce(headers: HttpHeader[], nonce: string): HttpHea
     ? { name: header.name, value: addNonceToPolicy(header.value, nonce) }
     : header)
 }
+
+/** Every extension origin as one CSP source, which names none of them. */
+export const EXTENSION_ORIGINS = `https://*${PAGE_HOST_SUFFIX}`
 
 /**
  * `connect-src` with the extension origins allowed. A policy that leaves
@@ -362,14 +365,17 @@ export class LiteWebRequest {
     // Decided per request from the document that makes it: for a navigation
     // the frame's parent (its current document may be anything the parent
     // put there), else the requesting frame. In the extension's own page
-    // WebView its own documents get everything; a web frame there, or a tab,
+    // WebView its own documents get everything while the top document is
+    // still the extension's (`isOwnPageRequest`); a web document there, or a tab,
     // only what is web accessible, plus, for the extension's web-accessible
     // page inside a tab (uBlock's picker), the files that page loads. A
     // navigation in a tab never gets more than what is web accessible.
     const navigation = event.resourceType === "Document"
     const requester = requestingDocument(target.frames, event.frameId, navigation)
     const fromOwnPage = target.kind === "page" && target.pageHost === extensionHost &&
-      (requester === null || pageHostOf(requester) === extensionHost)
+      isOwnPageRequest(target.frames, event.frameId, navigation, extensionHost, {
+        referrer: input.referrer, redirected: event.redirectedRequestId !== undefined
+      })
     const grant = new OwnPageRequests()
     if (!fromOwnPage && !navigation && requester !== null && isOwnPage(host.extension, extensionUrlFromPageUrl(requester))) grant.grant(url)
     const response = resolveExtensionRequest(url, (candidate) => this.hostFor(candidate)?.extension, {
@@ -447,7 +453,9 @@ export class LiteWebRequest {
       const before = JSON.stringify(headers)
       headers = withDocumentNonce(headers, documentNonce(this.options.token(), event.request.url))
       // The worlds' synchronous requests for registered scripts must pass the page's policy.
-      headers = withConnectGrant(headers, [...this.options.hosts()].map((host) => pageOrigin(host.extension.host)))
+      // Named by pattern: the site can read its policy back (a violation's `originalPolicy`,
+      // a report), and the hosts are per install, an identifier it must not learn.
+      headers = withConnectGrant(headers, [...this.options.hosts()].length > 0 ? [EXTENSION_ORIGINS] : [])
       policyChanged = JSON.stringify(headers) !== before
       if (this.options.prepareDocument) headers = await this.options.prepareDocument(headers, detailed, { targetId, frameId: event.frameId })
     }
@@ -509,10 +517,48 @@ function pageUrlOf(url: string): string {
   return `${pageOrigin(host)}${parsed.pathname}${parsed.search}${parsed.hash}`
 }
 
+/** A frame URL no web document stands behind: nothing yet, a blank one, or Chromium's error page. */
+function isInertUrl(url: string): boolean {
+  return url === "" || url === "about:srcdoc" || /^about:blank(?:[?#]|$)/.test(url) || url.startsWith("chrome-error:")
+}
+
+/**
+ * Whether a request in an extension page's WebView is the extension's own,
+ * and so gets its private files. The top document must be the extension's:
+ * a site that got into the view (a link the user tapped, a redirect) is a
+ * web page like in any tab, whatever it navigates to or frames.
+ *
+ * - A top-frame navigation: Java's first load (nothing or the marker is
+ *   there) or one away from the extension's own document, and never the
+ *   end of a redirect, which a server chose.
+ * - A frame's navigation: its parent is the extension's, and so is the
+ *   document being replaced; over a web document only when the extension
+ *   asked for it, which the `Referer` it cannot forge says.
+ * - Anything else: the requesting document is the extension's.
+ */
+export function isOwnPageRequest(
+  frames: TargetFrames,
+  frameId: string,
+  navigation: boolean,
+  extensionHost: string,
+  request: { referrer: string; redirected: boolean }
+): boolean {
+  const own = (url: string | null): boolean => url !== null && pageHostOf(url) === extensionHost
+  const requester = requestingDocument(frames, frameId, navigation)
+  if (navigation && requester === null) {
+    const current = frames.url(frameId)
+    return !request.redirected && (own(current) || isInertUrl(current))
+  }
+  if (!own(requester) || !own(frames.topUrl())) return false
+  if (!navigation) return true
+  const current = frames.url(frameId)
+  return !request.redirected && (own(current) || isInertUrl(current) || own(request.referrer))
+}
+
 /**
  * The document a request comes from: the requesting frame's (a blank frame's
  * creator's), or for a navigation its parent's; null for a top-frame
- * navigation, which only Java starts in an extension page's WebView.
+ * navigation.
  */
 export function requestingDocument(frames: TargetFrames, frameId: string, navigation: boolean): string | null {
   const frame = navigation ? frames.parentOf(frameId) : frameId

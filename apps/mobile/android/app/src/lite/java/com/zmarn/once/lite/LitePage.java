@@ -45,6 +45,8 @@ public final class LitePage {
         void loaded(LitePage page, String url);
         void statusChanged(LitePage page);
         void closeRequested(LitePage page);
+        /** The page's top frame was sent to a site (a link, a redirect); the page itself stays where it is. */
+        void leftForSite(LitePage page, String url);
     }
 
     public final String pageId;
@@ -276,7 +278,11 @@ public final class LitePage {
                 return true;
             }
             String scheme = request.getUrl().getScheme();
-            return !("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme));
+            if (!("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme))) return true;
+            if (!request.isForMainFrame() || isExtensionUrl(target)) return false;
+            // A site never becomes the top document of the view that has the extension's API: it gets a reading tab.
+            listener.leftForSite(LitePage.this, target);
+            return true;
         }
         @Override public void onPageStarted(WebView ignored, String started, Bitmap favicon) {
             for (int frameId : frames.values()) frameGone(channel, pageId, frameId);
