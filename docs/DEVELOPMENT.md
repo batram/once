@@ -324,8 +324,11 @@ The runners rebuild the dev app when it is missing, stale or not built with
 device's ABI, and the runner frees emulator `/data` space when needed (if it
 still can't, raise the emulator's storage and cold boot with Wipe Data).
 Physical and network ADB devices work through `adb reverse`; with several
-devices, set `ONCE_ANDROID_UDID`. iOS honours `ONCE_MOBILE_DEVICE`,
-`ONCE_IOS_VERSION` and `ONCE_IOS_UDID`. `ONCE_MOBILE_TEST_PORT` and
+devices, set `ONCE_ANDROID_UDID`. iOS selects and boots an installed iPhone
+simulator, preferring a booted device, then iPhone 17 Pro, then the newest
+available runtime. It honours `ONCE_MOBILE_DEVICE`, `ONCE_IOS_VERSION` and
+`ONCE_IOS_UDID`, and fails early if those constraints cannot be met.
+`ONCE_MOBILE_TEST_PORT` and
 `ONCE_MOBILE_TEST_DATA_DIR` pin the test server's port and keep its database.
 The Android and iOS runners take `--suite smoke|addons|lite-extensions` and,
 on Android, `--engine lite` (append after `--`, e.g.

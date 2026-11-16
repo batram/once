@@ -3,6 +3,7 @@
 const fs = require("fs")
 const path = require("path")
 const { mobileEngine, apkPath, packageName } = require("../../../apps/mobile/scripts/android-engine")
+const { resolveIosSimulator } = require("./ios-simulator")
 
 // The suites a run can select: `--suite <name>` on the runners, which hand it
 // on as ONCE_MOBILE_SUITE. lite-extensions needs --engine lite.
@@ -66,19 +67,17 @@ function configFor(platform) {
     fs.mkdirSync(chromedrivers, { recursive: true })
     common["appium:chromedriverExecutableDir"] = chromedrivers
   } else {
-    common["appium:deviceName"] = process.env.ONCE_MOBILE_DEVICE || "iPhone 17 Pro"
-    // Pin the simulator runtime only when explicitly requested. The macos-26
-    // runner ships varying iOS point releases (26.2/26.4/26.5), so let XCUITest
-    // pick a runtime matching the device name unless overridden.
-    if (process.env.ONCE_IOS_VERSION) {
-      common["appium:platformVersion"] = process.env.ONCE_IOS_VERSION
-    }
+    // Without a platformVersion, XCUITest defaults to Xcode's SDK, which
+    // need not have an installed simulator runtime. Pin an available device.
+    const simulator = resolveIosSimulator()
+    common["appium:deviceName"] = simulator.name
+    common["appium:platformVersion"] = simulator.version
+    common["appium:udid"] = simulator.udid
     // iOS 18 exposes Capacitor's inspectable page under the display-name process
     // while also advertising a generic WebKit process with no pages. Target the
     // app process so Appium does not retry the empty generic process until timeout.
     common["appium:additionalWebviewBundleIds"] = ["process-Once Dev"]
     common["appium:ignoredWebviewBundleIds"] = ["process-com.apple.WebKit.WebContent"]
-    if (process.env.ONCE_IOS_UDID) common["appium:udid"] = process.env.ONCE_IOS_UDID
     // On a cold CI runner the first session builds WebDriverAgent from source
     // (the slowest part of XCUITest startup) and boots the simulator, which
     // easily exceeds the WDA-side defaults. Give it room.

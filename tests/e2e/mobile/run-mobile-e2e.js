@@ -2,6 +2,7 @@ const path = require("path")
 const fs = require("fs")
 const { spawn, spawnSync } = require("child_process")
 const { startTestServer } = require("./test-server-process")
+const { resolveIosSimulator } = require("./ios-simulator")
 const {
   ADB_COMMAND_TIMEOUT_MS,
   adbFailureDetail,
@@ -133,12 +134,32 @@ function ensureAndroidStorage() {
   })
 }
 
+function prepareIosSimulator() {
+  if (platform !== "ios") return
+  const simulator = resolveIosSimulator()
+  process.env.ONCE_IOS_UDID = simulator.udid
+  process.env.ONCE_IOS_VERSION = simulator.version
+  process.env.ONCE_MOBILE_DEVICE = simulator.name
+  console.log(`Using ${simulator.name} on iOS ${simulator.version} (${simulator.udid})`)
+  // Boot before resetting the Keychain or installing the visual app, and
+  // outside Appium's session handshake timeout (especially on cold CI).
+  const boot = spawnSync("xcrun", ["simctl", "bootstatus", simulator.udid, "-b"], {
+    cwd: root,
+    env: process.env,
+    stdio: "inherit",
+    timeout: 600_000
+  })
+  if (boot.error || boot.status !== 0) {
+    throw new Error(`Unable to boot iOS simulator: ${boot.error?.message || `exit ${boot.status}`}`)
+  }
+}
+
 // Reinstalling the app keeps its Keychain items, and the Keychain holds the
 // sync URL and the database this profile is bound to (SyncDestinationBinding).
 // The test server listens on a new port every run, so a binding left by an
 // earlier run refuses this run's sync URL. Android's fullReset already starts
-// from a clean profile; on iOS the simulator Keychain is reset instead. A
-// simulator that is not booted yet has nothing to clear.
+// from a clean profile; on iOS the simulator Keychain is reset instead. The
+// selected simulator is booted before clearing its Keychain.
 function resetIosKeychain() {
   if (platform !== "ios" || visual) return
   const reset = spawnSync("xcrun", ["simctl", "keychain", process.env.ONCE_IOS_UDID || "booted", "reset"], {
@@ -248,6 +269,7 @@ async function finalize(code) {
 
 async function start() {
   try {
+    prepareIosSimulator()
     ensureFreshApp()
     ensureAndroidStorage()
     resetIosKeychain()
