@@ -11,9 +11,7 @@ export class AddonSandbox {
   private cancelStart: (() => void) | null = null
   private failures = 0
   private state: AddonRunState = "idle"
-  private readonly onMessage = (event: MessageEvent): void => {
-    if (this.frame && event.source === this.frame.contentWindow) this.session?.receive(event.data)
-  }
+  private port: MessagePort | null = null
 
   constructor(
     private readonly addonId: string,
@@ -72,8 +70,17 @@ export class AddonSandbox {
     frame.title = `Add-on sandbox: ${this.addonId}`
     frame.dataset.addonSandbox = this.addonId
     this.frame = frame
+    // The add-on's code arrives with one end of a private channel, and the
+    // runtime alone holds it. The frame's window is no identity: the add-on
+    // can navigate it to a page of its choosing, which would then be heard
+    // as the add-on and receive what the host sends it.
+    const channel = new MessageChannel()
+    this.port = channel.port1
     const session = new AddonSandboxSession(this.addonId, {
-      post: (message: HostToSandbox) => frame.contentWindow?.postMessage(message, "*"),
+      post: (message: HostToSandbox) => {
+        if (message.type === "load") frame.contentWindow?.postMessage(message, "*", [channel.port2])
+        else channel.port1.postMessage(message)
+      },
       destroy: () => this.removeFrame(),
       failed: (reason) => this.failed(reason)
     }, this.host)
@@ -84,10 +91,14 @@ export class AddonSandbox {
       this.cancelStart = () => reject(new Error("Add-on sandbox closed"))
     })
     const loaded = new Promise<void>((resolve, reject) => {
-      frame.addEventListener("load", () => resolve(), { once: true })
+      frame.addEventListener("load", () => {
+        resolve()
+        // A second load is the frame leaving the sandbox page.
+        frame.addEventListener("load", () => { if (this.frame === frame) this.failed("Add-on navigated its sandbox away") })
+      }, { once: true })
       frame.addEventListener("error", () => reject(new Error("Sandbox page failed to load")), { once: true })
     })
-    window.addEventListener("message", this.onMessage)
+    channel.port1.onmessage = (event) => { if (this.session === session) session.receive(event.data) }
     frame.src = this.pageUrl
     document.body.append(frame)
     try {
@@ -107,7 +118,8 @@ export class AddonSandbox {
   }
 
   private removeFrame(): void {
-    window.removeEventListener("message", this.onMessage)
+    this.port?.close()
+    this.port = null
     this.frame?.remove()
     this.frame = null
   }

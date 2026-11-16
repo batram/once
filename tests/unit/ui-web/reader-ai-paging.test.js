@@ -20,10 +20,14 @@ function readerPage(whole = false) {
   require("../../../packages/ui-web/dist/reader/readerAiControls").installReaderAi(send)
   const document = window.document
   const footer = () => document.querySelector(".reader-ai-status")
-  const next = () => footer().querySelectorAll("button")[0]
-  const end = () => footer().querySelectorAll("button")[1]
-  const ai = () => [...document.querySelectorAll(".reader-ai button")].find(button => /^(AI|Cancel)$/.test(button.textContent))
-  const undo = () => [...document.querySelectorAll(".reader-ai button")].find(button => button.textContent === "Undo")
+  // The buttons act on the user's own clicks only, which linkedom's click() is not.
+  const byUser = button => button && new Proxy(button, { get: (target, name) => name === "click"
+    ? () => target.onclick({ isTrusted: true })
+    : typeof target[name] === "function" ? target[name].bind(target) : target[name] })
+  const next = () => byUser(footer().querySelectorAll("button")[0])
+  const end = () => byUser(footer().querySelectorAll("button")[1])
+  const ai = () => byUser([...document.querySelectorAll(".reader-ai button")].find(button => /^(AI|Cancel)$/.test(button.textContent)))
+  const undo = () => byUser([...document.querySelectorAll(".reader-ai button")].find(button => button.textContent === "Undo"))
   const paragraphs = () => [...document.querySelectorAll("article > *")].map(node => node.textContent)
   const settle = () => new Promise(resolve => setTimeout(resolve, 0))
   return { document, requests, answers, footer, next, end, ai, undo, paragraphs, settle }

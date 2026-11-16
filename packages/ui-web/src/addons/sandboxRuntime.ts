@@ -199,7 +199,11 @@ function work(message: HostToSandbox, state: RuntimeState, post: (message: Sandb
 
 export function startSandboxRuntime(scope: Window): void {
   const parent = scope.parent
-  const post = (message: SandboxToHost): void => parent.postMessage(message, "*")
+  // Everything after the first message travels over the port that came with
+  // it. The port stays in this closure: a document the add-on navigates the
+  // frame to holds none, so it can neither speak for the add-on nor hear the host.
+  let port: MessagePort | null = null
+  const post = (message: SandboxToHost): void => port?.postMessage(message)
   const state = new RuntimeState()
   const api = createApi(state, post)
   let loaded = false
@@ -213,15 +217,17 @@ export function startSandboxRuntime(scope: Window): void {
   }
 
   scope.addEventListener("message", (event: MessageEvent) => {
-    if (event.source !== parent) return
     const message = event.data as HostToSandbox
-    if (!message || typeof message !== "object") return
-    if (message.type === "load") {
-      if (!loaded) {
-        loaded = true
-        void load(message, state, api, post)
-      }
-    } else if (message.type === "cancel") {
+    if (event.source !== parent || loaded || message?.type !== "load" || !event.ports?.[0]) return
+    loaded = true
+    port = event.ports[0]
+    port.onmessage = (next) => receive(next.data as HostToSandbox)
+    void load(message, state, api, post)
+  })
+
+  const receive = (message: HostToSandbox): void => {
+    if (!message || typeof message !== "object" || message.type === "load") return
+    if (message.type === "cancel") {
       state.controllers.get(message.requestId)?.abort()
       for (const [id, pending] of state.awaitingOps) {
         if (pending.requestId !== message.requestId) continue
@@ -247,5 +253,5 @@ export function startSandboxRuntime(scope: Window): void {
       }
       void answer(message.requestId, work(message, state, post))
     }
-  })
+  }
 }

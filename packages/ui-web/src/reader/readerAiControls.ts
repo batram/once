@@ -164,7 +164,9 @@ function pagesLabel(pages: ReaderAiPaging): string {
 }
 
 function button(label: string, action: () => void): HTMLButtonElement {
-  const element = document.createElement("button"); element.type = "button"; element.textContent = label; element.onclick = action
+  const element = document.createElement("button"); element.type = "button"; element.textContent = label
+  // In the browser extensions the reader replaces a live page whose scripts keep running: only the user's own click counts.
+  element.onclick = (event) => { if (event.isTrusted) action() }
   return element
 }
 

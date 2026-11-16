@@ -12,8 +12,10 @@ async function runtime(code) {
   const sent = []
   let receive, started
   const starting = new Promise(resolve => { started = resolve })
+  // The runtime answers over the port that came with its code, never to the parent window.
+  const port = { onmessage: null, postMessage: message => { sent.push(message); if (message.type === "ready" || message.type === "error") started() } }
   const scope = {
-    parent: { postMessage: message => { sent.push(message); if (message.type === "ready" || message.type === "error") started() } },
+    parent: { postMessage() { throw new Error("the runtime must answer over its port") } },
     addEventListener: (_event, handler) => { receive = handler }
   }
   const context = vm.createContext({ exports: {}, AbortController,
@@ -24,8 +26,10 @@ async function runtime(code) {
     importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER
   }).runInContext(context)
   context.exports.startSandboxRuntime(scope)
-  const send = data => receive({ source: scope.parent, data })
-  send({ type: "load", protocol: 1, settings: {}, code })
+  const send = data => port.onmessage({ data })
+  receive({ source: scope.parent, data: { type: "invoke", requestId: 9, action: "early", story: { href: "https://fixture.test/" } } })
+  receive({ source: scope.parent, data: { type: "load", protocol: 1, settings: {}, code: "throw new Error('no port')" } })
+  receive({ source: scope.parent, data: { type: "load", protocol: 1, settings: {}, code }, ports: [port] })
   await starting
   assert.equal(sent.at(-1).type, "ready", JSON.stringify(sent))
   return { sent, send }

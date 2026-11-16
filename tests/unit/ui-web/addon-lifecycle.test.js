@@ -6,29 +6,29 @@ const { AddonReconciler } = require("../../../packages/ui-web/dist/addons/AddonR
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
 function frameHarness(t) {
-  const previous = { window: global.window, document: global.document }
+  const previous = { window: global.window, document: global.document, MessageChannel: global.MessageChannel }
   const frames = []
-  const listeners = new Set()
-  global.window = {
-    addEventListener: (_event, fn) => listeners.add(fn),
-    removeEventListener: (_event, fn) => listeners.delete(fn)
+  // The host hears its frame over a private channel only; this one delivers at once.
+  global.MessageChannel = function FixtureChannel() {
+    const end = () => ({ onmessage: null, closed: false, postMessage(data) { if (!this.closed) this.peer.onmessage?.({ data }) }, close() { this.closed = true } })
+    this.port1 = end(); this.port2 = end()
+    this.port1.peer = this.port2; this.port2.peer = this.port1
   }
+  global.window = { addEventListener() { throw new Error("the host must not listen for window messages") } }
   global.document = {
     createElement() {
       const frame = new EventTarget()
       frame.dataset = {}
       frame.setAttribute = () => {}
       frame.sent = []
-      frame.contentWindow = { postMessage: message => frame.sent.push(message) }
+      frame.contentWindow = { postMessage: (message, _origin, transfer) => { frame.sent.push(message); frame.port = transfer?.[0] } }
       frame.remove = () => { frame.removed = true }
       return frame
     },
     body: { append: frame => frames.push(frame) }
   }
   t.after(() => Object.assign(global, previous))
-  const send = (frame, data) => {
-    for (const listener of listeners) listener({ source: frame.contentWindow, data })
-  }
+  const send = (frame, data) => frame.port.postMessage(data)
   return { frames, send }
 }
 
@@ -48,6 +48,26 @@ test("sandbox shares readiness, recreates failed frames, and stops after three f
   }
   assert.equal(frames.length, 3)
   await assert.rejects(sandbox.ensure(), /disabled/)
+  sandbox.dispose()
+})
+
+test("an add-on that navigates its frame away is stopped and its channel closed", async t => {
+  const { frames, send } = frameHarness(t)
+  const states = []
+  const sandbox = new AddonSandbox("demo", "https://sandbox.test", "code", () => ({}), { perform() {}, report() {} }, state => states.push(state))
+  const loading = sandbox.ensure()
+  const frame = frames[0]
+  frame.dispatchEvent(new Event("load"))
+  await tick()
+  assert.equal(frame.sent[0].type, "load")
+  assert.ok(frame.port, "the code travels with the runtime's end of the channel")
+  send(frame, { type: "ready", protocol: frame.sent[0].protocol })
+  await loading
+  assert.equal(states.at(-1), "running")
+  frame.dispatchEvent(new Event("load"))
+  assert.equal(states.at(-1), "failed")
+  assert.equal(frame.removed, true)
+  assert.equal(frame.port.peer.closed, true)
   sandbox.dispose()
 })
 

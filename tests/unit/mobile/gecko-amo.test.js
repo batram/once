@@ -21,8 +21,8 @@ function harness({ reply = async () => ({ extensions: [] }), origin = "https://a
     browser: { runtime: { sendNativeMessage: async (name, body) => { posts.push({ name, ...body }); return JSON.stringify(await reply(body)) } } }
   })
   const button = () => document.querySelector(".AMInstallButton-button")
-  const activate = async (key) => {
-    const event = { type: key ? "keydown" : "click", key, target: button(), prevented: false, stopped: false,
+  const activate = async (key, isTrusted = true) => {
+    const event = { type: key ? "keydown" : "click", key, isTrusted, target: button(), prevented: false, stopped: false,
       preventDefault() { this.prevented = true }, stopImmediatePropagation() { this.stopped = true } }
     await events.get(event.type)?.(event)
     return event
@@ -50,6 +50,14 @@ test("Android XPI links are relabelled and captured before AMO can launch Firefo
   assert.equal(ui.button().getAttribute("aria-disabled"), "true")
   await ui.activate()
   assert.equal(ui.posts.length, 1)
+})
+
+test("a click the page synthesizes is swallowed without opening the review", async () => {
+  const ui = harness()
+  const event = await ui.activate(undefined, false)
+  assert.ok(event.prevented && event.stopped)
+  assert.deepEqual(ui.posts, [])
+  assert.equal(ui.button().textContent, "Add to Once")
 })
 
 test("cancelled review is retryable, including keyboard activation", async () => {

@@ -47,7 +47,8 @@ if (window === window.top && location.origin === "https://addons.mozilla.org") {
     if (event.type === "keydown" && event.key !== " " && event.key !== "Enter") return
     event.preventDefault()
     event.stopImmediatePropagation()
-    if (pending || added.has(listing()) || installed.has(addonId())) return
+    // Only the user's own tap or key opens the review; the page's scripts cannot.
+    if (!event.isTrusted || pending || added.has(listing()) || installed.has(addonId())) return
     const slug = listing()
     pending = true
     document.getElementById("once-amo-error")?.remove()

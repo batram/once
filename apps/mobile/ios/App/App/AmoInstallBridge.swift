@@ -62,7 +62,10 @@ extension InAppBrowserSurfacePlugin {
             let result = try await extensions.perform("remove", id: id, source: nil, enabled: true)
             return result["cancelled"] as? Bool != true
         case "enabled":
-            _ = try extensions.command("enable", id: id, enabled: body["enabled"] as? Bool ?? true)
+            // The site's own button only ever turns an add-on back on. Turning one
+            // off (the content blocker, say) is for Once's settings, not for a page.
+            guard body["enabled"] as? Bool ?? true else { throw hostError("Turn add-ons off in Once's settings") }
+            _ = try extensions.command("enable", id: id, enabled: true)
             return NSNull()
         default:
             throw hostError("Unknown add-on manager call")
