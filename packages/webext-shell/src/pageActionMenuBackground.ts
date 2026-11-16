@@ -1,7 +1,7 @@
 import { pageMatchesCondition } from "@once/core"
 import { PageActionMenuItem, pageActionMenuPatterns, readPageActionMenuItems } from "./pageActionMenuItems"
 import { isExtensionPageSender, isTabContentSender } from "./messageSender"
-import { PAGE_ACTION_RUN } from "./addonConversations"
+import { PAGE_ACTION_GRANT, PAGE_ACTION_RUN } from "./addonConversations"
 import { openReaderTab } from "./readerBackground"
 
 export interface PageActionMenuState {
@@ -26,6 +26,47 @@ export function isPageActionRunForContext(
 
 const prefix = "once_page_"
 const cacheKey = "oncePageActionMenus"
+const grantPrefix = "oncePageActionGrant:"
+
+export interface PageActionGrant {
+  action: string
+  href: string
+  title: string
+}
+
+/** Session storage where the browser has it, so grants end with the browser session and survive a worker restart. */
+function grantStorage(browserApi: typeof browser): browser.storage.StorageArea {
+  return (browserApi.storage as typeof browser.storage & { session?: browser.storage.StorageArea }).session ?? browserApi.storage.local
+}
+
+/**
+ * What a menu click granted, for the conversation tab it opened. The first tab
+ * to ask becomes the grant's tab, so a reload runs the action again and a
+ * second tab that copied the address does not.
+ */
+function redeemGrant(browserApi: typeof browser, grant: unknown, sender: browser.runtime.MessageSender): Promise<PageActionGrant | null> | undefined {
+  // Only the conversation page asks; anyone else gets no answer at all.
+  if (typeof grant !== "string" || !isExtensionPageSender(browserApi, sender, "addon-conversation")) return undefined
+  return readGrant(browserApi, grant, sender.tab?.id)
+}
+
+/** Leaves what a menu click granted with the background and returns the id its tab asks with. */
+async function issueGrant(browserApi: typeof browser, granted: PageActionGrant): Promise<string> {
+  const grant = crypto.randomUUID()
+  await grantStorage(browserApi).set({ [grantPrefix + grant]: granted })
+  return grant
+}
+
+async function readGrant(browserApi: typeof browser, grant: string, tabId: number | undefined): Promise<PageActionGrant | null> {
+  if (!grant || tabId === undefined) return null
+  const key = grantPrefix + grant
+  const storage = grantStorage(browserApi)
+  const stored = (await storage.get(key))[key] as (PageActionGrant & { tabId?: number }) | undefined
+  if (!stored) return null
+  if (stored.tabId === undefined) await storage.set({ [key]: { ...stored, tabId } })
+  else if (stored.tabId !== tabId) return null
+  return { action: stored.action, href: stored.href, title: stored.title }
+}
 
 async function createReaderMenus(menus: typeof browser.contextMenus, filtersOnShow: boolean): Promise<void> {
   for (const link of [false, true]) {
@@ -154,6 +195,7 @@ export function installPageActionMenuBackground(
     if (message?.onceCommand === "page-actions-target" && isTabContentSender(sender) && typeof message.href === "string") {
       return target(message.href)
     }
+    if (message?.onceCommand === "page-action-grant") return redeemGrant(browserApi, message.grant, sender)
     return undefined
   })
   browserApi.menus?.onShown.addListener(info => {
@@ -185,7 +227,9 @@ export function installPageActionMenuBackground(
         await enqueue(async () => undefined)
         const item = known.find(item => item.id === action)
         if (!item || !pageMatchesCondition(item.when, href)) return
-        const search = new URLSearchParams({ [PAGE_ACTION_RUN]: action, href, title })
+        // The tab runs what the grant names; the rest only tells the panel which page the tab is about.
+        const grant = await issueGrant(browserApi, { action, href, title })
+        const search = new URLSearchParams({ [PAGE_ACTION_RUN]: action, href, title, [PAGE_ACTION_GRANT]: grant })
         await browserApi.tabs.create({
           url: browserApi.runtime.getURL(`static/addon-conversation.html?${search}`),
           active: true, windowId: tab?.windowId, ...(tab?.index !== undefined ? { index: tab.index + 1 } : {})

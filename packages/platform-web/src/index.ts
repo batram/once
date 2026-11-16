@@ -1,5 +1,5 @@
 import { createPdfTextPort } from "./pdfText"
-import { DEFAULT_CACHE_MINUTES, Story } from "@once/core"
+import { DEFAULT_CACHE_MINUTES, isWebUrl, Story } from "@once/core"
 import { OncePlatformPorts, ThemeName } from "@once/app"
 
 class WebListStore {
@@ -151,6 +151,9 @@ export function createWebPlatform(): OncePlatformPorts {
     },
     activeTab: {
       openUrl(url, target) {
+        // A javascript: address opened from here would run in this origin.
+        // The reader's own data: page is the one other kind the app opens.
+        if (!isWebUrl(url) && !url.startsWith("data:text/html;charset=utf-8,")) return
         if (target === "middle" || target === "_self") {
           window.open(url, "_blank")
         } else {

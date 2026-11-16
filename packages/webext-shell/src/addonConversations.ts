@@ -8,6 +8,13 @@ export const CONVERSATION_PORT = "once-addon-conversation"
 export const PAGE_ACTION_RUN = "run"
 
 /**
+ * The query parameter carrying the grant the background issued when the menu
+ * entry was clicked. The page runs what the grant names, never what its own
+ * address says: any link can spell the address, only the click makes a grant.
+ */
+export const PAGE_ACTION_GRANT = "grant"
+
+/**
  * Continues a tray in a browser tab. The tab's URL names the conversation by
  * addon, tray, story and owning panel instance. The panel keeps the conversation and its sandbox; a
  * page showing that URL, first time or back through history, connects a

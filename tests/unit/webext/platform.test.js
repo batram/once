@@ -1,6 +1,6 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
-const { createWebExtActiveTab, createWebExtHistorySubscription } = require("../../../packages/platform-webext/dist/webextPorts")
+const { createWebExtActiveTab, createWebExtHistorySubscription, createWebExtTabOpener } = require("../../../packages/platform-webext/dist/webextPorts")
 
 function event() {
   const listeners = []
@@ -156,3 +156,44 @@ for (const scheme of ["moz-extension", "chrome-extension"]) {
     cleanup()
   })
 }
+
+// tabs.create and tabs.update open this extension's own pages, and resolve a
+// relative address against them. A story link is a string from a feed: one
+// that names an extension page must not open with one click on a story.
+test("opens nothing but web addresses, whatever the target", async (t) => {
+  t.mock.method(console, "warn", () => {})
+  const created = []
+  const navigated = []
+  const opened = []
+  const api = {
+    tabs: {
+      create(options) { created.push(options); return Promise.resolve({ id: 9 }) },
+      async update(id, options) { navigated.push([id, options]) },
+      async query() { return [{ id: 5, windowId: 1, active: true, url: "https://example.com/" }] },
+      onUpdated: event()
+    },
+    runtime: { onMessage: event(), async sendMessage() { return null } }
+  }
+  const port = createWebExtActiveTab(api, { open(url, target) { opened.push({ url, target }) } })
+  const remote = createWebExtTabOpener(api)
+  for (const url of [
+    "chrome-extension://abcdefghijklmnopabcdefghijklmnop/static/addon-conversation.html?run=addon:wwww/explain&href=https://victim.test/",
+    "moz-extension://2c127fa4-62c7-4e3d-9d3b-000000000000/static/reader.html?pdf=1&sourceUrl=http://intranet.test/",
+    "/static/addon-conversation.html?run=addon:wwww/explain",
+    "static/sidepanel.html?once-e2e",
+    "javascript:alert(1)",
+    "data:text/html,<script>1</script>",
+    "file:///C:/Users/x/secret.txt",
+    "about:blank",
+    ""
+  ]) {
+    for (const target of ["current", "_self", "middle", "blank"]) port.openUrl(url, target)
+    remote.open(url, { background: false })
+  }
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual([created, navigated, opened], [[], [], []])
+
+  port.openUrl("https://example.com/story", "_self")
+  remote.open("http://example.com/sent", { background: true })
+  assert.deepEqual(created, [{ url: "https://example.com/story", active: true }, { url: "http://example.com/sent", active: false }])
+})

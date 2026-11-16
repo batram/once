@@ -1,4 +1,5 @@
 import { OncePlatformPorts, TabOpenerPort } from "@once/app"
+import { isWebUrl } from "@once/core"
 
 export function createWebExtActiveTab(
   browserApi: typeof browser,
@@ -6,6 +7,12 @@ export function createWebExtActiveTab(
 ): OncePlatformPorts["activeTab"] {
   return {
     openUrl(url, target) {
+      // The tabs API opens this extension's own pages, and resolves a relative
+      // address against them: a link out of a feed must never get that far.
+      if (!isWebUrl(url)) {
+        console.warn("Refusing to open a link that is not a web address", url.slice(0, 200))
+        return
+      }
       // "current" replaces what the active tab is showing. The panel is not a
       // tab, so unlike "_self" — which opens the story in a new one — there is
       // nothing here to navigate except the page the user is looking at.
@@ -100,6 +107,7 @@ export function createWebExtHistorySubscription(
 export function createWebExtTabOpener(browserApi: typeof browser): TabOpenerPort {
   return {
     open(url, { background, restore }) {
+      if (!isWebUrl(url)) return
       void browserApi.tabs.create({ url, active: !background }).then((tab) => {
         if (!restore || tab.id === undefined) return
         const tabId = tab.id

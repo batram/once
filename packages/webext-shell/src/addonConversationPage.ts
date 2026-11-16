@@ -11,7 +11,8 @@ import { hostPageAction } from "@once/ui-web/addons/pageActionHost"
 import type { BundledAddonFiles } from "@once/ui-web"
 import { createOnceApp } from "@once/app"
 import { createWebExtPlatform } from "@once/platform-webext"
-import { CONVERSATION_PORT, PAGE_ACTION_RUN } from "./addonConversations"
+import { CONVERSATION_PORT, PAGE_ACTION_GRANT, PAGE_ACTION_RUN } from "./addonConversations"
+import type { PageActionGrant } from "./pageActionMenuBackground"
 
 declare const __ONCE_BUNDLED_ADDONS__: BundledAddonFiles[]
 
@@ -73,12 +74,24 @@ const run = query.get(PAGE_ACTION_RUN)
 if (run) {
   // Opened from the page context menu while no panel in this window could
   // take the action: this tab runs it over the stored add-ons, without a panel.
-  const app = createOnceApp(createWebExtPlatform(browser))
-  app.watchAddonSettings()
-  void hostPageAction(app.client, root, run,
-    { href: query.get("href") ?? "", title: query.get("title") ?? "" },
-    { sandboxUrl: browser.runtime.getURL("static/addon-sandbox.html"), bundledAddons: __ONCE_BUNDLED_ADDONS__ })
-    .catch(error => { root.textContent = "The add-on action could not run."; console.error(error) })
+  // What it runs, and on which page, comes from the grant that click left with
+  // the background. The address alone runs nothing: a link in a feed or on a
+  // page can spell it, and would otherwise start an add-on on a page of its
+  // choosing without anyone asking for it.
+  void (async () => {
+    const granted = await browser.runtime.sendMessage({
+      onceCommand: "page-action-grant", grant: query.get(PAGE_ACTION_GRANT) ?? ""
+    }).catch(() => null) as PageActionGrant | null | undefined
+    if (!granted) {
+      root.textContent = "This tab was not opened from the page menu, so it runs nothing. Choose the action from a page's context menu."
+      return
+    }
+    const app = createOnceApp(createWebExtPlatform(browser))
+    app.watchAddonSettings()
+    await hostPageAction(app.client, root, granted.action,
+      { href: granted.href, title: granted.title },
+      { sandboxUrl: browser.runtime.getURL("static/addon-sandbox.html"), bundledAddons: __ONCE_BUNDLED_ADDONS__ })
+  })().catch(error => { root.textContent = "The add-on action could not run."; console.error(error) })
 } else if (!readConversationKey(location.href)) {
   root.textContent = "This page does not name a conversation. Open a story's tray in Once and continue from there."
 } else {

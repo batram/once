@@ -3,7 +3,7 @@ import PouchDB from "pouchdb-browser"
 import PouchDBFind from "pouchdb-find"
 import { DatabaseChange, OncePlatformPorts, pageScriptSource, ThemeName } from "@once/app"
 import { captureReaderPositionInPage } from "@once/app/tabsync"
-import { Story } from "@once/core"
+import { isWebUrl, Story } from "@once/core"
 import {
   IndexedDbCacheStore,
   protectRemoteAttachments,
@@ -111,7 +111,8 @@ export function createElectronPlatform(
     },
     activeTab: {
       openUrl(url, target) {
-        bridge.tabs.openUrl(url, target)
+        // Web addresses only: the bridge gives Once's own pages a privileged profile, and a feed could name one (isWebUrl).
+        if (isWebUrl(url)) bridge.tabs.openUrl(url, target)
       },
       onSelectedUrlChanged(handler) {
         let lastSelection = ""

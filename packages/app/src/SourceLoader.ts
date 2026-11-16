@@ -1,4 +1,4 @@
-import { DEFAULT_CACHE_MINUTES, Story, StorySource } from "@once/core"
+import { DEFAULT_CACHE_MINUTES, keepWebLinks, Story, StorySource } from "@once/core"
 import * as StoryParser from "@once/collectors"
 import { readSourceSecret, sourceRequestInit } from "./sourceAuth"
 import {
@@ -133,10 +133,12 @@ export class SourceLoader {
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
-    return StoryParser.parse_response(response, resolved, {
+    // Resolved against the source's own address, not a mirror's: a relative
+    // link then names the same story whichever mirror answered.
+    return keepWebLinks(await StoryParser.parse_response(response, resolved, {
       cacheResult: (cacheUrl, content) =>
         this.cache?.set(cacheUrl, content) || Promise.resolve()
-    }) || []
+    }) || [], resolved.url)
   }
 
   /**
@@ -180,20 +182,20 @@ export class SourceLoader {
     let input = body
     try {
       if (collector.parseBody) {
-        return await collector.parseBody(
+        return keepWebLinks(await collector.parseBody(
           input as string | Record<string, unknown>,
           { url, config: resolved.config }
-        )
+        ), url)
       }
       if (collector.options.collects == "dom") {
         input = StoryParser.parse_dom(input as string, url)
       } else if (collector.options.collects == "xml") {
         input = StoryParser.parse_xml(input as string)
       }
-      return collector.parse(
+      return keepWebLinks(collector.parse(
         input as Record<string, unknown> | Document,
         { url, config: resolved.config }
-      ) || []
+      ) || [], url)
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
       throw new Error(`Parsing failed: ${detail}`)

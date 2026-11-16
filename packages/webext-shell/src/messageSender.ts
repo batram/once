@@ -2,7 +2,7 @@
 export function isExtensionPageSender(
   browserApi: typeof browser,
   sender: browser.runtime.MessageSender,
-  page: "sidepanel" | "reader"
+  page: "sidepanel" | "reader" | "addon-conversation"
 ): boolean {
   if (!sender.url) return false
   try {

@@ -225,10 +225,43 @@ test("with no panel open, a click opens a conversation tab that runs the action"
   assert.equal(h.opened.length, 2, "only actions that still exist and apply open a tab")
   const [page, link] = h.opened.map(properties => ({ ...properties, url: new URL(properties.url) }))
   assert.equal(`${page.url.protocol}//${page.url.host}${page.url.pathname}`, "moz-extension://once/static/addon-conversation.html")
-  assert.deepEqual(Object.fromEntries(page.url.searchParams), { run: "addon:wwww/explain", href: "https://example.test/a?b=1", title: "A & B" })
+  const grant = page.url.searchParams.get("grant")
+  assert.match(grant, /^[0-9a-f-]{36}$/)
+  assert.notEqual(link.url.searchParams.get("grant"), grant)
+  assert.deepEqual(Object.fromEntries(page.url.searchParams), { run: "addon:wwww/explain", href: "https://example.test/a?b=1", title: "A & B", grant })
   assert.deepEqual([page.windowId, page.index, page.active], [3, 5, true])
-  assert.deepEqual(Object.fromEntries(link.url.searchParams), { run: "addon:wwww/explain", href: "https://example.test/l", title: "Link" })
+  assert.deepEqual({ ...Object.fromEntries(link.url.searchParams), grant: "" }, { run: "addon:wwww/explain", href: "https://example.test/l", title: "Link", grant: "" })
   assert.equal(h.sent.filter(message => message.onceCommand === "page-addon-action").length, 0)
+})
+
+// The conversation tab's address can be spelled by anyone: a feed item, a link
+// on a page. Only a menu click leaves a grant, and the tab runs what the grant
+// names. Without one a link to that address would run an add-on unasked.
+test("a conversation tab gets its action from the click's grant, not from its address", async () => {
+  const h = harness()
+  await h.receive(state([{ id: "addon:wwww/explain", label: "Explain", when: { domain: ["example.test"] } }]))
+  h.restart()
+  h.noListener()
+  h.click({ menuItemId: "once_page_addon:wwww/explain", pageUrl: "https://example.test/a" }, { title: "A", windowId: 3, index: 4 })
+  for (let i = 0; i < 5; i++) await tick()
+  const url = h.opened[0].url
+  const grant = new URL(url).searchParams.get("grant")
+  const ask = (value, sender) => h.receive({ onceCommand: "page-action-grant", grant: value }, sender)
+  const tab = id => ({ tab: { id }, url })
+
+  // A forged address carries no grant the background knows.
+  assert.equal(await ask("", tab(7)), null)
+  assert.equal(await ask("00000000-0000-4000-8000-000000000000", tab(7)), null)
+  // Only the conversation page, in a tab, may ask: not a web page's content
+  // script, another extension, or a page that is not in a tab.
+  assert.equal(ask(grant, { tab: { id: 7 }, url: "https://example.test/a" }), undefined)
+  assert.equal(ask(grant, { tab: { id: 7 }, url: url.replace("moz-extension://once/", "moz-extension://other/") }), undefined)
+  assert.equal(await ask(grant, { url }), null)
+
+  const granted = { action: "addon:wwww/explain", href: "https://example.test/a", title: "A" }
+  assert.deepEqual(await ask(grant, tab(7)), granted)
+  assert.deepEqual(await ask(grant, tab(7)), granted, "a reload of the same tab runs it again")
+  assert.equal(await ask(grant, tab(8)), null, "the address copied into another tab runs nothing")
 })
 
 test("rejects menu state from a content script or another extension page", async () => {
