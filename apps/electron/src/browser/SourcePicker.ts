@@ -5,6 +5,12 @@ import { build_source, sanitize_selector_conf } from "@once/collectors/geny"
 import { StorySource } from "@once/core"
 import { TabEntry } from "./BrowserState"
 
+/**
+ * The isolated world the picker overlay runs in. Below the extension content
+ * worlds (CONTENT_WORLD_BASE, 1000 and up) and apart from Electron's own 999.
+ */
+export const PICKER_WORLD_ID = 900
+
 export class SourcePicker {
   start(entry: TabEntry): Promise<StorySource | null> {
     if (entry.pickerSession) return entry.pickerSession
@@ -56,9 +62,14 @@ export class SourcePicker {
 
   private async execute(contents: WebContents): Promise<unknown> {
     try {
-      await contents.executeJavaScript(pickerInjectionSource(), true)
-      return await contents.executeJavaScript(
-        "window.__onceSourcePicker ? window.__onceSourcePicker() : null",
+      // One evaluation in the picker's own world: the bundle installs the
+      // starter there and the completion value is the starter's promise. The
+      // page's world never holds the starter or the result, so a page that
+      // defines `__onceSourcePicker` itself changes nothing.
+      return await contents.executeJavaScriptInIsolatedWorld(
+        PICKER_WORLD_ID,
+        // The bundle may end in a line comment, so the call starts a new line.
+        [{ code: `${pickerInjectionSource()}\n;window.__onceSourcePicker()` }],
         true
       )
     } catch (error) {

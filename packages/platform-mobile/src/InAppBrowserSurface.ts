@@ -300,7 +300,15 @@ export interface InAppBrowserSurface {
   clearSiteData?(site: string): Promise<boolean>
   /** Clears every site's data; add-on storage and the shell's own data stay. */
   clearAllData?(): Promise<void>
-  evaluateJavaScript(script: string): Promise<string | null>
+  /**
+   * Runs the script in the page and answers with its JSON-encoded result.
+   * `isolated` asks for a world the page's own scripts cannot reach, for code
+   * whose result must not be the page's to supply (the source picker). Android
+   * GeckoView and Lite with DevTools always run scripts in such a world; iOS
+   * does when asked. Lite without DevTools has only the page's own world, so
+   * there the request cannot be honored.
+   */
+  evaluateJavaScript(script: string, options?: { isolated?: boolean }): Promise<string | null>
   /** The PDF this page shows for `url` as the page holds it (Android GeckoView), or fetched as the page (iOS), or null. */
   pdfBytes?(url: string, maxBytes: number): Promise<{ bytes: Uint8Array; url: string } | null>
   /** Recognizes an image of this page, fetched natively with its cookies and referrer (Android). */
@@ -354,7 +362,7 @@ interface NativeInAppBrowserPlugin {
   ): Promise<{ value?: string }>
   clearSiteData(options: { site: string }): Promise<{ cleared?: boolean }>
   clearAllData(): Promise<void>
-  evaluateJavaScript(options: { script: string }): Promise<{ value?: string }>
+  evaluateJavaScript(options: { script: string; isolated?: boolean }): Promise<{ value?: string }>
   pdfBytes(options: { url: string; maxBytes: number }): Promise<{ base64?: string; url?: string } | undefined>
   recognizeImage(options: { url: string; referrer?: string }): Promise<NativeImageText>
   imageTextOverlay(options: ImageTextOverlayCommand): Promise<void>
@@ -507,8 +515,9 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
     },
     clearSiteData: async (site) => (await plugin.clearSiteData({ site }))?.cleared === true,
     clearAllData: () => plugin.clearAllData(),
-    async evaluateJavaScript(script) {
-      const result = await plugin.evaluateJavaScript({ script })
+    async evaluateJavaScript(script, options) {
+      const result = await plugin.evaluateJavaScript(
+        options?.isolated ? { script, isolated: true } : { script })
       return result?.value ?? null
     },
     async pdfBytes(url, maxBytes) {

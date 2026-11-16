@@ -32,7 +32,11 @@ test("injects the picker content script into the active HTTP tab", async () => {
   const [listener] = api.runtime.onMessage.listeners
 
   assert.equal(listener({ onceCommand: "openReader" }), undefined)
-  await listener({ onceCommand: "startSourcePicker" }, { url: "moz-extension://once/static/sidepanel.html" })
+  // The panel learns which tab may answer with a result.
+  assert.deepEqual(
+    await listener({ onceCommand: "startSourcePicker" }, { url: "moz-extension://once/static/sidepanel.html" }),
+    { tabId: 7 }
+  )
   assert.equal(listener({ onceCommand: "startSourcePicker" }, { url: "https://example.com/" }), undefined)
   assert.deepEqual(executed, [
     { target: { tabId: 7 }, files: ["/picker-content.js"] }

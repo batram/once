@@ -21,8 +21,9 @@ export { cssSegment, generalizeStorySelector, relativeFieldSelector }
 // In-page overlay that lets the user build a geny_match selector
 // configuration by clicking elements (like an adblocker element picker) or
 // editing CSS selectors, with a live preview of the parsed stories. Runs
-// inside the target page: injected by the Electron main process into browser
-// tabs and by the extension background as a content script.
+// inside the target page, in a world of its own wherever the platform has
+// one: injected by the Electron main process into browser tabs, by the
+// extension background as a content script, and by the mobile shell.
 
 export interface SourcePickResult {
   conf: string
@@ -48,6 +49,20 @@ const FIELDS: FieldSpec[] = [
 
 const MAX_HIGHLIGHTS = 150
 const PREVIEW_LIMIT = 8
+
+// The overlay lives in a page Once does not control. Everything that changes
+// or finishes a pick answers only to events the browser raised for real user
+// input, so a script of the page (which can dispatch events at the host
+// element, and in a shared world reach further) cannot fill or save a source.
+function onUserEvent<E extends Event>(
+  target: EventTarget,
+  type: string,
+  handler: (event: E) => void
+): void {
+  target.addEventListener(type, (event) => {
+    if (event.isTrusted) handler(event as E)
+  })
+}
 
 class PickerOverlay {
   private readonly host: HTMLElement
@@ -86,7 +101,8 @@ class PickerOverlay {
 
   constructor() {
     this.host = document.createElement("once-source-picker")
-    this.shadow = this.host.attachShadow({ mode: "open" })
+    // Closed: the page gets no handle on the form through the host element.
+    this.shadow = this.host.attachShadow({ mode: "closed" })
 
     const style = document.createElement("style")
     style.textContent = OVERLAY_STYLES
@@ -104,17 +120,17 @@ class PickerOverlay {
     this.sourceInput = document.createElement("textarea")
     this.sourceInput.spellcheck = false
     this.sourceInput.rows = 3
-    this.sourceInput.oninput = () => this.scheduleSourceApply()
+    onUserEvent(this.sourceInput, "input", () => this.scheduleSourceApply())
     source.append(this.sourceInput)
     this.status = this.el("div", { id: "status" })
     this.preview = this.el("div", { id: "preview" })
     const actions = this.el("div", { id: "actions" })
     const cancel = this.el("button", { text: "Cancel" }) as HTMLButtonElement
-    cancel.onclick = () => this.resolve(null)
+    onUserEvent(cancel, "click", () => this.resolve(null))
     this.saveButton = this.el("button", { text: "Save source" }) as HTMLButtonElement
     this.saveButton.className = "save"
     this.saveButton.disabled = true
-    this.saveButton.onclick = () => this.save()
+    onUserEvent(this.saveButton, "click", () => this.save())
     actions.append(cancel, this.saveButton)
     panel.append(source, this.status, this.preview, actions)
 
@@ -154,20 +170,20 @@ class PickerOverlay {
     input.type = "text"
     input.spellcheck = false
     input.placeholder = field.optional ? `${field.hint} (optional)` : field.hint
-    input.oninput = () => {
+    onUserEvent(input, "input", () => {
       this.focusField = field.key
       this.scheduleUpdate()
-    }
-    input.onfocus = () => {
+    })
+    input.addEventListener("focus", () => {
       this.focusField = field.key
       this.scheduleRender()
-    }
+    })
     const count = this.el("span", { text: "–" })
     count.className = "count"
     const pick = this.el("button", { text: "Pick" }) as HTMLButtonElement
-    pick.onclick = () => {
+    onUserEvent(pick, "click", () => {
       this.setPicking(this.picking === field.key ? null : field.key)
-    }
+    })
     this.inputs.set(field.key, input)
     this.counts.set(field.key, count)
     this.pickButtons.set(field.key, pick)
@@ -192,6 +208,7 @@ class PickerOverlay {
     this.catcher.addEventListener("click", (event) => {
       event.preventDefault()
       event.stopPropagation()
+      if (!event.isTrusted) return
       const target = this.elementAt(event.clientX, event.clientY)
       if (target) this.pickElement(target)
     })

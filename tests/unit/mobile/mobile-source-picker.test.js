@@ -15,11 +15,13 @@ function createSurface(results = []) {
     removals,
     available: true,
     async setVisible(value) { calls.push(["visible", value]) },
-    async evaluateJavaScript(script) {
-      calls.push(["evaluate", script])
-      return script.includes("__oncePickerResult===undefined") && results.length
-        ? results.shift()
-        : null
+    // What the page's own world would answer; the picker must never read it.
+    pageWorldResult: null,
+    async evaluateJavaScript(script, options) {
+      calls.push(["evaluate", script, options])
+      if (!script.includes("__oncePickerResult===undefined")) return null
+      if (!options?.isolated) return this.pageWorldResult
+      return results.length ? results.shift() : null
     },
     async addListener(event, listener) {
       listeners.set(event, listener)
@@ -75,6 +77,27 @@ test("runs the injected picker contract and sanitizes its result", async () => {
   assert.deepEqual(surface.calls[0], ["visible", true])
   assert.equal(surface.calls[1][1], "picker injection")
   assert.match(surface.calls[2][1], /__onceSourcePicker/)
+  // The bundle, the start and every poll run apart from the page's scripts.
+  const evaluations = surface.calls.filter(([kind]) => kind === "evaluate")
+  assert.equal(evaluations.length, 3)
+  for (const [, , options] of evaluations) assert.deepEqual(options, { isolated: true })
+})
+
+test("ignores a result the page left in its own world", async () => {
+  const forged = {
+    stories: { all: true, sel: "body" },
+    link: { component: "href", sel: "a" },
+    title: { component: "innerText", sel: "a" }
+  }
+  const surface = createSurface()
+  surface.pageWorldResult = encodedPickerResult(forged)
+  const context = await installedPicker({ surface })
+  surface.listeners.get("navigationCommitted")({
+    navigationId: 1,
+    url: "https://example.test/news"
+  })
+  // Nothing was picked in the picker's world, so the pick never completes.
+  await assert.rejects(context.picker.pick(""), /source picker timed out/)
 })
 
 test("waits for requested navigation and cleans both listeners on success", async () => {

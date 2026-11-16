@@ -37,18 +37,25 @@ extension InAppBrowserSurfacePlugin {
         }
     }
 
+    /// Where scripts asked to run `isolated` go (the source picker): a content
+    /// world of Once's own. The page's scripts see neither its globals nor the
+    /// values it leaves there, so they can neither start the picker's code nor
+    /// answer for it.
+    static let isolatedScriptWorld = WKContentWorld.world(name: "OnceIsolatedScripts")
+
     @objc func evaluateJavaScript(_ call: CAPPluginCall) {
         guard route(call, { $0.evaluateJavaScript(call) }) else { return }
         guard let script = call.getString("script"), !script.isEmpty else {
             call.reject("JavaScript source is required")
             return
         }
+        let isolated = call.getBool("isolated") ?? false
         DispatchQueue.main.async {
             guard let surface = self.surface else {
                 call.reject("There is no open page")
                 return
             }
-            surface.evaluateJavaScript(script) { value, error in
+            let finish: (Any?, Error?) -> Void = { value, error in
                 if let error {
                     call.reject("The script failed: \(error.localizedDescription)")
                     return
@@ -61,6 +68,16 @@ extension InAppBrowserSurfacePlugin {
                 } else {
                     call.resolve(["value": "null"])
                 }
+            }
+            if isolated {
+                surface.evaluateJavaScript(script, in: nil, in: Self.isolatedScriptWorld) { result in
+                    switch result {
+                    case .success(let value): finish(value, nil)
+                    case .failure(let error): finish(nil, error)
+                    }
+                }
+            } else {
+                surface.evaluateJavaScript(script, completionHandler: finish)
             }
         }
     }

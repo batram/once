@@ -615,15 +615,22 @@ public class LiteSurfacePlugin extends LiteSurfaceHost implements ReadingSurface
     @PluginMethod
     public void showPrompt(PluginCall call) { NativeSurfaceDialogs.showPrompt(getBridge(), call); }
 
-    /**
-     * Runs the script in the page's Once-owned bridge world (once-bridge) and
-     * answers with its JSON-encoded result, as the GeckoView bridge extension
-     * does; without DevTools (Tier 2) the page's main world runs it.
-     */
     /** The system WebView shows no PDF, so no page here holds one; the reader downloads it. */
     @PluginMethod
     public void pdfBytes(PluginCall call) { call.resolve(); }
 
+    /**
+     * Runs the script in the page's Once-owned bridge world (once-bridge) and
+     * answers with its JSON-encoded result, as the GeckoView bridge extension
+     * does; without DevTools (Tier 2) the page's main world runs it.
+     *
+     * That fallback is not isolated, whatever the call's {@code isolated}
+     * asks: {@code WebView.evaluateJavascript} has no other world to offer.
+     * In Tier 2 a page can therefore still answer for a script run here (the
+     * source picker's result among them); what such a result can do is
+     * bounded by the shell, which sanitizes it and pairs it with the URL the
+     * engine reported.
+     */
     @PluginMethod
     public void evaluateJavaScript(PluginCall call) {
         if (!route(call, Missing.REJECT, tab -> tab.evaluateJavaScript(call))) return;

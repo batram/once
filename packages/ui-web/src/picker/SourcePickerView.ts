@@ -5,21 +5,23 @@ import { SettingsPanel } from "../settings/SettingsPanel"
 import { LoaderInsights } from "../shell/LoaderInsights"
 import { showTextInputDialog } from "../confirmDialog"
 
+import { PendingPick, PickedMessage, PickedSender } from "./pendingPick"
+
 declare const browser: {
   runtime?: {
+    id?: string
     sendMessage(message: unknown): Promise<unknown>
     onMessage: {
       addListener(
-        listener: (message: PickedMessage, sender: unknown) => undefined
+        listener: (message: PickedMessage, sender: PickedSender) => undefined
       ): void
     }
   }
 }
 
-interface PickedMessage {
-  onceCommand?: string
-  conf?: string | null
-  url?: string | null
+interface StartReply {
+  needsUrl?: boolean
+  tabId?: number
 }
 
 // Shared entry point for creating a geny_match source from a live page. In
@@ -32,6 +34,7 @@ export class SourcePickerView {
     ((url?: string) => Promise<StorySource | null>) | null = null
   private static listening = false
   private static busy = false
+  private static readonly pending = new PendingPick()
 
   static mount(
     client: OnceClient,
@@ -56,12 +59,20 @@ export class SourcePickerView {
     const runtime = SourcePickerView.webExtensionRuntime()
     if (runtime) {
       try {
-        const result = await runtime.sendMessage({ onceCommand: "startSourcePicker" })
-        if ((result as { needsUrl?: boolean } | undefined)?.needsUrl) {
+        SourcePickerView.pending.clear()
+        let reply = await runtime.sendMessage(
+          { onceCommand: "startSourcePicker" }) as StartReply | undefined
+        if (reply?.needsUrl) {
           const url = await SourcePickerView.requestUrl()
           if (!url) return
-          await runtime.sendMessage({ onceCommand: "startSourcePicker", url })
+          reply = await runtime.sendMessage(
+            { onceCommand: "startSourcePicker", url }) as StartReply | undefined
         }
+        if (typeof reply?.tabId !== "number") {
+          throw new Error("The picker did not start on a tab")
+        }
+        // Only this tab may answer, and only until it has (see PendingPick).
+        SourcePickerView.pending.begin(reply.tabId)
         SourcePickerView.setStatus("Pick the story elements on the page.")
       } catch (error) {
         SourcePickerView.showError(error)
@@ -127,10 +138,18 @@ export class SourcePickerView {
     const runtime = SourcePickerView.webExtensionRuntime()
     if (SourcePickerView.listening || !runtime) return
     SourcePickerView.listening = true
-    runtime.onMessage.addListener((message) => {
+    runtime.onMessage.addListener((message, sender) => {
       if (message?.onceCommand !== "sourcePicked") return undefined
-      if (!message.conf || !message.url) return undefined
-      void SourcePickerView.handlePicked(message.conf, message.url).catch(
+      const waiting = SourcePickerView.pending.waiting
+      const picked = SourcePickerView.pending.take(message, sender, runtime.id)
+      if (!picked) {
+        // The pick this panel was waiting for ended without a source.
+        if (waiting && !SourcePickerView.pending.waiting) {
+          SourcePickerView.setStatus("")
+        }
+        return undefined
+      }
+      void SourcePickerView.handlePicked(picked.conf, picked.url).catch(
         (error) => SourcePickerView.showError(error)
       )
       return undefined

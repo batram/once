@@ -14,13 +14,14 @@ export function installPickerBackground(
   }
 }
 
-// Injects the source picker content script into the active browser tab. The
-// picked selector configuration comes back as a "sourcePicked" runtime
-// message that the sidepanel handles (see ui-web SourcePickerView).
+// Injects the source picker content script into the active browser tab and
+// answers with that tab's id. The picked selector configuration comes back as
+// a "sourcePicked" runtime message that the sidepanel handles, from that tab
+// only (see ui-web SourcePickerView and PendingPick).
 async function startPickerOnActiveTab(
   browserApi: typeof browser,
   requestedUrl?: string
-): Promise<{ needsUrl?: boolean }> {
+): Promise<{ needsUrl?: boolean; tabId?: number }> {
   let [tab] = await browserApi.tabs.query({
     active: true,
     lastFocusedWindow: true
@@ -51,7 +52,7 @@ async function startPickerOnActiveTab(
     target: { tabId: tab.id },
     files: ["/picker-content.js"]
   })
-  return {}
+  return { tabId: tab.id }
 }
 
 function waitForTab(browserApi: typeof browser, tabId: number): Promise<void> {

@@ -1,5 +1,14 @@
 const { test, expect } = require("./electron-harness")
 const { closeApp, launchApp, startPageServer } = require("./electron-harness")
+const { pickerDriver } = require("./picker-driver")
+
+// The overlay is closed to the page's world (see picker-driver), so these
+// tests type and click for real through the driver.
+const FIELDS = ".row input[type=text]"
+const SAVE = "#actions .save"
+const CANCEL = "#actions button:not(.save)"
+const SOURCE_LINE = "#source textarea"
+const SUMMARY = "#preview .summary"
 
 let pageServer
 let origin
@@ -23,15 +32,38 @@ async function evaluateInPage(electronApp, url, script) {
   }, { url, script })
 }
 
+async function openStoriesTab(window) {
+  const [tab] = await window.evaluate(() => window.onceElectron.tabs.getAll())
+  await window.evaluate(
+    ({ id, url }) => window.onceElectron.tabs.navigate(id, url),
+    { id: tab.id, url: `${origin}/stories` }
+  )
+  await expect(window.locator(".electron-tab-title")).toHaveText("Stories")
+  return tab
+}
+
+/** Starts a pick whose outcome the test reads from `window.__oncePickResult`. */
+async function startPick(electronApp, window) {
+  await window.evaluate(() => {
+    window.__oncePickResult = window.onceElectron.tabs.startSourcePicker()
+  })
+  const picker = pickerDriver(electronApp, `${origin}/stories`)
+  await expect.poll(() => picker.present()).toBe(true)
+  return picker
+}
+
+/** "pending" while the pick started by startPick has not settled. */
+function pickState(window) {
+  return window.evaluate(() => Promise.race([
+    window.__oncePickResult.then(() => "settled", () => "settled"),
+    new Promise((resolve) => setTimeout(() => resolve("pending"), 400))
+  ]))
+}
+
 test("builds a geny source from picked selectors and saves it", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
-    const [tab] = await window.evaluate(() => window.onceElectron.tabs.getAll())
-    await window.evaluate(
-      ({ id, url }) => window.onceElectron.tabs.navigate(id, url),
-      { id: tab.id, url: `${origin}/stories` }
-    )
-    await expect(window.locator(".electron-tab-title")).toHaveText("Stories")
+    await openStoriesTab(window)
 
     // Start the picker through the settings button (full UI flow).
     await window.evaluate(() => {
@@ -39,45 +71,25 @@ test("builds a geny source from picked selectors and saves it", async () => {
     })
 
     // The overlay appears inside the remote page with pick mode armed.
-    await expect.poll(() => evaluateInPage(electronApp, `${origin}/stories`, `
-      Boolean(document.querySelector("once-source-picker"))
-    `)).toBe(true)
+    const picker = pickerDriver(electronApp, `${origin}/stories`)
+    await expect.poll(() => picker.present()).toBe(true)
+    // Leave pick mode: the click catcher covers the page while it is armed.
+    await picker.click(".row button")
 
-    // Fill the selectors as if typed manually and save.
-    await evaluateInPage(electronApp, `${origin}/stories`, `
-      (() => {
-        const shadow = document.querySelector("once-source-picker").shadowRoot
-        const inputs = shadow.querySelectorAll(".row input[type=text]")
-        const values = ["li.story", "a.title", "a.title", "", "span.tag"]
-        inputs.forEach((input, index) => {
-          input.value = values[index]
-          input.dispatchEvent(new Event("input"))
-        })
-      })()
-    `)
+    // Type the selectors and save.
+    const values = ["li.story", "a.title", "a.title", "", "span.tag"]
+    for (const [index, value] of values.entries()) {
+      if (value) await picker.type(FIELDS, value, index)
+    }
     // The preview follows the fields after a debounce: wait for it, not for a guess at it.
-    const readPreview = () => evaluateInPage(electronApp, `${origin}/stories`, `
-      (() => {
-        const shadow = document.querySelector("once-source-picker").shadowRoot
-        const stories = shadow.querySelectorAll("#preview .story")
-        return {
-          parsed: shadow.querySelector("#preview .summary").textContent,
-          first: stories[0] ? stories[0].textContent : "",
-          saveDisabled: shadow.querySelector("#actions .save").disabled
-        }
-      })()
-    `)
-    await expect.poll(async () => (await readPreview()).parsed).toContain("3 stories parsed")
-    const preview = await readPreview()
-    expect(preview.parsed).toContain("3 stories parsed")
-    expect(preview.first).toContain("Story One")
-    expect(preview.first).toContain("tag-one")
-    expect(preview.saveDisabled).toBe(false)
+    await expect.poll(async () => (await picker.read(SUMMARY, "textContent"))[0])
+      .toContain("3 stories parsed")
+    const [first] = await picker.read("#preview .story", "textContent")
+    expect(first).toContain("Story One")
+    expect(first).toContain("tag-one")
+    expect(await picker.read(SAVE, "disabled")).toEqual([false])
 
-    await evaluateInPage(electronApp, `${origin}/stories`, `
-      document.querySelector("once-source-picker")
-        .shadowRoot.querySelector("#actions .save").click()
-    `)
+    await picker.click(SAVE)
 
     // The sanitized source object lands in the story sources document.
     await expect.poll(() =>
@@ -97,9 +109,7 @@ test("builds a geny source from picked selectors and saves it", async () => {
     })
 
     // The overlay is gone after saving.
-    await expect.poll(() => evaluateInPage(electronApp, `${origin}/stories`, `
-      Boolean(document.querySelector("once-source-picker"))
-    `)).toBe(false)
+    await expect.poll(() => picker.present()).toBe(false)
   } finally {
     await closeApp(electronApp, userData)
   }
@@ -108,54 +118,27 @@ test("builds a geny source from picked selectors and saves it", async () => {
 test("picks stories, link, and title by clicking page elements", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
-    const [tab] = await window.evaluate(() => window.onceElectron.tabs.getAll())
-    await window.evaluate(
-      ({ id, url }) => window.onceElectron.tabs.navigate(id, url),
-      { id: tab.id, url: `${origin}/stories` }
-    )
-    await expect(window.locator(".electron-tab-title")).toHaveText("Stories")
-
-    await window.evaluate(() => {
-      window.__oncePickResult = window.onceElectron.tabs.startSourcePicker()
-    })
-    await expect.poll(() => evaluateInPage(electronApp, `${origin}/stories`, `
-      Boolean(document.querySelector("once-source-picker"))
-    `)).toBe(true)
+    await openStoriesTab(window)
+    const picker = await startPick(electronApp, window)
 
     // Pick mode starts on the stories field and advances to link and title
     // as elements are clicked; every click lands on the second title link.
-    const values = await evaluateInPage(electronApp, `${origin}/stories`, `
-      (async () => {
-        const shadow = document.querySelector("once-source-picker").shadowRoot
-        const catcher = shadow.querySelector("#catcher")
-        const clickTitle = () => {
-          const rect = document.querySelectorAll("a.title")[1].getBoundingClientRect()
-          catcher.dispatchEvent(new MouseEvent("click", {
-            clientX: rect.x + 4,
-            clientY: rect.y + 4,
-            bubbles: true
-          }))
-        }
-        // Each click fills the field pick mode is on, then moves to the next.
-        const field = (index) => shadow.querySelectorAll(".row input[type=text]")[index]
-        for (let i = 0; i < 3; i++) {
-          clickTitle()
-          for (const deadline = Date.now() + 10_000; !field(i).value && Date.now() < deadline;) {
-            await new Promise((resolve) => setTimeout(resolve, 25))
-          }
-        }
-        return Array.from(
-          shadow.querySelectorAll(".row input[type=text]"),
-          (input) => input.value
-        )
+    const point = await evaluateInPage(electronApp, `${origin}/stories`, `
+      (() => {
+        const rect = document.querySelectorAll("a.title")[1].getBoundingClientRect()
+        return { x: rect.x + 4, y: rect.y + 4 }
       })()
     `)
-    expect(values).toEqual(["li.story", "a.title", "a.title", "", ""])
+    // Each click fills the field pick mode is on, then moves to the next.
+    for (let index = 0; index < 3; index++) {
+      await picker.clickAt(point.x, point.y)
+      await expect.poll(async () => (await picker.read(FIELDS, "value"))[index])
+        .not.toBe("")
+    }
+    expect(await picker.read(FIELDS, "value"))
+      .toEqual(["li.story", "a.title", "a.title", "", ""])
 
-    await evaluateInPage(electronApp, `${origin}/stories`, `
-      document.querySelector("once-source-picker")
-        .shadowRoot.querySelector("#actions .save").click()
-    `)
+    await picker.click(SAVE)
     const source = await window.evaluate(() => window.__oncePickResult)
     expect(source.collector).toBe("geny")
     expect(source.url).toBe(`${origin}/stories`)
@@ -172,32 +155,14 @@ test("picks stories, link, and title by clicking page elements", async () => {
 test("cross updates the selector fields and the editable source line", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
-    const [tab] = await window.evaluate(() => window.onceElectron.tabs.getAll())
-    await window.evaluate(
-      ({ id, url }) => window.onceElectron.tabs.navigate(id, url),
-      { id: tab.id, url: `${origin}/stories` }
-    )
-    await expect(window.locator(".electron-tab-title")).toHaveText("Stories")
-
-    await window.evaluate(() => {
-      window.__oncePickResult = window.onceElectron.tabs.startSourcePicker()
-    })
-    await expect.poll(() => evaluateInPage(electronApp, `${origin}/stories`, `
-      Boolean(document.querySelector("once-source-picker"))
-    `)).toBe(true)
+    await openStoriesTab(window)
+    const picker = await startPick(electronApp, window)
+    await picker.click(".row button")
 
     // Fields feed the source line.
-    await evaluateInPage(electronApp, `${origin}/stories`, `
-      (() => {
-        const shadow = document.querySelector("once-source-picker").shadowRoot
-        const input = shadow.querySelectorAll(".row input[type=text]")[0]
-        input.value = "li.story"
-        input.dispatchEvent(new Event("input"))
-      })()
-    `)
-    await expect.poll(() => evaluateInPage(electronApp, `${origin}/stories`, `
-      document.querySelector("once-source-picker").shadowRoot.querySelector("#source textarea").value
-    `)).toContain('"stories":{"all":true,"sel":"li.story"}')
+    await picker.type(FIELDS, "li.story")
+    await expect.poll(async () => (await picker.read(SOURCE_LINE, "value"))[0])
+      .toContain('"stories":{"all":true,"sel":"li.story"}')
 
     // Pasted config feeds the fields, the preview, and keeps extras
     // (comment_href has no form field) through the save round trip.
@@ -208,40 +173,15 @@ test("cross updates the selector fields and the editable source line", async () 
       comment_href: { sel: "a.title", component: "href" },
       tags: [{ elements: { text: { sel: "span.tag", component: "innerText" } } }]
     }
-    await evaluateInPage(electronApp, `${origin}/stories`, `
-      (() => {
-        const shadow = document.querySelector("once-source-picker").shadowRoot
-        const textarea = shadow.querySelector("#source textarea")
-        textarea.focus()
-        textarea.value = ${JSON.stringify(JSON.stringify(pastedConf))}
-        textarea.dispatchEvent(new Event("input"))
-      })()
-    `)
-    const readState = () => evaluateInPage(electronApp, `${origin}/stories`, `
-      (() => {
-        const shadow = document.querySelector("once-source-picker").shadowRoot
-        return {
-          fields: Array.from(
-            shadow.querySelectorAll(".row input[type=text]"),
-            (input) => input.value
-          ),
-          summary: shadow.querySelector("#preview .summary").textContent,
-          saveDisabled: shadow.querySelector("#actions .save").disabled
-        }
-      })()
-    `)
-    await expect.poll(async () => (await readState()).summary).toContain("3 stories parsed")
-    const state = await readState()
-    expect(state.fields).toEqual([
+    await picker.type(SOURCE_LINE, JSON.stringify(pastedConf))
+    await expect.poll(async () => (await picker.read(SUMMARY, "textContent"))[0])
+      .toContain("3 stories parsed")
+    expect(await picker.read(FIELDS, "value")).toEqual([
       "ul.stories > li", "a.title", "a.title", "", "span.tag"
     ])
-    expect(state.summary).toContain("3 stories parsed")
-    expect(state.saveDisabled).toBe(false)
+    expect(await picker.read(SAVE, "disabled")).toEqual([false])
 
-    await evaluateInPage(electronApp, `${origin}/stories`, `
-      document.querySelector("once-source-picker")
-        .shadowRoot.querySelector("#actions .save").click()
-    `)
+    await picker.click(SAVE)
     const source = await window.evaluate(() => window.__oncePickResult)
     expect(source.select).toEqual(pastedConf)
     expect(source.url).toBe(`${origin}/stories`)
@@ -250,22 +190,64 @@ test("cross updates the selector fields and the editable source line", async () 
   }
 })
 
+test("the page cannot start, fill, or finish the picker itself", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    await openStoriesTab(window)
+    const forged = JSON.stringify({
+      stories: { sel: "li.story", all: true },
+      link: { sel: "a.title", component: "href" },
+      title: { sel: "a.title", component: "innerText" }
+    })
+    // A hostile page gets ready before the pick: a starter of its own that
+    // answers at once, and the result global the mobile shells poll.
+    await evaluateInPage(electronApp, `${origin}/stories`, `
+      window.__onceSourcePicker = () => Promise.resolve(${JSON.stringify(forged)})
+      window.__oncePickerResult = ${JSON.stringify(JSON.stringify(forged))}
+      undefined
+    `)
+
+    const picker = await startPick(electronApp, window)
+    // The real overlay opened, and the page's starter answered for nothing.
+    expect(await pickState(window)).toBe("pending")
+
+    // From its own world the page has the host element and nothing behind it.
+    const reach = await evaluateInPage(electronApp, `${origin}/stories`, `
+      (() => {
+        const host = document.querySelector("once-source-picker")
+        host.click()
+        for (const type of ["click", "input", "mousedown", "mouseup"]) {
+          host.dispatchEvent(new MouseEvent(type, { bubbles: true, composed: true }))
+        }
+        return { shadowRoot: host.shadowRoot, children: host.childNodes.length }
+      })()
+    `)
+    expect(reach).toEqual({ shadowRoot: null, children: 0 })
+
+    // Even a script holding the buttons could not press them: a synthetic
+    // click on Save (with a savable form) or Cancel changes nothing.
+    await picker.click(".row button")
+    await picker.type(SOURCE_LINE, forged)
+    await expect.poll(async () => (await picker.read(SAVE, "disabled"))[0]).toBe(false)
+    await picker.scriptClick(SAVE)
+    await picker.scriptClick(CANCEL)
+    expect(await pickState(window)).toBe("pending")
+    expect(await picker.present()).toBe(true)
+
+    // The user's own click still ends it.
+    await picker.click(CANCEL)
+    expect(await window.evaluate(() => window.__oncePickResult)).toBe(null)
+    await expect.poll(() => picker.present()).toBe(false)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("cancels the picker when the tab navigates away", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
-    const [tab] = await window.evaluate(() => window.onceElectron.tabs.getAll())
-    await window.evaluate(
-      ({ id, url }) => window.onceElectron.tabs.navigate(id, url),
-      { id: tab.id, url: `${origin}/stories` }
-    )
-    await expect(window.locator(".electron-tab-title")).toHaveText("Stories")
-
-    await window.evaluate(() => {
-      window.__oncePickResult = window.onceElectron.tabs.startSourcePicker()
-    })
-    await expect.poll(() => evaluateInPage(electronApp, `${origin}/stories`, `
-      Boolean(document.querySelector("once-source-picker"))
-    `)).toBe(true)
+    const tab = await openStoriesTab(window)
+    await startPick(electronApp, window)
 
     await window.evaluate(
       ({ id, url }) => window.onceElectron.tabs.navigate(id, url),

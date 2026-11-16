@@ -1,9 +1,15 @@
 import { build_source, sanitize_selector_conf } from "@once/collectors/geny"
 import type { InAppBrowserSurface } from "@once/platform-mobile"
 
+// The picker bundle, its starter and the result it leaves all live in a world
+// the page's scripts cannot reach, so a page can neither supply a starter of
+// its own nor write the result the shell polls for. Every evaluation asks for
+// that world; where the engine has none (Android Lite without DevTools) the
+// scripts run in the page's world and this guarantee does not hold.
+const ISOLATED = { isolated: true } as const
 const START_PICKER_SCRIPT =
   "window.__oncePickerResult=undefined;" +
-  "window.__onceSourcePicker().then(function(value){" +
+  "void window.__onceSourcePicker().then(function(value){" +
   "window.__oncePickerResult=JSON.stringify(value)})"
 const READ_PICKER_RESULT_SCRIPT =
   "window.__oncePickerResult===undefined?null:window.__oncePickerResult"
@@ -67,8 +73,8 @@ export class MobileSourcePicker {
 
     this.options.activateSurface()
     await surface.setVisible(true)
-    await surface.evaluateJavaScript(await this.options.loadInjection())
-    await surface.evaluateJavaScript(START_PICKER_SCRIPT)
+    await surface.evaluateJavaScript(await this.options.loadInjection(), ISOLATED)
+    await surface.evaluateJavaScript(START_PICKER_SCRIPT, ISOLATED)
     const result = await this.pollResult(surface)
     if (result === null) return null
     return build_source(
@@ -120,7 +126,8 @@ export class MobileSourcePicker {
     for (let attempt = 0; attempt < this.pollAttempts; attempt += 1) {
       await this.delay(this.pollDelayMs)
       const value = await surface.evaluateJavaScript(
-        READ_PICKER_RESULT_SCRIPT
+        READ_PICKER_RESULT_SCRIPT,
+        ISOLATED
       )
       if (value && value !== "null") return decodePickerResult(value)
     }
