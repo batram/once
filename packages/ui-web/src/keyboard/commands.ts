@@ -128,11 +128,9 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     group: "history",
     context: "global",
     defaultKeys: ["Ctrl+Z"],
-    // Reaches one-line fields: the search box usually holds focus in the story
-    // list, and undo that only works when nothing is focused would behave
-    // differently from the mouse back button, which has never been guarded.
-    // Textareas keep their own text undo.
-    allowInTextEntry: "field"
+    // Text fields (including the Electron address bar) own their native undo
+    // stack. Swallowing the key here changes a story instead of the text.
+    allowInTextEntry: "never"
   },
   {
     id: "history.redo",
@@ -140,7 +138,7 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     group: "history",
     context: "global",
     defaultKeys: ["Ctrl+Y"],
-    allowInTextEntry: "field"
+    allowInTextEntry: "never"
   },
   {
     id: "story.cursor-prev",

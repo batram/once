@@ -9,7 +9,10 @@ const SHELL = `
     <div id="slider" role="slider" tabindex="0"></div>
     <div id="stories"></div>
   </div>
-  <div id="right_panel"><div id="tab_content" tabindex="0"></div></div>
+  <div id="right_panel">
+    <input id="urlfield" type="text" />
+    <div id="tab_content" tabindex="0"></div>
+  </div>
 `
 
 // The dispatcher reads document.activeElement and #left_panel, so each case
@@ -85,6 +88,39 @@ test("an unhandled command leaves the key to whoever else wants it", () => {
     // browser.new-tab has no handler outside the Electron shell.
     const event = press(window, { code: "KeyT", ctrlKey: true })
     assert.equal(event.defaultPrevented, false)
+  })
+})
+
+test("text fields retain native undo and redo, including remapped Mac shortcuts", () => {
+  withShell(({ window, KeyboardDispatcher, bindingsFrom }) => {
+    const dispatcher = new KeyboardDispatcher(bindingsFrom(new Map([
+      ["history.undo", ["Ctrl+Z", "Meta+Z"]],
+      ["history.redo", ["Ctrl+Y", "Ctrl+Shift+Z", "Shift+Meta+Z"]]
+    ])))
+    const changes = []
+    dispatcher.register("history.undo", () => changes.push("undo"))
+    dispatcher.register("history.redo", () => changes.push("redo"))
+    dispatcher.mount(window)
+    const shortcuts = [
+      { code: "KeyZ", ctrlKey: true },
+      { code: "KeyY", ctrlKey: true },
+      { code: "KeyZ", ctrlKey: true, shiftKey: true },
+      { code: "KeyZ", metaKey: true },
+      { code: "KeyZ", metaKey: true, shiftKey: true },
+      // German Z/Y layout must also leave text history alone.
+      { code: "KeyY", key: "z", ctrlKey: true }
+    ]
+    for (const selector of ["#urlfield", "#searchfield", "#sources_area"]) {
+      const target = window.document.querySelector(selector)
+      for (const shortcut of shortcuts) {
+        assert.equal(press(window, { ...shortcut, target }).defaultPrevented, false)
+      }
+    }
+    assert.deepEqual(changes, [])
+
+    // Leaving text entry restores the same story commands.
+    for (const shortcut of shortcuts) press(window, shortcut)
+    assert.deepEqual(changes, ["undo", "redo", "redo", "undo", "redo", "undo"])
   })
 })
 

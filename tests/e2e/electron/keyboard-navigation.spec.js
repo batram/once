@@ -99,6 +99,73 @@ test("a swipe action runs on the cursor row and then steps past it", async () =>
   }
 })
 
+test("address bar undo and redo edit text without changing story history", async () => {
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  const modifier = process.platform === "darwin" ? "Meta" : "Control"
+  const undo = `${modifier}+z`
+  const redo = process.platform === "darwin" ? "Meta+Shift+z" : "Control+y"
+  try {
+    await seedStories(window, server.origin)
+    await window.locator("#searchfield").blur()
+    await window.keyboard.press("ArrowDown")
+    const href = await cursorHref(window)
+    assertHref(href)
+    const story = window.locator(`#stories story-item[data-href="${href}"]`)
+    await window.keyboard.press("ArrowLeft")
+    await expect(story).toHaveClass(/\bskipped\b/)
+
+    await window.keyboard.press("Control+l")
+    const address = window.locator("#urlfield")
+    await expectDocumentFocus(address)
+    const original = "https://example.test/"
+    await address.fill(original)
+    // One real keystroke gives Chromium a single native undo step without
+    // depending on how it groups a longer burst of typing.
+    const edited = `${original}x`
+    await window.keyboard.press("x")
+    await expect(address).toHaveValue(edited)
+    if (process.platform === "darwin") {
+      // Control is not Command on macOS, but must not change a story either.
+      await window.keyboard.press("Control+z")
+      await expect(address).toHaveValue(edited)
+      await expect(story).toHaveClass(/\bskipped\b/)
+    }
+    await window.keyboard.press(undo)
+    await expect(address).toHaveValue(original)
+    await expect(story).toHaveClass(/\bskipped\b/)
+    await window.keyboard.press(redo)
+    await expect(address).toHaveValue(edited)
+    await expect(story).toHaveClass(/\bskipped\b/)
+
+    // Give story history a pending redo as well, so wrongly dispatching redo
+    // while editing cannot hide behind an empty story redo stack.
+    await window.keyboard.press("Alt+Shift+ArrowLeft")
+    await window.keyboard.press("Control+z")
+    await expect(story).not.toHaveClass(/\bskipped\b/)
+    await window.keyboard.press("Control+l")
+    await expectDocumentFocus(address)
+    const beforeReplacement = await address.inputValue()
+    await window.keyboard.press("x")
+    await window.keyboard.press(undo)
+    await expect(address).toHaveValue(beforeReplacement)
+    await window.keyboard.press(redo)
+    await expect(address).toHaveValue("x")
+    await expect(story).not.toHaveClass(/\bskipped\b/)
+    if (process.platform === "darwin") {
+      await window.keyboard.press("Control+y")
+      await expect(story).not.toHaveClass(/\bskipped\b/)
+    }
+
+    await window.keyboard.press("Alt+Shift+ArrowLeft")
+    await window.keyboard.press("Control+y")
+    await expect(story).toHaveClass(/\bskipped\b/)
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
+  }
+})
+
 test("R reloads the story list, Shift+R refetches, and both type", async () => {
   // The two reloads differ only in whether the source cache is consulted, so
   // the fixture server counts feed fetches to tell them apart. Both source
