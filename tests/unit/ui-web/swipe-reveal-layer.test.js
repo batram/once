@@ -84,6 +84,26 @@ test("the first action is revealed as soon as the row moves", () => {
   assert.equal(left.dataset.lock, "none")
 })
 
+test("a move that changes nothing visible leaves the labels untouched", () => {
+  const { window, layer } = loadRevealLayer()
+  layer.ensure(5, 0)
+
+  // Every pointer move redraws; rewriting an unchanged label replaced its
+  // text node, which cost the list a layout and a repaint per move.
+  const { left } = sides(window)
+  const label = left.querySelector(".swipe_action_primary")
+  const drawn = label.firstChild
+  layer.update(30, 0)
+  layer.update(31, 0)
+  assert.equal(label.firstChild, drawn)
+
+  // Crossing a threshold still redraws.
+  layer.update(60, 1)
+  assert.equal(left.dataset.stage, "1")
+  layer.update(60, 2, "armed")
+  assert.equal(text(left, "swipe_action_primary"), "Open in reader")
+})
+
 test("the hidden side is fully cleared when the drag reverses", () => {
   const { window, layer } = loadRevealLayer()
   layer.ensure(60, 1)

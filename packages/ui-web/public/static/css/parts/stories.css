@@ -109,6 +109,22 @@
   pointer-events: none;
 }
 
+/* A row dragged rightwards sticks out of the list, and what sticks out counts
+   as the list's scrollable overflow: it grew by the drag distance on every
+   move, and each change repainted the list instead of only moving the row's
+   layer (a leftward drag never did). This spans that side for as long as the
+   reveal exists, so the overflow is already there and stays the same size.
+   It only has to outreach the row, which cannot leave the window. */
+.bb_slide::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 100%;
+  width: 100vw;
+  height: 100%;
+  visibility: hidden;
+}
+
 /* Both sides span the whole row and are stacked, rather than sharing the width
    as flex halves: a stage-2 drag uncovers more than half the row, and a
    half-width reveal left a gap between the row's trailing edge and the colour.

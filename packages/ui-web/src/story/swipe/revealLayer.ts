@@ -69,6 +69,10 @@ export function createSwipeRevealLayer(
   let element: HTMLElement | undefined
   let left: HTMLElement | undefined
   let right: HTMLElement | undefined
+  // What the layer currently shows. A drag calls update() on every pointer
+  // move, but what it shows only changes at a threshold; rewriting the labels
+  // anyway cost a layout and a repaint of the list per move.
+  let drawn = ""
 
   // offsetTop/offsetHeight are layout positions, unaffected by the row's own
   // transform, so the reveal stays put while the row slides across it.
@@ -98,6 +102,7 @@ export function createSwipeRevealLayer(
         // Before the row in DOM order so the row paints over it. Both sit in
         // the positioned layer — the row because of its transform.
         row.before(element)
+        drawn = ""
       }
       position()
       layer.update(offset, stage)
@@ -110,11 +115,6 @@ export function createSwipeRevealLayer(
       if (!left || !right) return
       const revealed = offset > 0 ? left : right
       const hidden = offset > 0 ? right : left
-      const { primary, secondary } = actionSpans(revealed)
-      if (!primary || !secondary) return
-
-      clearSide(hidden)
-
       const direction = Math.sign(offset)
       const action =
         direction === 0
@@ -129,6 +129,20 @@ export function createSwipeRevealLayer(
         lockState === "pending" &&
         lockPhase === "handoff" &&
         pendingAction !== action
+      const lockInMs = geometry().settings().stage2LockInMs
+
+      // The actions are part of the key: a preview row swaps its geometry
+      // between drags, and even mid-drag from the settings beside it.
+      const state = [
+        direction, revealedStage, lockState, lockPhase,
+        action, pendingAction, lockInMs
+      ].join("|")
+      if (state === drawn) return
+      const { primary, secondary } = actionSpans(revealed)
+      if (!primary || !secondary) return
+      drawn = state
+
+      clearSide(hidden)
 
       primary.innerText = direction === 0 ? "" : swipeActionLabel(action)
       secondary.innerText =
@@ -138,7 +152,6 @@ export function createSwipeRevealLayer(
       revealed.dataset.lock = lockState
       revealed.dataset.lockPhase = lockPhase
       revealed.dataset.pendingAction = showHandoff ? pendingAction : "none"
-      const lockInMs = geometry().settings().stage2LockInMs
       const quietMs = Math.min(SWIPE_QUIET_MS, lockInMs)
       revealed.style.setProperty(
         "--swipe-handoff-duration",
@@ -154,6 +167,7 @@ export function createSwipeRevealLayer(
         el.remove()
       })
       element = undefined
+      drawn = ""
       left = undefined
       right = undefined
     }
