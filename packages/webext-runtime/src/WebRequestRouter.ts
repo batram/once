@@ -7,6 +7,7 @@
 
 import type { LoadedExtension } from "./LoadedExtension"
 import { permittedHosts } from "./extensionPermissions"
+import { parseExtensionUrl } from "./ExtensionScheme"
 import { ExtensionContexts, EventTarget, ListenerRecord } from "./ExtensionContexts"
 import {
   BlockingResponse,
@@ -120,8 +121,14 @@ export class WebRequestRouter {
   constructor(private readonly options: WebRequestRouterOptions) {}
 
   private matchingTargets(source: RequestSource, event: string, details: WebRequestDetails): EventTarget[] {
+    // As in Firefox, an extension always observes requests for its own
+    // origin, which no host permission can name. uBlock depends on it: it
+    // cancels every request for its web accessible resources that lacks the
+    // secret it hands out, so that pages can neither detect nor frame them.
+    const target = parseExtensionUrl(details.url)
+    const own = target !== null && target.host === source.extension.host
     if (!source.extension.manifest.permissions.has("webRequest") ||
-        !permittedHosts(source.extension).matches(details.url)) return []
+        (!own && !permittedHosts(source.extension).matches(details.url))) return []
     return source.contexts.targets("webRequest", event, (spec) => {
       const filter = compiled(spec)
       return filter !== null && filter.matches(details) &&

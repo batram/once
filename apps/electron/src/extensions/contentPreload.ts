@@ -249,7 +249,9 @@ reportDownloadLinks()
 
 // PDF responses keep their HTTP URL but use Chromium's native viewer. The MIME
 // type is available before <html>, so main can exclude them at document_start.
-const inits = ipcRenderer.sendSync(EXTENSION_IPC.contentInit, document.contentType) as ContentFrameInit[] | null
+const inits = ipcRenderer.sendSync(
+  EXTENSION_IPC.contentInit, document.contentType, document.location.protocol === "chrome-error:"
+) as ContentFrameInit[] | null
 ipcRenderer.on(EXTENSION_IPC.event, (_ipcEvent, message: ExtensionEvent) => {
   if (message.api === INTERNAL_API.content && message.event === "bootstrap") {
     const [init] = message.args as [ContentFrameInit]

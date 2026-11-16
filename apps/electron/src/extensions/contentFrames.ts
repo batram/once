@@ -59,7 +59,8 @@ export class ContentFrames {
     hosts: ReadonlyMap<string, ExtensionHost>,
     contents: WebContents,
     frame: WebFrameMain,
-    contentType: string
+    contentType: string,
+    failed = false
   ): ContentFrameInit[] {
     // A frame-tree node survives navigation. Remove its previous document's
     // contexts even when the new document accepts no content scripts; otherwise
@@ -69,6 +70,10 @@ export class ContentFrames {
     // Firefox extensions cannot inject into the native PDF viewer. Its outer
     // document still has the requested HTTP URL, including extensionless URLs.
     this.pdfFrames.delete(frame)
+    // A load that failed or was refused leaves an error document under the
+    // URL it asked for. It is nobody's page: a web accessible page uBlock
+    // refused for its missing secret must not get the page API all the same.
+    if (failed) return []
     if (contentType === "application/pdf") {
       this.pdfFrames.add(frame)
       return []

@@ -363,9 +363,9 @@ export class ExtensionRuntime {
   }
 
   private registerContentIpc(): void {
-    ipcMain.on(EXTENSION_IPC.contentInit, (event, contentType: string) => {
+    ipcMain.on(EXTENSION_IPC.contentInit, (event, contentType: string, failed?: boolean) => {
       try {
-        event.returnValue = this.contentInit(event, contentType)
+        event.returnValue = this.contentInit(event, contentType, failed === true)
       } catch (error) {
         console.error("Content script setup failed", error)
         event.returnValue = null
@@ -392,10 +392,10 @@ export class ExtensionRuntime {
     })
   }
 
-  private contentInit(event: IpcMainEvent, contentType: string): ContentFrameInit[] {
+  private contentInit(event: IpcMainEvent, contentType: string, failed: boolean): ContentFrameInit[] {
     const frame = event.senderFrame
     if (!frame || !this.tabContents.has(event.sender.id)) return []
-    return this.contentFrames.init(this.hosts, event.sender, frame, contentType)
+    return this.contentFrames.init(this.hosts, event.sender, frame, contentType, failed)
   }
 
   /**

@@ -278,6 +278,30 @@ test("webRequest never exposes requests outside the extension's permissions", as
   assert.equal(background.sent.length, 1)
 })
 
+// uBlock cancels every request for its web accessible resources that lacks
+// its secret; a page could otherwise frame its element picker. No host
+// permission names an extension origin, so the router grants the own one.
+test("an extension guards requests for its own origin, and only its own", async () => {
+  const contexts = new ExtensionContexts()
+  const background = fakeContext(contexts, 3, "background")
+  const own = "moz-extension://aaaa/web_accessible_resources/"
+  contexts.addListener(3, "webRequest", "onBeforeRequest", 1, { filter: { urls: [`${own}*`] }, extraInfoSpec: ["blocking"] })
+  contexts.addListener(3, "webRequest", "onBeforeRequest", 2,
+    { filter: { urls: ["moz-extension://bbbb/*"] }, extraInfoSpec: ["blocking"] })
+  const seen = []
+  background.entry.send = (message) => {
+    seen.push(message.args[0].url)
+    contexts.handleReply(3, { token: message.token, result: [/\?secret=\w+/.test(message.args[0].url) ? {} : { cancel: true }] })
+  }
+  const router = new WebRequestRouter({ sources: () => [{ contexts, extension: {
+    host: "aaaa", manifest: { permissions: new Set(["webRequest", "webRequestBlocking"]), hostPermissions: ["<all_urls>"] }
+  } }] })
+  assert.deepEqual(await router.beforeRequest(input(`${own}epicker-ui.html`)), { cancel: true })
+  assert.deepEqual(await router.beforeRequest(input(`${own}epicker-ui.html?secret=abc123`)), {})
+  assert.deepEqual(await router.beforeRequest(input("moz-extension://bbbb/web_accessible_resources/page.html")), {})
+  assert.deepEqual(seen, [`${own}epicker-ui.html`, `${own}epicker-ui.html?secret=abc123`], "another extension's origin stays private")
+})
+
 test("declarativeNetRequest handlers need the permission and say what is unsupported", async (t) => {
   const handlers = api.createApiHandlers()
   const dir = tempDir(t, "once-dnr-api-")

@@ -25,9 +25,9 @@ const BUNDLES = [
   {
     name: "ublock-origin",
     id: "uBlock0@raymondhill.net",
-    version: "1.74.0",
-    url: "https://github.com/gorhill/uBlock/releases/download/1.74.0/uBlock0_1.74.0.firefox.signed.xpi",
-    sha256: "175756d74468c9ba45863f7fc333d3be670f82d5b066314e915814dd547d1652"
+    version: "1.76.4",
+    url: "https://github.com/gorhill/uBlock/releases/download/1.76.4/uBlock0_1.76.4.firefox.signed.xpi",
+    sha256: "66d0e3f21ce3b32b1bc0a9399b93cb2c9aa598ef18805d92118c76f66e266c1e"
   },
   {
     name: "violentmonkey",
@@ -46,9 +46,9 @@ const BUNDLES = [
 // It is always fetched; Electron's package leaves it out (forge.config.js).
 const UBOLITE = {
   name: "ublock-origin-lite",
-  version: "2026.930.1227",
-  url: "https://github.com/uBlockOrigin/uBOL-home/releases/download/2026.930.1227/uBOLite_2026.930.1227.safari.zip",
-  sha256: "bd280a82b74e38049fa0644e42c1d9a668516cd00e4bac26bf6991263746b9cb",
+  version: "2026.1110.1816",
+  url: "https://github.com/uBlockOrigin/uBOL-home/releases/download/2026.1110.1816/uBOLite_2026.1110.1816.safari.zip",
+  sha256: "3b8188b557a932bec578eebeb8d8b312ae1108e48b0978da25eef488711a9e32",
   manifestVersion: 3
 }
 

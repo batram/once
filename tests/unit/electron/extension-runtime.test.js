@@ -180,3 +180,25 @@ test("an injection creates the top-frame content context when no manifest script
   frames.ensure(host, contents, 4, undefined, true)
   assert.equal(sent.length, 2, "same-origin child gets a world for allFrames")
 })
+
+// A refused or failed load leaves an error document under the URL it asked
+// for; uBlock refuses its element picker to a page that frames it without the
+// secret, and what is left must not be treated as the extension's own page.
+test("an error document at a web accessible URL is not an extension page", () => {
+  const url = "moz-extension://owner/web_accessible_resources/picker.html"
+  const top = { url: "https://site.test/", parent: null, frameTreeNodeId: 1, frames: [] }
+  const child = { url, parent: top, top, frameTreeNodeId: 2, frames: [] }
+  const added = []
+  const host = {
+    extension: { id: "test", host: "owner", rawManifest: {}, messages: {},
+      manifest: { webAccessibleResources: ["/web_accessible_resources/*"], contentScripts: [] } },
+    worldId: 1000, platform: { locale: () => "en-US" }, contentScripts: () => [],
+    contexts: { remove() {}, addFrame: (...args) => { added.push(args[5]); return {} } }
+  }
+  const frames = new ContentFrames()
+  const hosts = new Map([["owner", host]])
+  assert.deepEqual(frames.init(hosts, { id: 4, mainFrame: top }, child, "text/html", true), [])
+  assert.deepEqual(added, [])
+  assert.equal(frames.init(hosts, { id: 4, mainFrame: top }, child, "text/html").length, 1)
+  assert.deepEqual(added, ["page"])
+})

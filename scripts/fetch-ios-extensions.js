@@ -5,8 +5,8 @@ const crypto = require("node:crypto")
 const AdmZip = require("adm-zip")
 const { downloadExtension } = require("./download-extension")
 
-const version = "2026.930.1227"
-const sha256 = "bd280a82b74e38049fa0644e42c1d9a668516cd00e4bac26bf6991263746b9cb"
+const version = "2026.1110.1816"
+const sha256 = "3b8188b557a932bec578eebeb8d8b312ae1108e48b0978da25eef488711a9e32"
 const url = `https://github.com/uBlockOrigin/uBOL-home/releases/download/${version}/uBOLite_${version}.safari.zip`
 const target = path.resolve(__dirname, "../vendor/extensions/ublock-origin-lite")
 

@@ -52,7 +52,7 @@ Module._extensions[".ts"] = (module, filename) => {
   }).outputText
   module._compile(output, filename)
 }
-globalThis.document = { contentType: "text/html", readyState: "complete", documentElement: {}, addEventListener() {} }
+globalThis.document = { contentType: "text/html", location: { protocol: "https:" }, readyState: "complete", documentElement: {}, addEventListener() {} }
 globalThis.window = { addEventListener() {} }
 test.after(() => {
   Module._load = originalLoad

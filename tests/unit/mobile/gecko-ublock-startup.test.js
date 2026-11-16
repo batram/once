@@ -35,22 +35,27 @@ function restoreHarness() {
 }
 
 for (const failure of [null, "invalid", "rejected", "resources-invalid", "resources-rejected"]) {
-  test(`filter restoration waits for every task before completion or fallback: ${failure}`, async () => {
+  test(`filter restoration keeps upstream's order, redirect resources first: ${failure}`, async () => {
     const h = restoreHarness()
-    let completed = false
-    const result = h.restore().then(value => { completed = true; return value })
-    assert.equal(h.requests.size, 4, "redirect resources start alongside static snapshots")
-    h.requests.get("main").resolve(failure !== "invalid")
-    h.requests.get("selfie/staticExtFilteringEngine").resolve(true)
-    const net = h.requests.get("selfie/staticNetFilteringEngine")
-    if (failure === "rejected") net.reject(new Error("broken snapshot"))
-    else net.resolve(true)
-    await new Promise(resolve => setImmediate(resolve))
-    assert.equal(completed, false, "neither success nor fallback may race unfinished resources")
+    const result = h.restore()
+    assert.deepEqual([...h.requests.keys()], ["resources"], "no snapshot is applied before redirect resources")
     if (failure === "resources-rejected") h.requests.get("resources").reject(new Error("unreadable redirect cache"))
     else h.requests.get("resources").resolve(failure !== "resources-invalid")
+    await new Promise(resolve => setImmediate(resolve))
+    if (failure === "resources-invalid" || failure === "resources-rejected") {
+      assert.equal(h.requests.size, 1, "the snapshots stay untouched without redirect resources")
+    } else {
+      assert.equal(h.requests.size, 4)
+      h.requests.get("main").resolve(failure !== "invalid")
+      h.requests.get("selfie/staticExtFilteringEngine").resolve(true)
+      const net = h.requests.get("selfie/staticNetFilteringEngine")
+      if (failure === "rejected") net.reject(new Error("broken snapshot"))
+      else net.resolve(true)
+    }
     assert.equal(await result, failure === null)
-    assert.equal(h.destroyed.length, ["invalid", "rejected", "resources-rejected"].includes(failure) ? 1 : 0)
+    // As upstream: only a thrown error discards the snapshot here; an invalid
+    // one is replaced by the list-loading fallback that follows.
+    assert.equal(h.destroyed.length, ["rejected", "resources-rejected"].includes(failure) ? 1 : 0)
   })
 }
 
@@ -65,7 +70,8 @@ function pslHarness({ valid, wasm, disabled = false }) {
   const calls = []
   const context = vm.createContext({
     µb: { hiddenSettings: { disableWebAssembly: disabled }, pslAssetKey: "psl", compilePublicSuffixList: data => calls.push(["compile", data]) },
-    publicSuffixList: { enableWASM: () => { calls.push(["wasm"]); return wasm.promise }, fromSelfie: () => valid },
+    // Without parse() upstream takes the browser's own publicSuffix API and loads nothing.
+    publicSuffixList: { parse() {}, enableWASM: () => { calls.push(["wasm"]); return wasm.promise }, fromSelfie: () => valid },
     vAPI: { canWASM: true },
     io: { fromCache: async () => { calls.push(["cache"]); return {} }, get: async () => ({ content: "suffix data" }) },
     ubolog() {}
@@ -99,7 +105,7 @@ test("Android adaptation preserves identity, permissions, barrier code and upstr
     assert.equal(adaptGeckoUblock(root, target, "upstream-pin"), false)
     const before = JSON.parse(fs.readFileSync(path.join(root, "manifest.json")))
     const after = JSON.parse(fs.readFileSync(path.join(target, "manifest.json")))
-    assert.match(after.version, /^1\.74\.0\.\d+$/)
+    assert.match(after.version, /^1\.76\.4\.\d+$/)
     assert.equal(after.version_name, before.version_name || before.version)
     assert.equal(/^\d+\.\d+\.\d+\D/.test(after.version_name), false, "do not accidentally enable uBlock development defaults")
     if (before.version_name === undefined) delete after.version_name
@@ -195,8 +201,9 @@ test("invalid or failed speculative snapshots remain cache misses without unhand
 test("snapshot invalidation during restoration cannot report readiness", async () => {
   const h = restoreHarness()
   const result = h.restore()
+  h.requests.get("resources").resolve(true)
+  await new Promise(resolve => setImmediate(resolve))
   for (const request of h.requests.values()) request.resolve(true)
   h.context.startupSelfie.generation++
   assert.equal(await result, false)
-  assert.equal(h.destroyed.length, 1)
 })

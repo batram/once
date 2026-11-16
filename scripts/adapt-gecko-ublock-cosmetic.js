@@ -56,12 +56,12 @@ function scheduleLegacySelfieRewrite(source) {
                         .some(db => db?.VERSION === 1);
                     return staticExtFilteringEngine.fromSelfie(selfie);
                 })`)
-  return replaceOnce(source, "                return results[3];", `                // Keep the first request off the migration path. Existing
-                // invalidation replaces this timer if the filters change.
-                if ( results[3] && legacySelfie ) {
-                    createTimer.onidle({ sec: Math.max(60, µb.hiddenSettings.selfieDelayInSeconds) }, { timeout: 10000 });
-                }
-                return results[3];`)
+  return replaceOnce(source, "            return restored;", `            // Keep the first request off the migration path. Existing
+            // invalidation replaces this timer if the filters change.
+            if ( restored && legacySelfie ) {
+                createTimer.onidle({ sec: Math.max(60, µb.hiddenSettings.selfieDelayInSeconds) }, { timeout: 10000 });
+            }
+            return restored;`)
 }
 
 module.exports = { compactHostnameDB, compactGenericMap, scheduleLegacySelfieRewrite }

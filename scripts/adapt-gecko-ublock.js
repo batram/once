@@ -45,41 +45,38 @@ function optimizeStorage(source) {
         ).then(result => {
             if ( result ) { ubolog('WASM PSL ready'); }
         }).catch(reason => { ubolog(reason); });`)
-  // Redirect resources are independent of the three static filter snapshots.
-  // Await all of them, retaining upstream's validity checks and fallback. In
-  // particular, neither readyToFilter nor network unsuspension moves earlier.
-  source = replaceOnce(source, `            const results = await Promise.all([
-                loadMain(),`, `            const settled = await Promise.allSettled([
-                loadMain(),`)
-  source = replaceOnce(source, `            ]);
-            if ( results.every(v => v) ) {
-                return µb.loadRedirectResources();`, `                µb.loadRedirectResources(),
-            ]);
-            const failure = settled.find(result => result.status === 'rejected');
-            if ( failure !== undefined ) { throw failure.reason; }
-            const results = settled.map(result => result.value);
-            if ( results.slice(0, 3).every(v => v) && !µb.selfieIsInvalid && generation === startupSelfie.generation ) {
-                return results[3];`)
-  return source
+  // Since 1.75.2 upstream loads redirect resources before it restores the
+  // static snapshots, and that order is kept: the snapshot reads were already
+  // started by prepare(), so only their application waits. A snapshot that was
+  // invalidated while it was being restored must not report readiness.
+  if (!source.includes(`            let r = await µb.loadRedirectResources();
+            if ( r !== true ) { return r; }
+            r = await Promise.all([
+                loadMain(),`)) throw new Error("uBlock startup changed; review the Android adaptation")
+  return replaceOnce(source, "            return r.every(v => v);",
+    `            const restored = r.every(v => v) && !µb.selfieIsInvalid && generation === startupSelfie.generation;
+            return restored;`)
 }
 
 function optimizeStart(source) {
-  source = replaceOnce(source, "    await vAPI.storage.get(createDefaultProps()).then",
-    "    µb.selfieManager.prepare();\n    await vAPI.storage.get(createDefaultProps()).then")
-  source = replaceOnce(source, "// >>>>> start of async/await scope",
-    `// >>>>> start of async/await scope
-const restoreAdminStorage = (${batchStartupAdminStorage.toString()})(vAPI.adminStorage);`)
-  return replaceOnce(source, `} catch (ex) {
-    console.trace(ex);
-}
+  source = replaceOnce(source, "        await vAPI.storage.get(createDefaultProps()).then",
+    "        µb.selfieManager.prepare();\n        await vAPI.storage.get(createDefaultProps()).then")
+  // Since 1.76 the start sequence is the body of an async function.
+  source = replaceOnce(source, "µb.isReadyPromise = (async function start() {\n    try {",
+    `µb.isReadyPromise = (async function start() {
+    const restoreAdminStorage = (${batchStartupAdminStorage.toString()})(vAPI.adminStorage);
+    try {`)
+  return replaceOnce(source, `    } catch (ex) {
+        console.trace(ex);
+    }
 
-// Prime the filtering engines`, `} catch (ex) {
-    console.trace(ex);
-} finally {
-    restoreAdminStorage();
-}
+    // Prime the filtering engines`, `    } catch (ex) {
+        console.trace(ex);
+    } finally {
+        restoreAdminStorage();
+    }
 
-// Prime the filtering engines`)
+    // Prime the filtering engines`)
 }
 
 function adaptGeckoUblock(source, target, upstreamSha256) {

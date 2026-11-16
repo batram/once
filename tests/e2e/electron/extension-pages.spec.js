@@ -129,6 +129,46 @@ test("the uBlock element picker opens as an extension frame inside the page", as
   }
 })
 
+// The picker is a privileged page, and an extension's origin here can be
+// computed from its id. uBlock refuses every request for its web accessible
+// resources that lacks the secret it hands its own content script
+// (GHSA-cmqw-9r2w-6wv2 began with a page framing the picker by itself), which
+// only works while the extension sees the requests for its own origin.
+test("a page cannot frame the uBlock element picker by itself", async () => {
+  const pageServer = await startPageServer()
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    const host = await extensionHost(electronApp, window, "uBlock Origin")
+    const pageUrl = `${pageServer.origin}/strict-frames`
+    await window.evaluate((url) => window.onceElectron.tabs.create(url, true), pageUrl)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
+      webContents.getAllWebContents().some((candidate) => candidate.getURL() === url && !candidate.isLoading())
+    , pageUrl), { timeout: 15_000 }).toBe(true)
+
+    const pickerUrl = `moz-extension://${host}/web_accessible_resources/epicker-ui.html`
+    const framed = await electronApp.evaluate(async ({ webContents }, [url, picker]) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === url)
+      await contents.executeJavaScript(`new Promise((resolve) => {
+        const frame = document.createElement("iframe")
+        frame.addEventListener("load", () => resolve())
+        frame.src = ${JSON.stringify(picker)}
+        document.body.append(frame)
+        setTimeout(resolve, 5000)
+      })`)
+      // A refused frame keeps the URL it asked for, as an error document:
+      // what tells the two apart is whether the picker and its API are in it.
+      return Promise.all(contents.mainFrame.frames.map((frame) => frame.executeJavaScript(
+        '({ picker: document.querySelector("svg#sea") !== null, api: typeof browser })'
+      ).catch(() => ({ picker: false, api: "unreachable" }))))
+    }, [pageUrl, pickerUrl])
+    expect(framed.length).toBeGreaterThan(0)
+    for (const frame of framed) expect(frame).toMatchObject({ picker: false, api: expect.not.stringMatching("object") })
+  } finally {
+    await closeApp(electronApp, userData)
+    await pageServer.close()
+  }
+})
+
 // uBlock's dashboard shows each pane in an iframe of the same extension. That
 // frame needs the `browser` object too, and events (port traffic, messages)
 // must reach the frame rather than the dashboard around it: the labels come
