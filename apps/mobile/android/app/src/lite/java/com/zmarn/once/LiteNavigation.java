@@ -36,7 +36,8 @@ final class LiteNavigation extends WebViewClient {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        settings.setMediaPlaybackRequiresUserGesture(false);
+        // A site starts sound only after a tap, as in the GeckoView flavor.
+        settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setSupportMultipleWindows(true);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setAllowFileAccess(false);

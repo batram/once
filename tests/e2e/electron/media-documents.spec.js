@@ -16,6 +16,13 @@ function serve(request, response) {
   } else if (pathname === "/empty") {
     response.writeHead(204)
     response.end()
+  } else if (pathname === "/autoplay") {
+    response.writeHead(200, { "content-type": "text/html" })
+    response.end(`<!doctype html><title>Autoplay</title>
+      <video id="loud" src="/clip.mp4"></video><video id="quiet" src="/clip.mp4" muted></video>
+      <script>for (const media of document.querySelectorAll("video")) {
+        media.play().then(() => { media.dataset.play = "started" }, error => { media.dataset.play = error.name })
+      }</script>`)
   } else if (pathname === "/moved") {
     response.writeHead(302, { location: "/clip.mp4" })
     response.end()
@@ -67,6 +74,16 @@ test("video and audio files opened on their own play in the tab", async () => {
       // stopped has its verdict.
       await expect.poll(() => tabState(window, id)).toMatchObject({ url, loadError: null, loading: false })
     }
+  })
+})
+
+test("a page cannot start sound before the user has touched it", async () => {
+  await withApp(async ({ electronApp, window, origin }) => {
+    const url = `${origin}/autoplay`
+    await window.evaluate(target => window.onceElectron.tabs.create(target, true), url)
+    const played = id => shows(electronApp, url, `document.getElementById(${JSON.stringify(id)})?.dataset.play ?? null`)
+    await expect.poll(() => played("loud")).toBe("NotAllowedError")
+    await expect.poll(() => played("quiet")).toBe("started")
   })
 })
 

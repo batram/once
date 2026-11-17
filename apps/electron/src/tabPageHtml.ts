@@ -27,7 +27,8 @@ export async function tabPageHtml<Entry>(tabs: TabWindow<Entry>, window: Entry, 
   if (!contents) return null
   // Only a real page: an image, PDF or text file shows in a wrapper Chromium builds,
   // and reading that markup would hide the image from text recognition.
-  const page = readLivePage(await contents.executeJavaScript(LIVE_PAGE_SCRIPT, true))
+  // Run without a user gesture: one would let the page start playing sound.
+  const page = readLivePage(await contents.executeJavaScript(LIVE_PAGE_SCRIPT))
   return page ? { html: page.html, url: contents.getURL() } : null
 }
 
@@ -63,7 +64,7 @@ const TAB_PDF_SCRIPT = `(async () => {
 export async function tabPdfBytes<Entry>(tabs: TabWindow<Entry>, window: Entry, url: unknown): Promise<{ bytes: Uint8Array; url: string } | null> {
   const contents = await showingTab(tabs, window, url)
   if (!contents) return null
-  const result: unknown = await contents.executeJavaScript(TAB_PDF_SCRIPT, true)
+  const result: unknown = await contents.executeJavaScript(TAB_PDF_SCRIPT)
   const bytes = result instanceof Uint8Array ? result : result instanceof ArrayBuffer ? new Uint8Array(result) : null
   // A cached error or challenge page is not the document; the signature says which it is.
   if (!bytes || bytes.byteLength > MAX_PDF_BYTES || !isPdf(bytes)) return null

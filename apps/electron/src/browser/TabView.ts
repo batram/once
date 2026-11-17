@@ -38,6 +38,10 @@ export function createTabView(
       sandbox: true,
       webSecurity: true,
       disableHtmlFullscreenWindowResize: true,
+      // Electron lets every page start sound on its own; browsers do not.
+      // Like Chrome, a page plays once the user has clicked or typed in it,
+      // and a muted video may still start by itself.
+      autoplayPolicy: "document-user-activation-required",
       ...(profile
         ? { session: profile.session, preload: profile.preload }
         : isAddonConversationUrl(url)
