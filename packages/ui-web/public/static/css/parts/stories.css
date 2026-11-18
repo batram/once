@@ -106,15 +106,23 @@
    view or not: about 1 ms per move with 190 stories listed, paid by every
    hover and every step of a drag. Skipped rows cost nothing there, and are
    left out of style, paint and layerization as well.
-   A skipped row keeps the height it last had; one never shown yet is taken to
-   be a two-line row, so the scrollbar settles as the list is first read.
+   A skipped row keeps the height it last had, and a guess if it has never
+   been rendered. Guesses made the list change height while it was scrolled,
+   which pulled a dragged scrollbar thumb away from the pointer, so
+   story/rowHeights.ts has every row rendered for a moment whenever heights
+   may be stale; no row is skipped while a list carries its attribute.
    Only where a mouse hovers: a touch list has no pointer moving over it. */
 @media (hover: hover) and (pointer: fine) {
   #stories > .story,
   #filtered_stories > .story,
   #global_search_results > .story {
-    content-visibility: auto;
     contain-intrinsic-block-size: auto 6rem;
+  }
+
+  #stories:not([data-measuring-rows]) > .story,
+  #filtered_stories:not([data-measuring-rows]) > .story,
+  #global_search_results:not([data-measuring-rows]) > .story {
+    content-visibility: auto;
   }
 }
 

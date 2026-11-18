@@ -9,6 +9,7 @@ function load(type) {
   window.document.getSelection = () => selection
   globalThis.window = window
   globalThis.document = window.document
+  globalThis.HTMLElement = window.HTMLElement
   const { initStaleSelectionSweep } = require(
     "../../../packages/ui-web/dist/shell/staleSelection"
   )
@@ -45,4 +46,15 @@ test("a caret or a range the user can see is left alone", async () => {
     await nextTask()
     assert.deepEqual(cleared, [])
   }
+})
+
+test("a focused text field keeps whatever selection it has", async () => {
+  const { window, cleared } = load("None")
+  const field = window.document.createElement("input")
+  window.document.body.append(field)
+  Object.defineProperty(window.document, "activeElement", { configurable: true, get: () => field })
+
+  window.document.body.dispatchEvent(new window.Event("keyup", { bubbles: true }))
+  await nextTask()
+  assert.deepEqual(cleared, [])
 })

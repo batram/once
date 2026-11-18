@@ -8,6 +8,7 @@ import { requireElement } from "../dom"
 import { attachPullToRefresh } from "../gesture/pullToRefresh"
 import { isTouchGestureActive } from "../gesture/touchGestureLock"
 import { placeInOrder } from "./storyOrder"
+import { initRowHeights } from "./rowHeights"
 import { connectStoryListSync } from "./storyListSync"
 import { visibleStoryElements } from "./storyVisibility"
 import { getKeyboardDispatcher } from "../keyboard"
@@ -33,6 +34,7 @@ export interface StoryListOptions {
 export function init(client: OnceClient, options: StoryListOptions = {}): void {
   onceClient = client
   spinTimeout = options.spinTimeout
+  initRowHeights()
   const reload_stories_btn = document.querySelector<HTMLElement>(
     "#reload_stories_btn"
   )

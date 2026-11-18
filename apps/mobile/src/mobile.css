@@ -311,6 +311,16 @@
     touch-action: pan-y;
   }
 
+  /* The shared sheet skips off-screen rows wherever a mouse hovers, to spare
+     desktop hit testing. A phone with a mouse attached qualifies too, but
+     rows here sit at fractional offsets, and the paint containment that comes
+     with skipping snaps their text and rules to a different pixel. */
+  #stories > .story,
+  #filtered_stories > .story,
+  #global_search_results > .story {
+    content-visibility: visible;
+  }
+
   /* Story text keeps the full row width above the optional action strip. */
   .story .data {
     flex: 1 1 100%;

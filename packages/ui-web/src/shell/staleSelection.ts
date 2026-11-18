@@ -10,8 +10,8 @@
  * document (1.2 ms with 190 stories listed), on each frame of a story drag or
  * a hover highlight.
  *
- * A selection that reads "None" has nothing to lose, so clearing it is always
- * safe. That is done once the event that may have removed a field has run its
+ * A selection that reads "None" has nothing to lose, so clearing it is safe
+ * (a focused field is left alone all the same). That is done once the event that may have removed a field has run its
  * course, which is why this waits a task: the removal happens in handlers
  * that run after this one.
  */
@@ -19,6 +19,13 @@ export function initStaleSelectionSweep(): void {
   let queued = false
   const sweep = () => {
     queued = false
+    // Never under a field being typed in. Its caret reads as "Caret" in
+    // every engine tried, but a caret is the one thing this must not cost.
+    const active = document.activeElement
+    if (active instanceof HTMLElement &&
+        (active.isContentEditable || active.matches("input, textarea, select"))) {
+      return
+    }
     const selection = document.getSelection()
     if (selection?.type === "None") selection.removeAllRanges()
   }
