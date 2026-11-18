@@ -5,6 +5,7 @@ import { getOnceClient } from "../client"
 import { isSourcePickerOpen } from "../picker/sourcePicker"
 import { isStoryAnchoredMenuOpen } from "../menu/storyAnchoredMenu"
 import { initPaneFocus } from "../shell/paneFocus"
+import { initStaleSelectionSweep } from "../shell/staleSelection"
 import { registerStoryActionHandlers } from "./storyActionCommands"
 import { getKeyboardDispatcher } from "./index"
 import { activeCommentThread, CommentThreadView } from "../comments/CommentThreadView"
@@ -12,6 +13,7 @@ import { activeCommentThread, CommentThreadView } from "../comments/CommentThrea
 /** Installs the shell-wide keyboard commands and the story cursor. */
 export function mountKeyboard(history: StoryHistory): StoryCursor {
   initPaneFocus()
+  initStaleSelectionSweep()
   const keyboard = getKeyboardDispatcher()
   // The dispatcher listens in the capture phase, so it runs before the
   // document-level handlers these overlays install; it must stand down while

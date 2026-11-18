@@ -9,6 +9,32 @@ import { createSwipeStageLock } from "./stageLock"
  */
 const SWIPE_RELEASE_TIMING: KeyframeAnimationOptions = { duration: 200, easing: "cubic-bezier(.2, .8, .2, 1)" }
 
+/** The idle animation each dragged row holds, see holdDirectMoves. */
+const directMoves = new WeakMap<HTMLElement, Animation>()
+
+/**
+ * Lets the drag move the row's layer without the page being layerized again.
+ *
+ * Chromium updates a composited transform in place only while the element has
+ * a transform animation; `will-change` alone does not count, and without one
+ * every move re-runs layerization for the whole page (about 1 ms per frame
+ * with 190 stories listed). An additive animation of `none` adds nothing to
+ * the offset the drag writes, and paused it schedules no frames of its own.
+ */
+function holdDirectMoves(row: HTMLElement): void {
+  if (directMoves.has(row) || typeof row.animate !== "function") return
+  try {
+    const idle = row.animate(
+      [{ transform: "none" }, { transform: "none" }],
+      { duration: 1000, composite: "add" }
+    )
+    idle.pause()
+    directMoves.set(row, idle)
+  } catch {
+    // An engine without additive animations just keeps the slower path.
+  }
+}
+
 /**
  * Put a dragged row back in its place for good, ending the layer promotion
  * the drag took, so the row is drawn crisp again rather than from a raster
@@ -18,6 +44,8 @@ export function clearRowOffset(row: HTMLElement): void {
   row.style.transition = ""
   row.style.transform = ""
   row.classList.remove("swipe_dragging")
+  directMoves.get(row)?.cancel()
+  directMoves.delete(row)
 }
 
 /** Move a row that rests `from` px off its place back home. */
@@ -153,6 +181,7 @@ export function createSwipeTracker(
       // the user's behalf.
       row.style.transition = "none"
       row.classList.add("swipe_dragging")
+      holdDirectMoves(row)
       row.style.transform = `translateX(${drag_offset}px)`
       onTravel(drag_offset)
     },
