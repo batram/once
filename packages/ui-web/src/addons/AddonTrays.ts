@@ -22,6 +22,8 @@ function isPagePlace(place: TrayPlace): boolean { return place.startsWith("page:
 interface TrayState {
   /** The conversation is one per story; which places show it is the reader's choice per place. */
   open: Set<TrayPlace>
+  /** Top of the story title within the mobile list viewport when this tray opened. */
+  listOffset?: number
   story: StoryView
   title: string
   draft: string
@@ -85,7 +87,8 @@ export class AddonTrays {
   /** The list lets go of a story the reader skipped or read; the mirror and page trays stay as they are. */
   private closeListed(href: string): void {
     for (const { id } of this.manifest.trays ?? []) {
-      if (this.states.get(this.key(href, id))?.open.delete("list")) this.refresh(href, id)
+      const state = this.states.get(this.key(href, id))
+      if (state?.open.has("list")) this.closePlace(state, href, id, "list")
     }
   }
 
@@ -95,7 +98,7 @@ export class AddonTrays {
 
   /** Opens or closes the tray where this row is; the same story elsewhere keeps its own state. */
   toggle(row: StoryListItem, tray: string): void {
-    this.togglePlace(this.state(row, tray), row.story.href, tray, this.place(row))
+    this.togglePlace(this.state(row, tray), row.story.href, tray, this.place(row), row)
   }
 
   /**
@@ -122,10 +125,37 @@ export class AddonTrays {
     return true
   }
 
-  private togglePlace(state: TrayState, href: string, tray: string, place: TrayPlace): void {
-    if (!state.open.delete(place)) state.open.add(place)
+  private togglePlace(state: TrayState, href: string, tray: string, place: TrayPlace, row?: StoryListItem): void {
+    if (state.open.has(place)) {
+      this.closePlace(state, href, tray, place, row)
+      return
+    }
+    if (place === "list" && row && document.body.dataset.platform === "mobile") {
+      const list = row.closest<HTMLElement>(".stories_container")
+      if (list?.clientHeight) {
+        state.listOffset = row.title_line.getBoundingClientRect().top - list.getBoundingClientRect().top
+      }
+    }
+    state.open.add(place)
     this.refresh(href, tray)
     if (state.open.has(place) && this.fresh(state)) void this.run(href, tray, { type: "open" })
+  }
+
+  private closePlace(state: TrayState, href: string, tray: string, place: TrayPlace, row?: StoryListItem | null): void {
+    const offset = place === "list" ? state.listOffset : undefined
+    if (place === "list") delete state.listOffset
+    state.open.delete(place)
+    this.refresh(href, tray)
+    if (!row || offset === undefined) return
+    const list = row.closest<HTMLElement>(".stories_container")
+    if (!list?.clientHeight) return
+
+    // Measure after collapse, when the browser has applied its own scroll
+    // anchoring. A shorter viewport may have less room for the story now.
+    const box = row.title_line.getBoundingClientRect()
+    const current = box.top - list.getBoundingClientRect().top
+    const target = Math.max(0, Math.min(offset, list.clientHeight - box.height))
+    list.scrollTop += current - target
   }
 
   /** A conversation nothing has happened in yet, so opening it asks the addon to begin. */
@@ -363,19 +393,20 @@ export class AddonTrays {
     const header = document.createElement("div")
     header.className = "addon_tray_actions addon_tray_header"
     header.append(heading)
+    const closeTray = () => this.closePlace(state, href, tray, place, root.closest<StoryListItem>("story-item"))
     // A page's own tray is drawn by the platform's reading surface already,
     // so there is nowhere larger to continue it.
     if (this.surface && !isPagePlace(place)) {
       const surface = this.surface
       const open = trayButton(surface.label, () => {
-        if (surface.moves) { state.open.delete(place); this.refresh(href, tray) }
+        if (surface.moves) closeTray()
         surface.open(this.handleOf(href, tray))
       })
       open.dataset.testid = "addon-tray-continue"
       open.prepend(trayIcon("popout", "icon--inline"))
       header.append(open)
     }
-    const close = trayButton("Close", () => { state.open.delete(place); this.refresh(href, tray) })
+    const close = trayButton("Close", closeTray)
     // The label becomes the accessible name so the glyph can replace the word.
     close.classList.add("button--icon")
     close.setAttribute("aria-label", close.textContent ?? "Close")

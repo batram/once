@@ -2,6 +2,7 @@ const { test, expect } = require("@playwright/test")
 const { seedFixtureStories } = require("./helpers/stories")
 const { openSettingsSection } = require("./helpers/settings")
 const { installAiAddon } = require("../shared/ai-addon-ui")
+const { touchDrag } = require("./helpers/gestures")
 const { triggerMobileBack } = require("./helpers/mobile-app")
 
 // A finger dragged across the tray. Playwright's touchscreen only taps, so the
@@ -67,6 +68,59 @@ test("a left swipe on a story's tray closes it, with an indicator while dragging
 
   await traySwipe(tray, -100)
   await expect(tray).toHaveCount(0)
+})
+
+test("closing a long tray returns to its story at the opening position", async ({ page }) => {
+  // Enough real rows on either side that collapsing the tray cannot restore
+  // the story just by hitting the beginning or end of the list.
+  await page.route("**/fixtures/feed.rss", async route => {
+    const response = await route.fetch()
+    const items = Array.from({ length: 80 }, (_, i) => {
+      const url = new URL(`/fixtures/story-${i}`, route.request().url())
+      const date = new Date(Date.UTC(2030, 6, 15, 10, i - 40, 30)).toUTCString()
+      return `<item><title>Feed story ${i}</title><link>${url}</link><pubDate>${date}</pubDate></item>`
+    })
+    await route.fulfill({ response, body: (await response.text()).replace("</channel>", items.join("") + "</channel>") })
+  })
+  await page.route("**/ai-addon/v1/chat/completions", async route => {
+    const response = await route.fetch()
+    const result = await response.json()
+    const message = result.choices[0].message
+    message.content = message.content.replace("for organizing projects.", "for organizing projects." +
+      "\n\nEach project keeps the tasks, notes and decisions for that piece of work together.".repeat(80))
+    await route.fulfill({ response, json: result })
+  })
+  const story = await setUp(page)
+  const list = page.getByTestId("stories")
+  const top = () => story.evaluate(row => row.getBoundingClientRect().top)
+  for (const [theme, width, action] of [["light", 360, "close"], ["dark", 412, "continue"]]) {
+    await page.setViewportSize({ width, height: 820 })
+    await openSettingsSection(page, "theme")
+    await page.getByTestId("theme").selectOption(theme)
+    await page.getByTestId("stories-menu").click()
+    await story.evaluate(row => row.scrollIntoView({ block: "center" }))
+    if (action === "continue") await list.evaluate(el => { el.scrollTop += 150 })
+    const openedAt = await top()
+    const tray = await openTray(page, story)
+    // A row disappears above the story while reading. Restoring the old
+    // absolute scrollTop would now put a different story at the opening spot.
+    await story.evaluate(row => row.previousElementSibling.remove())
+    const paragraph = tray.locator(".addon_tray_assistant p").nth(40)
+    await paragraph.scrollIntoViewIfNeeded()
+    expect(await top()).toBeLessThan(0)
+    await page.screenshot({ path: test.info().outputPath(`tray-scrolled-${theme}.png`) })
+    const release = await touchDrag(page, paragraph, action === "close" ? -100 : 100)
+    await release()
+    if (action === "continue") {
+      await expect(page.locator("#reading_addon_trays")).toBeVisible()
+      await page.getByTestId("stories-menu").click()
+    }
+    await expect(tray).toHaveCount(0)
+    expect(Math.abs(await top() - openedAt)).toBeLessThanOrEqual(1)
+    await expect(story.locator("a.title")).toBeInViewport({ ratio: 1 })
+    expect(await list.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1)
+    await page.screenshot({ path: test.info().outputPath(`tray-restored-${theme}.png`) })
+  }
 })
 
 test("a right swipe on a story's tray, or its continue button, moves the conversation to a new tab", async ({ page }, testInfo) => {
