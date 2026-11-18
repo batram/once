@@ -121,8 +121,8 @@ export function buildTitleLine(
 }
 
 /**
- * A filtered row shows the rule that hid it, as a read-only field that jumps
- * to the rule in settings rather than an editable input. The button and its
+ * On desktop a filtered row shows the rule in a read-only field that jumps
+ * to settings. Mobile shows the rule with the story tags. The button and its
  * field (that rule, or the editor storyFilterView opens) share a
  * `.filter_control` in `group`: one control to the eye and to the button
  * preferences. The field is never inside the button, where it is invalid
@@ -136,8 +136,14 @@ export function buildFilterButton(row: StoryListItem, group: HTMLElement): HTMLE
   group.appendChild(control)
   if (!row.story.filter) return filter_btn
 
-  filter_btn.title = "filtered"
   row.classList.add("filtered")
+  filter_btn.classList.add("filter_btn--active")
+  if (document.body.dataset.platform === "mobile") {
+    filter_btn.title = row.filterActionLabel()
+    filter_btn.setAttribute("aria-label", filter_btn.title)
+    return filter_btn
+  }
+  filter_btn.title = "filtered"
   const dinp = document.createElement("input")
   dinp.className = "filter_field filter_input"
   dinp.type = "text"
@@ -147,12 +153,22 @@ export function buildFilterButton(row: StoryListItem, group: HTMLElement): HTMLE
   dinp.addEventListener("click", (event) => {
     event.stopPropagation()
     if (SettingsPanel.instance) {
-      SettingsPanel.instance.highlight_filter(row.story.filter, true)
+      SettingsPanel.instance.highlight_filter(row.story.filter)
     }
   })
-  filter_btn.classList.add("filter_btn--active")
   control.appendChild(dinp)
   return filter_btn
+}
+
+export function createStoryFilterTag(filter: string): HTMLButtonElement {
+  const tag = createIconButton(`Edit filter: ${filter}`, "tag", "filter")
+  tag.classList.add("tag--filter")
+  tag.append(filter)
+  tag.addEventListener("click", (event) => {
+    event.stopPropagation()
+    SettingsPanel.instance.highlight_filter(filter)
+  })
+  return tag
 }
 
 /** Dev-channel only; deletes the story from the local and synced database. */

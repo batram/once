@@ -385,8 +385,8 @@ export class StoryListItem extends HTMLElement {
   }
 
   showFilterAction(event?: MouseEvent): void {
-    if (this.classList.contains("filtered")) {
-      SettingsPanel.instance?.highlight_filter(this.story.filter, true)
+    if (this.story.filter) {
+      SettingsPanel.instance?.highlight_filter(this.story.filter)
       return
     }
     if (document.body.dataset.platform === "mobile") {

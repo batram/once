@@ -110,10 +110,7 @@ async function openNativeStoryMenu(
       }))
     }) as StoryMenuActionId | null
     if (!selected) return
-    if (
-      selected === "filter" &&
-      !request.story.classList.contains("filtered")
-    ) {
+    if (selected === "filter" && !request.story.story.filter) {
       await showNativeFilterPrompt(surface, request.story)
       return
     }

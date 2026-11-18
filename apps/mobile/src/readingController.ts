@@ -550,7 +550,7 @@ export class MobileReadingController {
       displayedStory ? `[${displayedStory.type}]` : ""
     required("#reading_story_menu").dataset.type =
       displayedStory ? `[${displayedStory.type}]` : ""
-    renderStoryTags(displayedStory?.tags ?? [])
+    renderStoryTags(displayedStory)
     const address = required<HTMLInputElement>("#reading_url")
     if (!this.editingAddress) address.value = state.currentUrl
     required("#reading_reader_toggle").classList.toggle(

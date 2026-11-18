@@ -421,9 +421,32 @@
     min-width: 0;
   }
 
-  .story .story_tag_labels .tag {
+  .story .story_tag_labels .tag,
+  .story .tag--filter {
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+
+  .story .tag--filter {
+    height: auto;
+    min-height: 0;
+    margin: var(--sp-0-5);
+    padding: var(--sp-0-5) var(--sp-1);
+    border: thin solid var(--text-color);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-high-color);
+    font: inherit;
+    text-align: start;
+    white-space: normal;
+  }
+
+  .story .tag--filter .icon {
+    --icon-size: 1em;
+  }
+
+  .story .tag--filter:active {
+    background: var(--m-pressed-bg);
   }
 
   /* Reserve action space beside wrapped tags, including when a tray is open. */

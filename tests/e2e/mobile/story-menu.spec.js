@@ -110,6 +110,58 @@ test("filter actions open a visible editor from the menu and a swipe", async ({ 
   await expect(page.locator("#filter_area")).toHaveValue(/fixture-filter\.example/)
 })
 
+test("the story and reading tags and the story menu open the matching filter for editing", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+  await story.getByTestId("story-menu-button").click()
+  await page.getByTestId("story-menu-filter").click()
+  await page.getByTestId("text-input-value").fill("Fixture article")
+  await page.getByTestId("text-input-accept").click()
+  await expect(story).toHaveClass(/\bfiltered\b/)
+
+  // A previous search in Settings can hide the rule this story links to.
+  await page.getByTestId("settings-menu").click()
+  await page.locator('[data-settings-target="filters"]').click()
+  await page.getByTestId("filters-list-search").fill("other rule")
+  await page.locator("#settings_section_back").click()
+  await page.getByTestId("stories-menu").click()
+  await page.locator("#mobile_filter_chips").getByText("[filtered]", { exact: true }).click()
+  const tagName = { name: "Edit filter: Fixture article", exact: true }
+  const tag = story.getByRole("button", tagName)
+  await expect(tag).toHaveText("Fixture article")
+  await expect(tag.locator(".icon--filter")).toBeVisible()
+  await tag.tap()
+  const input = page.getByTestId("filter-inline-input")
+  await expect(input).toBeFocused()
+  await expect(input).toHaveValue("Fixture article")
+  await input.press("Escape")
+  await page.getByTestId("stories-menu").click()
+  await story.getByTestId("story-title").click()
+  await page.locator("#reading_story_tags").getByRole("button", tagName).tap()
+  await expect(input).toBeFocused()
+  await expect(input).toHaveValue("Fixture article")
+  await input.press("Escape")
+  await page.getByTestId("stories-menu").click()
+  await openStoryMenu(page, story)
+  const action = page.getByTestId("story-menu-filter")
+  await expect(action).toHaveText("Edit filter")
+  await action.click()
+
+  await expect(input).toBeInViewport()
+  await expect(input).toBeFocused()
+  await expect(input).toHaveValue("Fixture article")
+  // The native keyboard reduces the available height after focus.
+  await page.setViewportSize({ width: page.viewportSize().width, height: 530 })
+  await expect(input).toBeInViewport({ ratio: 1 })
+  await input.fill("unrelated keyword")
+  await page.getByTestId("save-inline-filter").click()
+  await expect(page.getByRole("button", { name: "unrelated keyword", exact: true })).toBeVisible()
+  await page.getByTestId("stories-menu").click()
+  await page.locator("#mobile_filter_chips").getByText("[ALL]", { exact: true }).click()
+  await expect(story).toBeVisible()
+  await expect(story).not.toHaveClass(/\bfiltered\b/)
+  await expect(tag).toHaveCount(0)
+})
+
 test("a long-press that becomes a drag shows progress and opens nothing", async ({ page }) => {
   const story = await seedFixtureStories(page)
 

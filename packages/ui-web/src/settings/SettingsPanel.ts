@@ -643,17 +643,15 @@ export class SettingsPanel {
     this.refreshSettingsSearch()
   }
 
-  public highlight_filter(filter: string, shouldOpenPanel = true): void {
-    console.log("SettingsPanel: highlighting filter", filter)
-    if (shouldOpenPanel) this.openSettingsSection("filters")
-    if (shouldOpenPanel && this.structuredEditors?.focusFilter(filter)) return
-    highlightTextareaContent(
-      "filter_area",
-      filter,
-      shouldOpenPanel,
-      false,
-      () => panelNavigation.open_panel("settings")
-    )
+  public highlight_filter(filter: string): void {
+    panelNavigation.open_panel("settings")
+    this.openSettingsSection("filters")
+    // The section sets its default focus in the next frame. Open the editor
+    // afterwards so it keeps focus and its blur handler cannot close it.
+    requestAnimationFrame(() => {
+      if (this.structuredEditors?.focusFilter(filter)) return
+      highlightTextareaContent("filter_area", filter)
+    })
   }
 
   public highlightSource(sourceId: string): void {

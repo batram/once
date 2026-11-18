@@ -1,3 +1,5 @@
+import type { Story } from "@once/core"
+import { createStoryFilterTag } from "@once/ui-web"
 import { bindSettingsIssueIcons } from "./settingsIssueIcons"
 
 // The one remembered choice for the current-story card: the Settings select
@@ -17,16 +19,12 @@ export function rememberStoryCardCollapsed(collapsed: boolean): void {
   } catch { /* private mode or quota: the choice lasts the session */ }
 }
 
-export function renderStoryTags(tags: Array<{
-  class: string
-  text: string
-  href?: string
-  icon?: string
-}>): void {
+export function renderStoryTags(story: Story | null): void {
   const container = document.querySelector("#reading_story_tags")
   if (!container) return
   container.replaceChildren()
-  for (const tag of tags) {
+  if (story?.filter) container.append(createStoryFilterTag(story.filter))
+  for (const tag of story?.tags ?? []) {
     const element = document.createElement("span")
     element.classList.add("tag", `tag_${tag.class}`)
     element.textContent = tag.text

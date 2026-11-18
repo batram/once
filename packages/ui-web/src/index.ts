@@ -1,4 +1,5 @@
 export { StoryListItem } from "./story/StoryListItem"
+export { createStoryFilterTag } from "./story/storyRowMarkup"
 export { UndoButton } from "./story/UndoButton"
 export * as StoryList from "./story/storyList"
 export { STORY_RELOAD_STARTED, type StoryReloadTrigger } from "./story/storyList"

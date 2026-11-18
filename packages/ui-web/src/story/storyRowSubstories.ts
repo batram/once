@@ -4,6 +4,7 @@ import { getOnceClient } from "../client"
 import { requestReading } from "../ReadingSession"
 import { bindLinkBehavior, openStoryUrl } from "./storyLinks"
 import { canOpenCommentsInPanel } from "./commentsPanel"
+import { createStoryFilterTag } from "./storyRowMarkup"
 import type { StoryListItem } from "./StoryListItem"
 
 /**
@@ -76,7 +77,8 @@ function commentsInPanelLink(row: StoryListItem, commentsUrl: string): HTMLAncho
 /** One source line: type badge, comments link, time, tags. */
 function buildInfoBlock(
   row: StoryListItem,
-  sub_story_ob: SubStory
+  sub_story_ob: SubStory,
+  primary: boolean
 ): HTMLElement {
   const info = document.createElement("div")
   info.classList.add("info")
@@ -129,6 +131,9 @@ function buildInfoBlock(
 
   const tags_container = document.createElement("div")
   tags_container.classList.add("tags_container")
+  if (primary && row.story.filter && document.body.dataset.platform === "mobile") {
+    tags_container.append(createStoryFilterTag(row.story.filter))
+  }
   if (sub_story_ob.tags) {
     sub_story_ob.tags.forEach((tag) => {
       tags_container.append(tagElement(row, tag))
@@ -157,8 +162,8 @@ export function renderSubstories(row: StoryListItem): void {
     if (!subs.some((seen) => sameDiscussion(seen.comment_url, sub.comment_url))) subs.push(sub)
   })
 
-  subs.forEach((x: SubStory) => {
-    row.substories_el.append(buildInfoBlock(row, x))
+  subs.forEach((sub, index) => {
+    row.substories_el.append(buildInfoBlock(row, sub, index === 0))
   })
   positionStoryButtons(row)
 }

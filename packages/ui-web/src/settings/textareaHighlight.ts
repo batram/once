@@ -37,16 +37,9 @@ export function scrollTextareaSelectionIntoView(
 
 export function highlightTextareaContent(
   textareaId: string,
-  searchText: string,
-  shouldOpenPanel: boolean,
-  triggerInputEvent: boolean,
-  openSettingsPanel: () => void
+  searchText: string
 ): void {
-  if (shouldOpenPanel) openSettingsPanel()
   const textarea = requireElement<HTMLTextAreaElement>(`#${textareaId}`)
-  if (triggerInputEvent) textarea.dispatchEvent(new Event("input"))
-  if (!shouldOpenPanel) return
-
   const text = textarea.value
   const lines = text.split("\n")
   let startIndex = -1

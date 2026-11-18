@@ -1,6 +1,7 @@
 import { SourceError } from "@once/app"
 import { Redirect, StorySourceDocument } from "@once/core"
 import { AnchoredMenuItem, openAnchoredMenu } from "../menu/storyAnchoredMenu"
+import { revealElement } from "../scrollReveal"
 import {
   applyStructuredSearch,
   renderStructuredSearch,
@@ -199,6 +200,13 @@ export class StructuredSettingsEditors {
     root.dataset.testid = `${section}-structured-list`
     input.before(root)
     this.roots.set(section, root)
+    if (section === "filters" && this.onTouch && typeof ResizeObserver !== "undefined") {
+      // The native keyboard shrinks the list after the editor has taken focus.
+      new ResizeObserver(() => {
+        const row = root.querySelector<HTMLElement>(".structured_row_editing:focus-within")
+        if (row) revealElement(row, { block: "center" })
+      }).observe(root)
+    }
     registerSettingsOverview(root, () => {
       this.modes.set(section, "list")
       this.read(section)
@@ -407,7 +415,12 @@ export class StructuredSettingsEditors {
 
   focusFilter(filter: string): boolean {
     if (this.isTextMode("filters")) return false
-    return this.flatEditors.focusFilter(filter)
+    if (this.searchQueries.get("filters")) {
+      this.searchQueries.delete("filters")
+      this.render("filters")
+    }
+    this.flatEditors.focusFilter(filter)
+    return true
   }
 
   openSettingsSearchMatch(section: string, startIndex: number): boolean {

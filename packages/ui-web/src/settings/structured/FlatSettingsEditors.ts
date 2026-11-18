@@ -57,15 +57,10 @@ export class FlatSettingsEditors {
     this.redirects = parseRedirectRows(text)
   }
 
-  focusFilter(filter: string): boolean {
+  focusFilter(filter: string): void {
     const root = this.host.root("filters")
-    const target = Array.from(root?.querySelectorAll<HTMLButtonElement>(
-      "[data-filter-value]"
-    ) || []).find((button) => button.dataset.filterValue === filter)
-    target?.focus({ preventScroll: true })
-    if (target) revealElement(target, { block: "center" })
-    target?.click()
-    return true
+    const index = this.filters.indexOf(filter)
+    if (root && index >= 0) this.editFilterAt(root, index)
   }
 
   editFilterAt(root: HTMLElement, index: number): void {
